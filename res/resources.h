@@ -10,5 +10,9 @@ extern const Image characters_greyscale;
 extern const SpriteDefinition character_selector;
 extern const SpriteDefinition sega_logo_sprite;
 extern const SpriteDefinition faces_hud;
+extern const SpriteDefinition don_player;
+extern const SpriteDefinition leo_player;
+extern const SpriteDefinition raph_player;
+extern const SpriteDefinition mike_player;
 
 #endif // _RES_RESOURCES_H_

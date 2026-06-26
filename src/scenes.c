@@ -2,6 +2,13 @@
 #include "sprites.h"
 #include "audio.h"
 
+Sprite* donSprite;
+Sprite* leoSprite;
+Sprite* raphSprite;
+Sprite* mikeSprite;
+u8 personajeSeleccionado = 0; // 0, 1, 2 o 3 dependiendo de la totuga
+
+
 // Función auxiliar de limpieza
 void clearScene() {
     // 1. Apagar la pantalla (Brillo a cero)
@@ -226,6 +233,7 @@ SceneId showCharSelect() {
 
         // Confirmación de selección[cite: 4]
         if (value & BUTTON_START) {
+            personajeSeleccionado = selectedCharacter; //Guardamos el dato de que tortu eligio
             break; // Salimos del bucle para avanzar de escena
         }
 
@@ -297,10 +305,30 @@ SceneId showLevel1Title() {
 
 SceneId showLevel1()
 {
+    clearScene();
+    SPR_init();
+    
+    // Creamos un puntero genérico que apuntará al recurso correcto
+    const SpriteDefinition* spriteDeLaTortuga = &don_player; // Por defecto
+
+    // Comprobamos qué personaje se guardó en la pantalla de selección
+    switch(personajeSeleccionado) {
+        case 0: spriteDeLaTortuga = &leo_player; break;  // Ajusta según tu orden
+        case 1: spriteDeLaTortuga = &mike_player; break;
+        case 2: spriteDeLaTortuga = &don_player; break;
+        case 3: spriteDeLaTortuga = &raph_player; break;
+    }
+
+    // Añadimos el sprite usando el puntero genérico en vez del recurso directamente
+    donSprite = SPR_addSprite(spriteDeLaTortuga, 100, 120, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+
+    // Cargamos la paleta usando también el puntero genérico
+    PAL_setPalette(PAL1, spriteDeLaTortuga->palette->data, DMA);
+
     // El juego en sí
     while (1)
     {
+        SPR_update();
         SYS_doVBlankProcess();
     }
-    return SCENE_SEGA;
 }
