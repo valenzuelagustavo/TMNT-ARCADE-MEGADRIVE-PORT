@@ -18,4 +18,4 @@ out/src/scenes.o: src/scenes.c res/scenes.h C:/SGDK/inc/genesis.h \
  C:/SGDK/inc/ext/flash-save/flash.h C:/SGDK/inc/types.h \
  C:/SGDK/inc/ext/flash-save/saveman.h C:/SGDK/inc/ext/console.h \
  C:/SGDK/inc/config.h C:/SGDK/inc/string.h C:/SGDK/inc/maths.h \
- C:/SGDK/inc/dma.h res/resources.h res/sprites.h res/audio.h
+ C:/SGDK/inc/dma.h res/resources.h res/sprites.h res/audio.h res/player.h

@@ -1,6 +1,7 @@
 #include "scenes.h"
 #include "sprites.h"
 #include "audio.h"
+#include "player.h"
 
 Sprite* donSprite;
 Sprite* leoSprite;
@@ -308,26 +309,14 @@ SceneId showLevel1()
     clearScene();
     SPR_init();
     
-    // Creamos un puntero genérico que apuntará al recurso correcto
-    const SpriteDefinition* spriteDeLaTortuga = &don_player; // Por defecto
+    // Inicializas el jugador con la variable global que guardaste en el menú
+    initPlayer(personajeSeleccionado);
 
-    // Comprobamos qué personaje se guardó en la pantalla de selección
-    switch(personajeSeleccionado) {
-        case 0: spriteDeLaTortuga = &leo_player; break;  // Ajusta según tu orden
-        case 1: spriteDeLaTortuga = &mike_player; break;
-        case 2: spriteDeLaTortuga = &don_player; break;
-        case 3: spriteDeLaTortuga = &raph_player; break;
-    }
-
-    // Añadimos el sprite usando el puntero genérico en vez del recurso directamente
-    donSprite = SPR_addSprite(spriteDeLaTortuga, 100, 120, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
-
-    // Cargamos la paleta usando también el puntero genérico
-    PAL_setPalette(PAL1, spriteDeLaTortuga->palette->data, DMA);
-
-    // El juego en sí
     while (1)
     {
+        // 1. Delegas toda la lógica de movimiento y joystick a tu nuevo archivo
+        updatePlayerInput(); 
+        
         SPR_update();
         SYS_doVBlankProcess();
     }
