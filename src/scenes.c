@@ -1,323 +1,513 @@
 #include "scenes.h"
-#include "sprites.h"
-#include "audio.h"
-#include "player.h"
+#include "intro.h"   // sega_logo_spr, rocksteady_spr
+#include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
+#include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), title_font, title_font_pal
+#include "audio.h"   // music_sega, golpe, music_level1, select_music
+#include "player.h"  // sistema del jugador (incluye chars.h internamente)
 
-Sprite* donSprite;
-Sprite* leoSprite;
-Sprite* raphSprite;
-Sprite* mikeSprite;
-u8 personajeSeleccionado = 0; // 0, 1, 2 o 3 dependiendo de la totuga
+// Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
+#ifndef IS_PAL_SYSTEM
+#define IS_PAL_SYSTEM IS_PALSYSTEM
+#endif
 
+// ---------------------------------------------------------------------------
+// Nivel 1 — constantes de cámara y mundo
+// ---------------------------------------------------------------------------
+#define LEVEL1_PIXEL_WIDTH   1376   // Ancho del fondo completo (172 tiles x 8px)
+#define SCREEN_PIXEL_WIDTH   320    // Ancho visible de la MegaDrive
+#define CAM_MAX_X            (LEVEL1_PIXEL_WIDTH - SCREEN_PIXEL_WIDTH)  // 1056
+#define CAM_DEAD_ZONE_RIGHT  192    // Player X pantalla > este valor → scroll derecha
+#define CAM_DEAD_ZONE_LEFT    80    // Player X pantalla < este valor → scroll izquierda
 
-// Función auxiliar de limpieza
+#define BG_PLANE_W           64     // Ancho del plano circular de fondo (tiles)
+
+// ---------------------------------------------------------------------------
+// Estado global de selección (necesario entre escenas)
+// ---------------------------------------------------------------------------
+u8 personajeSeleccionado  = 0;  // P1: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
+u8 personaje2Seleccionado = 3;  // P2: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
+u8 cantidadJugadores      = 1;  // 1 o 2 jugadores
+
+// ---------------------------------------------------------------------------
+// clearScene — limpieza completa entre escenas
+// ---------------------------------------------------------------------------
 void clearScene() {
-    // 1. Apagar la pantalla (Brillo a cero)
-    PAL_fadeOutAll(20, FALSE); 
-    
-    // 2. Esperar a que el Fade termine de verdad[cite: 3]
+    PAL_fadeOutAll(20, FALSE);
     while(PAL_isDoingFade()) {
-        SYS_doVBlankProcess(); 
+        SYS_doVBlankProcess();
     }
-
-    // 3. Detener todo proceso de audio y sprites
     XGM_stopPlay();
     SPR_reset();
-    
-    // 4. Limpieza total de planos
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
-    
-    // 5. Forzar que el fondo sea negro antes de cargar nada nuevo
-    VDP_setBackgroundColor(0); 
-    
-    // 6. Asegurar que los cambios se apliquen al VDP
+    VDP_setBackgroundColor(0);
     SYS_doVBlankProcess();
 }
 
-// 1. Aquí pega tu código de la intro de SEGA que ya tenías
-SceneId showSegaIntro()
-{
-    // ... todo el código de Rocksteady chocando el logo ...
-    // Usamos NULL para las paletas inicialmente y las cargamos luego
-    Sprite *segaLogo = SPR_addSprite(&sega_logo_spr, 104, 92, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+// ---------------------------------------------------------------------------
+// Helper — detección de flanco (botón recién presionado este frame)
+// ---------------------------------------------------------------------------
+static bool justPressedJoy(u16 joy, u16 prev, u16 button) {
+    return (bool)((joy & button) && !(prev & button));
+}
+
+// Mueve la selección en 'dir' (+1/-1) sin pisar al otro jugador ni salir de
+// rango [0..3]. Si la celda contigua está ocupada por el otro jugador, la
+// saltea. Como hay 4 personajes y 2 jugadores, siempre queda una celda libre.
+static s8 charMove(s8 self, s8 other, s8 dir) {
+    s8 c = self + dir;
+    if (c < 0 || c > 3) return self;
+    if (c == other) { c += dir; if (c < 0 || c > 3) return self; }
+    return c;
+}
+
+// ===========================================================================
+// STREAMING DE FONDO — recorrido del nivel completo (más ancho que el plano)
+// ===========================================================================
+// El fondo (1376px) no entra en ningún plano de la MegaDrive. La técnica:
+//  1. Se cargan TODOS los tiles únicos (~495) a VRAM una sola vez.
+//  2. El plano BG_B es circular de 64 tiles (512px). Se dibujan columnas
+//     nuevas por el borde derecho a medida que la cámara avanza, reescribiendo
+//     columnas viejas que ya quedaron fuera de pantalla a la izquierda.
+//  3. El scroll horizontal (-cameraX) se encarga de mostrar la ventana correcta.
+// Como es beat-em-up, la cámara nunca retrocede → solo revelamos a la derecha.
+// ---------------------------------------------------------------------------
+static const u16* bgMapData;   // tilemap completo en ROM (sin comprimir)
+static u16        bgMapW;      // ancho del mapa en tiles (172)
+static u16        bgMapH;      // alto del mapa en tiles (28)
+static u16        bgBaseAttr;  // atributo base: paleta + índice base en VRAM
+static s16        bgLastCol;   // última columna FUENTE ya volcada al plano
+
+// Vuelca una columna del mapa fuente (srcCol) en su posición circular del plano
+static void bgDrawColumn(u16 srcCol) {
+    u16 destCol = srcCol & (BG_PLANE_W - 1);
+    const u16* p = bgMapData + srcCol;   // primer tile de esa columna
+    for (u16 ty = 0; ty < bgMapH; ty++) {
+        VDP_setTileMapXY(BG_B, bgBaseAttr + p[ty * bgMapW], destCol, ty);
+    }
+}
+
+// Inicializa el fondo del nivel: paleta, tileset a VRAM y primeras columnas
+static void bgInit() {
+    VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);   // plano circular 64x32 (default seguro)
+
+    PAL_setPalette(PAL0, bg_level1.palette->data, DMA);
+    VDP_loadTileSet(bg_level1.tileset, TILE_USER_INDEX, DMA);
+
+    bgMapData  = bg_level1.tilemap->tilemap;
+    bgMapW     = bg_level1.tilemap->w;
+    bgMapH     = bg_level1.tilemap->h;
+    bgBaseAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX);
+
+    // Dibujar las primeras 64 columnas (o menos si el mapa fuera más corto)
+    u16 initCols = (bgMapW < BG_PLANE_W) ? bgMapW : BG_PLANE_W;
+    for (u16 c = 0; c < initCols; c++) bgDrawColumn(c);
+    bgLastCol = (s16)initCols - 1;
+}
+
+// Revela las columnas necesarias para la posición de cámara y aplica el scroll
+static void bgUpdate(s16 cameraX) {
+    // Columna fuente que debe estar lista: borde derecho visible + 1 de margen
+    s16 need = (cameraX >> 3) + (SCREEN_PIXEL_WIDTH >> 3) + 1;
+    if (need > (s16)bgMapW - 1) need = (s16)bgMapW - 1;
+    while (bgLastCol < need) {
+        bgLastCol++;
+        bgDrawColumn((u16)bgLastCol);
+    }
+    VDP_setHorizontalScroll(BG_B, -cameraX);
+}
+
+// ---------------------------------------------------------------------------
+// 1. Intro SEGA — Rocksteady choca el logo
+// ---------------------------------------------------------------------------
+SceneId showSegaIntro() {
+    Sprite *segaLogo   = SPR_addSprite(&sega_logo_spr,  104, 92, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
     Sprite *rocksteady = SPR_addSprite(&rocksteady_spr, -90, 80, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
 
     PAL_setPalette(PAL0, sega_logo_spr.palette->data, DMA);
     PAL_setPalette(PAL1, rocksteady_spr.palette->data, DMA);
 
-    s16 rockX = -90;
-    u16 timerKO = 0;
-    u16 estado = 0; // 0: Corriendo, 1: Impacto, 2: KO, 3: Fade
+    s16  rockX  = -90;
+    u16  timerKO = 0;
+    u16  estado  = 0;  // 0:corriendo 1:impacto 2:KO 3:fade
 
-    SPR_setAnim(segaLogo, 0);
+    SPR_setAnim(segaLogo,   0);
     SPR_setAnim(rocksteady, 0);
-
-    // 1. Empezar a reproducir la música en bucle (loop)
     XGM_startPlay(music_sega);
 
-    while (1)
-    {
-        if (estado == 0)
-        {
+    while (1) {
+        if (estado == 0) {
             rockX += 3;
-            if (rockX >= 40)
-            {
+            if (rockX >= 40) {
                 estado = 1;
-                SPR_setAnim(segaLogo, 1);
+                SPR_setAnim(segaLogo,   1);
                 SPR_setAnim(rocksteady, 1);
                 XGM_stopPlay();
                 XGM_startPlay(golpe);
             }
-        }
-        else if (estado == 1)
-        {
-            timerKO++;
-            if (timerKO > 20)
-            {
-                estado = 2;
-                SPR_setAnim(rocksteady, 2);
-                timerKO = 0;
-            }
-        }
-        else if (estado == 2)
-        {
-            timerKO++;
-            if (timerKO > 60)
-            {
-                estado = 3;
-                PAL_fadeOutAll(30, FALSE);
-            }
-        }
-        else if (estado == 3)
-        {
-            if (!PAL_isDoingFade())
-                break;
+        } else if (estado == 1) {
+            if (++timerKO > 20) { estado = 2; SPR_setAnim(rocksteady, 2); timerKO = 0; }
+        } else if (estado == 2) {
+            if (++timerKO > 60) { estado = 3; PAL_fadeOutAll(30, FALSE); }
+        } else if (estado == 3) {
+            if (!PAL_isDoingFade()) break;
         }
 
         SPR_setPosition(rocksteady, rockX, 80);
         SPR_update();
-        SYS_doVBlankProcess(); // Cambiado para evitar el warning
-    }
-// Al terminar:
-    PAL_fadeOutAll(20, FALSE);
-    while(PAL_isDoingFade()) {
         SYS_doVBlankProcess();
     }
 
-    // LIBERACIÓN MANUAL: Esto quita los sprites del motor antes de cargar nada más
-    if (segaLogo) SPR_releaseSprite(segaLogo);
+    if (segaLogo)   SPR_releaseSprite(segaLogo);
     if (rocksteady) SPR_releaseSprite(rocksteady);
-    
-    // Forzamos un update para que el VDP sepa que ya no existen
     SPR_update();
     SYS_doVBlankProcess();
 
-    clearScene(); 
+    clearScene();
     return SCENE_PLAYER_SELECT;
 }
 
-// 2. Las demás deben existir como "cascarones" para que no den error
-SceneId showKonamiIntro()
-{
-    // Vacío por ahora
-    return SCENE_SGDK;
-}
+// ---------------------------------------------------------------------------
+// 2-4. Intros pendientes (stubs)
+// ---------------------------------------------------------------------------
+SceneId showKonamiIntro()  { return SCENE_SGDK; }
+SceneId showSGDKIntro()    { return SCENE_INTRO_ARCADE; }
+SceneId showArcadeIntro()  { return SCENE_PLAYER_SELECT; }
 
-SceneId showSGDKIntro()
-{
-    return SCENE_INTRO_ARCADE;
-}
-
-SceneId showArcadeIntro()
-{
-    return SCENE_PLAYER_SELECT;
-}
-
-// ¡Esta es una de las que te falta según el error!
-SceneId showPlayerSelect()
-{
+// ---------------------------------------------------------------------------
+// 5. Selección de número de jugadores
+// ---------------------------------------------------------------------------
+SceneId showPlayerSelect() {
     clearScene();
 
-    // Setear el fondo azul estilo arcade (Color 0 de PAL0)
-    VDP_setBackgroundColor(0x0044); // Un azul oscuro (Formato VDP: 0x0BGR)
-
-    // Cargar el logo de fondo (recurso "logo" en tu .res)[cite: 4, 5]
+    VDP_setBackgroundColor(0x0040);
     PAL_setPalette(PAL0, logo.palette->data, DMA);
     VDP_drawImageEx(BG_B, &logo, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 3, 0, FALSE, TRUE);
 
-    // Escribir los textos que tenías en 2025
-    VDP_drawText("1 TORTUGA", 14, 18);
+    VDP_drawText("1 TORTUGA",  14, 18);
     VDP_drawText("2 TORTUGAS", 14, 20);
     VDP_drawText("Desarrollado por: Gustavo Valenzuela", 2, 26);
 
-    // Cursor (recurso "selector_turtle")[cite: 4, 5]
     Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 14 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
 
     u8 selectedOption = 0;
 
-    while (1)
-    {
+    while (1) {
         u16 value = JOY_readJoypad(JOY_1);
 
-        if (value & BUTTON_UP)
-            selectedOption = 0;
-        if (value & BUTTON_DOWN)
-            selectedOption = 1;
+        if (value & BUTTON_UP)   selectedOption = 0;
+        if (value & BUTTON_DOWN) selectedOption = 1;
 
-        // Actualizar posición del cursor[cite: 4]
         SPR_setPosition(cursor, 8 * 8, (14 + selectedOption * 2) * 8);
 
-        if (value & BUTTON_START)
-            break;
+        if (value & BUTTON_START) break;
 
         SPR_update();
         SYS_doVBlankProcess();
     }
 
-    return SCENE_CHAR_SELECT; // Ir a selección de personajes
+    // selectedOption 0 → 1 jugador | 1 → 2 jugadores
+    cantidadJugadores = selectedOption + 1;
+
+    return SCENE_CHAR_SELECT;
 }
 
+// ---------------------------------------------------------------------------
+// 6. Selección de personaje
+// ---------------------------------------------------------------------------
 SceneId showCharSelect() {
-    // 1. Limpieza inicial para asegurar lienzo negro y vacío[cite: 5]
     clearScene();
 
-    // 2. Configuración de Fondos y Paletas
-    // Cargamos la imagen en escala de grises en el plano de fondo
     PAL_setPalette(PAL0, characters_greyscale.palette->data, DMA);
     VDP_drawImageEx(BG_B, &characters_greyscale, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 0, 0, FALSE, TRUE);
 
-    // 3. Audio[cite: 4, 5]
     XGM_startPlay(select_music);
 
-    // 4. Inicialización de Sprites (Cursor y Caras del HUD)[cite: 4, 5]
-    // Usamos variables locales para manejar los sprites dentro de esta escena
-    Sprite* cursor = SPR_addSprite(&character_selector, 8, 48, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    Sprite* turtle_face_hud = SPR_addSprite(&faces_hud, 58, 5, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
-    
-    // Cargamos las paletas específicas de los sprites[cite: 4]
+    const s16 charPosX[] = {8, 88, 168, 248};
+    const s16 charPosY   = 48;
+
+    // Mapa columna → fila de la sheet de caras (sprite_sheet_faces.png).
+    // Columnas en pantalla: 0=Leo 1=Mike 2=Don 3=Raph.
+    // Filas de caras:       0=azul(Leo) 1=dorado(Raph) 2=púrpura(Don) 3=naranja(Mike).
+    const u8  faceRow[]  = {0, 3, 2, 1};
+    const s16 faceXoff   = 16;   // centra la cara de 32px sobre la columna de 64px
+    const s16 faceY      = 26;   // se apoya en la parte superior del retrato elegido
+
     PAL_setPalette(PAL1, character_selector.palette->data, DMA);
     PAL_setPalette(PAL2, faces_hud.palette->data, DMA);
 
-    // 5. Variables de Control de Selección[cite: 4]
-    u8 selectedCharacter = 0;
-    bool buttonPressed = FALSE;
-    s16 charPosX[] = {8, 88, 168, 248}; // Posiciones X para cada tortuga
-    const s16 charPosY = 48;
+    // -----------------------------------------------------------------------
+    // MODO 1 JUGADOR
+    // -----------------------------------------------------------------------
+    if (cantidadJugadores == 1) {
+        Sprite* cursor          = SPR_addSprite(&character_selector, charPosX[0], charPosY, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+        Sprite* turtle_face_hud = SPR_addSprite(&faces_hud,          charPosX[0] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
+        SPR_setDepth(cursor, 1);            // cursor/retrato coloreado detrás
+        SPR_setDepth(turtle_face_hud, 0);   // la cara va adelante
 
-    // 6. Bucle Principal de la Escena[cite: 3, 4]
-    while(1) {
-        u16 value = JOY_readJoypad(JOY_1);
+        s8   sel        = 0;
+        u16  prev       = 0;
+        SPR_setAnim(cursor,          sel);
+        SPR_setAnim(turtle_face_hud, faceRow[sel]);
 
-        // Lógica de movimiento lateral[cite: 4]
-        if (value & (BUTTON_RIGHT | BUTTON_LEFT)) {
-            if (!buttonPressed) {
-                if ((value & BUTTON_RIGHT) && selectedCharacter < 3) {
-                    selectedCharacter++;
-                } else if ((value & BUTTON_LEFT) && selectedCharacter > 0) {
-                    selectedCharacter--;
-                }
-                
-                // Actualizar animaciones según el índice del personaje (0-3)[cite: 4]
-                SPR_setAnim(cursor, selectedCharacter);
-                SPR_setAnim(turtle_face_hud, selectedCharacter);
-                
-                // Actualizar posición del cursor en pantalla[cite: 4]
-                SPR_setPosition(cursor, charPosX[selectedCharacter], charPosY);
-                
-                buttonPressed = TRUE;
-            }
-        } else {
-            buttonPressed = FALSE;
+        while (1) {
+            u16 v = JOY_readJoypad(JOY_1);
+
+            if (justPressedJoy(v, prev, BUTTON_RIGHT) && sel < 3) sel++;
+            if (justPressedJoy(v, prev, BUTTON_LEFT)  && sel > 0) sel--;
+
+            SPR_setAnim(cursor,          sel);
+            SPR_setAnim(turtle_face_hud, faceRow[sel]);
+            SPR_setPosition(cursor, charPosX[sel], charPosY);
+            SPR_setPosition(turtle_face_hud, charPosX[sel] + faceXoff, faceY);
+
+            if (v & BUTTON_START) { personajeSeleccionado = sel; break; }
+
+            prev = v;
+            SPR_update();
+            SYS_doVBlankProcess();
         }
 
-        // Confirmación de selección[cite: 4]
-        if (value & BUTTON_START) {
-            personajeSeleccionado = selectedCharacter; //Guardamos el dato de que tortu eligio
-            break; // Salimos del bucle para avanzar de escena
+        XGM_stopPlay();
+        PAL_fadeOutAll(20, FALSE);
+        while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+        if (cursor)          SPR_releaseSprite(cursor);
+        if (turtle_face_hud) SPR_releaseSprite(turtle_face_hud);
+        VDP_clearPlane(BG_A, TRUE);
+        VDP_clearPlane(BG_B, TRUE);
+        SPR_update();
+        SYS_doVBlankProcess();
+
+        return SCENE_LEVEL1_TITLE;
+    }
+
+    // -----------------------------------------------------------------------
+    // MODO 2 JUGADORES — JOY_1 = P1, JOY_2 = P2. No pueden elegir el mismo.
+    // Cada uno confirma con START; cuando ambos confirman, se avanza.
+    // -----------------------------------------------------------------------
+    s8   sel1 = 0, sel2 = 3;          // empiezan en personajes distintos
+    bool ready1 = FALSE, ready2 = FALSE;
+    u16  prev1 = 0, prev2 = 0;
+
+    Sprite* cur1  = SPR_addSprite(&character_selector, charPosX[sel1], charPosY, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    Sprite* cur2  = SPR_addSprite(&character_selector, charPosX[sel2], charPosY, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+    Sprite* face1 = SPR_addSprite(&faces_hud, charPosX[sel1] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
+    Sprite* face2 = SPR_addSprite(&faces_hud, charPosX[sel2] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
+
+    // Las caras van adelante; los cursores/retratos coloreados, detrás.
+    SPR_setDepth(cur1, 1);  SPR_setDepth(cur2, 1);
+    SPR_setDepth(face1, 0); SPR_setDepth(face2, 0);
+
+    SPR_setAnim(cur1, sel1);  SPR_setAnim(face1, faceRow[sel1]);
+    SPR_setAnim(cur2, sel2);  SPR_setAnim(face2, faceRow[sel2]);
+
+    while (1) {
+        u16 v1 = JOY_readJoypad(JOY_1);
+        u16 v2 = JOY_readJoypad(JOY_2);
+
+        // --- Jugador 1 (mientras no haya confirmado) ---
+        if (!ready1) {
+            if (justPressedJoy(v1, prev1, BUTTON_RIGHT)) sel1 = charMove(sel1, sel2, +1);
+            if (justPressedJoy(v1, prev1, BUTTON_LEFT))  sel1 = charMove(sel1, sel2, -1);
+            SPR_setAnim(cur1, sel1);
+            SPR_setAnim(face1, faceRow[sel1]);
+            SPR_setPosition(cur1, charPosX[sel1], charPosY);
+            SPR_setPosition(face1, charPosX[sel1] + faceXoff, faceY);
+            if (justPressedJoy(v1, prev1, BUTTON_START)) ready1 = TRUE;
         }
 
-        // Actualizar el motor de sprites y esperar el refresco de pantalla[cite: 3, 4]
+        // --- Jugador 2 (mientras no haya confirmado) ---
+        if (!ready2) {
+            if (justPressedJoy(v2, prev2, BUTTON_RIGHT)) sel2 = charMove(sel2, sel1, +1);
+            if (justPressedJoy(v2, prev2, BUTTON_LEFT))  sel2 = charMove(sel2, sel1, -1);
+            SPR_setAnim(cur2, sel2);
+            SPR_setAnim(face2, faceRow[sel2]);
+            SPR_setPosition(cur2, charPosX[sel2], charPosY);
+            SPR_setPosition(face2, charPosX[sel2] + faceXoff, faceY);
+            if (justPressedJoy(v2, prev2, BUTTON_START)) ready2 = TRUE;
+        }
+
+        if (ready1 && ready2) {
+            personajeSeleccionado  = sel1;
+            personaje2Seleccionado = sel2;
+            break;
+        }
+
+        prev1 = v1;
+        prev2 = v2;
         SPR_update();
         SYS_doVBlankProcess();
     }
 
-    // 7. Limpieza Crítica antes de salir (Evita rastro de sprites y música)
-    XGM_stopPlay(); // Detener música de selección[cite: 5]
-    
-    PAL_fadeOutAll(20, FALSE); // Fundido a negro antes de borrar[cite: 5]
-    while(PAL_isDoingFade()) {
-        SYS_doVBlankProcess();
-    }
+    XGM_stopPlay();
+    PAL_fadeOutAll(20, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
-    // Liberación manual de sprites para no dejar basura en el VDP
-    if (cursor) SPR_releaseSprite(cursor);
-    if (turtle_face_hud) SPR_releaseSprite(turtle_face_hud);
-    
-    // Limpieza final de planos[cite: 5]
+    if (cur1)  SPR_releaseSprite(cur1);
+    if (cur2)  SPR_releaseSprite(cur2);
+    if (face1) SPR_releaseSprite(face1);
+    if (face2) SPR_releaseSprite(face2);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
     SPR_update();
     SYS_doVBlankProcess();
 
-    return SCENE_LEVEL1_TITLE; // Retorna el ID de la siguiente escena[cite: 4]
+    return SCENE_LEVEL1_TITLE;
 }
 
-SceneId showFireCinematic()
-{
-    return SCENE_LEVEL1_TITLE;
+SceneId showFireCinematic() { return SCENE_LEVEL1_TITLE; }
+
+// ---------------------------------------------------------------------------
+// 7. Título del nivel 1 — texto letra a letra con la fuente arcade
+// ---------------------------------------------------------------------------
+// La fuente (title_font en level1.res) está en orden ASCII 32..126, tiles de
+// 8x8, así que se carga con VDP_loadFont y VDP_drawText funciona directo.
+// ---------------------------------------------------------------------------
+#define TITLE_CHAR_DELAY  5   // frames entre letra y letra (~12 letras/seg)
+
+// Dibuja el texto letra a letra. Devuelve TRUE si se pidió saltar con START.
+static bool drawTextTypewriter(const char* text, u16 x, u16 y) {
+    char buf[2];
+    buf[1] = 0;
+
+    for (u16 i = 0; text[i] != 0; i++) {
+        buf[0] = text[i];
+
+        // Los espacios no se dibujan, pero sí consumen tiempo (ritmo natural)
+        if (buf[0] != ' ')
+            VDP_drawText(buf, x + i, y);
+
+        // Espera entre letras, con posibilidad de saltar
+        for (u16 f = 0; f < TITLE_CHAR_DELAY; f++) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START)
+                return TRUE;
+            SYS_doVBlankProcess();
+        }
+    }
+    return FALSE;
 }
 
 SceneId showLevel1Title() {
     clearScene();
-    VDP_clearPlane(BG_A, TRUE);
-    VDP_clearPlane(BG_B, TRUE);
 
-    // Definimos una paleta rápida donde el color 15 es blanco (0xEEE en Mega Drive)
-    u16 pal_white[16] = { 0x000, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 
-                          0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE };
+    // Esperar a que se suelte START: venimos de confirmar personaje con
+    // START y, si sigue apretado, saltearía el título sin querer.
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
 
+    // Cargar la fuente arcade en VRAM (ocupa el lugar de la fuente de SGDK)
+    VDP_loadFont(&title_font, DMA);
+
+    // Paleta de la fuente (blanco con sombreado azul; color 0 = negro).
+    // PAL_setColors respeta la longitud real de la paleta exportada (4 colores).
+    PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPalette(PAL0);
     VDP_setBackgroundColor(0);
-    VDP_drawText("SCENE 1", 16, 10);
-    VDP_drawText("FIRE! WE GOTTA GET", 11, 13);
-    VDP_drawText("APRIL OUT!!", 14, 15);
 
-    // Usamos nuestra paleta definida arriba
-    PAL_fadeIn(0, 15, pal_white, 20, FALSE);
+    const char* line1 = "SCENE 1";
+    const char* line2 = "FIRE! WE GOTTA GET";
+    const char* line3 = "APRIL OUT!!";
 
-    // 4. Temporizador de espera (aprox. 3 segundos a 60fps)[cite: 4]
-    u16 timer = 180;
-    while(timer > 0) {
-        timer--;
-        
-        // Opcional: Permitir saltar con START
-        u16 joy = JOY_readJoypad(JOY_1);
-        if (joy & BUTTON_START) break;
+    // Aparición letra a letra (START saltea la animación)
+    bool skipped;
+    skipped = drawTextTypewriter(line1, 16, 10);
+    if (!skipped) skipped = drawTextTypewriter(line2, 11, 13);
+    if (!skipped) skipped = drawTextTypewriter(line3, 14, 15);
 
-        SYS_doVBlankProcess(); // Mantener el motor vivo[cite: 3, 4]
+    // Si salteó, mostramos el texto completo de una
+    if (skipped) {
+        VDP_drawText(line1, 16, 10);
+        VDP_drawText(line2, 11, 13);
+        VDP_drawText(line3, 14, 15);
     }
 
-    // 5. Fade Out antes de entrar al caos del fuego[cite: 5]
-    clearScene();
+    // Mantener el texto completo 2 segundos (60 fps NTSC / 50 fps PAL)
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 2;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SYS_doVBlankProcess();
+    }
 
-    return SCENE_LEVEL1; // Saltamos al nivel 1
+    // Restaurar la fuente por defecto de SGDK para el resto del juego
+    VDP_loadFont(&font_default, DMA);
+
+    clearScene();
+    return SCENE_LEVEL1;
 }
 
-SceneId showLevel1()
-{
+// ---------------------------------------------------------------------------
+// 8. Nivel 1 — fondo scrolleable + jugador
+// ---------------------------------------------------------------------------
+SceneId showLevel1() {
     clearScene();
-    SPR_init();
-    
-    // Inicializas el jugador con la variable global que guardaste en el menú
-    initPlayer(personajeSeleccionado);
 
-    while (1)
-    {
-        // 1. Delegas toda la lógica de movimiento y joystick a tu nuevo archivo
-        updatePlayerInput(); 
-        
+    // --- Fondo con STREAMING de columnas (nivel completo de 1376px) ---
+    // bgInit carga la paleta + tileset completo a VRAM y dibuja las primeras
+    // 64 columnas en el plano circular BG_B. bgUpdate() revela columnas nuevas
+    // a medida que la cámara avanza. PAL0 → fondo | PAL1 → tortugas (compartida).
+    bgInit();
+
+    // --- Música del nivel ---
+    XGM_startPlay(music_level1);
+
+    // --- Inicializar jugador(es) ---
+    // Las 4 tortugas comparten la paleta unificada, así que P1 y P2 usan PAL1.
+    bool dosJugadores = (cantidadJugadores == 2);
+
+    Player p1;
+    initPlayer(&p1, personajeSeleccionado, JOY_1, PAL1, 100, 182);
+    setPlayerRightBound(&p1, LEVEL1_PIXEL_WIDTH - PLAYER_SPRITE_W);
+
+    Player p2;
+    if (dosJugadores) {
+        initPlayer(&p2, personaje2Seleccionado, JOY_2, PAL1, 160, 182);
+        setPlayerRightBound(&p2, LEVEL1_PIXEL_WIDTH - PLAYER_SPRITE_W);
+    }
+
+    s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
+    bgUpdate(0);       // Scroll inicial
+
+    // --- Bucle principal del nivel ---
+    while (1) {
+        // 1. Input y física de cada jugador
+        updatePlayer(&p1);
+        if (dosJugadores) updatePlayer(&p2);
+
+        // 2. Cámara dead-zone: sigue al jugador que va MÁS ADELANTE (estilo
+        //    arcade). Beat-em-up clásico: solo avanza a la derecha, nunca
+        //    retrocede (por eso solo revelamos columnas nuevas a la derecha).
+        s16 leadX = getPlayerWorldX(&p1);
+        if (dosJugadores) {
+            s16 x2 = getPlayerWorldX(&p2);
+            if (x2 > leadX) leadX = x2;
+        }
+        s16 leadScreenX = leadX - cameraX;
+
+        if (leadScreenX > CAM_DEAD_ZONE_RIGHT && cameraX < CAM_MAX_X) {
+            cameraX += (leadScreenX - CAM_DEAD_ZONE_RIGHT);
+            if (cameraX > CAM_MAX_X) cameraX = CAM_MAX_X;
+        }
+
+        // 3. Notificar a cada jugador la nueva posición de cámara y el borde
+        //    izquierdo (ningún jugador puede salir por la izquierda de pantalla).
+        setPlayerCamera(&p1, cameraX);
+        setPlayerLeftBound(&p1, cameraX);
+        if (dosJugadores) {
+            setPlayerCamera(&p2, cameraX);
+            setPlayerLeftBound(&p2, cameraX);
+        }
+
+        // 4. Revelar columnas nuevas del fondo y aplicar el scroll
+        bgUpdate(cameraX);
+
         SPR_update();
         SYS_doVBlankProcess();
     }
+
+    // (inalcanzable ahora — agregar condición de salida cuando haya enemigos)
+    clearScene();
+    return SCENE_LEVEL1;
 }

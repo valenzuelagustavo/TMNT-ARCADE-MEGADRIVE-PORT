@@ -4,7 +4,8 @@
 #define _RES_AUDIO_H_
 
 extern const u8 music_sega[768];
-extern const u8 golpe[512];
+extern const u8 select_music[3840];
 extern const u8 music_level1[17152];
+extern const u8 golpe[512];
 
 #endif // _RES_AUDIO_H_
