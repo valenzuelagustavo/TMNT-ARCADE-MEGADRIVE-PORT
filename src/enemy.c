@@ -8,6 +8,26 @@ static void enemySetAnim(Enemy* e, u16 anim) {
     SPR_setAnimationLoop(e->sprite, TRUE);
 }
 
+// ---------------------------------------------------------------------------
+// FLASH DE GOLPE — silueta blanca estilo arcade
+// ---------------------------------------------------------------------------
+// Al recibir un golpe, el sprite cambia su ATRIBUTO de paleta a una línea
+// "flash" (todo blanco) durante ENEMY_FLASH_FRAMES frames y luego vuelve a su
+// paleta normal. Cambiar el atributo no cuesta DMA ni reescribe CRAM por golpe:
+// la paleta blanca se carga una sola vez al inicio del nivel.
+// ---------------------------------------------------------------------------
+static u16 enemyFlashPal = PAL3;
+
+void initEnemyFlashPalette(u16 palLine) {
+    u16 flashPal[16];
+    flashPal[0] = 0x0000;                                // color 0 = transparente
+    for (u16 i = 1; i < 16; i++) flashPal[i] = 0x0EEE;   // resto: blanco puro
+    enemyFlashPal = palLine;
+    // CPU y no DMA: el array vive en el stack y la transferencia DMA se difiere
+    // al vblank, cuando este buffer ya no existiría. Son 16 words, es trivial.
+    PAL_setPalette(palLine, flashPal, CPU);
+}
+
 void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette) {
     e->x           = spawnX;
     e->y           = y;
@@ -19,6 +39,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette) {
     e->timer       = 0;
     e->hp          = ENEMY_HP;
     e->invincible  = 0;
+    e->palette     = palette;
+    e->flashTimer  = 0;
 
     e->sprite = SPR_addSprite(&foot_soldier, e->x, e->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     PAL_setPalette(palette, foot_soldier.palette->data, DMA);
@@ -33,16 +55,23 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     if (e->state == ENEMY_STATE_DEAD || e->state == ENEMY_STATE_INACTIVE)
         return FALSE;
 
+    // Flash blanco: cambiar el atributo de paleta del sprite. updateEnemy()
+    // lo restaura cuando flashTimer llega a 0.
+    SPR_setPalette(e->sprite, enemyFlashPal);
+    e->flashTimer = ENEMY_FLASH_FRAMES;
+
     e->hp -= dmg;
     if (e->hp <= 0) {
         e->state = ENEMY_STATE_DEAD;
         e->timer = 30;
+        enemySetAnim(e, ENEMY_ANIM_IDLE);
         return TRUE;
     }
 
     e->state = ENEMY_STATE_HURT;
     e->timer = 12;
     e->invincible = ENEMY_INVINCIBLE;
+    enemySetAnim(e, ENEMY_ANIM_IDLE);   // frenar el ciclo de caminata mientras recibe el golpe
     return TRUE;
 }
 
@@ -80,6 +109,15 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
     if (e->state == ENEMY_STATE_INACTIVE || !e->sprite) return;
 
     if (e->invincible > 0) e->invincible--;
+
+    // Cuenta regresiva del flash de golpe: al llegar a 0, restaurar la paleta
+    // normal. Va ANTES del bloque DEAD para que también funcione en el golpe
+    // final (el sprite queda 30 frames en pantalla, el flash dura 6).
+    if (e->flashTimer > 0) {
+        e->flashTimer--;
+        if (e->flashTimer == 0)
+            SPR_setPalette(e->sprite, e->palette);
+    }
 
     if (e->state == ENEMY_STATE_DEAD) {
         if (e->timer > 0) {
@@ -150,12 +188,13 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
         }
 
         case ENEMY_STATE_HURT: {
+            // Knockback. El feedback visual ahora es el flash de paleta
+            // (reemplaza el parpadeo de visibilidad, que ocultaba el flash
+            // la mitad de los frames y se notaba poco).
             e->x += (e->dir * -1) * 3;
             if (e->timer > 0) {
                 e->timer--;
-                SPR_setVisibility(e->sprite, e->timer & 1 ? VISIBLE : HIDDEN);
             } else {
-                SPR_setVisibility(e->sprite, VISIBLE);
                 newState = ENEMY_STATE_CHASE;
             }
             break;
@@ -168,6 +207,8 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
         e->state = newState;
         if (newState == ENEMY_STATE_PATROL || newState == ENEMY_STATE_CHASE)
             enemySetAnim(e, ENEMY_ANIM_WALK);
+        else if (newState == ENEMY_STATE_ATTACK)
+            enemySetAnim(e, ENEMY_ANIM_IDLE);   // no hay anim de ataque todavía
     }
 
     if (dx != 0)

@@ -11,8 +11,10 @@
 #define ENEMY_SPRITE_W      56
 #define ENEMY_FOOT_OFFSET   56
 #define ENEMY_SPRITE_H      64
-#define ENEMY_HP            3
+#define ENEMY_HP            4    // Golpes necesarios para eliminar al foot soldier
+#define MAX_ACTIVE_ENEMIES  4    // Foot soldiers vivos al mismo tiempo (tope de spawn)
 #define ENEMY_INVINCIBLE    20
+#define ENEMY_FLASH_FRAMES  6    // Frames que dura el flash blanco al recibir golpe
 
 typedef enum {
     ENEMY_STATE_INACTIVE,
@@ -42,7 +44,13 @@ typedef struct {
     u16         timer;
     s16         hp;
     u8          invincible;
+    u8          palette;      // Línea de paleta normal del sprite (PAL0..PAL3)
+    u8          flashTimer;   // Frames restantes de flash blanco (0 = sin flash)
 } Enemy;
+
+// Carga la paleta "flash" (silueta blanca) en la línea palLine. Llamar UNA VEZ
+// al iniciar el nivel, antes del primer spawn. En Level 1: PAL3 (libre).
+void initEnemyFlashPalette(u16 palLine);
 
 void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette);
 void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2Y, bool twoPlayers);

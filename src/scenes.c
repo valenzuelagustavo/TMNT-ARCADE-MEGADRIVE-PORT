@@ -466,8 +466,13 @@ SceneId showLevel1() {
     // --- Fondo con STREAMING de columnas (nivel completo de 1376px) ---
     // bgInit carga la paleta + tileset completo a VRAM y dibuja las primeras
     // 64 columnas en el plano circular BG_B. bgUpdate() revela columnas nuevas
-    // a medida que la cámara avanza. PAL0 → fondo | PAL1 → tortugas (compartida).
+    // a medida que la cámara avanza.
+    // Mapa de paletas del nivel:
+    //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers | PAL3 → flash de golpe
     bgInit();
+
+    // Paleta "flash" (silueta blanca al recibir golpe) en PAL3, la única libre.
+    initEnemyFlashPalette(PAL3);
 
     // --- Música del nivel (volumen reducido, ver VOL_MUSIC_LEVEL1) ---
     playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
@@ -489,7 +494,12 @@ SceneId showLevel1() {
     // --- Definición de spawns (trigger-based) ---
     // Los enemigos aparecen cuando el borde derecho de la cámara supera
     // triggerX. Spawnean en spawnX (off-screen a la derecha).
-    static const EnemySpawnDef spawnDefs[MAX_ENEMIES] = {
+    // OJO: el array se recorre con SU PROPIO tamaño (LEVEL1_SPAWN_COUNT), no
+    // con MAX_ENEMIES. Antes se declaraba [MAX_ENEMIES] con 6 entradas: las 2
+    // restantes quedaban en cero (triggerX=0) y spawneaban enemigos "fantasma"
+    // en (0,0) apenas arrancaba el nivel.
+    #define LEVEL1_SPAWN_COUNT 6
+    static const EnemySpawnDef spawnDefs[LEVEL1_SPAWN_COUNT] = {
         { 400,  440, 182, 60 },
         { 550,  590, 170, 60 },
         { 700,  740, 182, 60 },
@@ -497,6 +507,10 @@ SceneId showLevel1() {
         { 1000, 1040, 182, 60 },
         { 1150, 1190, 170, 60 },
     };
+
+    // Cada spawn dispara UNA sola vez: un enemigo muerto no reaparece.
+    bool spawnUsed[LEVEL1_SPAWN_COUNT];
+    for (u16 i = 0; i < LEVEL1_SPAWN_COUNT; i++) spawnUsed[i] = FALSE;
 
     Enemy enemies[MAX_ENEMIES];
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -537,12 +551,30 @@ SceneId showLevel1() {
             setPlayerLeftBound(&p2, cameraX);
         }
 
-        // 4. Spawner: activar enemigos cuando la cámara se acerca
+        // 4. Spawner: activar enemigos cuando la cámara se acerca.
+        //    - spawnUsed: cada spawn dispara una sola vez → los muertos no vuelven.
+        //    - MAX_ACTIVE_ENEMIES: tope de foot soldiers simultáneos. Un spawn
+        //      que exceda el tope queda pendiente (no consume su spawnUsed) y
+        //      dispara recién cuando muere alguno.
         s16 screenRightEdge = cameraX + SCREEN_PIXEL_WIDTH;
-        for (u16 i = 0; i < MAX_ENEMIES; i++) {
-            if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
-            if (screenRightEdge >= spawnDefs[i].triggerX) {
-                initEnemySpawn(&enemies[i], spawnDefs[i].spawnX, spawnDefs[i].y, spawnDefs[i].patrolRange, PAL2);
+
+        u16 activeEnemies = 0;
+        for (u16 i = 0; i < MAX_ENEMIES; i++)
+            if (enemies[i].state != ENEMY_STATE_INACTIVE) activeEnemies++;
+
+        for (u16 s = 0; s < LEVEL1_SPAWN_COUNT; s++) {
+            if (activeEnemies >= MAX_ACTIVE_ENEMIES) break;
+            if (spawnUsed[s]) continue;
+            if (screenRightEdge < spawnDefs[s].triggerX) continue;
+
+            // Buscar un slot libre en el pool de enemigos
+            for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                    initEnemySpawn(&enemies[i], spawnDefs[s].spawnX, spawnDefs[s].y, spawnDefs[s].patrolRange, PAL2);
+                    spawnUsed[s] = TRUE;
+                    activeEnemies++;
+                    break;
+                }
             }
         }
 
