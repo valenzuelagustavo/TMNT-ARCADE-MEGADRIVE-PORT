@@ -35,6 +35,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->apexHang      = 0;
     p->joyId         = joyId;
     p->prevJoy       = 0;
+    p->dir           = 1;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     // Las 4 tortugas comparten la misma paleta unificada; cargarla en 'palette'.
@@ -87,8 +88,8 @@ void updatePlayer(Player* p) {
             s16 moveX = 0;
             s16 moveY = 0;
 
-            if (joy & BUTTON_RIGHT) { moveX =  PLAYER_SPEED; SPR_setHFlip(p->sprite, FALSE); }
-            if (joy & BUTTON_LEFT)  { moveX = -PLAYER_SPEED; SPR_setHFlip(p->sprite, TRUE);  }
+            if (joy & BUTTON_RIGHT) { moveX =  PLAYER_SPEED; SPR_setHFlip(p->sprite, FALSE); p->dir = 1; }
+            if (joy & BUTTON_LEFT)  { moveX = -PLAYER_SPEED; SPR_setHFlip(p->sprite, TRUE);  p->dir = -1; }
             if (joy & BUTTON_UP)    { moveY = -PLAYER_SPEED; }
             if (joy & BUTTON_DOWN)  { moveY =  PLAYER_SPEED; }
 
@@ -179,8 +180,8 @@ void updatePlayer(Player* p) {
                 p->jumpVel += GRAVITY;
             }
 
-            if (joy & BUTTON_RIGHT) { p->x = clampS16(p->x + PLAYER_SPEED, p->boundLeft, p->boundRight); SPR_setHFlip(p->sprite, FALSE); }
-            if (joy & BUTTON_LEFT)  { p->x = clampS16(p->x - PLAYER_SPEED, p->boundLeft, p->boundRight); SPR_setHFlip(p->sprite, TRUE);  }
+            if (joy & BUTTON_RIGHT) { p->x = clampS16(p->x + PLAYER_SPEED, p->boundLeft, p->boundRight); SPR_setHFlip(p->sprite, FALSE); p->dir = 1; }
+            if (joy & BUTTON_LEFT)  { p->x = clampS16(p->x - PLAYER_SPEED, p->boundLeft, p->boundRight); SPR_setHFlip(p->sprite, TRUE);  p->dir = -1; }
 
             if (!p->isJumpKicking && (justPressed(joy, p->prevJoy, BUTTON_A) || justPressed(joy, p->prevJoy, BUTTON_B))) {
                 p->isJumpKicking = TRUE;
@@ -230,4 +231,16 @@ void updatePlayer(Player* p) {
     // En SGDK, menor 'depth' = más al frente, por eso usamos -y. Sirve igual
     // para P1, P2 y futuros enemigos que usen este mismo criterio.
     SPR_setDepth(p->sprite, -(p->y));
+}
+
+bool isPlayerAttacking(const Player* p) {
+    return (p->state == STATE_ATTACKING);
+}
+
+s8 getPlayerDir(const Player* p) {
+    return p->dir;
+}
+
+s16 getPlayerY(const Player* p) {
+    return p->y;
 }

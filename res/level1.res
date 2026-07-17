@@ -15,10 +15,18 @@
 // --- Fondo principal (nivel completo) ---
 IMAGE bg_level1 "/images/lvl_1_scene/bg01_completa.png" NONE
 
-// --- Fuente arcade para el título del nivel ---
-// 95 tiles de 8x8 en orden ASCII (32..126) → compatible con VDP_loadFont.
+// --- Fuente arcade para el titulo del nivel (solo ASCII en este bloque) ---
+// 95 tiles de 8x8 en orden ASCII (32..126) -> compatible con VDP_loadFont.
 // TILESET (tiles) + PALETTE (blanco/azul) exportados del mismo PNG.
-TILESET title_font     "/images/font/font_tmnt_arcade.png" NONE
+//
+// OJO: el segundo NONE es CRITICO. Es el parametro "opt" de rescomp: por
+// defecto (ALL) deduplica tiles repetidos, y una fuente tiene muchos (los
+// vacios y las minusculas que duplican A-Z). Si se deduplica, los indices
+// se corren y VDP_drawText dibuja letras equivocadas (el mapeo char->tile
+// es 1:1 con el orden ASCII).
+// Sintaxis: TILESET name file [compression [opt]] -> NONE NONE = sin
+// comprimir y sin optimizar: cada tile conserva su posicion ASCII.
+TILESET title_font     "/images/font/font_tmnt_arcade.png" NONE NONE
 PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
 
 // --- Capas adicionales / Enemigos (pendientes) ---

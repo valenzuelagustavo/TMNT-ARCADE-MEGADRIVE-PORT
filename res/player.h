@@ -96,6 +96,9 @@ typedef struct {
     // Entrada
     u16         joyId;          // JOY_1 o JOY_2
     u16         prevJoy;        // estado del joystick el frame anterior
+
+    // Dirección de la mirada (para sistema de daño)
+    s8          dir;            // -1 izquierda, +1 derecha
 } Player;
 
 // ---------------------------------------------------------------------------
@@ -122,5 +125,16 @@ void setPlayerLeftBound(Player* p, s16 leftBound);
 
 // Actualiza el límite derecho de movimiento (fin del nivel)
 void setPlayerRightBound(Player* p, s16 rightBound);
+
+// --- Accesores para el sistema de colisiones ---
+
+// Devuelve TRUE si el jugador está en medio de un ataque
+bool isPlayerAttacking(const Player* p);
+
+// Devuelve la dirección de la mirada (-1 izquierda, +1 derecha)
+s8   getPlayerDir(const Player* p);
+
+// Devuelve la posición Y (pies)
+s16  getPlayerY(const Player* p);
 
 #endif

@@ -4,6 +4,7 @@
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), title_font, title_font_pal
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
+#include "enemy.h"   // sistema de enemigos
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
 #ifndef IS_PAL_SYSTEM
@@ -22,6 +23,15 @@
 #define BG_PLANE_W           64     // Ancho del plano circular de fondo (tiles)
 
 // ---------------------------------------------------------------------------
+// Volumen de audio (0..100) — requiere el driver XGM2 (recursos XGM2 en
+// audio.res). El XGM clásico no tiene control de volumen.
+// ---------------------------------------------------------------------------
+#define VOL_MUSIC_INTRO    100
+#define VOL_MUSIC_SELECT   100
+#define VOL_MUSIC_LEVEL1    40   // la música del nivel saturaba: bajada al 50%
+#define VOL_SFX            100
+
+// ---------------------------------------------------------------------------
 // Estado global de selección (necesario entre escenas)
 // ---------------------------------------------------------------------------
 u8 personajeSeleccionado  = 0;  // P1: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
@@ -36,12 +46,21 @@ void clearScene() {
     while(PAL_isDoingFade()) {
         SYS_doVBlankProcess();
     }
-    XGM_stopPlay();
+    XGM2_stop();
     SPR_reset();
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
     VDP_setBackgroundColor(0);
     SYS_doVBlankProcess();
+}
+
+// ---------------------------------------------------------------------------
+// Helper — reproducir un track XGM2 con volumen (FM + PSG en 0..100)
+// ---------------------------------------------------------------------------
+static void playMusicVol(const u8* track, u16 vol) {
+    XGM2_setFMVolume(vol);
+    XGM2_setPSGVolume(vol);
+    XGM2_play(track);
 }
 
 // ---------------------------------------------------------------------------
@@ -133,7 +152,7 @@ SceneId showSegaIntro() {
 
     SPR_setAnim(segaLogo,   0);
     SPR_setAnim(rocksteady, 0);
-    XGM_startPlay(music_sega);
+    playMusicVol(music_sega, VOL_MUSIC_INTRO);
 
     while (1) {
         if (estado == 0) {
@@ -142,8 +161,8 @@ SceneId showSegaIntro() {
                 estado = 1;
                 SPR_setAnim(segaLogo,   1);
                 SPR_setAnim(rocksteady, 1);
-                XGM_stopPlay();
-                XGM_startPlay(golpe);
+                XGM2_stop();
+                playMusicVol(golpe, VOL_SFX);
             }
         } else if (estado == 1) {
             if (++timerKO > 20) { estado = 2; SPR_setAnim(rocksteady, 2); timerKO = 0; }
@@ -222,7 +241,7 @@ SceneId showCharSelect() {
     PAL_setPalette(PAL0, characters_greyscale.palette->data, DMA);
     VDP_drawImageEx(BG_B, &characters_greyscale, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 0, 0, FALSE, TRUE);
 
-    XGM_startPlay(select_music);
+    playMusicVol(select_music, VOL_MUSIC_SELECT);
 
     const s16 charPosX[] = {8, 88, 168, 248};
     const s16 charPosY   = 48;
@@ -269,7 +288,7 @@ SceneId showCharSelect() {
             SYS_doVBlankProcess();
         }
 
-        XGM_stopPlay();
+        XGM2_stop();
         PAL_fadeOutAll(20, FALSE);
         while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
@@ -341,7 +360,7 @@ SceneId showCharSelect() {
         SYS_doVBlankProcess();
     }
 
-    XGM_stopPlay();
+    XGM2_stop();
     PAL_fadeOutAll(20, FALSE);
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
@@ -450,8 +469,8 @@ SceneId showLevel1() {
     // a medida que la cámara avanza. PAL0 → fondo | PAL1 → tortugas (compartida).
     bgInit();
 
-    // --- Música del nivel ---
-    XGM_startPlay(music_level1);
+    // --- Música del nivel (volumen reducido, ver VOL_MUSIC_LEVEL1) ---
+    playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
 
     // --- Inicializar jugador(es) ---
     // Las 4 tortugas comparten la paleta unificada, así que P1 y P2 usan PAL1.
@@ -465,6 +484,24 @@ SceneId showLevel1() {
     if (dosJugadores) {
         initPlayer(&p2, personaje2Seleccionado, JOY_2, PAL1, 160, 182);
         setPlayerRightBound(&p2, LEVEL1_PIXEL_WIDTH - PLAYER_SPRITE_W);
+    }
+
+    // --- Definición de spawns (trigger-based) ---
+    // Los enemigos aparecen cuando el borde derecho de la cámara supera
+    // triggerX. Spawnean en spawnX (off-screen a la derecha).
+    static const EnemySpawnDef spawnDefs[MAX_ENEMIES] = {
+        { 400,  440, 182, 60 },
+        { 550,  590, 170, 60 },
+        { 700,  740, 182, 60 },
+        { 850,  890, 174, 60 },
+        { 1000, 1040, 182, 60 },
+        { 1150, 1190, 170, 60 },
+    };
+
+    Enemy enemies[MAX_ENEMIES];
+    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+        enemies[i].state = ENEMY_STATE_INACTIVE;
+        enemies[i].sprite = NULL;
     }
 
     s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
@@ -500,14 +537,88 @@ SceneId showLevel1() {
             setPlayerLeftBound(&p2, cameraX);
         }
 
-        // 4. Revelar columnas nuevas del fondo y aplicar el scroll
+        // 4. Spawner: activar enemigos cuando la cámara se acerca
+        s16 screenRightEdge = cameraX + SCREEN_PIXEL_WIDTH;
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
+            if (screenRightEdge >= spawnDefs[i].triggerX) {
+                initEnemySpawn(&enemies[i], spawnDefs[i].spawnX, spawnDefs[i].y, spawnDefs[i].patrolRange, PAL2);
+            }
+        }
+
+        // 5. Actualizar enemigos con IA
+        s16 p1wx = getPlayerWorldX(&p1);
+        s16 p1wy = getPlayerY(&p1);
+        s16 p2wx = p1wx, p2wy = p1wy;
+        if (dosJugadores) {
+            p2wx = getPlayerWorldX(&p2);
+            p2wy = getPlayerY(&p2);
+        }
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].state == ENEMY_STATE_INACTIVE) continue;
+            setEnemyCamera(&enemies[i], cameraX);
+            updateEnemy(&enemies[i], p1wx, p1wy, p2wx, p2wy, dosJugadores);
+        }
+
+        // 6. Colisiones: ataque del jugador → enemigos
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (!enemyCanBeHit(&enemies[i])) continue;
+
+            bool hitP1 = FALSE, hitP2 = FALSE;
+
+            if (isPlayerAttacking(&p1)) {
+                s16 atkX = getPlayerWorldX(&p1);
+                s16 atkY = getPlayerY(&p1);
+                s16 atkLeft, atkRight;
+                if (getPlayerDir(&p1) >= 0) {
+                    atkLeft  = atkX + 40;
+                    atkRight = atkX + 80;
+                } else {
+                    atkLeft  = atkX - 40;
+                    atkRight = atkX + 20;
+                }
+                s16 atkTop    = atkY - 40;
+                s16 atkBottom = atkY;
+
+                s16 ex = getEnemyCenterX(&enemies[i]);
+                s16 ey = getEnemyCenterY(&enemies[i]);
+
+                if (ex >= atkLeft && ex <= atkRight && ey >= atkTop && ey <= atkBottom)
+                    hitP1 = TRUE;
+            }
+
+            if (dosJugadores && !hitP1 && isPlayerAttacking(&p2)) {
+                s16 atkX = getPlayerWorldX(&p2);
+                s16 atkY = getPlayerY(&p2);
+                s16 atkLeft, atkRight;
+                if (getPlayerDir(&p2) >= 0) {
+                    atkLeft  = atkX + 40;
+                    atkRight = atkX + 80;
+                } else {
+                    atkLeft  = atkX - 40;
+                    atkRight = atkX + 20;
+                }
+                s16 atkTop    = atkY - 40;
+                s16 atkBottom = atkY;
+
+                s16 ex = getEnemyCenterX(&enemies[i]);
+                s16 ey = getEnemyCenterY(&enemies[i]);
+
+                if (ex >= atkLeft && ex <= atkRight && ey >= atkTop && ey <= atkBottom)
+                    hitP2 = TRUE;
+            }
+
+            if (hitP1 || hitP2)
+                damageEnemy(&enemies[i], 1);
+        }
+
+        // 7. Revelar columnas nuevas del fondo y aplicar el scroll
         bgUpdate(cameraX);
 
         SPR_update();
         SYS_doVBlankProcess();
     }
 
-    // (inalcanzable ahora — agregar condición de salida cuando haya enemigos)
     clearScene();
     return SCENE_LEVEL1;
 }
