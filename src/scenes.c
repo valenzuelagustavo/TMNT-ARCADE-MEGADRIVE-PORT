@@ -1,10 +1,10 @@
 #include "scenes.h"
 #include "intro.h"   // sega_logo_spr, rocksteady_spr
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
-#include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), title_font, title_font_pal
+#include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), title_font, title_font_pal
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
-#include "enemy.h"   // sistema de enemigos
+#include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
 #ifndef IS_PAL_SYSTEM
@@ -134,6 +134,78 @@ static void bgUpdate(s16 cameraX) {
         bgDrawColumn((u16)bgLastCol);
     }
     VDP_setHorizontalScroll(BG_B, -cameraX);
+}
+
+// ===========================================================================
+// FUEGO EN PRIMER PLANO — animación por STREAMING de tiles (DMA)
+// ===========================================================================
+// El plan original era el truco del scroll de BG_A (dibujar la tira completa
+// de 8 frames y correr el scroll de a -64px). Se DESCARTÓ por VRAM: la tira
+// entera son ~400 tiles únicos que, sumados al fondo (~495) y a los sprites
+// de 104x104 (2 tortugas + 4 foot soldiers ≈ 540 tiles), desbordan los ~1400
+// tiles de la VRAM. Técnica definitiva:
+//  1. En VRAM vive UN solo frame del fuego: una celda de 64x64px = 64 tiles.
+//  2. El tilemap de BG_A referencia esos MISMOS 64 tiles repetidos a lo ancho
+//     del plano (8 celdas), con PRIORIDAD ALTA → se ve delante de BG_B y de
+//     todos los sprites (que van con prioridad baja). Se dibuja UNA sola vez.
+//  3. Cada FIRE_FRAME_INTERVAL frames de juego se PISAN esos 64 tiles con los
+//     del frame siguiente. fire_tiles es un TILESET sin comprimir NI
+//     deduplicar (NONE NONE en level1.res): los 64 tiles de cada frame están
+//     contiguos en ROM y se indexan directo. Son 2KB por la cola DMA cada 8
+//     frames — despreciable para el presupuesto de vblank.
+// Ventajas sobre el truco del scroll: entra en VRAM, todas las celdas quedan
+// EN FASE, y el scroll de BG_A queda LIBRE (para un HUD futuro, por ejemplo).
+// El fuego queda fijo en la banda inferior aunque la cámara recorra el nivel.
+// Paleta: el fuego COMPARTE la paleta de los foot soldiers → PAL2.
+// ---------------------------------------------------------------------------
+#define FIRE_CELL_TILES_W    8    // Celda de fuego: 8 tiles de ancho (64px)
+#define FIRE_CELL_TILES_H    8    // 8 tiles de alto (64px)
+#define FIRE_CELL_TILES      (FIRE_CELL_TILES_W * FIRE_CELL_TILES_H)   // 64
+#define FIRE_FRAMES          8    // Frames de animación en fire_strip.png
+#define FIRE_FRAME_INTERVAL  8    // Frames de juego entre cada frame de fuego
+#define FIRE_Y_TILE          ((224 / 8) - FIRE_CELL_TILES_H)  // 20: banda inferior
+
+static u16 fireVramInd;  // Primer tile de VRAM de la celda del fuego
+static u16 fireFrame;    // Frame de animación actual (0..7)
+static u16 fireTimer;    // Contador hasta el próximo paso
+
+// Carga el frame 0 y dibuja la celda repetida a lo ancho del plano, pegada al
+// borde inferior. 'vramInd' es el primer tile libre (después del fondo).
+static void fireInit(u16 vramInd) {
+    fireVramInd = vramInd;
+    fireFrame   = 0;
+    fireTimer   = 0;
+
+    // El fuego comparte paleta con el foot soldier. Se carga acá porque el
+    // primer spawn de enemigos puede tardar varios segundos en dispararse.
+    PAL_setPalette(PAL2, foot_soldier.palette->data, DMA);
+
+    // Frame 0 a VRAM (64 tiles)
+    VDP_loadTileData(fire_tiles.tiles, vramInd, FIRE_CELL_TILES, DMA);
+
+    // Tilemap: la celda de 8x8 tiles repetida en las 64 columnas del plano.
+    // fillTileMapRectInc incrementa el índice tile a tile en el mismo orden
+    // (fila por fila) en que rescomp exporta el TILESET.
+    for (u16 block = 0; block < BG_PLANE_W / FIRE_CELL_TILES_W; block++) {
+        VDP_fillTileMapRectInc(BG_A,
+                               TILE_ATTR_FULL(PAL2, TRUE, FALSE, FALSE, vramInd),
+                               block * FIRE_CELL_TILES_W, FIRE_Y_TILE,
+                               FIRE_CELL_TILES_W, FIRE_CELL_TILES_H);
+    }
+    VDP_setHorizontalScroll(BG_A, 0);
+}
+
+// Avanza la animación del fuego. Llamar una vez por frame en el bucle del nivel.
+static void fireUpdate() {
+    if (++fireTimer >= FIRE_FRAME_INTERVAL) {
+        fireTimer = 0;
+        fireFrame = (fireFrame + 1) & (FIRE_FRAMES - 1);
+        // Pisar los MISMOS 64 tiles de VRAM con el frame siguiente. Cada tile
+        // son 8 longwords → el frame N arranca en tiles + N*64*8. DMA_QUEUE:
+        // la transferencia real (2KB) se hace en el próximo vblank.
+        VDP_loadTileData(fire_tiles.tiles + (fireFrame * FIRE_CELL_TILES * 8),
+                         fireVramInd, FIRE_CELL_TILES, DMA_QUEUE);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -458,7 +530,7 @@ SceneId showLevel1Title() {
 }
 
 // ---------------------------------------------------------------------------
-// 8. Nivel 1 — fondo scrolleable + jugador
+// 8. Nivel 1 — fondo scrolleable + fuego en primer plano + jugador
 // ---------------------------------------------------------------------------
 SceneId showLevel1() {
     clearScene();
@@ -468,11 +540,19 @@ SceneId showLevel1() {
     // 64 columnas en el plano circular BG_B. bgUpdate() revela columnas nuevas
     // a medida que la cámara avanza.
     // Mapa de paletas del nivel:
-    //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers | PAL3 → flash de golpe
+    //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers + fuego | PAL3 → flash de golpe
     bgInit();
+
+    // --- Fuego en primer plano (BG_A, prioridad alta) ---
+    // Los tiles del fuego van a VRAM justo después del tileset del fondo.
+    fireInit(TILE_USER_INDEX + bg_level1.tileset->numTile);
 
     // Paleta "flash" (silueta blanca al recibir golpe) en PAL3, la única libre.
     initEnemyFlashPalette(PAL3);
+
+    // Estado global de la IA de grupo: contador de atacantes simultáneos y
+    // reparto de targets entre los jugadores presentes (1 o 2).
+    resetEnemyAI(cantidadJugadores);
 
     // --- Música del nivel (volumen reducido, ver VOL_MUSIC_LEVEL1) ---
     playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
@@ -578,7 +658,11 @@ SceneId showLevel1() {
             }
         }
 
-        // 5. Actualizar enemigos con IA
+        // 5. Actualizar enemigos con IA.
+        //    Primero la separación de grupo (que no se apilen entre ellos) y
+        //    después el update individual de cada uno.
+        separateEnemies(enemies, MAX_ENEMIES);
+
         s16 p1wx = getPlayerWorldX(&p1);
         s16 p1wy = getPlayerY(&p1);
         s16 p2wx = p1wx, p2wy = p1wy;
@@ -644,8 +728,31 @@ SceneId showLevel1() {
                 damageEnemy(&enemies[i], 1);
         }
 
+        // 6b. Colisiones: ataques de los foot soldiers → jugadores.
+        //     enemyTryHitPlayer marca el swing como usado (un golpe por
+        //     ataque) y damagePlayer se encarga de la anim de hit correcta
+        //     (frente/espalda), el knockback y los i-frames. Se chequea
+        //     playerCanBeHit ANTES para no gastar el golpe contra un
+        //     jugador invulnerable o en el aire.
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            Enemy* e = &enemies[i];
+            if (e->state != ENEMY_STATE_ATTACK) continue;
+
+            if (playerCanBeHit(&p1) &&
+                enemyTryHitPlayer(e, getPlayerWorldX(&p1), getPlayerY(&p1))) {
+                damagePlayer(&p1, getEnemyCenterX(e));
+            } else if (dosJugadores && playerCanBeHit(&p2) &&
+                       enemyTryHitPlayer(e, getPlayerWorldX(&p2), getPlayerY(&p2))) {
+                damagePlayer(&p2, getEnemyCenterX(e));
+            }
+        }
+
         // 7. Revelar columnas nuevas del fondo y aplicar el scroll
         bgUpdate(cameraX);
+
+        // 8. Animar el fuego del primer plano (scroll de BG_A, independiente
+        //    del scroll de cámara que usa BG_B)
+        fireUpdate();
 
         SPR_update();
         SYS_doVBlankProcess();

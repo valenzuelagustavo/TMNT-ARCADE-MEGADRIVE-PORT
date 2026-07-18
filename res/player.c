@@ -36,6 +36,10 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->joyId         = joyId;
     p->prevJoy       = 0;
     p->dir           = 1;
+    p->invincible    = 0;
+    p->hurtTimer     = 0;
+    p->hurtDir       = 0;
+    p->hurtToggle    = 0;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     // Las 4 tortugas comparten la misma paleta unificada; cargarla en 'palette'.
@@ -80,6 +84,16 @@ static bool justPressed(u16 joy, u16 prev, u16 button) {
 // ---------------------------------------------------------------------------
 void updatePlayer(Player* p) {
     u16 joy = JOY_readJoypad(p->joyId);
+
+    // I-frames: cuenta regresiva + parpadeo clásico de invulnerabilidad.
+    // El parpadeo usa visibilidad (no hay línea de paleta libre para flash y,
+    // a diferencia de los enemigos, acá no compite con ningún otro efecto).
+    if (p->invincible > 0) {
+        p->invincible--;
+        SPR_setVisibility(p->sprite, (p->invincible & 2) ? HIDDEN : VISIBLE);
+        if (p->invincible == 0)
+            SPR_setVisibility(p->sprite, VISIBLE);   // asegurar visible al final
+    }
 
     switch (p->state) {
 
@@ -204,8 +218,20 @@ void updatePlayer(Player* p) {
         }
 
         case STATE_HURT: {
-            if (SPR_isAnimationDone(p->sprite)) {
+            // Knockback: deslizarse alejándose del atacante los primeros frames
+            if (p->hurtTimer > 0) {
+                p->hurtTimer--;
+                p->x = clampS16(p->x + p->hurtDir * PLAYER_HURT_KNOCK_SPEED,
+                                p->boundLeft, p->boundRight);
+            }
+            // La anim de hit corre SIN loop (se setea en damagePlayer): cuando
+            // termina, volver a IDLE y restaurar el loop normal. El knockback
+            // actúa además como duración MÍNIMA del estado: con una anim muy
+            // corta (1 frame) isAnimationDone daría TRUE al instante y la
+            // reacción no llegaría a verse.
+            if (p->hurtTimer == 0 && SPR_isAnimationDone(p->sprite)) {
                 p->state = STATE_IDLE;
+                SPR_setAnimationLoop(p->sprite, TRUE);
                 SPR_setAnim(p->sprite, ANIM_IDLE);
             }
             break;
@@ -243,4 +269,51 @@ s8 getPlayerDir(const Player* p) {
 
 s16 getPlayerY(const Player* p) {
     return p->y;
+}
+
+// ---------------------------------------------------------------------------
+// DAÑO RECIBIDO
+// ---------------------------------------------------------------------------
+bool playerCanBeHit(const Player* p) {
+    if (p->invincible > 0) return FALSE;
+    // Saltando no se recibe daño (esquive aéreo estilo arcade). GRABBED lo
+    // manejará el sistema de agarre cuando exista.
+    if (p->state == STATE_HURT || p->state == STATE_JUMPING || p->state == STATE_GRABBED)
+        return FALSE;
+    return TRUE;
+}
+
+void damagePlayer(Player* p, s16 attackerX) {
+    if (!playerCanBeHit(p)) return;
+
+    // ¿De qué lado vino el golpe? El empuje va hacia el lado contrario.
+    s16 centerX = p->x + PLAYER_SPRITE_W / 2;
+    s8  side    = (attackerX >= centerX) ? 1 : -1;
+    p->hurtDir  = -side;
+
+    // Golpe por la espalda: el atacante está del lado contrario a la mirada.
+    // La tortuga NO se da vuelta: la anim HIT_BEHIND muestra la reacción.
+    bool behind = (side != p->dir);
+
+    u16 anim;
+    if (behind) {
+        anim = ANIM_HIT_BEHIND_1;
+    } else {
+        anim = p->hurtToggle ? ANIM_HIT_2 : ANIM_HIT_1;
+        p->hurtToggle ^= 1;
+    }
+
+    p->state      = STATE_HURT;
+    p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;
+    p->invincible = PLAYER_HURT_INVINCIBLE;
+
+    // Un golpe corta cualquier combo en curso
+    p->comboStep  = 0;
+    p->comboTimer = 0;
+
+    // Sin loop + reinicio forzado desde el frame 0: dos golpes seguidos por
+    // la espalda repiten HIT_BEHIND_1 y SPR_setAnim solo lo ignoraría (mismo
+    // índice); SPR_setAnimAndFrame sí reinicia.
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, anim, 0);
 }

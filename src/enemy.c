@@ -1,11 +1,26 @@
 #include "enemy.h"
 
-#define ENEMY_ANIM_IDLE  0
-#define ENEMY_ANIM_WALK  1
-
-static void enemySetAnim(Enemy* e, u16 anim) {
+// ---------------------------------------------------------------------------
+// Cambio de animación con guarda: solo re-setea si la anim es distinta a la
+// actual (evita reiniciar el ciclo cada frame). 'loop' controla si la anim
+// se repite (caminar) o queda clavada en el último frame (ataques).
+// ---------------------------------------------------------------------------
+static void enemySetAnim(Enemy* e, u8 anim, bool loop) {
+    if (e->anim == anim) return;
+    e->anim = anim;
     SPR_setAnim(e->sprite, anim);
-    SPR_setAnimationLoop(e->sprite, TRUE);
+    SPR_setAnimationLoop(e->sprite, loop);
+}
+
+// Reinicia una animación desde el frame 0 AUNQUE sea la misma que ya está
+// seteada. Necesario para los ataques: quedan clavados en el último frame
+// (sin loop) y SPR_setAnim ignora el cambio si el índice es el mismo — un
+// segundo kick consecutivo no se reiniciaría. SPR_setAnimAndFrame sí fuerza
+// el reinicio porque el frame actual difiere de 0.
+static void enemyRestartAnim(Enemy* e, u8 anim, bool loop) {
+    e->anim = anim;
+    SPR_setAnimAndFrame(e->sprite, anim, 0);
+    SPR_setAnimationLoop(e->sprite, loop);
 }
 
 // ---------------------------------------------------------------------------
@@ -15,8 +30,46 @@ static void enemySetAnim(Enemy* e, u16 anim) {
 // "flash" (todo blanco) durante ENEMY_FLASH_FRAMES frames y luego vuelve a su
 // paleta normal. Cambiar el atributo no cuesta DMA ni reescribe CRAM por golpe:
 // la paleta blanca se carga una sola vez al inicio del nivel.
+// OJO: la paleta normal del foot soldier (PAL2) ahora también la usa el fuego
+// de BG_A — el flash NO la toca (solo cambia el atributo del sprite), así que
+// el fuego no parpadea cuando un enemigo recibe un golpe.
 // ---------------------------------------------------------------------------
 static u16 enemyFlashPal = PAL3;
+
+// ---------------------------------------------------------------------------
+// IA DE GRUPO — atacantes simultáneos
+// ---------------------------------------------------------------------------
+// Estilo arcade: como mucho ENEMY_MAX_ATTACKERS foot soldiers pueden estar en
+// ATTACK a la vez; el resto rodea al jugador a distancia (HOLD). El contador
+// se incrementa al entrar en ATTACK y se decrementa en TODAS las salidas
+// (timer cumplido, golpeado, muerto).
+// ---------------------------------------------------------------------------
+static u8 enemiesAttacking = 0;
+
+// --- Reparto de targets en 2 jugadores ---
+// enemyTargetCount[i] = cuántos enemigos vivos tienen asignado al jugador i.
+// Se usa para que los spawns nuevos vayan al jugador menos "cargado".
+static u8 enemyNumPlayers = 1;
+static u8 enemyTargetCount[2] = {0, 0};
+
+void resetEnemyAI(u8 numPlayers) {
+    enemiesAttacking = 0;
+    enemyNumPlayers = (numPlayers >= 2) ? 2 : 1;
+    enemyTargetCount[0] = 0;
+    enemyTargetCount[1] = 0;
+}
+
+// Decremento seguro del contador de targets (al morir o cambiar de blanco)
+static void releaseTarget(u8 target) {
+    if (enemyTargetCount[target] > 0)
+        enemyTargetCount[target]--;
+}
+
+// Decremento seguro del contador cuando un enemigo SALE del estado ATTACK
+static void leaveAttackState(Enemy* e) {
+    if (e->state == ENEMY_STATE_ATTACK && enemiesAttacking > 0)
+        enemiesAttacking--;
+}
 
 void initEnemyFlashPalette(u16 palLine) {
     u16 flashPal[16];
@@ -41,10 +94,27 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette) {
     e->invincible  = 0;
     e->palette     = palette;
     e->flashTimer  = 0;
+    e->anim        = 0xFF;   // sentinela: fuerza el primer enemySetAnim
+    e->attackType  = ENEMY_ATTACK_PUNCH;
+    e->attackHit   = 0;
+    // Cooldown inicial aleatorio: los spawns cercanos no atacan sincronizados
+    e->attackCooldown = (u8)(random() & 31);
+
+    // Target inicial: el jugador con MENOS enemigos asignados (reparto
+    // parejo). En empate, al azar. En 1P siempre P1.
+    if (enemyNumPlayers == 2) {
+        if      (enemyTargetCount[0] < enemyTargetCount[1]) e->target = 0;
+        else if (enemyTargetCount[1] < enemyTargetCount[0]) e->target = 1;
+        else                                                e->target = (u8)(random() & 1);
+    } else {
+        e->target = 0;
+    }
+    enemyTargetCount[e->target]++;
+    e->retargetTimer = ENEMY_RETARGET_INTERVAL;
 
     e->sprite = SPR_addSprite(&foot_soldier, e->x, e->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     PAL_setPalette(palette, foot_soldier.palette->data, DMA);
-    enemySetAnim(e, ENEMY_ANIM_WALK);
+    enemySetAnim(e, ENEMY_ANIM_WALK, TRUE);
 }
 
 void setEnemyCamera(Enemy* e, s16 camX) {
@@ -55,6 +125,11 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     if (e->state == ENEMY_STATE_DEAD || e->state == ENEMY_STATE_INACTIVE)
         return FALSE;
 
+    // Si estaba atacando, libera el "cupo" de atacante para otro enemigo
+    leaveAttackState(e);
+    // Golpeado → no contraataca al instante al recuperarse
+    e->attackCooldown = ENEMY_HURT_COOLDOWN;
+
     // Flash blanco: cambiar el atributo de paleta del sprite. updateEnemy()
     // lo restaura cuando flashTimer llega a 0.
     SPR_setPalette(e->sprite, enemyFlashPal);
@@ -64,14 +139,14 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     if (e->hp <= 0) {
         e->state = ENEMY_STATE_DEAD;
         e->timer = 30;
-        enemySetAnim(e, ENEMY_ANIM_IDLE);
+        enemySetAnim(e, ENEMY_ANIM_IDLE, TRUE);
         return TRUE;
     }
 
     e->state = ENEMY_STATE_HURT;
     e->timer = 12;
     e->invincible = ENEMY_INVINCIBLE;
-    enemySetAnim(e, ENEMY_ANIM_IDLE);   // frenar el ciclo de caminata mientras recibe el golpe
+    enemySetAnim(e, ENEMY_ANIM_IDLE, TRUE);   // no hay anim de hurt todavía
     return TRUE;
 }
 
@@ -109,6 +184,7 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
     if (e->state == ENEMY_STATE_INACTIVE || !e->sprite) return;
 
     if (e->invincible > 0) e->invincible--;
+    if (e->attackCooldown > 0) e->attackCooldown--;
 
     // Cuenta regresiva del flash de golpe: al llegar a 0, restaurar la paleta
     // normal. Va ANTES del bloque DEAD para que también funcione en el golpe
@@ -123,6 +199,7 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
         if (e->timer > 0) {
             e->timer--;
             if (e->timer == 0) {
+                releaseTarget(e->target);   // libera su lugar en el reparto
                 SPR_releaseSprite(e->sprite);
                 e->sprite = NULL;
                 e->state = ENEMY_STATE_INACTIVE;
@@ -133,18 +210,34 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
         return;
     }
 
-    s16 targetX = player1X;
-    s16 targetY = player1Y;
-    if (twoPlayers) {
-        s16 d1 = distS16(e->x, player1X);
-        s16 d2 = distS16(e->x, player2X);
-        if (d2 < d1) {
-            targetX = player2X;
-            targetY = player2Y;
+    // --- Target asignado (Fase 3) ---
+    // Cada enemigo persigue a SU jugador asignado. Cada RETARGET_INTERVAL
+    // frames re-evalúa: solo cambia si el otro jugador está bastante más
+    // cerca (histéresis) — sin esto, el "más cercano por frame" oscilaba y en
+    // la práctica los enemigos terminaban siempre sobre P1.
+    if (twoPlayers && enemyNumPlayers == 2) {
+        if (e->retargetTimer > 0) {
+            e->retargetTimer--;
+        } else {
+            e->retargetTimer = ENEMY_RETARGET_INTERVAL;
+            u8  other = e->target ^ 1;
+            s16 dCur  = distS16(e->x, (e->target == 0) ? player1X : player2X);
+            s16 dOth  = distS16(e->x, (other == 0)     ? player1X : player2X);
+            if (dOth + ENEMY_RETARGET_HYSTERESIS < dCur) {
+                releaseTarget(e->target);
+                e->target = other;
+                enemyTargetCount[other]++;
+            }
         }
+    } else {
+        e->target = 0;
     }
 
-    s16 dx = targetX - e->x;
+    s16 targetX = (e->target == 1) ? player2X : player1X;
+    s16 targetY = (e->target == 1) ? player2Y : player1Y;
+
+    s16 dx   = targetX - e->x;
+    s16 dy   = targetY - e->y;
     s16 dist = absS16(dx);
 
     EnemyState newState = e->state;
@@ -159,6 +252,7 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
             e->x += e->dir * ENEMY_SPEED;
             if (e->x <= e->patrolLeft)  { e->x = e->patrolLeft;  e->dir = 1; }
             if (e->x >= e->patrolRight) { e->x = e->patrolRight; e->dir = -1; }
+            enemySetAnim(e, ENEMY_ANIM_WALK, TRUE);
             break;
         }
 
@@ -167,21 +261,77 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
                 newState = ENEMY_STATE_PATROL;
                 break;
             }
-            if (dist < ENEMY_ATTACK_RANGE && absS16(targetY - e->y) < 24) {
+
+            // ¿En rango de ataque? Solo si ya cumplió su cooldown personal y
+            // hay "cupo" de atacantes (máximo ENEMY_MAX_ATTACKERS a la vez).
+            if (dist < ENEMY_ATTACK_RANGE && absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
+                e->attackCooldown == 0 && enemiesAttacking < ENEMY_MAX_ATTACKERS) {
                 newState = ENEMY_STATE_ATTACK;
-                e->timer = 20;
+                enemiesAttacking++;
+                // Mirar al objetivo antes de golpear
+                if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
+                // Elegir ataque al azar: uppercut o patada con salto
+                e->attackType = (u8)(random() & 1);
+                e->attackHit  = 0;   // este swing todavía no conectó
+                e->timer = (e->attackType == ENEMY_ATTACK_KICK) ? ENEMY_KICK_TIME
+                                                                : ENEMY_PUNCH_TIME;
                 break;
             }
-            if (dx > 0) { e->x += ENEMY_SPEED; e->dir = 1; }
-            else        { e->x -= ENEMY_SPEED; e->dir = -1; }
-            e->x = clampS16(e->x, 0, 1376 - ENEMY_SPRITE_W);
+
+            // --- Movimiento horizontal ---
+            // Sin cooldown: acercarse hasta ENEMY_STOP_RANGE (sin empujar).
+            // Con cooldown y demasiado cerca: RETROCEDER hasta el anillo de
+            // espera (ENEMY_HOLD_RANGE) — el clásico "rodear" del beat-em-up.
+            s16 moveX = 0;
+            if (e->attackCooldown > 0 && dist < ENEMY_HOLD_RANGE) {
+                if (dist < ENEMY_HOLD_RANGE - 8)
+                    moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;   // alejarse
+                // dentro del anillo: se queda esperando
+            } else if (dist > ENEMY_STOP_RANGE) {
+                moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;       // acercarse
+            }
+            if (moveX != 0) {
+                e->x += moveX;
+                e->x = clampS16(e->x, 0, 1376 - ENEMY_SPRITE_W);
+            }
+            // Siempre MIRANDO al jugador, incluso mientras retrocede
+            if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
+
+            // --- Movimiento vertical: alinearse con la profundidad del jugador ---
+            s16 moveY = 0;
+            if (dy > ENEMY_Y_ALIGN)       moveY =  ENEMY_SPEED;
+            else if (dy < -ENEMY_Y_ALIGN) moveY = -ENEMY_SPEED;
+            if (moveY != 0) {
+                e->y = clampS16(e->y + moveY, ENEMY_LANE_TOP, ENEMY_LANE_BOTTOM);
+            }
+
+            // --- Animación según el desplazamiento dominante ---
+            // Walk_up SOLO cuando sube y el componente vertical domina;
+            // izquierda / derecha / abajo usan la caminata normal.
+            if (moveX == 0 && moveY == 0) {
+                enemySetAnim(e, ENEMY_ANIM_IDLE, TRUE);
+            } else if (moveY < 0 && (moveX == 0 || absS16(dy) >= dist)) {
+                enemySetAnim(e, ENEMY_ANIM_WALK_UP, TRUE);
+            } else {
+                enemySetAnim(e, ENEMY_ANIM_WALK, TRUE);
+            }
             break;
         }
 
         case ENEMY_STATE_ATTACK: {
             if (e->timer > 0) {
                 e->timer--;
+                // La patada con salto avanza en X durante el lunge inicial
+                if (e->attackType == ENEMY_ATTACK_KICK &&
+                    e->timer > (ENEMY_KICK_TIME - ENEMY_KICK_LUNGE)) {
+                    e->x += e->dir * ENEMY_KICK_SPEED;
+                    e->x = clampS16(e->x, 0, 1376 - ENEMY_SPRITE_W);
+                }
             } else {
+                // Fin del ataque: liberar el cupo de atacante y arrancar el
+                // cooldown personal (con variación para que no sea metrónomo)
+                leaveAttackState(e);
+                e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
                 newState = ENEMY_STATE_CHASE;
             }
             break;
@@ -205,15 +355,98 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
 
     if (newState != e->state) {
         e->state = newState;
-        if (newState == ENEMY_STATE_PATROL || newState == ENEMY_STATE_CHASE)
-            enemySetAnim(e, ENEMY_ANIM_WALK);
-        else if (newState == ENEMY_STATE_ATTACK)
-            enemySetAnim(e, ENEMY_ANIM_IDLE);   // no hay anim de ataque todavía
+        if (newState == ENEMY_STATE_ATTACK) {
+            // Ataques sin loop: la anim corre una vez y queda en el último
+            // frame hasta que el timer devuelve al CHASE (que restaura WALK).
+            enemyRestartAnim(e,
+                             (e->attackType == ENEMY_ATTACK_KICK) ? ENEMY_ANIM_KICK
+                                                                  : ENEMY_ANIM_PUNCH,
+                             FALSE);
+        }
+        // PATROL y CHASE eligen su anim frame a frame dentro del switch.
     }
 
-    if (dx != 0)
-        SPR_setHFlip(e->sprite, (dx < 0));
+    // El arte del spritesheet mira a la DERECHA: flip cuando mira a la izquierda.
+    // (Antes el flip seguía siempre al jugador; ahora sigue a la dirección real
+    // del enemigo, así en patrulla mira hacia donde camina.)
+    SPR_setHFlip(e->sprite, (e->dir < 0));
 
     SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - ENEMY_FOOT_OFFSET);
     SPR_setDepth(e->sprite, -(e->y));
+}
+
+// ---------------------------------------------------------------------------
+// SEPARACIÓN DE GRUPO — que los foot soldiers no se apilen entre ellos
+// ---------------------------------------------------------------------------
+// Empuje pareado O(n²) con n≤8: si dos enemigos "caminantes" (PATROL/CHASE)
+// están encimados, se empujan 1px por frame en X (y 1px en Y si también
+// están pegados en profundidad). No se toca a los que están atacando (el
+// lunge del kick es intencional), heridos (knockback propio) ni muertos.
+// ---------------------------------------------------------------------------
+static bool enemyIsSeparable(const Enemy* e) {
+    return (e->state == ENEMY_STATE_PATROL || e->state == ENEMY_STATE_CHASE);
+}
+
+void separateEnemies(Enemy* list, u16 count) {
+    for (u16 i = 0; i < count; i++) {
+        if (!enemyIsSeparable(&list[i])) continue;
+        for (u16 j = i + 1; j < count; j++) {
+            if (!enemyIsSeparable(&list[j])) continue;
+
+            s16 dx = list[j].x - list[i].x;
+            s16 dy = list[j].y - list[i].y;
+            if (absS16(dx) >= ENEMY_SEPARATE_X || absS16(dy) >= ENEMY_SEPARATE_Y)
+                continue;
+
+            // Empuje horizontal: cada uno 1px hacia lados opuestos.
+            // Si están EXACTAMENTE en la misma X, desempata por índice.
+            s16 push = (dx > 0 || (dx == 0 && (i & 1))) ? 1 : -1;
+            list[i].x = clampS16(list[i].x - push, 0, 1376 - ENEMY_SPRITE_W);
+            list[j].x = clampS16(list[j].x + push, 0, 1376 - ENEMY_SPRITE_W);
+
+            // Empuje vertical suave solo si están casi en la misma lane
+            if (dy != 0) {
+                s16 pushY = (dy > 0) ? 1 : -1;
+                list[i].y = clampS16(list[i].y - pushY, ENEMY_LANE_TOP, ENEMY_LANE_BOTTOM);
+                list[j].y = clampS16(list[j].y + pushY, ENEMY_LANE_TOP, ENEMY_LANE_BOTTOM);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// HITBOX DE ATAQUE — foot soldier → jugador
+// ---------------------------------------------------------------------------
+// El golpe conecta solo durante la ventana ACTIVA de cada ataque (no en el
+// windup ni en la recuperación), una sola vez por swing (attackHit).
+// Jugador y enemigo comparten la grilla de 104px, así que el centro de ambos
+// es frame_x + 52; el alcance se mide centro a centro.
+// ---------------------------------------------------------------------------
+bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py) {
+    if (e->state != ENEMY_STATE_ATTACK || e->attackHit || !e->sprite)
+        return FALSE;
+
+    // ¿Hitbox activa en este frame del ataque?
+    bool active;
+    if (e->attackType == ENEMY_ATTACK_KICK)
+        active = (e->timer > ENEMY_KICK_TIME - ENEMY_KICK_LUNGE);   // todo el lunge
+    else
+        active = (e->timer >= ENEMY_PUNCH_HIT_START && e->timer <= ENEMY_PUNCH_HIT_END);
+    if (!active)
+        return FALSE;
+
+    // Alcance horizontal HACIA ADELANTE (según e->dir), con una pequeña
+    // tolerancia hacia atrás por si están encimados.
+    s16 ex  = getEnemyCenterX(e);
+    s16 pcx = px + ENEMY_SPRITE_W / 2;   // misma grilla de frame que el enemigo
+    s16 dx  = (e->dir >= 0) ? (pcx - ex) : (ex - pcx);
+    if (dx < -ENEMY_HIT_BACK_X || dx > ENEMY_HIT_RANGE_X)
+        return FALSE;
+
+    // Alineación en profundidad (pies)
+    if (absS16(py - e->y) > ENEMY_HIT_TOL_Y)
+        return FALSE;
+
+    e->attackHit = 1;
+    return TRUE;
 }

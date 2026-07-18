@@ -67,6 +67,13 @@ typedef enum {
 #define COMBO_WINDOW        35
 
 // ---------------------------------------------------------------------------
+// Daño recibido (golpes de los foot soldiers)
+// ---------------------------------------------------------------------------
+#define PLAYER_HURT_INVINCIBLE   45  // I-frames tras recibir un golpe (~0.75s)
+#define PLAYER_HURT_KNOCK_FRAMES 10  // Frames de knockback (deslizamiento)
+#define PLAYER_HURT_KNOCK_SPEED   2  // px/frame del knockback (10x2 = 20px)
+
+// ---------------------------------------------------------------------------
 // INSTANCIA DE JUGADOR
 // ---------------------------------------------------------------------------
 // El módulo es multi-instancia: cada jugador (P1, P2, ...) tiene su propio
@@ -99,6 +106,12 @@ typedef struct {
 
     // Dirección de la mirada (para sistema de daño)
     s8          dir;            // -1 izquierda, +1 derecha
+
+    // Daño recibido
+    u8          invincible;     // I-frames restantes (0 = puede recibir golpe)
+    u8          hurtTimer;      // Frames de knockback restantes
+    s8          hurtDir;        // Dirección del empuje (-1/+1, opuesta al atacante)
+    u8          hurtToggle;     // Alterna ANIM_HIT_1 / ANIM_HIT_2 en golpes seguidos
 } Player;
 
 // ---------------------------------------------------------------------------
@@ -136,5 +149,18 @@ s8   getPlayerDir(const Player* p);
 
 // Devuelve la posición Y (pies)
 s16  getPlayerY(const Player* p);
+
+// --- Daño recibido (llamadas desde el sistema de colisiones en scenes.c) ---
+
+// TRUE si el jugador puede recibir un golpe en este frame. Saltando NO se
+// puede ser golpeado (esquive aéreo estilo arcade), tampoco durante HURT,
+// GRABBED o con i-frames activos.
+bool playerCanBeHit(const Player* p);
+
+// Aplica un golpe: entra en STATE_HURT con la animación correcta según de
+// dónde vino el golpe (HIT_1/HIT_2 alternados de frente, HIT_BEHIND_1 por la
+// espalda), knockback alejándose del atacante e i-frames.
+// 'attackerX' = centro X del atacante en coordenadas de MUNDO.
+void damagePlayer(Player* p, s16 attackerX);
 
 #endif
