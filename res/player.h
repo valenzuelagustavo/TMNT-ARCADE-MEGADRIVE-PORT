@@ -63,8 +63,21 @@ typedef enum {
 #define BOUND_LANE_TOP      150     // Pies al fondo (base del muro de edificios)
 #define BOUND_LANE_BOTTOM   192     // Pies al frente (borde de la vereda/cuneta)
 
-// Ventana de combo: frames para encadenar el siguiente golpe (~0.58s a 60fps)
-#define COMBO_WINDOW        35
+// Encadenado de combo (B-B-B): el press de B se BUFFEREA durante todo el
+// swing, y al terminar la anim queda además esta ventana de enlace (frames
+// congelado en la última pose) durante la cual un press todavía encadena.
+// Antes la ventana efectiva era 1 frame (había que apretar B en el frame
+// exacto en que terminaba la animación) → combos casi imposibles.
+#define COMBO_LINK_WINDOW   20
+
+// ---------------------------------------------------------------------------
+// Hitbox de ataque (tortuga → enemigos), medida desde el CENTRO del frame.
+// Las tortugas pegan con armas: su alcance (64px) supera el rango de ataque
+// del foot soldier (44px) y su distancia de frenado (36px).
+// ---------------------------------------------------------------------------
+#define PLAYER_ATK_REACH    64  // Alcance hacia adelante (centro a centro)
+#define PLAYER_ATK_BACK     12  // Tolerancia hacia atrás (enemigo encimado)
+#define PLAYER_ATK_TOL_Y    20  // |dy| máximo en profundidad (pies)
 
 // ---------------------------------------------------------------------------
 // Daño recibido (golpes de los foot soldiers)
@@ -91,8 +104,9 @@ typedef struct {
     s16         cameraOffsetX;  // Offset de cámara para render mundo→pantalla
 
     // Combo
-    u8          comboStep;
-    u16         comboTimer;
+    u8          comboStep;      // 0 = ataque sin cadena (kick/especial), 1..3 = B-B-B
+    u8          comboBuffered;  // B presionado durante el swing (buffer de input)
+    u8          comboLinger;    // Frames restantes de la ventana de enlace post-anim
 
     // Salto
     s16         jumpVel;
@@ -141,8 +155,15 @@ void setPlayerRightBound(Player* p, s16 rightBound);
 
 // --- Accesores para el sistema de colisiones ---
 
-// Devuelve TRUE si el jugador está en medio de un ataque
-bool isPlayerAttacking(const Player* p);
+// TRUE si hay un ataque con hitbox ACTIVA en este frame: swing en curso
+// (no cuenta la pose congelada de la ventana de enlace) o patada en salto.
+bool isPlayerAttackActive(const Player* p);
+
+// TRUE si el ataque activo alcanza un objetivo con centro X 'targetCX' y
+// pies en 'targetFeetY' (coordenadas de MUNDO). Mide desde el CENTRO de la
+// tortuga, hacia adelante según su dirección. En el aire (jump kick) usa
+// groundY como lane de profundidad.
+bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY);
 
 // Devuelve la dirección de la mirada (-1 izquierda, +1 derecha)
 s8   getPlayerDir(const Player* p);

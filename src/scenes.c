@@ -17,8 +17,14 @@
 #define LEVEL1_PIXEL_WIDTH   1376   // Ancho del fondo completo (172 tiles x 8px)
 #define SCREEN_PIXEL_WIDTH   320    // Ancho visible de la MegaDrive
 #define CAM_MAX_X            (LEVEL1_PIXEL_WIDTH - SCREEN_PIXEL_WIDTH)  // 1056
-#define CAM_DEAD_ZONE_RIGHT  192    // Player X pantalla > este valor → scroll derecha
+// Dead-zone derecha: medida sobre el borde IZQUIERDO del frame del jugador
+// (el centro del personaje queda en +52). Con 120, el scroll arranca cuando
+// el personaje pasa apenas la mitad de la pantalla (centro ~172 de 320).
+#define CAM_DEAD_ZONE_RIGHT  120    // Player X pantalla > este valor → scroll derecha
 #define CAM_DEAD_ZONE_LEFT    80    // Player X pantalla < este valor → scroll izquierda
+// 2P: la cámara nunca avanza si va a dejar al jugador rezagado fuera de
+// pantalla; su frame conserva como mínimo este margen desde el borde izquierdo
+#define CAM_TRAIL_MARGIN       8
 
 #define BG_PLANE_W           64     // Ancho del plano circular de fondo (tiles)
 
@@ -27,7 +33,7 @@
 // audio.res). El XGM clásico no tiene control de volumen.
 // ---------------------------------------------------------------------------
 #define VOL_MUSIC_INTRO    100
-#define VOL_MUSIC_SELECT   100
+#define VOL_MUSIC_SELECT   90
 #define VOL_MUSIC_LEVEL1    40   // la música del nivel saturaba: bajada al 50%
 #define VOL_SFX            100
 
@@ -255,14 +261,15 @@ SceneId showSegaIntro() {
     SYS_doVBlankProcess();
 
     clearScene();
-    return SCENE_PLAYER_SELECT;
+    // Konami es todavía un stub que pasa de largo a la pantalla SGDK
+    return SCENE_KONAMI;
 }
 
 // ---------------------------------------------------------------------------
-// 2-4. Intros pendientes (stubs)
+// 2/4. Intros pendientes (stubs) — showSGDKIntro ya está implementada más
+// abajo (necesita drawTextTypewriter, definida junto al título del nivel).
 // ---------------------------------------------------------------------------
 SceneId showKonamiIntro()  { return SCENE_SGDK; }
-SceneId showSGDKIntro()    { return SCENE_INTRO_ARCADE; }
 SceneId showArcadeIntro()  { return SCENE_PLAYER_SELECT; }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +284,6 @@ SceneId showPlayerSelect() {
 
     VDP_drawText("1 TORTUGA",  14, 18);
     VDP_drawText("2 TORTUGAS", 14, 20);
-    VDP_drawText("Desarrollado por: Gustavo Valenzuela", 2, 26);
 
     Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 14 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
@@ -458,8 +464,9 @@ SceneId showFireCinematic() { return SCENE_LEVEL1_TITLE; }
 // ---------------------------------------------------------------------------
 #define TITLE_CHAR_DELAY  5   // frames entre letra y letra (~12 letras/seg)
 
-// Dibuja el texto letra a letra. Devuelve TRUE si se pidió saltar con START.
-static bool drawTextTypewriter(const char* text, u16 x, u16 y) {
+// Dibuja el texto letra a letra con 'delay' frames entre letras.
+// Devuelve TRUE si se pidió saltar con START.
+static bool drawTextTypewriter(const char* text, u16 x, u16 y, u16 delay) {
     char buf[2];
     buf[1] = 0;
 
@@ -471,13 +478,78 @@ static bool drawTextTypewriter(const char* text, u16 x, u16 y) {
             VDP_drawText(buf, x + i, y);
 
         // Espera entre letras, con posibilidad de saltar
-        for (u16 f = 0; f < TITLE_CHAR_DELAY; f++) {
+        for (u16 f = 0; f < delay; f++) {
             if (JOY_readJoypad(JOY_1) & BUTTON_START)
                 return TRUE;
             SYS_doVBlankProcess();
         }
     }
     return FALSE;
+}
+
+// ---------------------------------------------------------------------------
+// 3. Pantalla SGDK — créditos de herramientas y agradecimientos (bilingüe)
+// ---------------------------------------------------------------------------
+// Usa la fuente arcade del título (title_font). OJO: la fuente cubre ASCII
+// 32..126, por eso los textos van SIN acentos ni signos especiales.
+// ---------------------------------------------------------------------------
+#define CREDITS_CHAR_DELAY  2   // Más rápido que el título (hay mucho texto)
+#define CREDITS_HOLD_SECS   4   // Segundos con el texto completo en pantalla
+
+SceneId showSGDKIntro() {
+    clearScene();
+
+    // Fuente arcade + su paleta (blanco con sombreado azul, fondo negro)
+    VDP_loadFont(&title_font, DMA);
+    PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPalette(PAL0);
+    VDP_setBackgroundColor(0);
+
+    // Líneas centradas en las 40 columnas de pantalla: x = (40 - len) / 2
+    static const struct { const char* text; u16 x; u16 y; } lines[] = {
+        // --- Español ---
+        { "ESTE JUEGO FUE CREADO CON SGDK",          5,  4 },
+        { "SGDK ES OBRA DE STEPHANE DALLONGEVILLE",  1,  6 },
+        { "GRACIAS A NAPALM",                       12,  8 },
+        { "POR EL RIPEO DE LOS SPRITES",             6,  9 },
+        { "DESARROLLADO POR GUSTAVO VALENZUELA",     2, 11 },
+        // --- Separador ---
+        { "* * *",                                  17, 14 },
+        // --- English ---
+        { "THIS GAME WAS MADE WITH SGDK",            6, 17 },
+        { "SGDK BY STEPHANE DALLONGEVILLE",          5, 19 },
+        { "THANKS TO NAPALM FOR THE SPRITE RIPS",    2, 21 },
+        { "DEVELOPED BY GUSTAVO VALENZUELA",         4, 23 },
+    };
+    const u16 numLines = sizeof(lines) / sizeof(lines[0]);
+
+    // Aparición letra a letra; START saltea y muestra todo de una
+    bool skipped = FALSE;
+    for (u16 i = 0; i < numLines && !skipped; i++)
+        skipped = drawTextTypewriter(lines[i].text, lines[i].x, lines[i].y, CREDITS_CHAR_DELAY);
+
+    if (skipped)
+        for (u16 i = 0; i < numLines; i++)
+            VDP_drawText(lines[i].text, lines[i].x, lines[i].y);
+
+    // Si salteó con START, esperar a que lo suelte para que el mismo press
+    // no corte también la pausa final
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    // Mantener el texto completo en pantalla (START corta)
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * CREDITS_HOLD_SECS;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SYS_doVBlankProcess();
+    }
+
+    // Restaurar la fuente por defecto de SGDK para el resto del juego
+    VDP_loadFont(&font_default, DMA);
+
+    clearScene();
+    return SCENE_INTRO_ARCADE;
 }
 
 SceneId showLevel1Title() {
@@ -503,9 +575,9 @@ SceneId showLevel1Title() {
 
     // Aparición letra a letra (START saltea la animación)
     bool skipped;
-    skipped = drawTextTypewriter(line1, 16, 10);
-    if (!skipped) skipped = drawTextTypewriter(line2, 11, 13);
-    if (!skipped) skipped = drawTextTypewriter(line3, 14, 15);
+    skipped = drawTextTypewriter(line1, 16, 10, TITLE_CHAR_DELAY);
+    if (!skipped) skipped = drawTextTypewriter(line2, 11, 13, TITLE_CHAR_DELAY);
+    if (!skipped) skipped = drawTextTypewriter(line3, 14, 15, TITLE_CHAR_DELAY);
 
     // Si salteó, mostramos el texto completo de una
     if (skipped) {
@@ -561,32 +633,42 @@ SceneId showLevel1() {
     // Las 4 tortugas comparten la paleta unificada, así que P1 y P2 usan PAL1.
     bool dosJugadores = (cantidadJugadores == 2);
 
+    // Los límites izquierdo/derecho reales se recalculan CADA frame en el
+    // paso 3 del bucle (dependen de la cámara); acá solo el arranque.
     Player p1;
     initPlayer(&p1, personajeSeleccionado, JOY_1, PAL1, 100, 182);
-    setPlayerRightBound(&p1, LEVEL1_PIXEL_WIDTH - PLAYER_SPRITE_W);
+    setPlayerRightBound(&p1, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
 
     Player p2;
     if (dosJugadores) {
         initPlayer(&p2, personaje2Seleccionado, JOY_2, PAL1, 160, 182);
-        setPlayerRightBound(&p2, LEVEL1_PIXEL_WIDTH - PLAYER_SPRITE_W);
+        setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
     }
 
-    // --- Definición de spawns (trigger-based) ---
-    // Los enemigos aparecen cuando el borde derecho de la cámara supera
-    // triggerX. Spawnean en spawnX (off-screen a la derecha).
-    // OJO: el array se recorre con SU PROPIO tamaño (LEVEL1_SPAWN_COUNT), no
-    // con MAX_ENEMIES. Antes se declaraba [MAX_ENEMIES] con 6 entradas: las 2
-    // restantes quedaban en cero (triggerX=0) y spawneaban enemigos "fantasma"
-    // en (0,0) apenas arrancaba el nivel.
-    #define LEVEL1_SPAWN_COUNT 6
-    static const EnemySpawnDef spawnDefs[LEVEL1_SPAWN_COUNT] = {
-        { 400,  440, 182, 60 },
-        { 550,  590, 170, 60 },
-        { 700,  740, 182, 60 },
-        { 850,  890, 174, 60 },
-        { 1000, 1040, 182, 60 },
-        { 1150, 1190, 170, 60 },
+    // --- Definición de spawns por OLEADAS (trigger-based) ---
+    // Cada punto del nivel dispara una oleada: varias entradas con el mismo
+    // triggerX. side +1 = entra de FRENTE (off-screen derecha), -1 = por la
+    // ESPALDA (off-screen izquierda). Las Y son todas distintas dentro de la
+    // oleada (separadas ≥24px, más que ENEMY_SEPARATE_Y) para que no vengan
+    // en fila india. La X real se calcula al spawnear, relativa a la cámara.
+    // Primera oleada: 3 (2 frente + 1 espalda). El resto: 4 (2 y 2).
+    // Si una oleada no tiene lugar (tope MAX_ACTIVE_ENEMIES), las entradas
+    // quedan pendientes y van entrando a medida que caen los anteriores.
+    static const EnemySpawnDef spawnDefs[] = {
+        // Punto 1 — 3 enemigos
+        {  400, +1, 158 }, {  400, +1, 186 }, {  400, -1, 172 },
+        // Punto 2 — 4 enemigos
+        {  550, +1, 152 }, {  550, +1, 180 }, {  550, -1, 164 }, {  550, -1, 190 },
+        // Punto 3 — 4 enemigos
+        {  700, +1, 160 }, {  700, +1, 188 }, {  700, -1, 154 }, {  700, -1, 178 },
+        // Punto 4 — 4 enemigos
+        {  850, +1, 150 }, {  850, +1, 176 }, {  850, -1, 162 }, {  850, -1, 190 },
+        // Punto 5 — 4 enemigos
+        { 1000, +1, 156 }, { 1000, +1, 184 }, { 1000, -1, 150 }, { 1000, -1, 174 },
+        // Punto 6 — 4 enemigos
+        { 1150, +1, 166 }, { 1150, +1, 190 }, { 1150, -1, 152 }, { 1150, -1, 180 },
     };
+    #define LEVEL1_SPAWN_COUNT (sizeof(spawnDefs) / sizeof(spawnDefs[0]))
 
     // Cada spawn dispara UNA sola vez: un enemigo muerto no reaparece.
     bool spawnUsed[LEVEL1_SPAWN_COUNT];
@@ -607,28 +689,47 @@ SceneId showLevel1() {
         updatePlayer(&p1);
         if (dosJugadores) updatePlayer(&p2);
 
-        // 2. Cámara dead-zone: sigue al jugador que va MÁS ADELANTE (estilo
-        //    arcade). Beat-em-up clásico: solo avanza a la derecha, nunca
-        //    retrocede (por eso solo revelamos columnas nuevas a la derecha).
-        s16 leadX = getPlayerWorldX(&p1);
+        // 2. Cámara dead-zone: la mueve el jugador que va MÁS ADELANTE
+        //    (estilo arcade), pero SIN dejar nunca al rezagado fuera de
+        //    pantalla: si el avance lo sacaría por la izquierda, la cámara
+        //    se topea hasta que el otro también avance. Beat-em-up clásico:
+        //    la cámara solo va a la derecha, nunca retrocede (por eso solo
+        //    revelamos columnas nuevas a la derecha).
+        s16 leadX  = getPlayerWorldX(&p1);
+        s16 trailX = leadX;
         if (dosJugadores) {
             s16 x2 = getPlayerWorldX(&p2);
-            if (x2 > leadX) leadX = x2;
+            if (x2 > leadX)  leadX  = x2;
+            if (x2 < trailX) trailX = x2;
         }
         s16 leadScreenX = leadX - cameraX;
 
         if (leadScreenX > CAM_DEAD_ZONE_RIGHT && cameraX < CAM_MAX_X) {
-            cameraX += (leadScreenX - CAM_DEAD_ZONE_RIGHT);
-            if (cameraX > CAM_MAX_X) cameraX = CAM_MAX_X;
+            s16 newCam = cameraX + (leadScreenX - CAM_DEAD_ZONE_RIGHT);
+            if (newCam > CAM_MAX_X) newCam = CAM_MAX_X;
+            if (dosJugadores) {
+                // Tope por el rezagado: su frame nunca pasa el borde izquierdo
+                s16 camCap = trailX - CAM_TRAIL_MARGIN;
+                if (newCam > camCap) newCam = camCap;
+            }
+            if (newCam > cameraX) cameraX = newCam;   // nunca retrocede
         }
 
-        // 3. Notificar a cada jugador la nueva posición de cámara y el borde
-        //    izquierdo (ningún jugador puede salir por la izquierda de pantalla).
+        // 3. Notificar a cada jugador la cámara y los bordes de movimiento.
+        //    - Izquierdo: nadie sale de pantalla por la izquierda (= cameraX).
+        //    - Derecho: nadie sale por la DERECHA (= borde visible). Clave en
+        //      2P: cuando la cámara queda topeada por el rezagado, el que va
+        //      adelante choca contra el borde de pantalla en vez de seguir
+        //      caminando fuera de ella. Al final del nivel coincide con el
+        //      límite del mundo (CAM_MAX_X + 320 - 104 = 1376 - 104).
+        s16 rightBound = cameraX + SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W;
         setPlayerCamera(&p1, cameraX);
         setPlayerLeftBound(&p1, cameraX);
+        setPlayerRightBound(&p1, rightBound);
         if (dosJugadores) {
             setPlayerCamera(&p2, cameraX);
             setPlayerLeftBound(&p2, cameraX);
+            setPlayerRightBound(&p2, rightBound);
         }
 
         // 4. Spawner: activar enemigos cuando la cámara se acerca.
@@ -647,10 +748,21 @@ SceneId showLevel1() {
             if (spawnUsed[s]) continue;
             if (screenRightEdge < spawnDefs[s].triggerX) continue;
 
+            // X de spawn fuera de pantalla según el flanco, relativa a la
+            // cámara ACTUAL (una entrada pendiente que entra tarde spawnea
+            // igual de bien: siempre justo fuera del borde).
+            s16 sx = (spawnDefs[s].side > 0)
+                   ? (screenRightEdge + 8)                    // de frente
+                   : (cameraX - ENEMY_SPRITE_W - 8);          // por la espalda
+
             // Buscar un slot libre en el pool de enemigos
             for (u16 i = 0; i < MAX_ENEMIES; i++) {
                 if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                    initEnemySpawn(&enemies[i], spawnDefs[s].spawnX, spawnDefs[s].y, spawnDefs[s].patrolRange, PAL2);
+                    initEnemySpawn(&enemies[i], sx, spawnDefs[s].y, 60, PAL2);
+                    // Los de oleada nacen PERSIGUIENDO (si patrullaran, los
+                    // de la espalda se quedarían caminando fuera de cámara
+                    // hasta que el jugador retroceda a su rango de aggro).
+                    enemies[i].state = ENEMY_STATE_CHASE;
                     spawnUsed[s] = TRUE;
                     activeEnemies++;
                     break;
@@ -676,55 +788,19 @@ SceneId showLevel1() {
             updateEnemy(&enemies[i], p1wx, p1wy, p2wx, p2wy, dosJugadores);
         }
 
-        // 6. Colisiones: ataque del jugador → enemigos
+        // 6. Colisiones: ataque del jugador → enemigos.
+        //    playerAttackHits mide desde el CENTRO de la tortuga, con alcance
+        //    frontal real (64px, más que el rango de ataque del foot soldier)
+        //    y tolerancia simétrica en profundidad. Incluye la patada en
+        //    salto, que antes no golpeaba.
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (!enemyCanBeHit(&enemies[i])) continue;
 
-            bool hitP1 = FALSE, hitP2 = FALSE;
+            s16 ex = getEnemyCenterX(&enemies[i]);
+            s16 ey = getEnemyCenterY(&enemies[i]);
 
-            if (isPlayerAttacking(&p1)) {
-                s16 atkX = getPlayerWorldX(&p1);
-                s16 atkY = getPlayerY(&p1);
-                s16 atkLeft, atkRight;
-                if (getPlayerDir(&p1) >= 0) {
-                    atkLeft  = atkX + 40;
-                    atkRight = atkX + 80;
-                } else {
-                    atkLeft  = atkX - 40;
-                    atkRight = atkX + 20;
-                }
-                s16 atkTop    = atkY - 40;
-                s16 atkBottom = atkY;
-
-                s16 ex = getEnemyCenterX(&enemies[i]);
-                s16 ey = getEnemyCenterY(&enemies[i]);
-
-                if (ex >= atkLeft && ex <= atkRight && ey >= atkTop && ey <= atkBottom)
-                    hitP1 = TRUE;
-            }
-
-            if (dosJugadores && !hitP1 && isPlayerAttacking(&p2)) {
-                s16 atkX = getPlayerWorldX(&p2);
-                s16 atkY = getPlayerY(&p2);
-                s16 atkLeft, atkRight;
-                if (getPlayerDir(&p2) >= 0) {
-                    atkLeft  = atkX + 40;
-                    atkRight = atkX + 80;
-                } else {
-                    atkLeft  = atkX - 40;
-                    atkRight = atkX + 20;
-                }
-                s16 atkTop    = atkY - 40;
-                s16 atkBottom = atkY;
-
-                s16 ex = getEnemyCenterX(&enemies[i]);
-                s16 ey = getEnemyCenterY(&enemies[i]);
-
-                if (ex >= atkLeft && ex <= atkRight && ey >= atkTop && ey <= atkBottom)
-                    hitP2 = TRUE;
-            }
-
-            if (hitP1 || hitP2)
+            if (playerAttackHits(&p1, ex, ey) ||
+                (dosJugadores && playerAttackHits(&p2, ex, ey)))
                 damageEnemy(&enemies[i], 1);
         }
 

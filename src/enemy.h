@@ -7,6 +7,11 @@
 #define MAX_ENEMIES         8
 #define ENEMY_SPEED         1
 #define ENEMY_AGGRO_RANGE   200
+// Des-aggro: MÁS que una pantalla completa (330px) + margen. Los enemigos de
+// oleada spawnean off-screen ya persiguiendo; con el histórico AGGRO+60 (260)
+// un spawn trasero con el jugador en la otra punta de la pantalla se
+// "olvidaba" de perseguir y quedaba patrullando fuera de cámara.
+#define ENEMY_DEAGGRO_RANGE 400
 #define ENEMY_ATTACK_RANGE  44   // Distancia (centro a centro) para lanzar ataque
 // El sheet del foot soldier usa la MISMA grilla que las tortugas: frames de
 // 104x104px (13x13 tiles) con el arte en la parte baja del frame.
@@ -35,6 +40,10 @@
 // ---------------------------------------------------------------------------
 #define ENEMY_LANE_TOP      150  // Pies al fondo (base del muro de edificios)
 #define ENEMY_LANE_BOTTOM   192  // Pies al frente (borde de la vereda/cuneta)
+// X mínima de mundo: NEGATIVA para que los spawns "por la espalda" puedan
+// nacer fuera de pantalla a la izquierda cuando la cámara está cerca del
+// inicio del nivel (con el clamp viejo en 0 aparecían con medio cuerpo visible)
+#define ENEMY_WORLD_MIN_X   (-ENEMY_SPRITE_W)
 #define ENEMY_Y_ALIGN         2  // Tolerancia: dentro de esto no se ajusta más la Y
 #define ENEMY_ATTACK_TOL_Y   16  // |dy| máximo con el jugador para lanzar un ataque
 #define ENEMY_STOP_RANGE     36  // Distancia X mínima: no seguir empujando al jugador
@@ -95,11 +104,14 @@ typedef enum {
     ENEMY_STATE_DEAD
 } EnemyState;
 
+// Entrada de spawn de una OLEADA: cuando el borde derecho de la cámara supera
+// triggerX, el enemigo entra por el flanco 'side' en la lane 'y'. La X real
+// se calcula al spawnear, fuera de pantalla relativo a la cámara del momento.
+// Varias entradas con el mismo triggerX = una oleada.
 typedef struct {
-    s16 triggerX;
-    s16 spawnX;
-    s16 y;
-    s16 patrolRange;
+    s16 triggerX;   // Disparo: borde derecho de cámara supera este X de mundo
+    s8  side;       // +1 = de FRENTE (entra por la derecha) | -1 = por la ESPALDA
+    s16 y;          // Lane de spawn (pies), distinta dentro de la oleada
 } EnemySpawnDef;
 
 typedef struct {

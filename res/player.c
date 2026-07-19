@@ -28,7 +28,8 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->boundRight    = 288;
     p->cameraOffsetX = 0;
     p->comboStep     = 0;
-    p->comboTimer    = 0;
+    p->comboBuffered = 0;
+    p->comboLinger   = 0;
     p->jumpVel       = 0;
     p->groundY       = startY;
     p->isJumpKicking = FALSE;
@@ -125,11 +126,15 @@ void updatePlayer(Player* p) {
 
             // Especial: B+C simultáneos (uno recién presionado, el otro activo).
             // Se chequea primero para que no se confunda con salto o golpe solo.
+            // Los ataques arrancan SIN loop y desde el frame 0: la anim corre
+            // una vez y queda congelada al final (ventana de enlace del combo).
             if ((bJust && (joy & BUTTON_C)) || (cJust && (joy & BUTTON_B))) {
-                p->state     = STATE_ATTACKING;
-                p->comboStep = 0;
-                p->comboTimer = 0;
-                SPR_setAnim(p->sprite, ANIM_SPECIAL);
+                p->state         = STATE_ATTACKING;
+                p->comboStep     = 0;
+                p->comboBuffered = 0;
+                p->comboLinger   = COMBO_LINK_WINDOW;
+                SPR_setAnimationLoop(p->sprite, FALSE);
+                SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
             } else if (cJust) {
                 p->state     = STATE_JUMPING;
                 p->jumpVel   = -PLAYER_JUMP_FORCE;
@@ -138,44 +143,55 @@ void updatePlayer(Player* p) {
                 SPR_setAnimationLoop(p->sprite, TRUE);
                 SPR_setAnim(p->sprite, ANIM_JUMP);
             } else if (bJust) {
-                p->state     = STATE_ATTACKING;
-                p->comboStep = 1;
-                p->comboTimer = 0;
-                SPR_setAnim(p->sprite, ANIM_ATTACK_1);
+                p->state         = STATE_ATTACKING;
+                p->comboStep     = 1;
+                p->comboBuffered = 0;
+                p->comboLinger   = COMBO_LINK_WINDOW;
+                SPR_setAnimationLoop(p->sprite, FALSE);
+                SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_1, 0);
             } else if (justPressed(joy, p->prevJoy, BUTTON_A)) {
-                p->state     = STATE_ATTACKING;
-                p->comboStep = 0;
-                p->comboTimer = 0;
-                SPR_setAnim(p->sprite, ANIM_KICK);
+                p->state         = STATE_ATTACKING;
+                p->comboStep     = 0;
+                p->comboBuffered = 0;
+                p->comboLinger   = COMBO_LINK_WINDOW;
+                SPR_setAnimationLoop(p->sprite, FALSE);
+                SPR_setAnimAndFrame(p->sprite, ANIM_KICK, 0);
             }
             break;
         }
 
         case STATE_ATTACKING: {
-            if (p->comboTimer > 0) p->comboTimer--;
+            // BUFFER de input: un press de B en CUALQUIER momento del swing
+            // queda guardado y encadena al terminar la anim. Antes solo valía
+            // el press del frame exacto de fin de anim (ventana de 1 frame).
+            if (justPressed(joy, p->prevJoy, BUTTON_B))
+                p->comboBuffered = 1;
 
-            if (SPR_isAnimationDone(p->sprite)) {
-                // Solo avanza el combo con un press nuevo, nunca por hold
-                bool wantCombo = (bool)(justPressed(joy, p->prevJoy, BUTTON_B));
+            // Swing todavía en curso (anims de ataque corren sin loop)
+            if (!SPR_isAnimationDone(p->sprite))
+                break;
 
-                if (wantCombo && p->comboStep > 0 && p->comboStep < 3) {
-                    p->comboStep++;
-                    p->comboTimer = COMBO_WINDOW;
-                    switch(p->comboStep) {
-                        case 2: SPR_setAnim(p->sprite, ANIM_ATTACK_2); break;
-                        case 3: SPR_setAnim(p->sprite, ANIM_ATTACK_3); break;
-                        default: break;
-                    }
-                } else {
-                    p->state     = STATE_IDLE;
-                    p->comboStep = 0;
-                    p->comboTimer = 0;
-                    SPR_setAnim(p->sprite, ANIM_IDLE);
-                }
+            // Swing terminado: ¿se encadena el siguiente golpe del combo?
+            bool canChain = (p->comboStep > 0 && p->comboStep < 3);
+
+            if (canChain && p->comboBuffered) {
+                p->comboStep++;
+                p->comboBuffered = 0;
+                p->comboLinger   = COMBO_LINK_WINDOW;
+                SPR_setAnimAndFrame(p->sprite,
+                                    (p->comboStep == 2) ? ANIM_ATTACK_2
+                                                        : ANIM_ATTACK_3, 0);
+            } else if (canChain && p->comboLinger > 0) {
+                // Ventana de enlace: quedarse unos frames en la pose final
+                // esperando el press que encadena
+                p->comboLinger--;
             } else {
-                if (justPressed(joy, p->prevJoy, BUTTON_B)) {
-                    p->comboTimer = COMBO_WINDOW;
-                }
+                p->state         = STATE_IDLE;
+                p->comboStep     = 0;
+                p->comboBuffered = 0;
+                p->comboLinger   = 0;
+                SPR_setAnimationLoop(p->sprite, TRUE);   // restaurar loop normal
+                SPR_setAnim(p->sprite, ANIM_IDLE);
             }
             break;
         }
@@ -259,8 +275,44 @@ void updatePlayer(Player* p) {
     SPR_setDepth(p->sprite, -(p->y));
 }
 
-bool isPlayerAttacking(const Player* p) {
-    return (p->state == STATE_ATTACKING);
+static s16 absPS16(s16 v) {
+    return (v < 0) ? -v : v;
+}
+
+// ---------------------------------------------------------------------------
+// HITBOX DE ATAQUE — tortuga → enemigos
+// ---------------------------------------------------------------------------
+bool isPlayerAttackActive(const Player* p) {
+    // Swing de ataque en curso. La pose congelada de la ventana de enlace
+    // (anim terminada) ya NO pega: la hitbox vive solo durante la animación.
+    if (p->state == STATE_ATTACKING)
+        return !SPR_isAnimationDone(p->sprite);
+    // Patada en salto: activa todo el tiempo que dura el vuelo con la patada
+    if (p->state == STATE_JUMPING && p->isJumpKicking)
+        return TRUE;
+    return FALSE;
+}
+
+bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY) {
+    if (!isPlayerAttackActive(p))
+        return FALSE;
+
+    // Alcance horizontal medido desde el CENTRO del frame, hacia adelante.
+    // (El código anterior medía desde el borde izquierdo: pegando a la
+    // derecha la ventana cubría -12..+28px del centro — el golpe pegaba
+    // "arriba" de la tortuga y nunca adelante, donde frenan los enemigos.)
+    s16 pcx = p->x + PLAYER_SPRITE_W / 2;
+    s16 dx  = (p->dir >= 0) ? (targetCX - pcx) : (pcx - targetCX);
+    if (dx < -PLAYER_ATK_BACK || dx > PLAYER_ATK_REACH)
+        return FALSE;
+
+    // Profundidad: tolerancia SIMÉTRICA alrededor del lane del jugador.
+    // En el aire (jump kick) el lane es groundY, no la Y del vuelo.
+    s16 laneY = (p->state == STATE_JUMPING) ? p->groundY : p->y;
+    if (absPS16(targetFeetY - laneY) > PLAYER_ATK_TOL_Y)
+        return FALSE;
+
+    return TRUE;
 }
 
 s8 getPlayerDir(const Player* p) {
@@ -308,8 +360,9 @@ void damagePlayer(Player* p, s16 attackerX) {
     p->invincible = PLAYER_HURT_INVINCIBLE;
 
     // Un golpe corta cualquier combo en curso
-    p->comboStep  = 0;
-    p->comboTimer = 0;
+    p->comboStep     = 0;
+    p->comboBuffered = 0;
+    p->comboLinger   = 0;
 
     // Sin loop + reinicio forzado desde el frame 0: dos golpes seguidos por
     // la espalda repiten HIT_BEHIND_1 y SPR_setAnim solo lo ignoraría (mismo

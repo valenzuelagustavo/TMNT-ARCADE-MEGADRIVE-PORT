@@ -257,7 +257,7 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
         }
 
         case ENEMY_STATE_CHASE: {
-            if (dist > ENEMY_AGGRO_RANGE + 60) {
+            if (dist > ENEMY_DEAGGRO_RANGE) {
                 newState = ENEMY_STATE_PATROL;
                 break;
             }
@@ -292,7 +292,7 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
             }
             if (moveX != 0) {
                 e->x += moveX;
-                e->x = clampS16(e->x, 0, 1376 - ENEMY_SPRITE_W);
+                e->x = clampS16(e->x, ENEMY_WORLD_MIN_X, 1376 - ENEMY_SPRITE_W);
             }
             // Siempre MIRANDO al jugador, incluso mientras retrocede
             if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
@@ -325,7 +325,7 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
                 if (e->attackType == ENEMY_ATTACK_KICK &&
                     e->timer > (ENEMY_KICK_TIME - ENEMY_KICK_LUNGE)) {
                     e->x += e->dir * ENEMY_KICK_SPEED;
-                    e->x = clampS16(e->x, 0, 1376 - ENEMY_SPRITE_W);
+                    e->x = clampS16(e->x, ENEMY_WORLD_MIN_X, 1376 - ENEMY_SPRITE_W);
                 }
             } else {
                 // Fin del ataque: liberar el cupo de atacante y arrancar el
@@ -401,8 +401,8 @@ void separateEnemies(Enemy* list, u16 count) {
             // Empuje horizontal: cada uno 1px hacia lados opuestos.
             // Si están EXACTAMENTE en la misma X, desempata por índice.
             s16 push = (dx > 0 || (dx == 0 && (i & 1))) ? 1 : -1;
-            list[i].x = clampS16(list[i].x - push, 0, 1376 - ENEMY_SPRITE_W);
-            list[j].x = clampS16(list[j].x + push, 0, 1376 - ENEMY_SPRITE_W);
+            list[i].x = clampS16(list[i].x - push, ENEMY_WORLD_MIN_X, 1376 - ENEMY_SPRITE_W);
+            list[j].x = clampS16(list[j].x + push, ENEMY_WORLD_MIN_X, 1376 - ENEMY_SPRITE_W);
 
             // Empuje vertical suave solo si están casi en la misma lane
             if (dy != 0) {
