@@ -1,7 +1,7 @@
 #include "scenes.h"
 #include "intro.h"   // sega_logo_spr, rocksteady_spr
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
-#include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), title_font, title_font_pal
+#include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (IMAGE, 72x32), title_font, title_font_pal
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
@@ -33,7 +33,7 @@
 // audio.res). El XGM clásico no tiene control de volumen.
 // ---------------------------------------------------------------------------
 #define VOL_MUSIC_INTRO    100
-#define VOL_MUSIC_SELECT   90
+#define VOL_MUSIC_SELECT   100
 #define VOL_MUSIC_LEVEL1    40   // la música del nivel saturaba: bajada al 50%
 #define VOL_SFX            100
 
@@ -56,6 +56,14 @@ void clearScene() {
     SPR_reset();
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
+    // Resetear el scroll de ambos planos. El nivel deja BG_B scrolleado en
+    // -cameraX (y BG_A en 0); sin este reset, la escena siguiente hereda ese
+    // desplazamiento y su contenido aparece corrido (p.ej. el logo TMNT del
+    // menú, tras un game over que reinicia el juego).
+    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setHorizontalScroll(BG_B, 0);
+    VDP_setVerticalScroll(BG_A, 0);
+    VDP_setVerticalScroll(BG_B, 0);
     VDP_setBackgroundColor(0);
     SYS_doVBlankProcess();
 }
@@ -214,6 +222,163 @@ static void fireUpdate() {
     }
 }
 
+// ===========================================================================
+// HUD — marcos de P1 y P2 en la franja superior de 32px
+// ===========================================================================
+// El fondo del nivel deja libres sus 4 primeras filas de tiles (32px):
+// los marcos del HUD (72x32) van ahi, dibujados UNA vez en BG_A con
+// PRIORIDAD ALTA (por encima de los sprites, estilo arcade). P1 pegado al
+// borde izquierdo, P2 al derecho. Comparten la paleta de las tortugas
+// (PAL1, que carga initPlayer) -> no consumen linea de paleta propia.
+// BG_A no scrollea (el fuego anima por DMA), asi que quedan fijos solos.
+// Los CONTENIDOS (vidas, puntos, barra de vida) se dibujaran adentro cuando
+// implementemos el sistema de HP.
+// ---------------------------------------------------------------------------
+#define HUD_TILE_Y  0   // Fila de tiles donde arranca el HUD
+
+// Dibuja los dos marcos. 'vramInd' = primer tile de VRAM libre.
+// Devuelve el primer tile libre despues de los tiles del HUD.
+static u16 hudInit(u16 vramInd) {
+    // P1: pegado al borde izquierdo
+    VDP_drawImageEx(BG_A, &hud_1p,
+                    TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, vramInd),
+                    0, HUD_TILE_Y, FALSE, TRUE);
+    vramInd += hud_1p.tileset->numTile;
+
+    // P2: pegado al borde derecho (pantalla de 40 columnas)
+    VDP_drawImageEx(BG_A, &hud_2p,
+                    TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, vramInd),
+                    40 - hud_2p.tilemap->w, HUD_TILE_Y, FALSE, TRUE);
+    vramInd += hud_2p.tileset->numTile;
+
+    return vramInd;
+}
+
+// ===========================================================================
+// HUD — contenido dinámico: barra de vida + vidas + puntaje
+// ===========================================================================
+// Todo entra en el marco original (72x32), que deja 2 filas de tiles de
+// interior útil. Distribución estilo arcade (compacta):
+//   fila 1 -> [1UP baked]            PUNTAJE (arriba, alineado a la derecha)
+//   fila 2 -> [VIDAS]  [BARRA]       vidas a la IZQUIERDA, barra a la derecha
+//
+// La BARRA DE VIDA se dibuja como TILES en BG_A (prioridad alta, igual que el
+// marco), NO como sprite: no consume presupuesto del motor de sprites
+// (SPR_initEx) ni depende del layering sprite/plano. La barra es de 32x8 (una
+// fila de tiles): un frame (4x1 = 4 tiles) vive en VRAM por jugador y, al
+// recibir un golpe, se pisa con el frame siguiente via DMA (misma técnica de
+// streaming que el fuego). Comparte PAL1 (paleta de las tortugas): el PNG está
+// indexado en esa misma paleta.
+//
+// VIDAS y PUNTAJE van como TEXTO con la fuente por defecto (VDP_drawText) sobre
+// BG_A. Se dibujan en PAL3 (la paleta "flash" es blanco puro en todos sus
+// índices), así el texto sale blanco sin gastar una línea de paleta propia.
+// ---------------------------------------------------------------------------
+#define HPBAR_FRAME_TILES_W  4                                            // 32px
+#define HPBAR_FRAME_TILES_H  1                                            // 8px
+#define HPBAR_FRAME_TILES    (HPBAR_FRAME_TILES_W * HPBAR_FRAME_TILES_H)  // 4
+
+// Posiciones (en tiles) RELATIVAS a la columna donde arranca el marco.
+// El interior útil es cols 1..7 (col 0 y col 8 son borde; fila 1 además tiene
+// el "1UP" pintado en cols 0..3, así que ahí sólo cols 4..7 quedan libres).
+#define HUD_SCORE_ROW   1   // fila superior; el puntaje se alinea a la derecha
+#define HUD_SCORE_LEFT  4   // primera col libre de la fila superior (tras "1UP")
+#define HUD_SCORE_RIGHT 8   // borde derecho (col 8); el puntaje termina en col 7
+#define HUD_LIVES_COL   1
+#define HUD_LIVES_ROW   2
+#define HUD_BAR_COL     4
+#define HUD_BAR_ROW     2
+
+// Estado del HUD de un jugador: cachea lo último dibujado para redibujar solo
+// cuando cambia (evita reescribir VRAM cada frame).
+typedef struct {
+    Player* pl;
+    u16     baseCol;    // columna de tile donde arranca el marco (0 = P1)
+    u16     barVram;    // primer tile de VRAM del bloque de la barra (8 tiles)
+    s16     lastHealth;
+    s16     lastLives;
+    s32     lastScore;
+} HudPlayer;
+
+// Convierte un u16 a decimal sin ceros a la izquierda. Devuelve la longitud.
+static u16 uintToDec(u16 v, char* out) {
+    char tmp[6];
+    u16  n = 0;
+    if (v == 0) { out[0] = '0'; out[1] = 0; return 1; }
+    while (v > 0) { tmp[n++] = (char)('0' + (v % 10)); v /= 10; }
+    for (u16 i = 0; i < n; i++) out[i] = tmp[n - 1 - i];
+    out[n] = 0;
+    return n;
+}
+
+// Carga en VRAM el frame 'frame' de la barra (0 = llena .. 10 = vacía),
+// pisando los 8 tiles del bloque. Los tiles de cada frame están contiguos y
+// sin deduplicar en ROM (NONE NONE): frame N arranca en tile N*8 -> N*8*8
+// longwords. DMA_QUEUE: la transferencia (256B) se hace en el próximo vblank.
+static void hpBarSetFrame(u16 barVram, u8 frame) {
+    VDP_loadTileData(hp_bar.tiles + (u32)frame * HPBAR_FRAME_TILES * 8,
+                     barVram, HPBAR_FRAME_TILES, DMA_QUEUE);
+}
+
+// Inicializa el bloque de barra de un jugador: carga el frame lleno a VRAM y
+// dibuja su tilemap 4x2 en BG_A (prioridad alta, PAL1) dentro del marco.
+static void hpBarInit(u16 barVram, u16 baseCol) {
+    VDP_loadTileData(hp_bar.tiles, barVram, HPBAR_FRAME_TILES, DMA);
+    // fillTileMapRectInc incrementa el índice tile a tile (fila por fila), el
+    // mismo orden en que quedan los 8 tiles del frame en el tileset.
+    VDP_fillTileMapRectInc(BG_A,
+                           TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, barVram),
+                           baseCol + HUD_BAR_COL, HUD_BAR_ROW,
+                           HPBAR_FRAME_TILES_W, HPBAR_FRAME_TILES_H);
+}
+
+// Prepara el HUD de un jugador. Llamar DESPUÉS de initPlayer (PAL1 cargada) y
+// de fijar paleta/plano de texto. Fuerza el primer dibujado de cada elemento.
+static void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram) {
+    h->pl         = pl;
+    h->baseCol    = baseCol;
+    h->barVram    = barVram;
+    h->lastHealth = -1;   // -1 = fuerza el primer redibujo
+    h->lastLives  = -1;
+    h->lastScore  = -1;
+    hpBarInit(barVram, baseCol);
+}
+
+// Redibuja SOLO los elementos que cambiaron. Llamar una vez por frame.
+static void hudPlayerUpdate(HudPlayer* h) {
+    s16 hp    = getPlayerHealth(h->pl);
+    s16 lives = (s16)getPlayerLives(h->pl);
+    s32 score = (s32)getPlayerScore(h->pl);
+
+    if (hp != h->lastHealth) {
+        s16 frame = PLAYER_MAX_HEALTH - hp;
+        if (frame < 0)                 frame = 0;
+        if (frame > PLAYER_MAX_HEALTH) frame = PLAYER_MAX_HEALTH;
+        hpBarSetFrame(h->barVram, (u8)frame);
+        h->lastHealth = hp;
+    }
+
+    if (lives != h->lastLives) {
+        char buf[6];
+        buf[0] = 'x';
+        uintToDec((u16)lives, buf + 1);            // p.ej. "x3"
+        VDP_clearText(h->baseCol + HUD_LIVES_COL, HUD_LIVES_ROW, 3);
+        VDP_drawText(buf, h->baseCol + HUD_LIVES_COL, HUD_LIVES_ROW);
+        h->lastLives = lives;
+    }
+
+    if (score != h->lastScore) {
+        char buf[6];
+        u16  len = uintToDec((u16)score, buf);   // 1..5 dígitos
+        u16  field = HUD_SCORE_RIGHT - HUD_SCORE_LEFT;   // 4 tiles (cols 4..7)
+        if (len > field) len = field;                    // no invadir el "1UP"
+        // Alinear a la derecha: el último dígito queda en la col 7.
+        VDP_clearText(h->baseCol + HUD_SCORE_LEFT, HUD_SCORE_ROW, field);
+        VDP_drawText(buf, h->baseCol + HUD_SCORE_RIGHT - len, HUD_SCORE_ROW);
+        h->lastScore = score;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 1. Intro SEGA — Rocksteady choca el logo
 // ---------------------------------------------------------------------------
@@ -284,6 +449,7 @@ SceneId showPlayerSelect() {
 
     VDP_drawText("1 TORTUGA",  14, 18);
     VDP_drawText("2 TORTUGAS", 14, 20);
+    VDP_drawText("Desarrollado por: Gustavo Valenzuela", 2, 26);
 
     Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 14 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
@@ -619,6 +785,12 @@ SceneId showLevel1() {
     // Los tiles del fuego van a VRAM justo después del tileset del fondo.
     fireInit(TILE_USER_INDEX + bg_level1.tileset->numTile);
 
+    // --- Marcos del HUD (BG_A, franja superior, prioridad alta) ---
+    // Sus tiles van después de los del fuego (que ocupa FIRE_CELL_TILES).
+    // Guardamos el primer tile libre después del HUD: ahí van los bloques de
+    // la barra de vida (8 tiles por jugador).
+    u16 hudVramFree = hudInit(TILE_USER_INDEX + bg_level1.tileset->numTile + FIRE_CELL_TILES);
+
     // Paleta "flash" (silueta blanca al recibir golpe) en PAL3, la única libre.
     initEnemyFlashPalette(PAL3);
 
@@ -644,6 +816,21 @@ SceneId showLevel1() {
         initPlayer(&p2, personaje2Seleccionado, JOY_2, PAL1, 160, 182);
         setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
     }
+
+    // --- HUD dinámico: barra de vida + vidas + puntaje ---
+    // El texto (vidas/puntaje) va con la fuente por defecto sobre BG_A, con
+    // prioridad alta (delante de los sprites) y en PAL3 (blanco puro -> texto
+    // blanco). La barra usa PAL1 (ya cargada por initPlayer). Cada jugador
+    // tiene su bloque de barra en VRAM: P1 en hudVramFree, P2 a +8.
+    VDP_setTextPlane(BG_A);
+    VDP_setTextPriority(1);
+    VDP_setTextPalette(PAL3);
+
+    HudPlayer hud1;
+    hudPlayerInit(&hud1, &p1, 0, hudVramFree);
+    HudPlayer hud2;
+    if (dosJugadores)
+        hudPlayerInit(&hud2, &p2, 40 - hud_2p.tilemap->w, hudVramFree + HPBAR_FRAME_TILES);
 
     // --- Definición de spawns por OLEADAS (trigger-based) ---
     // Cada punto del nivel dispara una oleada: varias entradas con el mismo
@@ -793,15 +980,29 @@ SceneId showLevel1() {
         //    frontal real (64px, más que el rango de ataque del foot soldier)
         //    y tolerancia simétrica en profundidad. Incluye la patada en
         //    salto, que antes no golpeaba.
+        //    El ESPECIAL (botón A o B+C) mata al foot soldier de un golpe:
+        //    aplica ENEMY_HP de daño en vez de 1.
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (!enemyCanBeHit(&enemies[i])) continue;
 
             s16 ex = getEnemyCenterX(&enemies[i]);
             s16 ey = getEnemyCenterY(&enemies[i]);
 
-            if (playerAttackHits(&p1, ex, ey) ||
-                (dosJugadores && playerAttackHits(&p2, ex, ey)))
-                damageEnemy(&enemies[i], 1);
+            s16     dmg      = 0;
+            Player* attacker = NULL;
+            if (playerAttackHits(&p1, ex, ey)) {
+                dmg = isPlayerSpecialAttack(&p1) ? ENEMY_HP : 1; attacker = &p1;
+            } else if (dosJugadores && playerAttackHits(&p2, ex, ey)) {
+                dmg = isPlayerSpecialAttack(&p2) ? ENEMY_HP : 1; attacker = &p2;
+            }
+
+            if (dmg > 0) {
+                damageEnemy(&enemies[i], dmg);
+                // El enemigo pasó enemyCanBeHit (estaba vivo). Si este golpe lo
+                // dejó en DEAD, es una baja: +1 punto al jugador que lo remató.
+                if (attacker && enemies[i].state == ENEMY_STATE_DEAD)
+                    addPlayerScore(attacker, 1);
+            }
         }
 
         // 6b. Colisiones: ataques de los foot soldiers → jugadores.
@@ -823,6 +1024,17 @@ SceneId showLevel1() {
             }
         }
 
+        // 6c. HUD: refrescar barra de vida, vidas y puntaje (solo redibuja lo
+        //     que cambió respecto del frame anterior).
+        hudPlayerUpdate(&hud1);
+        if (dosJugadores) hudPlayerUpdate(&hud2);
+
+        // 6d. Game over: sin vidas ni barra. En 2P, cuando ambos cayeron.
+        //     Por ahora vuelve a la pantalla inicial (todavía sin pantalla de
+        //     Game Over ni animación de muerte).
+        if (isPlayerGameOver(&p1) && (!dosJugadores || isPlayerGameOver(&p2)))
+            break;
+
         // 7. Revelar columnas nuevas del fondo y aplicar el scroll
         bgUpdate(cameraX);
 
@@ -834,6 +1046,44 @@ SceneId showLevel1() {
         SYS_doVBlankProcess();
     }
 
+    // Restaurar atributos de texto por defecto para el resto de las escenas
+    // (el HUD los dejó en prioridad alta / PAL3).
+    VDP_setTextPriority(0);
+    VDP_setTextPalette(PAL0);
+
     clearScene();
-    return SCENE_LEVEL1;
+    return SCENE_GAME_OVER;
+}
+
+// ---------------------------------------------------------------------------
+// 9. Game Over — "GAME OVER" sobre fondo negro, luego reinicia el juego
+// ---------------------------------------------------------------------------
+SceneId showGameOver() {
+    clearScene();
+
+    // Fuente por defecto (blanca). clearScene dejó todas las paletas en negro,
+    // así que ponemos blanco en el índice que usa la fuente default (15).
+    VDP_loadFont(&font_default, DMA);
+    VDP_setTextPlane(BG_A);
+    VDP_setTextPriority(0);
+    VDP_setTextPalette(PAL0);
+    VDP_setBackgroundColor(0);
+    PAL_setColor(15, 0x0EEE);   // blanco
+
+    // "GAME OVER" (9 chars) centrado en las 40 columnas: x = (40-9)/2 ≈ 15
+    VDP_drawText("GAME OVER", 15, 13);
+
+    // Mantener en pantalla ~4 segundos (START adelanta)
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 4;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SYS_doVBlankProcess();
+    }
+    // Esperar a que se suelte START para no saltear la intro siguiente
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    clearScene();
+    return SCENE_SEGA;   // reiniciar el juego desde el logo de SEGA
 }

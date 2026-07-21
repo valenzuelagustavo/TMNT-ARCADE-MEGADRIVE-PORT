@@ -14,7 +14,8 @@ typedef enum {
     SCENE_CHAR_SELECT,
     SCENE_CINEMATIC_FIRE,
     SCENE_LEVEL1_TITLE,
-    SCENE_LEVEL1
+    SCENE_LEVEL1,
+    SCENE_GAME_OVER
 } SceneId;
 
 // Prototipos de las funciones de cada escena
@@ -27,6 +28,7 @@ SceneId showCharSelect();
 SceneId showFireCinematic();
 SceneId showLevel1Title();
 SceneId showLevel1();
+SceneId showGameOver();
 
 // Función auxiliar para limpiar la pantalla entre escenas
 void clearScene();

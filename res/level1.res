@@ -28,6 +28,24 @@ IMAGE bg_level1 "/images/lvl_1_scene/bg01_completa.png" NONE
 // (PAL2), los PNGs estan cuantizados sobre la misma paleta indexada.
 TILESET fire_tiles "/sprites/fire_strip.png" NONE NONE
 
+// --- HUD: marcos de vidas / puntos / barra de vida (72x32 cada uno) ---
+// Van en la franja superior de 32px que el fondo deja libre (sus 4 primeras
+// filas de tiles usan un indice fuera de la linea -> transparente en juego).
+// Comparten la paleta de las tortugas (PAL1): NO llevan PALETTE propia.
+IMAGE hud_1p "/images/hud/hud_1p.png" BEST
+IMAGE hud_2p "/images/hud/hud_2p.png" BEST
+
+// --- Barra de vida (11 frames de 32x8 apilados en vertical) ---
+// hp_bar.png (32x88): frame[0] = 10 barras (vida llena), frame[10] = 0 barras.
+// Cada frame son 4x1 = 4 tiles; se anima por STREAMING igual que el fuego:
+// UN frame (4 tiles) vive en VRAM por jugador y, al recibir un golpe, scenes.c
+// lo pisa con el frame siguiente via DMA. NONE NONE es CRITICO: sin comprimir
+// para indexar los tiles de cada frame directo desde ROM (hp_bar.tiles) y sin
+// deduplicar para que los 4 tiles de cada frame queden CONTIGUOS y en orden
+// (frame N -> tiles [N*4 .. N*4+3]). Comparte la paleta de las tortugas
+// (PAL1): NO lleva PALETTE propia (los indices del PNG coinciden con esa paleta).
+TILESET hp_bar "/sprites/hp_bar.png" NONE NONE
+
 // --- Fuente arcade para el titulo del nivel (solo ASCII en este bloque) ---
 // 95 tiles de 8x8 en orden ASCII (32..126) -> compatible con VDP_loadFont.
 // TILESET (tiles) + PALETTE (blanco/azul) exportados del mismo PNG.

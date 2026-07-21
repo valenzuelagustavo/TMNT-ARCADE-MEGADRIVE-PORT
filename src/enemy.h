@@ -36,14 +36,27 @@
 
 // ---------------------------------------------------------------------------
 // Movimiento vertical — lane de profundidad (coordenadas de PIES).
-// Mantener en sincronía con BOUND_LANE_TOP/BOTTOM de player.h.
-// ---------------------------------------------------------------------------
-#define ENEMY_LANE_TOP      150  // Pies al fondo (base del muro de edificios)
-#define ENEMY_LANE_BOTTOM   192  // Pies al frente (borde de la vereda/cuneta)
+// Mantener en sincronía con BOUND_LANE_TOP/BOTTOM de player.h (ampliada
+// 1 tile en cada extremo el 19/07 para dar mas movilidad al jugador,
+// sobre todo saltando; los enemigos siguen la misma franja para no dejar
+// zonas de la vereda sin cobertura de IA).
+#define ENEMY_LANE_TOP      142  // Pies al fondo (1 tile mas alla del muro de edificios)
+#define ENEMY_LANE_BOTTOM   200  // Pies al frente (1 tile mas alla del borde de la vereda/cuneta)
 // X mínima de mundo: NEGATIVA para que los spawns "por la espalda" puedan
 // nacer fuera de pantalla a la izquierda cuando la cámara está cerca del
 // inicio del nivel (con el clamp viejo en 0 aparecían con medio cuerpo visible)
 #define ENEMY_WORLD_MIN_X   (-ENEMY_SPRITE_W)
+
+// ---------------------------------------------------------------------------
+// Pared diagonal al FINAL del nivel (hueco de escalera / fire escape).
+// Dibujada en PERSPECTIVA en el fondo, no como pared vertical: el borde
+// sólido está más atrás (X menor) en la lane del fondo y más adelante
+// (X mayor) en la lane del frente. Mantener en sincronía con
+// LEVEL_END_WALL_X_TOP/BOTTOM de player.h (mismos valores, calibrados
+// sobre bg01_completa.png).
+// ---------------------------------------------------------------------------
+#define ENEMY_END_WALL_X_TOP     1308  // borde solido en Y=ENEMY_LANE_TOP (fondo)
+#define ENEMY_END_WALL_X_BOTTOM  1352  // borde solido en Y=ENEMY_LANE_BOTTOM (frente)
 #define ENEMY_Y_ALIGN         2  // Tolerancia: dentro de esto no se ajusta más la Y
 #define ENEMY_ATTACK_TOL_Y   16  // |dy| máximo con el jugador para lanzar un ataque
 #define ENEMY_STOP_RANGE     36  // Distancia X mínima: no seguir empujando al jugador

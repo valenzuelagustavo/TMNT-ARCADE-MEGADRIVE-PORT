@@ -40,6 +40,9 @@ int main()
         case SCENE_LEVEL1:
             currentScene = showLevel1();
             break;
+        case SCENE_GAME_OVER:
+            currentScene = showGameOver();
+            break;
         // ... agregar el resto de casos ...
         default:
             currentScene = SCENE_SEGA; // Por seguridad
