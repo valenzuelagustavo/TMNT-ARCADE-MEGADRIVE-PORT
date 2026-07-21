@@ -59,3 +59,12 @@ TILESET hp_bar "/sprites/hp_bar.png" NONE NONE
 // comprimir y sin optimizar: cada tile conserva su posicion ASCII.
 TILESET title_font     "/images/font/font_tmnt_arcade.png" NONE NONE
 PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
+
+// --- Globo de dialogo "Attack!!" (intro del nivel) ---
+// 64x32px = 8x4 tiles, UN solo frame (time 0 -> sin animacion automatica).
+// NO lleva PALETTE propia: el PNG esta indexado sobre la MISMA paleta de las
+// tortugas (indices 0/7/8/9/11 coinciden con negro/dorado/verde/cyan/lavanda
+// de esa paleta), asi que se dibuja con TILE_ATTR(PAL1,...) sin gastar una
+// linea de paleta. Las 4 del nivel ya estan ocupadas: PAL0 fondo, PAL1
+// tortugas, PAL2 enemigos+fuego, PAL3 flash/HUD. Mismo truco que hp_bar/hud.
+SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0

@@ -29,6 +29,20 @@
 #define BG_PLANE_W           64     // Ancho del plano circular de fondo (tiles)
 
 // ---------------------------------------------------------------------------
+// Intro scriptada del nivel — globo de diálogo "Attack!!" + voice over
+// ---------------------------------------------------------------------------
+// A los BUBBLE_APPEAR_SECS del arranque: aparece el globo (attack_bubble,
+// 64x32) sobre la tortuga, suena el voice over (attack_vo, PCM 8-bit) y entra
+// el primer foot soldier desde la derecha. El globo comparte la paleta de las
+// tortugas (PAL1) → no gasta línea de paleta. Queda fijo, luego parpadea y se
+// va. Los offsets posicionan el globo sobre la cabeza (ajustables a ojo).
+#define BUBBLE_APPEAR_SECS   2      // Segundos desde el arranque hasta que aparece
+#define BUBBLE_SOLID_SECS    2      // Segundos fijo en pantalla (cubre el VO ~0.73s + margen)
+#define BUBBLE_BLINK_TOGGLE  4      // Frames por semiciclo de parpadeo (~7-8 Hz)
+#define BUBBLE_X_TILES       3      // Posición X FIJA: 3 tiles desde el borde izq del nivel (mundo x=24)
+#define BUBBLE_OFF_Y       (-12)    // Offset Y desde el tope del frame de la tortuga (altura del globo)
+
+// ---------------------------------------------------------------------------
 // Volumen de audio (0..100) — requiere el driver XGM2 (recursos XGM2 en
 // audio.res). El XGM clásico no tiene control de volumen.
 // ---------------------------------------------------------------------------
@@ -870,6 +884,17 @@ SceneId showLevel1() {
     s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
     bgUpdate(0);       // Scroll inicial
 
+    // --- Estado de la intro scriptada (globo + voice over + primer enemigo) ---
+    // Frame-count PAL-aware (50/60 fps). No bloquea el bucle: el gameplay corre
+    // normal por debajo mientras el globo hace su ciclo aparecer→fijo→parpadeo.
+    const u16 fps           = IS_PAL_SYSTEM ? 50 : 60;
+    const u16 introTriggerF = fps * BUBBLE_APPEAR_SECS;   // 2s: dispara todo
+    const u16 bubbleSolidF  = fps * BUBBLE_SOLID_SECS;    // 2s fijo tras aparecer
+    const u16 bubbleBlinkF  = (fps * 3) / 4;              // ~0.75s de parpadeo
+    u8      introPhase = 0;   // 0=espera 1=fijo 2=parpadeo 3=terminado
+    u16     introTimer = 0;
+    Sprite* bubble     = NULL;
+
     // --- Bucle principal del nivel ---
     while (1) {
         // 1. Input y física de cada jugador
@@ -917,6 +942,64 @@ SceneId showLevel1() {
             setPlayerCamera(&p2, cameraX);
             setPlayerLeftBound(&p2, cameraX);
             setPlayerRightBound(&p2, rightBound);
+        }
+
+        // 3b. Intro scriptada: globo de diálogo + voice over + primer enemigo.
+        //     Máquina de estados no bloqueante (el gameplay ya corrió arriba).
+        if (introPhase == 0) {
+            // Espera BUBBLE_APPEAR_SECS y dispara todo de una.
+            if (++introTimer >= introTriggerF) {
+                // Globo sobre la tortuga. PAL1 = paleta de las tortugas (el PNG
+                // está indexado en ella). Prioridad alta + depth mínimo → queda
+                // siempre delante de sprites y planos.
+                bubble = SPR_addSprite(&attack_bubble, 0, 0,
+                                       TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+                if (bubble) SPR_setDepth(bubble, SPR_MIN_DEPTH);
+
+                // Voice over: PCM a 13.3 kHz en el canal 2 (el 1 lo usa la
+                // música). Prioridad 15 (el máximo) para asegurar que suene aun
+                // si el track reserva ese canal PCM con prioridad alta.
+                XGM2_playPCMEx(attack_vo, sizeof(attack_vo),
+                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+
+                // Primer foot soldier scriptado: entra desde la derecha, ya
+                // persiguiendo (mismo criterio que las oleadas por trigger).
+                for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                        initEnemySpawn(&enemies[i],
+                                       cameraX + SCREEN_PIXEL_WIDTH + 8,
+                                       180, 60, PAL2);
+                        enemies[i].state = ENEMY_STATE_CHASE;
+                        break;
+                    }
+                }
+
+                introPhase = 1;
+                introTimer = 0;
+            }
+        } else if (introPhase == 1) {
+            // Globo en X FIJA (3 tiles desde el borde izq del nivel); la altura
+            // sigue la cabeza de la tortuga. Se resta cameraX para anclarlo al
+            // mundo (si la cámara avanzara, acompaña el desplazamiento).
+            if (bubble)
+                SPR_setPosition(bubble,
+                                (BUBBLE_X_TILES * 8) - cameraX,
+                                getPlayerY(&p1) - PLAYER_FOOT_OFFSET + BUBBLE_OFF_Y);
+            if (++introTimer >= bubbleSolidF) { introPhase = 2; introTimer = 0; }
+        } else if (introPhase == 2) {
+            // Parpadeo antes de irse: alterna visibilidad cada
+            // BUBBLE_BLINK_TOGGLE frames (misma X fija que en la fase 1).
+            if (bubble) {
+                SPR_setPosition(bubble,
+                                (BUBBLE_X_TILES * 8) - cameraX,
+                                getPlayerY(&p1) - PLAYER_FOOT_OFFSET + BUBBLE_OFF_Y);
+                SPR_setVisibility(bubble,
+                    ((introTimer / BUBBLE_BLINK_TOGGLE) & 1) ? HIDDEN : VISIBLE);
+            }
+            if (++introTimer >= bubbleBlinkF) {
+                if (bubble) { SPR_releaseSprite(bubble); bubble = NULL; }
+                introPhase = 3;   // terminado: no vuelve a entrar
+            }
         }
 
         // 4. Spawner: activar enemigos cuando la cámara se acerca.
