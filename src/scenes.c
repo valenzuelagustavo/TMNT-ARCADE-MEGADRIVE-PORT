@@ -43,6 +43,19 @@
 #define BUBBLE_SCREEN_Y     74      // Y FIJA de pantalla (altura ya aprobada, indep. del jugador)
 
 // ---------------------------------------------------------------------------
+// Puertas del nivel como spawn points (huecos "ACA" del fondo)
+// ---------------------------------------------------------------------------
+// Centros de mundo de los 3 huecos de puerta abierta, medidos sobre
+// bg01_completa.png. Sobre cada uno se dibuja door_lvl_1 (40x80, PAL0 = paleta
+// del fondo). Al acercarse el jugador, la puerta se remueve y un foot soldier
+// la rompe (initEnemyDoorSpawn). Cada puerta dispara UNA sola vez.
+#define LEVEL1_DOOR_COUNT     3
+#define DOOR_SPRITE_TOP_Y    48    // Y de pantalla del tope del sprite (el hueco va de y=50 a 128)
+#define DOOR_HALF_W          20    // door_lvl_1 = 40px de ancho → mitad, para centrarlo en el hueco
+#define DOOR_TRIGGER_DIST   110    // El player a < esto (|dx| centro↔centro) arma el spawn
+#define DOOR_VIS_MARGIN      48    // Crea/suelta el sprite de la puerta según cercanía a la pantalla
+
+// ---------------------------------------------------------------------------
 // Volumen de audio (0..100) — requiere el driver XGM2 (recursos XGM2 en
 // audio.res). El XGM clásico no tiene control de volumen.
 // ---------------------------------------------------------------------------
@@ -881,6 +894,19 @@ SceneId showLevel1() {
         enemies[i].sprite = NULL;
     }
 
+    // --- Puertas: spawn points sobre los huecos "ACA" del fondo ---
+    // doorSpr: sprite de la puerta cerrada (se crea/suelta según visibilidad,
+    // para no gastar VRAM de sprites con puertas fuera de pantalla).
+    // doorArmed: el jugador ya pasó cerca (queda "armada" aunque se aleje).
+    // doorTriggered: ya spawneó su foot soldier (no vuelve a disparar).
+    static const s16 doorCenterX[LEVEL1_DOOR_COUNT] = { 429, 718, 846 };
+    Sprite* doorSpr[LEVEL1_DOOR_COUNT];
+    bool    doorArmed[LEVEL1_DOOR_COUNT];
+    bool    doorTriggered[LEVEL1_DOOR_COUNT];
+    for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) {
+        doorSpr[d] = NULL; doorArmed[d] = FALSE; doorTriggered[d] = FALSE;
+    }
+
     s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
     bgUpdate(0);       // Scroll inicial
 
@@ -1019,6 +1045,60 @@ SceneId showLevel1() {
                     spawnUsed[s] = TRUE;
                     activeEnemies++;
                     break;
+                }
+            }
+        }
+
+        // 4b. Puertas como spawn points. Para cada puerta no disparada:
+        //     - muestra su sprite (door_lvl_1) mientras está cerca de pantalla
+        //       (fuera de eso lo suelta, para no gastar VRAM de sprites);
+        //     - se "arma" cuando el jugador pasa cerca (queda armada aunque se
+        //       aleje);
+        //     - una vez armada, en cuanto hay cupo de activos spawnea un foot
+        //       soldier que ROMPE la puerta, remueve el sprite y no vuelve a
+        //       disparar.
+        for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) {
+            if (doorTriggered[d]) continue;
+
+            s16 screenX = doorCenterX[d] - cameraX;   // centro del hueco en pantalla
+
+            bool nearScreen = (screenX > -DOOR_VIS_MARGIN) &&
+                              (screenX < SCREEN_PIXEL_WIDTH + DOOR_VIS_MARGIN);
+            if (nearScreen && !doorSpr[d]) {
+                doorSpr[d] = SPR_addSprite(&door_lvl_1,
+                                           screenX - DOOR_HALF_W, DOOR_SPRITE_TOP_Y,
+                                           TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+                // Escenografía del fondo: detrás de personajes y enemigos.
+                if (doorSpr[d]) SPR_setDepth(doorSpr[d], SPR_MAX_DEPTH);
+            } else if (!nearScreen && doorSpr[d]) {
+                SPR_releaseSprite(doorSpr[d]);
+                doorSpr[d] = NULL;
+            }
+            if (doorSpr[d])
+                SPR_setPosition(doorSpr[d], screenX - DOOR_HALF_W, DOOR_SPRITE_TOP_Y);
+
+            // Armar por cercanía del jugador (el más cercano en 2P): centro de
+            // la tortuga (frame +52) contra el centro del hueco.
+            s16 pdx = getPlayerWorldX(&p1) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
+            if (pdx < 0) pdx = -pdx;
+            if (dosJugadores) {
+                s16 pdx2 = getPlayerWorldX(&p2) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
+                if (pdx2 < 0) pdx2 = -pdx2;
+                if (pdx2 < pdx) pdx = pdx2;
+            }
+            if (!doorArmed[d] && pdx < DOOR_TRIGGER_DIST) doorArmed[d] = TRUE;
+
+            // Disparar el spawn cuando esté armada y haya cupo (respeta el tope
+            // de foot soldiers simultáneos, igual que las oleadas).
+            if (doorArmed[d] && activeEnemies < MAX_ACTIVE_ENEMIES) {
+                for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                        initEnemyDoorSpawn(&enemies[i], doorCenterX[d], PAL2);
+                        activeEnemies++;
+                        doorTriggered[d] = TRUE;
+                        if (doorSpr[d]) { SPR_releaseSprite(doorSpr[d]); doorSpr[d] = NULL; }
+                        break;
+                    }
                 }
             }
         }

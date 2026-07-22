@@ -117,6 +117,22 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette) {
     enemySetAnim(e, ENEMY_ANIM_WALK, TRUE);
 }
 
+void initEnemyDoorSpawn(Enemy* e, s16 doorCenterX, u8 palette) {
+    // Reusa el init normal (crea sprite, hp, target, paleta), posicionándolo en
+    // el hueco: centrado en la puerta y en la lane del fondo (donde está el
+    // marco). Luego lo pasa a SPAWNING con la anim de rotura de puerta.
+    initEnemySpawn(e, doorCenterX - ENEMY_SPRITE_W / 2, ENEMY_LANE_TOP, 60, palette);
+    e->state = ENEMY_STATE_SPAWNING;
+    e->timer = ENEMY_BREAK_DOOR_TIME;
+    e->dir   = 1;   // se corrige solo al pasar a CHASE
+
+    // ANIM_BREAK_DOOR sin loop, arrancando en el SEGUNDO frame (índice 1): el
+    // primer frame es la puerta cerrada, que ya mostraba el sprite door_lvl_1.
+    e->anim = ENEMY_ANIM_BREAK_DOOR;
+    SPR_setAnimAndFrame(e->sprite, ENEMY_ANIM_BREAK_DOOR, 1);
+    SPR_setAnimationLoop(e->sprite, FALSE);
+}
+
 void setEnemyCamera(Enemy* e, s16 camX) {
     e->cameraOffsetX = camX;
 }
@@ -130,19 +146,24 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     // Golpeado → no contraataca al instante al recuperarse
     e->attackCooldown = ENEMY_HURT_COOLDOWN;
 
-    // Flash blanco: cambiar el atributo de paleta del sprite. updateEnemy()
-    // lo restaura cuando flashTimer llega a 0.
-    SPR_setPalette(e->sprite, enemyFlashPal);
-    e->flashTimer = ENEMY_FLASH_FRAMES;
-
     e->hp -= dmg;
     if (e->hp <= 0) {
+        // Muerte: animación de EXPLOSIÓN. Sin flash blanco (para que se vean
+        // los colores de la explosión) y con la paleta normal asegurada por si
+        // venía en flash de un golpe anterior. La anim corre una vez (sin loop)
+        // y el sprite se libera al agotarse el timer (ver bloque DEAD).
+        e->flashTimer = 0;
+        SPR_setPalette(e->sprite, e->palette);
         e->state = ENEMY_STATE_DEAD;
-        e->timer = 30;
-        enemySetAnim(e, ENEMY_ANIM_IDLE, TRUE);
+        e->timer = ENEMY_EXPLODE_TIME;
+        enemyRestartAnim(e, ENEMY_ANIM_EXPLODE, FALSE);
         return TRUE;
     }
 
+    // Golpe NO fatal: flash blanco (cambio de atributo de paleta; updateEnemy lo
+    // restaura al llegar flashTimer a 0) + estado HURT con knockback.
+    SPR_setPalette(e->sprite, enemyFlashPal);
+    e->flashTimer = ENEMY_FLASH_FRAMES;
     e->state = ENEMY_STATE_HURT;
     e->timer = 12;
     e->invincible = ENEMY_INVINCIBLE;
@@ -151,7 +172,8 @@ bool damageEnemy(Enemy* e, s16 dmg) {
 }
 
 bool enemyCanBeHit(const Enemy* e) {
-    if (e->state == ENEMY_STATE_DEAD || e->state == ENEMY_STATE_INACTIVE)
+    if (e->state == ENEMY_STATE_DEAD || e->state == ENEMY_STATE_INACTIVE ||
+        e->state == ENEMY_STATE_SPAWNING)
         return FALSE;
     if (e->invincible > 0 || e->state == ENEMY_STATE_HURT)
         return FALSE;
@@ -222,6 +244,17 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
         return;
     }
 
+    // Rompiendo la puerta (spawn): solo reproduce ANIM_BREAK_DOOR sin IA ni
+    // colisión. Al agotarse el timer pasa a CHASE y se vuelve un enemigo normal.
+    if (e->state == ENEMY_STATE_SPAWNING) {
+        if (e->timer > 0) e->timer--;
+        else              e->state = ENEMY_STATE_CHASE;
+        SPR_setHFlip(e->sprite, (e->dir < 0));
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - ENEMY_FOOT_OFFSET);
+        SPR_setDepth(e->sprite, -(e->y));
+        return;
+    }
+
     // --- Target asignado (Fase 3) ---
     // Cada enemigo persigue a SU jugador asignado. Cada RETARGET_INTERVAL
     // frames re-evalúa: solo cambia si el otro jugador está bastante más
@@ -282,8 +315,8 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
                 enemiesAttacking++;
                 // Mirar al objetivo antes de golpear
                 if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
-                // Elegir ataque al azar: uppercut o patada con salto
-                e->attackType = (u8)(random() & 1);
+                // Elegir ataque al azar: uppercut, patada con salto o directo
+                e->attackType = (u8)(random() % 3);
                 e->attackHit  = 0;   // este swing todavía no conectó
                 e->timer = (e->attackType == ENEMY_ATTACK_KICK) ? ENEMY_KICK_TIME
                                                                 : ENEMY_PUNCH_TIME;
@@ -370,10 +403,10 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
         if (newState == ENEMY_STATE_ATTACK) {
             // Ataques sin loop: la anim corre una vez y queda en el último
             // frame hasta que el timer devuelve al CHASE (que restaura WALK).
-            enemyRestartAnim(e,
-                             (e->attackType == ENEMY_ATTACK_KICK) ? ENEMY_ANIM_KICK
-                                                                  : ENEMY_ANIM_PUNCH,
-                             FALSE);
+            u8 atkAnim = (e->attackType == ENEMY_ATTACK_KICK)  ? ENEMY_ANIM_KICK
+                       : (e->attackType == ENEMY_ATTACK_FRONT) ? ENEMY_ANIM_PUNCH_FRONT
+                                                               : ENEMY_ANIM_PUNCH;
+            enemyRestartAnim(e, atkAnim, FALSE);
         }
         // PATROL y CHASE eligen su anim frame a frame dentro del switch.
     }

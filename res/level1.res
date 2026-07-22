@@ -68,3 +68,11 @@ PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
 // linea de paleta. Las 4 del nivel ya estan ocupadas: PAL0 fondo, PAL1
 // tortugas, PAL2 enemigos+fuego, PAL3 flash/HUD. Mismo truco que hp_bar/hud.
 SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
+
+// --- Puerta rompible (spawn point del nivel) ---
+// 40x80px = 5x10 tiles, UN solo frame (time 0). Se dibuja sobre cada hueco de
+// puerta abierta del nivel. NO lleva PALETTE propia: el PNG comparte la paleta
+// del FONDO (PAL0) — los indices coinciden con los slots del fondo — asi que se
+// dibuja con TILE_ATTR(PAL0,...). Al acercarse el jugador se remueve y el foot
+// soldier la reemplaza rompiendola (ENEMY_ANIM_BREAK_DOOR).
+SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0

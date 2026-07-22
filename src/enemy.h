@@ -28,11 +28,14 @@
 // Animaciones del spritesheet del foot soldier (orden de filas en Aseprite).
 // El arte mira a la DERECHA → se aplica HFlip cuando dir == -1.
 // ---------------------------------------------------------------------------
-#define ENEMY_ANIM_IDLE     0   // Quieto
-#define ENEMY_ANIM_WALK     1   // Camina a izquierda / derecha / hacia abajo
-#define ENEMY_ANIM_KICK     2   // Patada con salto: se desplaza en X
-#define ENEMY_ANIM_PUNCH    3   // Uppercut
-#define ENEMY_ANIM_WALK_UP  4   // Camina hacia arriba de la pantalla
+#define ENEMY_ANIM_IDLE        0   // Quieto
+#define ENEMY_ANIM_WALK        1   // Camina a izquierda / derecha / hacia abajo
+#define ENEMY_ANIM_KICK        2   // Patada con salto: se desplaza en X
+#define ENEMY_ANIM_PUNCH       3   // Uppercut
+#define ENEMY_ANIM_WALK_UP     4   // Camina hacia arriba de la pantalla
+#define ENEMY_ANIM_EXPLODE     5   // Explosión al morir (4 frames)
+#define ENEMY_ANIM_PUNCH_FRONT 6   // Golpe de frente / directo con el puño (2 frames)
+#define ENEMY_ANIM_BREAK_DOOR  7   // Rompe la puerta al spawnear (5 frames)
 
 // ---------------------------------------------------------------------------
 // Movimiento vertical — lane de profundidad (coordenadas de PIES).
@@ -88,15 +91,21 @@
 // ---------------------------------------------------------------------------
 // Ataques (duraciones en frames — ajustar al largo real de cada animación)
 // ---------------------------------------------------------------------------
-#define ENEMY_ATTACK_PUNCH  0    // valor de Enemy.attackType
-#define ENEMY_ATTACK_KICK   1
+#define ENEMY_ATTACK_PUNCH  0    // valor de Enemy.attackType — uppercut (anim 3)
+#define ENEMY_ATTACK_KICK   1    // patada con salto (anim 2)
+#define ENEMY_ATTACK_FRONT  2    // golpe de frente / directo (anim 6)
 
 // Duraciones calzadas con el sheet real (frames de anim x 8 ticks de FAST 8):
-// punch = 2 frames x 8 = 16 | kick = 4 frames x 8 = 32
-#define ENEMY_PUNCH_TIME    16   // Duración total del uppercut
+// punch = 2 frames x 8 = 16 | kick = 4 frames x 8 = 32 | front = 2 frames x 8 = 16
+#define ENEMY_PUNCH_TIME    16   // Duración total del uppercut (y del directo)
 #define ENEMY_KICK_TIME     32   // Duración total de la patada con salto
 #define ENEMY_KICK_LUNGE    16   // Frames iniciales del kick CON desplazamiento
 #define ENEMY_KICK_SPEED     2   // px/frame de avance durante el lunge (16*2 = 32px)
+
+// Muerte con explosión (anim 5 = 4 frames x 8) y rotura de puerta al spawnear
+// (anim 7: se reproduce desde el 2do frame → quedan 4 frames x 8).
+#define ENEMY_EXPLODE_TIME     32
+#define ENEMY_BREAK_DOOR_TIME  32
 
 // --- Hitbox de los ataques (contra el jugador) ---
 // Ventanas ACTIVAS en frames del timer (que cuenta hacia atrás desde *_TIME):
@@ -114,7 +123,8 @@ typedef enum {
     ENEMY_STATE_CHASE,
     ENEMY_STATE_ATTACK,
     ENEMY_STATE_HURT,
-    ENEMY_STATE_DEAD
+    ENEMY_STATE_DEAD,
+    ENEMY_STATE_SPAWNING   // rompiendo la puerta; al terminar la anim pasa a CHASE
 } EnemyState;
 
 // Entrada de spawn de una OLEADA: cuando el borde derecho de la cámara supera
@@ -164,6 +174,12 @@ void resetEnemyAI(u8 numPlayers);
 void separateEnemies(Enemy* list, u16 count);
 
 void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette);
+
+// Spawnea un foot soldier ROMPIENDO una puerta: aparece centrado en el hueco
+// (doorCenterX) y en la lane del fondo, reproduciendo ANIM_BREAK_DOOR desde el
+// 2do frame. Al terminar la animación pasa a CHASE (enemigo normal).
+void initEnemyDoorSpawn(Enemy* e, s16 doorCenterX, u8 palette);
+
 void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2Y, bool twoPlayers);
 void setEnemyCamera(Enemy* e, s16 camX);
 bool damageEnemy(Enemy* e, s16 dmg);
