@@ -25,7 +25,9 @@ typedef enum {
     ANIM_HIT_BEHIND_1 = 14,
     ANIM_HIT_BEHIND_2 = 15,
     ANIM_GET_UP_2     = 16,
-    ANIM_HELD         = 17
+    ANIM_HELD         = 17,
+    ANIM_WHIP_SHOCK   = 18,  // Atrapado por el látigo (frame 0) + electrocución (frames 1-2)
+    ANIM_KO           = 19   // Knockeado — pose dedicada (por ahora 1 frame)
 } PlayerAnim;
 
 // ---------------------------------------------------------------------------
@@ -141,6 +143,13 @@ typedef enum {
 // no queremos ver la caída (los frames anteriores), sólo la pose knockeada.
 #define PLAYER_KO_FRAME          11
 
+// Agarre del látigo del robot: "metro de forcejeo" que arranca al ser agarrado
+// y baja masheando A/B/C; al llegar a 0 la tortuga zafa. No hay liberación por
+// tiempo (si no zafás, la electrocución te vacía la vida).
+#define PLAYER_GRAB_ESCAPE           90
+// Cuánto baja el metro por cada press de A/B/C al mashear.
+#define PLAYER_GRAB_MASH_STEP        18
+
 // ---------------------------------------------------------------------------
 // Vida / vidas / puntaje (HUD)
 // ---------------------------------------------------------------------------
@@ -211,6 +220,14 @@ typedef struct {
     s16         health;         // Barras de vida restantes (0..PLAYER_MAX_HEALTH)
     u8          lives;          // Vidas restantes
     u16         score;          // Puntaje acumulado
+
+    // Cantidad de animaciones que tiene la sheet de ESTE personaje. Se usa para
+    // habilitar las animaciones nuevas (ANIM_WHIP_SHOCK, ANIM_KO) sólo si la
+    // sheet realmente las contiene — hoy únicamente Leo. Con las sheets viejas
+    // (18 anims) se cae automáticamente al comportamiento anterior.
+    u8          numAnims;
+    // Timer del preview de agarre del látigo (TEMPORAL, hasta que exista el robot).
+    u8          grabTimer;
 } Player;
 
 // ---------------------------------------------------------------------------
@@ -273,6 +290,22 @@ bool playerCanBeHit(const Player* p);
 // 'attackerX' = centro X del atacante en coordenadas de MUNDO.
 void damagePlayer(Player* p, s16 attackerX);
 
+// Golpe que resta VARIAS barras de una (p.ej. el láser del robot = 4).
+void playerHitBars(Player* p, s16 attackerX, u8 bars);
+
+// --- Agarre del látigo del robot (lo maneja robot.c) ---
+
+// Pone a la tortuga en STATE_GRABBED (agarrada/electrocutada). No hace nada si
+// no es agarrable en ese momento (KO, salto, hurt, i-frames…).
+void playerWhipGrab(Player* p);
+
+// TRUE mientras la tortuga está agarrada por el látigo.
+bool playerIsGrabbed(const Player* p);
+
+// Drena 1 barra de vida (el robot lo llama ~1 vez por segundo mientras agarra).
+// Si la deja en 0, dispara el knockout (que además termina el agarre).
+void playerElectroDrain(Player* p);
+
 // --- Vida / vidas / puntaje (lectura desde el HUD en scenes.c) ---
 
 // Barras de vida restantes (0..PLAYER_MAX_HEALTH). El HUD la traduce a frame
@@ -291,5 +324,15 @@ void addPlayerScore(Player* p, u16 points);
 // TRUE cuando el jugador agoto vidas y vida (game over). scenes.c lo consulta
 // para cortar el nivel.
 bool isPlayerGameOver(const Player* p);
+
+// --- Movimiento SCRIPTEADO para cutscenes (fin del nivel) ---
+// Se llaman EN LUGAR de updatePlayer: mueven/animan sin leer input.
+
+// Deja la tortuga quieta (idle) y sólo re-renderiza en su posición.
+void playerCutsceneStand(Player* p);
+
+// Camina la tortuga hacia (targetX, targetY) de MUNDO a velocidad normal, con
+// la anim de caminata. Devuelve TRUE cuando ya llegó al destino.
+bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY);
 
 #endif

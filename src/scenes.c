@@ -5,6 +5,7 @@
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
+#include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
 #ifndef IS_PAL_SYSTEM
@@ -54,6 +55,31 @@
 #define DOOR_HALF_W          20    // door_lvl_1 = 40px de ancho → mitad, para centrarlo en el hueco
 #define DOOR_TRIGGER_DIST   110    // El player a < esto (|dx| centro↔centro) arma el spawn
 #define DOOR_VIS_MARGIN      48    // Crea/suelta el sprite de la puerta según cercanía a la pantalla
+
+// ---------------------------------------------------------------------------
+// Puertas de ASCENSOR (2 huecos anchos del fondo) — spawn animado
+// ---------------------------------------------------------------------------
+// Dos instancias del sprite ascensor_door (48x80, 4 frames, PAL0) sobre los
+// huecos de ascensor (centros de mundo 972 y 1100). Cuando AMBAS quedan
+// centradas en la cámara se abren (animación de apertura); al terminar se
+// remueven y de cada hueco sale un foot soldier (BREAK_DOOR frames 3-4).
+// Dispara UNA sola vez.
+#define LEVEL1_ELEV_COUNT     2
+#define ELEV_SPRITE_TOP_Y    48    // Y de pantalla del tope del sprite (el hueco va de y=51 a 127)
+#define ELEV_HALF_W          24    // ascensor_door = 48px de ancho → mitad, para centrar en el hueco
+#define ELEV_CENTER_MIN      40    // "centradas": ambos centros con screenX ≥ esto...
+#define ELEV_CENTER_MAX     280    // ...y ≤ esto (ambas puertas cómodamente dentro de la pantalla)
+#define ELEV_DOOR_ANIM_TIME  32    // Duración de la animación de apertura (4 frames x 8 ticks)
+
+// ---------------------------------------------------------------------------
+// Secuencia de SALIDA del nivel (tras matar al robot) — AJUSTE FINO
+// ---------------------------------------------------------------------------
+// Al terminar (robot muerto, sin enemigos) el jugador queda quieto un momento
+// y luego camina SOLO (sin control) hacia la puerta del muro del final, y ahí
+// se corta la escena para pasar a la cutscene final.
+#define OUTRO_STAND_SECS      1    // Segundos quieto antes de caminar
+#define OUTRO_DOOR_X       1243    // X de mundo destino (frente a la puerta del muro)
+#define OUTRO_DOOR_Y        150    // Lane de pies al llegar a la puerta
 
 // ---------------------------------------------------------------------------
 // Volumen de audio (0..100) — requiere el driver XGM2 (recursos XGM2 en
@@ -860,6 +886,9 @@ SceneId showLevel1() {
         hudPlayerInit(&hud2, &p2, 40 - hud_2p.tilemap->w, hudVramFree + HPBAR_FRAME_TILES);
 
     // --- Definición de spawns por OLEADAS (trigger-based) ---
+    // DESACTIVADOS por ahora (a pedido): el nivel sólo tiene el foot soldier de
+    // la intro, los de las puertas y los de los ascensores. Todo el sistema de
+    // oleadas queda envuelto en #if 0 para reactivarlo/rediseñarlo más adelante.
     // Cada punto del nivel dispara una oleada: varias entradas con el mismo
     // triggerX. side +1 = entra de FRENTE (off-screen derecha), -1 = por la
     // ESPALDA (off-screen izquierda). Las Y son todas distintas dentro de la
@@ -868,6 +897,7 @@ SceneId showLevel1() {
     // Primera oleada: 3 (2 frente + 1 espalda). El resto: 4 (2 y 2).
     // Si una oleada no tiene lugar (tope MAX_ACTIVE_ENEMIES), las entradas
     // quedan pendientes y van entrando a medida que caen los anteriores.
+#if 0  // ---- OLEADAS DESACTIVADAS (rediseño pendiente) ----
     static const EnemySpawnDef spawnDefs[] = {
         // Punto 1 — 3 enemigos
         {  400, +1, 158 }, {  400, +1, 186 }, {  400, -1, 172 },
@@ -887,12 +917,17 @@ SceneId showLevel1() {
     // Cada spawn dispara UNA sola vez: un enemigo muerto no reaparece.
     bool spawnUsed[LEVEL1_SPAWN_COUNT];
     for (u16 i = 0; i < LEVEL1_SPAWN_COUNT; i++) spawnUsed[i] = FALSE;
+#endif  // ---- fin OLEADAS DESACTIVADAS ----
 
     Enemy enemies[MAX_ENEMIES];
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state = ENEMY_STATE_INACTIVE;
         enemies[i].sprite = NULL;
     }
+
+    // --- Robot del látigo (mini-jefe del final del nivel) ---
+    Robot robot;
+    robotInit(&robot);
 
     // --- Puertas: spawn points sobre los huecos "ACA" del fondo ---
     // doorSpr: sprite de la puerta cerrada (se crea/suelta según visibilidad,
@@ -906,6 +941,15 @@ SceneId showLevel1() {
     for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) {
         doorSpr[d] = NULL; doorArmed[d] = FALSE; doorTriggered[d] = FALSE;
     }
+
+    // --- Ascensores: 2 puertas animadas que se abren JUNTAS ---
+    // elevPhase: 0=cerradas (esperando que ambas estén centradas) · 1=abriendo
+    // (animación) · 2=remover + spawnear · 3=hecho (no vuelve a disparar).
+    static const s16 elevCenterX[LEVEL1_ELEV_COUNT] = { 972, 1100 };
+    Sprite* elevSpr[LEVEL1_ELEV_COUNT];
+    for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) elevSpr[ev] = NULL;
+    u8  elevPhase = 0;
+    u16 elevTimer = 0;
 
     s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
     bgUpdate(0);       // Scroll inicial
@@ -943,6 +987,8 @@ SceneId showLevel1() {
 
     u8  introPhase = 1;   // 1=globo fijo 2=parpadeo 3=terminado
     u16 introTimer = 0;
+
+    bool win = FALSE;     // TRUE al matar al robot y limpiar enemigos (fin del nivel)
 
     // --- Bucle principal del nivel ---
     while (1) {
@@ -1011,43 +1057,13 @@ SceneId showLevel1() {
             }
         }
 
-        // 4. Spawner: activar enemigos cuando la cámara se acerca.
-        //    - spawnUsed: cada spawn dispara una sola vez → los muertos no vuelven.
-        //    - MAX_ACTIVE_ENEMIES: tope de foot soldiers simultáneos. Un spawn
-        //      que exceda el tope queda pendiente (no consume su spawnUsed) y
-        //      dispara recién cuando muere alguno.
-        s16 screenRightEdge = cameraX + SCREEN_PIXEL_WIDTH;
-
+        // 4. Conteo de enemigos activos (para el gating de spawns por puertas).
+        //    Los spawns por OLEADAS quedaron DESACTIVADOS (ver #if 0 arriba):
+        //    por ahora sólo están el foot soldier de la intro, los de las
+        //    puertas y los de los ascensores.
         u16 activeEnemies = 0;
         for (u16 i = 0; i < MAX_ENEMIES; i++)
             if (enemies[i].state != ENEMY_STATE_INACTIVE) activeEnemies++;
-
-        for (u16 s = 0; s < LEVEL1_SPAWN_COUNT; s++) {
-            if (activeEnemies >= MAX_ACTIVE_ENEMIES) break;
-            if (spawnUsed[s]) continue;
-            if (screenRightEdge < spawnDefs[s].triggerX) continue;
-
-            // X de spawn fuera de pantalla según el flanco, relativa a la
-            // cámara ACTUAL (una entrada pendiente que entra tarde spawnea
-            // igual de bien: siempre justo fuera del borde).
-            s16 sx = (spawnDefs[s].side > 0)
-                   ? (screenRightEdge + 8)                    // de frente
-                   : (cameraX - ENEMY_SPRITE_W - 8);          // por la espalda
-
-            // Buscar un slot libre en el pool de enemigos
-            for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                    initEnemySpawn(&enemies[i], sx, spawnDefs[s].y, 60, PAL2);
-                    // Los de oleada nacen PERSIGUIENDO (si patrullaran, los
-                    // de la espalda se quedarían caminando fuera de cámara
-                    // hasta que el jugador retroceda a su rango de aggro).
-                    enemies[i].state = ENEMY_STATE_CHASE;
-                    spawnUsed[s] = TRUE;
-                    activeEnemies++;
-                    break;
-                }
-            }
-        }
 
         // 4b. Puertas como spawn points. Para cada puerta no disparada:
         //     - muestra su sprite (door_lvl_1) mientras está cerca de pantalla
@@ -1103,6 +1119,69 @@ SceneId showLevel1() {
             }
         }
 
+        // 4c. Ascensores: dos puertas que se abren JUNTAS cuando ambas quedan
+        //     centradas en la cámara; al terminar la animación se remueven y de
+        //     cada hueco sale un foot soldier (BREAK_DOOR frames 3-4).
+        if (elevPhase < 3) {
+            // Crear/mantener los sprites de ambas puertas mientras estén cerca
+            // de pantalla (frame 0 = cerrada, auto-animación congelada).
+            if (elevPhase <= 1) {
+                for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
+                    s16 sx = elevCenterX[ev] - cameraX;
+                    bool nearScr = (sx > -DOOR_VIS_MARGIN) &&
+                                   (sx < SCREEN_PIXEL_WIDTH + DOOR_VIS_MARGIN);
+                    if (nearScr && !elevSpr[ev]) {
+                        elevSpr[ev] = SPR_addSprite(&ascensor_door,
+                                                    sx - ELEV_HALF_W, ELEV_SPRITE_TOP_Y,
+                                                    TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+                        if (elevSpr[ev]) {
+                            SPR_setDepth(elevSpr[ev], SPR_MAX_DEPTH);      // escenografía
+                            SPR_setAutoAnimation(elevSpr[ev], FALSE);      // congelada en cerrada
+                        }
+                    } else if (!nearScr && elevSpr[ev] && elevPhase == 0) {
+                        SPR_releaseSprite(elevSpr[ev]); elevSpr[ev] = NULL;
+                    }
+                    if (elevSpr[ev])
+                        SPR_setPosition(elevSpr[ev], sx - ELEV_HALF_W, ELEV_SPRITE_TOP_Y);
+                }
+            }
+
+            if (elevPhase == 0) {
+                // Disparo: AMBOS centros dentro de la banda central de pantalla
+                // y ambas puertas presentes (visibles).
+                s16 sx0 = elevCenterX[0] - cameraX;
+                s16 sx1 = elevCenterX[1] - cameraX;
+                bool centered = (sx0 >= ELEV_CENTER_MIN && sx0 <= ELEV_CENTER_MAX) &&
+                                (sx1 >= ELEV_CENTER_MIN && sx1 <= ELEV_CENTER_MAX);
+                if (centered && elevSpr[0] && elevSpr[1]) {
+                    for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
+                        SPR_setAutoAnimation(elevSpr[ev], TRUE);
+                        SPR_setAnimationLoop(elevSpr[ev], FALSE);
+                        SPR_setAnimAndFrame(elevSpr[ev], 0, 0);   // abrir desde el frame 0
+                    }
+                    elevTimer = ELEV_DOOR_ANIM_TIME;
+                    elevPhase = 1;
+                }
+            } else if (elevPhase == 1) {
+                // Esperar a que termine la animación de apertura.
+                if (elevTimer > 0) elevTimer--;
+                else               elevPhase = 2;
+            } else if (elevPhase == 2) {
+                // Remover ambas puertas y spawnear un foot soldier de cada hueco.
+                for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
+                    if (elevSpr[ev]) { SPR_releaseSprite(elevSpr[ev]); elevSpr[ev] = NULL; }
+                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                            initEnemyElevatorSpawn(&enemies[i], elevCenterX[ev], PAL2);
+                            activeEnemies++;
+                            break;
+                        }
+                    }
+                }
+                elevPhase = 3;   // hecho: no vuelve a disparar
+            }
+        }
+
         // 5. Actualizar enemigos con IA.
         //    Primero la separación de grupo (que no se apilen entre ellos) y
         //    después el update individual de cada uno.
@@ -1120,6 +1199,17 @@ SceneId showLevel1() {
             setEnemyCamera(&enemies[i], cameraX);
             updateEnemy(&enemies[i], p1wx, p1wy, p2wx, p2wy, dosJugadores);
         }
+
+        // 5c. Robot del látigo (mini-jefe): aparece al llegar al final del nivel
+        //     y corre su propia máquina de estados (patrulla, láser, látigo con
+        //     agarre). Aplica por su cuenta el daño de láser/electrocución.
+        {
+            s16 leadWX = p1wx;
+            if (dosJugadores && p2wx > leadWX) leadWX = p2wx;
+            if (robot.state == ROBOT_INACTIVE && leadWX > ROBOT_SPAWN_TRIGGER)
+                robotSpawn(&robot, ROBOT_SPAWN_CENTER);
+        }
+        robotUpdate(&robot, cameraX, &p1, dosJugadores ? &p2 : NULL, dosJugadores, fps);
 
         // 6. Colisiones: ataque del jugador → enemigos.
         //    playerAttackHits mide desde el CENTRO de la tortuga, con alcance
@@ -1148,6 +1238,26 @@ SceneId showLevel1() {
                 // dejó en DEAD, es una baja: +1 punto al jugador que lo remató.
                 if (attacker && enemies[i].state == ENEMY_STATE_DEAD)
                     addPlayerScore(attacker, 1);
+            }
+        }
+
+        // 6-robot. Ataque del jugador → robot del látigo. Golpe normal −1,
+        //          especial −ROBOT_SPECIAL_DMG. Los ataques del robot al jugador
+        //          (láser/agarre) se resuelven dentro de robotUpdate.
+        if (robotCanBeHit(&robot)) {
+            s16 rx = robotGetCenterX(&robot);
+            s16 ry = robotGetCenterY(&robot);
+            s16     rdmg = 0;
+            Player* ratt = NULL;
+            if (playerAttackHits(&p1, rx, ry)) {
+                rdmg = isPlayerSpecialAttack(&p1) ? ROBOT_SPECIAL_DMG : 1; ratt = &p1;
+            } else if (dosJugadores && playerAttackHits(&p2, rx, ry)) {
+                rdmg = isPlayerSpecialAttack(&p2) ? ROBOT_SPECIAL_DMG : 1; ratt = &p2;
+            }
+            if (rdmg > 0) {
+                robotDamage(&robot, rdmg);
+                if (ratt && robot.state == ROBOT_DEAD)
+                    addPlayerScore(ratt, 5);   // baja del mini-jefe
             }
         }
 
@@ -1181,6 +1291,10 @@ SceneId showLevel1() {
         if (isPlayerGameOver(&p1) && (!dosJugadores || isPlayerGameOver(&p2)))
             break;
 
+        // 6e. Victoria: robot destruido y sin enemigos en pantalla -> arranca la
+        //     secuencia de salida (ver después del bucle).
+        if (robot.state == ROBOT_GONE && activeEnemies == 0) { win = TRUE; break; }
+
         // 7. Revelar columnas nuevas del fondo y aplicar el scroll
         bgUpdate(cameraX);
 
@@ -1197,8 +1311,102 @@ SceneId showLevel1() {
     VDP_setTextPriority(0);
     VDP_setTextPalette(PAL0);
 
+    // ---------------------------------------------------------------------
+    // SECUENCIA DE SALIDA (victoria): la tortuga queda quieta un momento y
+    // luego camina SOLA (sin control) hacia la puerta del muro del final.
+    // El fondo y el fuego siguen animando; al llegar, fundido a negro y a la
+    // cutscene final.
+    // ---------------------------------------------------------------------
+    if (win) {
+        setPlayerCamera(&p1, cameraX);
+        if (dosJugadores) setPlayerCamera(&p2, cameraX);
+
+        // 1) Quieto OUTRO_STAND_SECS segundos
+        u16 standT = fps * OUTRO_STAND_SECS;
+        while (standT-- > 0) {
+            playerCutsceneStand(&p1);
+            if (dosJugadores) playerCutsceneStand(&p2);
+            bgUpdate(cameraX);
+            fireUpdate();
+            SPR_update();
+            SYS_doVBlankProcess();
+        }
+
+        // 2) Camina hacia la puerta (P2 un poco por detrás para no encimarse)
+        bool walking = TRUE;
+        while (walking) {
+            bool a1 = playerCutsceneWalkTo(&p1, OUTRO_DOOR_X, OUTRO_DOOR_Y);
+            bool a2 = TRUE;
+            if (dosJugadores)
+                a2 = playerCutsceneWalkTo(&p2, OUTRO_DOOR_X - PLAYER_SPRITE_W, OUTRO_DOOR_Y);
+            walking = !(a1 && a2);
+            bgUpdate(cameraX);
+            fireUpdate();
+            SPR_update();
+            SYS_doVBlankProcess();
+        }
+
+        // 3) Fundido y a la cutscene final
+        PAL_fadeOutAll(30, FALSE);
+        while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+        clearScene();
+        return SCENE_ENDING;
+    }
+
     clearScene();
     return SCENE_GAME_OVER;
+}
+
+// ---------------------------------------------------------------------------
+// Cutscene final — Shredder rapta a April (imagen combinada de 2 planos)
+// ---------------------------------------------------------------------------
+// BG_B_final = fondo (plano BG_B, su paleta en PAL0); BG_A_final = ENCIMA
+// (plano BG_A, su paleta en PAL1, índice 0 transparente). Juntas forman una
+// imagen de ~32 colores. Entre las dos suman ~1000 tiles, así que se LIBERA la
+// VRAM de sprites (SPR_end) mientras se muestran y se restaura antes de volver.
+// Permanece ~5 s y reinicia el juego (vuelve al logo de SEGA).
+SceneId showEnding() {
+    clearScene();
+    SPR_end();                       // libera la VRAM de sprites (no se usan acá)
+
+    VDP_setBackgroundColor(0);
+
+    // Se cargan las DOS imágenes con las PALETAS EN NEGRO (clearScene ya las
+    // dejó así tras el fade). Como forman UNA sola imagen, no hay que dejar ver
+    // el estado intermedio: mientras la paleta esté en negro no se ve nada,
+    // aunque el DMA/descompresión de BG_A tarde un poco más que el de BG_B.
+    VDP_drawImageEx(BG_B, &bg_b_final,
+                    TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
+                    0, 0, FALSE, TRUE);
+    // BG_A_final ENCIMA (plano BG_A, PAL1). Sus tiles van después de los del
+    // fondo; el índice 0 (transparente) deja ver el fondo.
+    u16 aInd = TILE_USER_INDEX + bg_b_final.tileset->numTile;
+    VDP_drawImageEx(BG_A, &bg_a_final,
+                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, aInd),
+                    0, 0, FALSE, TRUE);
+
+    // Con las DOS ya cargadas, recién ahí se REVELA la imagen completa de una,
+    // con un fade-in conjunto de ambas paletas (PAL0 = fondo, PAL1 = overlay).
+    // Así nunca se ve "BG_B sola" antes de que entre BG_A.
+    u16 combinedPal[32];
+    for (u16 i = 0; i < 16; i++) {
+        combinedPal[i]      = bg_b_final.palette->data[i];
+        combinedPal[16 + i] = bg_a_final.palette->data[i];
+    }
+    PAL_fadeIn(0, 31, combinedPal, 20, FALSE);   // ~0.33s, las dos paletas juntas
+
+    // Mantener ~5 segundos (START adelanta)
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 5;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SYS_doVBlankProcess();
+    }
+
+    SPR_initEx(600);                 // restaurar el motor de sprites (lo usan las escenas siguientes)
+    clearScene();
+    return SCENE_SEGA;               // reinicia el juego
 }
 
 // ---------------------------------------------------------------------------

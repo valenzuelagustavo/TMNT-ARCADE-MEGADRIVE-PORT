@@ -309,19 +309,78 @@ Tres correcciones tras probar el HUD y la muerte:
   pero NO reseteaba el scroll, y el nivel deja BG_B en `-cameraX`. Se agregó el
   reset de scroll H/V de ambos planos en `clearScene()`.
 
-## Estado al 21/07/2026 y próximos pasos
+## 22 de julio — Voz de arranque, globo de diálogo y puertas que escupen enemigos
+
+Sesión larga con tres frentes: darle voz al inicio del nivel, y convertir las
+puertas del fondo en puntos de spawn.
+
+**Voice over + globo "Attack!!" al arrancar el nivel.**
+
+- El grito va como sample **PCM del driver XGM2**: recurso `WAV attack_vo` en
+  `audio.res` (rescomp lo resamplea a 13.3 kHz y lo alinea a 256 bytes), disparado
+  con `XGM2_playPCMEx` en el canal PCM 2 con prioridad 15 — así suena por encima
+  de la música del nivel (canal 1) sin que ésta lo pise.
+- **Lección a los golpes:** al principio no se escuchaba nada. No era el canal ni
+  el código: el WAV venía grabado bajísimo (pico al 22%, RMS ~4.5% de la escala).
+  En el DAC de 8 bits y con la música arriba, un sample flojo es lisa y llanamente
+  inaudible. Se normalizó con compresión + makeup a ~24% RMS y apareció. **Regla
+  nueva:** preparar los WAV (normalizar/comprimir) antes de meterlos, y verificar
+  la AMPLITUD, no sólo el formato.
+- El **globo de diálogo** (`attack_bubble`, 64x32) comparte la paleta de las
+  tortugas (PAL1): el PNG ya venía indexado sobre ella, así que se dibuja con
+  `TILE_ATTR(PAL1,...)` sin gastar una línea de paleta (mismo truco que el HUD y
+  la barra de vida). Va en posición FIJA de pantalla, independiente del jugador y
+  la cámara, con ciclo aparecer → fijo → parpadeo → desaparecer, todo por tiempo.
+- Se dispara TODO apenas arranca el nivel (sin esperar). De paso: el jugador ahora
+  nace a 5 tiles del borde izquierdo y el primer foot soldier ya queda spawneado y
+  visible pegado al borde derecho, entrando hacia el player.
+
+**Sheet ampliado del foot soldier + muerte con explosión.**
+
+- El spritesheet pasó de 5 a **8 animaciones** (grilla 5x8, frames 104x104):
+  además de idle/walk/patada/uppercut/walk-up, ahora hay **explosión** (5),
+  **golpe de frente / directo** (6) y **rotura de puerta** (7). rescomp detecta
+  las filas solo: no hubo que tocar `enemies.res` (el grid ya era `13 13`).
+- **Muerte con explosión:** al morir, el foot soldier reproduce `ANIM_EXPLODE`
+  (una vez, sin loop) en vez de quedarse en idle; se saltea el flash blanco en el
+  golpe fatal para que se vean los colores de la explosión. Tacha un ítem viejo
+  del backlog.
+- El **directo** se sumó a la rotación de ataques: al atacar, el enemigo elige al
+  azar entre uppercut, patada con salto y directo (misma duración/hitbox que el
+  uppercut).
+
+**Puertas como spawn points.**
+
+- `door_lvl_1` (40x80) se dibuja sobre cada uno de los 3 huecos de puerta abierta
+  del fondo (centros de mundo **429, 718, 846**, medidos sobre `bg01_completa.png`;
+  los otros dos huecos, más anchos, son los ascensores). Comparte la paleta del
+  **FONDO** (PAL0) reindexada — mismo truco de siempre, cero líneas de paleta.
+- **Trigger por cercanía:** cuando el player pasa cerca, la puerta queda "armada"
+  (aunque después se aleje); en cuanto hay cupo de activos (respeta
+  `MAX_ACTIVE_ENEMIES`), se remueve el sprite de la puerta y aparece un foot
+  soldier que la ROMPE con `ANIM_BREAK_DOOR` arrancando desde el 2do frame (el 1ro
+  es la puerta cerrada, que ya mostraba el sprite). Al terminar la animación pasa a
+  ser un enemigo normal. Cada puerta dispara una sola vez.
+- Nuevo estado `ENEMY_STATE_SPAWNING`: sin IA ni colisión mientras rompe la puerta.
+- **VRAM:** los sprites de puerta se crean/sueltan según visibilidad (no gastar
+  tiles con puertas fuera de pantalla). Peor caso en 2 jugadores medido en ~544 de
+  600 tiles de sprite: entra sin tocar el presupuesto de `SPR_initEx`.
+
+## Estado al 22/07/2026 y próximos pasos
 
 **Jugable hoy:** intro SEGA → créditos SGDK → selección de jugadores y de
 tortuga → título de la Escena 1 → nivel 1 completo con scroll, fuego
-animado, oleadas de foot soldiers con IA de grupo, daño bidireccional,
-combos, HUD con vida/vidas/puntaje y modo 2 jugadores cooperativo.
+animado, voice over + globo de diálogo al arrancar, oleadas de foot soldiers
+con IA de grupo (que además ahora entran rompiendo las puertas del nivel y
+explotan al morir), daño bidireccional, combos, HUD con vida/vidas/puntaje y
+modo 2 jugadores cooperativo.
 
-**Backlog:** alcance y poder de ataque por tortuga · pantalla de Game Over
-y animación de muerte de la tortuga · el ESPECIAL debería restar vida al
-usarlo (como en el arcade) · animación de muerte del foot soldier · agarre
-(`STATE_GRABBED`) · mapeo fino de spawns sobre imagen del nivel · PAL3 va
-a reasignarse (el flash de golpe y ahora también el texto del HUD deberán
-mudarse o reemplazarse).
+**Backlog:** alcance y poder de ataque por tortuga · el ESPECIAL debería
+restar vida al usarlo (como en el arcade) · animación de muerte de la
+tortuga · agarre (`STATE_GRABBED`) · afinar a ojo en emulador la posición del
+globo y el calce del frame de rotura de puerta con el hueco · PAL3 va a
+reasignarse (el flash de golpe y también el texto del HUD deberán mudarse o
+reemplazarse).
 
 **Reglas de la casa aprendidas a los golpes:**
 

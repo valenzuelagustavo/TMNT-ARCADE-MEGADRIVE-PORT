@@ -40,6 +40,9 @@ int main()
         case SCENE_LEVEL1:
             currentScene = showLevel1();
             break;
+        case SCENE_ENDING:
+            currentScene = showEnding();
+            break;
         case SCENE_GAME_OVER:
             currentScene = showGameOver();
             break;

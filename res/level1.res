@@ -76,3 +76,31 @@ SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 // dibuja con TILE_ATTR(PAL0,...). Al acercarse el jugador se remueve y el foot
 // soldier la reemplaza rompiendola (ENEMY_ANIM_BREAK_DOOR).
 SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0
+
+// --- Puertas de ascensor (spawn animado) ---
+// 192x80px = spritesheet de 4 frames de 48x80 (6x10 tiles) -> animacion de
+// apertura. Se ubican DOS instancias, una en cada hueco de ascensor. NO lleva
+// PALETTE propia: comparte la paleta del FONDO (PAL0), igual que door_lvl_1.
+// time 8 -> los 4 frames en 32 ticks (calza con ELEV_DOOR_ANIM_TIME de scenes.c).
+SPRITE ascensor_door "sprites/ascensor_door.png" 6 10 NONE 8
+
+// --- Robot del látigo (mini-jefe del final) ---
+// 880x880 = grilla 11x11 de frames de 80x80 (10x10 tiles), 11 animaciones.
+// Comparte la paleta de los foot soldiers (PAL2), NO lleva PALETTE propia.
+// FAST = compresión rápida (es un sprite grande y NO se streamea).
+SPRITE robot_whip "sprites/robot_whip.png" 10 10 FAST 8
+
+// --- Látigo / láser del robot (sub-sprite) ---
+// 288x80 = 5 animaciones de 3 frames de 96x16 (12x2 tiles): látigo (búsqueda,
+// contacto, electro A/B) y láser. Comparte PAL2. El "frame" del látigo es
+// medida de distancia (32px por frame).
+SPRITE whip_waves "sprites/whip_waves.png" 12 2 NONE 8
+
+// --- Cutscene final (Shredder rapta a April) — imagen combinada en 2 planos ---
+// Dos imágenes de 320x224, cada una con SU paleta de 16 colores: BG_B_final es
+// el fondo (plano BG_B, PAL0) y BG_A_final va ENCIMA (plano BG_A, PAL1) con el
+// índice 0 transparente, de modo que juntas forman una imagen de ~32 colores.
+// BEST = máxima compresión (son de un solo uso). La cutscene libera la VRAM de
+// sprites (SPR_end) mientras las muestra: entre las dos suman ~1000 tiles.
+IMAGE bg_b_final "/images/lvl_1_scene/BG_B_final_lvl1.png" BEST
+IMAGE bg_a_final "/images/lvl_1_scene/BG_A_final_lvl1.png" BEST

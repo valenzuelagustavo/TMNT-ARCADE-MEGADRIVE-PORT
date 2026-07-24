@@ -106,6 +106,8 @@
 // (anim 7: se reproduce desde el 2do frame → quedan 4 frames x 8).
 #define ENEMY_EXPLODE_TIME     32
 #define ENEMY_BREAK_DOOR_TIME  32
+// Spawn desde ascensor: sólo los 2 últimos frames de BREAK_DOOR (índices 3-4).
+#define ENEMY_ELEV_SPAWN_TIME  16
 
 // --- Hitbox de los ataques (contra el jugador) ---
 // Ventanas ACTIVAS en frames del timer (que cuenta hacia atrás desde *_TIME):
@@ -179,6 +181,11 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette);
 // (doorCenterX) y en la lane del fondo, reproduciendo ANIM_BREAK_DOOR desde el
 // 2do frame. Al terminar la animación pasa a CHASE (enemigo normal).
 void initEnemyDoorSpawn(Enemy* e, s16 doorCenterX, u8 palette);
+
+// Igual que initEnemyDoorSpawn pero para los ascensores: la puerta ya se abrió
+// con su propia animación, así que el foot soldier sólo reproduce los 2 últimos
+// frames de ANIM_BREAK_DOOR (índices 3-4) — "sale" del hueco sin romper nada.
+void initEnemyElevatorSpawn(Enemy* e, s16 doorCenterX, u8 palette);
 
 void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2Y, bool twoPlayers);
 void setEnemyCamera(Enemy* e, s16 camX);

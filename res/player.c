@@ -50,6 +50,8 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->health        = PLAYER_MAX_HEALTH;   // barra de vida llena
     p->lives         = PLAYER_START_LIVES;
     p->score         = 0;
+    p->numAnims      = (u8)spriteDef->numAnimation;   // habilita anims nuevas si la sheet las tiene
+    p->grabTimer     = 0;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     // Las 4 tortugas comparten la misma paleta unificada; cargarla en 'palette'.
@@ -372,7 +374,26 @@ void updatePlayer(Player* p) {
         }
 
         case STATE_GRABBED: {
-            // El sistema de enemigos lo liberará
+            // Agarrado por el látigo del robot: se ZAFA SÓLO masheando (no hay
+            // liberación por tiempo — si no zafás, la electrocución del robot te
+            // vacía la vida). El robot aplica el drenaje (playerElectroDrain) y
+            // detecta cuándo dejaste de estar agarrado (playerIsGrabbed).
+            u16 mash = 0;
+            if (justPressed(joy, p->prevJoy, BUTTON_A)) mash += PLAYER_GRAB_MASH_STEP;
+            if (justPressed(joy, p->prevJoy, BUTTON_B)) mash += PLAYER_GRAB_MASH_STEP;
+            if (justPressed(joy, p->prevJoy, BUTTON_C)) mash += PLAYER_GRAB_MASH_STEP;
+
+            if (mash > 0 && p->grabTimer > 0) {
+                p->grabTimer = (p->grabTimer > mash) ? (u8)(p->grabTimer - mash) : 0;
+                if (p->grabTimer == 0) {
+                    // Zafó: vuelve a jugable con unos i-frames para que el robot
+                    // no lo vuelva a atrapar en el acto.
+                    p->state      = STATE_IDLE;
+                    p->invincible = PLAYER_HURT_INVINCIBLE;
+                    SPR_setAnimationLoop(p->sprite, TRUE);
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                }
+            }
             break;
         }
 
@@ -464,9 +485,27 @@ bool playerCanBeHit(const Player* p) {
     return TRUE;
 }
 
-void damagePlayer(Player* p, s16 attackerX) {
-    if (!playerCanBeHit(p)) return;
+// KNOCKOUT: se agotó la barra -> pierde una vida y queda tirada un momento
+// (ver STATE_KO). El llamador ya fijó p->hurtDir (dirección del deslizamiento).
+static void playerEnterKO(Player* p) {
+    if (p->lives > 0) p->lives--;
+    p->state      = STATE_KO;
+    p->koTimer    = PLAYER_KO_FRAMES;
+    p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
+    p->invincible = PLAYER_KO_FRAMES;           // intocable en el piso (SIN parpadeo)
 
+    // Pose de knockeado, CONGELADA. Anim dedicada (ANIM_KO — hoy sólo Leo) si la
+    // sheet la tiene; si no, último frame de la caída de espaldas (fallback).
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    if (p->numAnims > ANIM_KO)
+        SPR_setAnimAndFrame(p->sprite, ANIM_KO, 0);
+    else
+        SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_2, PLAYER_KO_FRAME);
+}
+
+// Núcleo del daño recibido: resta 'bars' barras. Si llega a 0 -> knockout; si
+// no, reacción de golpe (frente/espalda) con knockback e i-frames.
+static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
     // ¿De qué lado vino el golpe? El empuje va hacia el lado contrario.
     s16 centerX = p->x + PLAYER_SPRITE_W / 2;
     s8  side    = (attackerX >= centerX) ? 1 : -1;
@@ -478,33 +517,16 @@ void damagePlayer(Player* p, s16 attackerX) {
     p->comboLinger   = 0;
     p->attackIsSpecial = 0;
 
-    // --- Vida: el golpe resta una barra ---
-    if (p->health > 0) p->health--;
+    // Vida: restar 'bars' barras (clamp a 0)
+    if (p->health > (s16)bars) p->health -= (s16)bars;
+    else                       p->health = 0;
 
-    if (p->health == 0) {
-        // === KNOCKOUT: se agotó la barra -> pierde una vida ===
-        // Se muestra el último frame de ANIM_HIT_BEHIND_2 (tortuga knockeada)
-        // un momento; recién ahí revive (o es game over). Ver STATE_KO.
-        if (p->lives > 0) p->lives--;
+    if (p->health == 0) { playerEnterKO(p); return; }
 
-        p->state      = STATE_KO;
-        p->koTimer    = PLAYER_KO_FRAMES;
-        p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
-        p->invincible = PLAYER_KO_FRAMES;           // intocable mientras está en el piso (SIN parpadeo)
-
-        // Saltar DIRECTO al frame de la tortuga tirada y CONGELARLO (auto-anim
-        // apagada): no se reproducen los frames de la caída, sólo la pose KO.
-        SPR_setAutoAnimation(p->sprite, FALSE);
-        SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_2, PLAYER_KO_FRAME);
-        return;
-    }
-
-    // === Golpe normal (todavía con vida) ===
-    // Golpe por la espalda: el atacante está del lado contrario a la mirada.
-    // La tortuga NO se da vuelta: la anim HIT_BEHIND muestra la reacción.
+    // Golpe normal (todavía con vida). Por la espalda si el atacante está del
+    // lado contrario a la mirada (la tortuga NO se da vuelta).
     bool behind = (side != p->dir);
-
-    u16 anim;
+    u16  anim;
     if (behind) {
         anim = ANIM_HIT_BEHIND_1;
     } else {
@@ -514,13 +536,60 @@ void damagePlayer(Player* p, s16 attackerX) {
 
     p->state      = STATE_HURT;
     p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;
-    p->invincible = PLAYER_HURT_INVINCIBLE;   // i-frames SIN parpadeo
+    p->invincible = PLAYER_HURT_INVINCIBLE;
 
-    // Sin loop + reinicio forzado desde el frame 0: dos golpes seguidos por
-    // la espalda repiten HIT_BEHIND_1 y SPR_setAnim solo lo ignoraría (mismo
-    // índice); SPR_setAnimAndFrame sí reinicia.
     SPR_setAnimationLoop(p->sprite, FALSE);
     SPR_setAnimAndFrame(p->sprite, anim, 0);
+}
+
+// Golpe de foot soldier (1 barra).
+void damagePlayer(Player* p, s16 attackerX) {
+    if (!playerCanBeHit(p)) return;
+    playerTakeHit(p, attackerX, 1);
+}
+
+// Golpe que resta VARIAS barras (p.ej. el láser del robot = 4).
+void playerHitBars(Player* p, s16 attackerX, u8 bars) {
+    if (!playerCanBeHit(p)) return;
+    playerTakeHit(p, attackerX, bars);
+}
+
+// ---------------------------------------------------------------------------
+// AGARRE DEL LÁTIGO (lo maneja el robot; ver robot.c)
+// ---------------------------------------------------------------------------
+// Pone a la tortuga en STATE_GRABBED reproduciendo la anim de agarre/
+// electrocución. Se zafa masheando (ver STATE_GRABBED en updatePlayer).
+void playerWhipGrab(Player* p) {
+    if (!playerCanBeHit(p)) return;   // no agarrable (KO, salto, hurt, i-frames…)
+
+    p->comboStep     = 0;
+    p->comboBuffered = 0;
+    p->comboLinger   = 0;
+    p->attackIsSpecial = 0;
+
+    p->state     = STATE_GRABBED;
+    p->grabTimer = PLAYER_GRAB_ESCAPE;   // metro de forcejeo (baja masheando)
+    SPR_setAutoAnimation(p->sprite, TRUE);
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    if (p->numAnims > ANIM_WHIP_SHOCK)
+        SPR_setAnimAndFrame(p->sprite, ANIM_WHIP_SHOCK, 0);
+    else
+        SPR_setAnimAndFrame(p->sprite, ANIM_HELD, 0);   // fallback (todas las sheets)
+}
+
+bool playerIsGrabbed(const Player* p) {
+    return (p->state == STATE_GRABBED);
+}
+
+// Drena 1 barra (llamado por el robot ~1 vez por segundo mientras agarra). Si
+// deja la vida en 0, knockout (que además termina el agarre al pasar a KO).
+void playerElectroDrain(Player* p) {
+    if (p->state != STATE_GRABBED) return;
+    if (p->health > 0) p->health--;
+    if (p->health == 0) {
+        p->hurtDir = 0;
+        playerEnterKO(p);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -547,4 +616,39 @@ bool isPlayerGameOver(const Player* p) {
     // (se activa al final del STATE_KO), no en el instante del golpe: así el
     // jugador ve la caída antes del game over.
     return p->gameOver;
+}
+
+// ---------------------------------------------------------------------------
+// MOVIMIENTO SCRIPTEADO (cutscenes) — sin leer input
+// ---------------------------------------------------------------------------
+// Renderiza la tortuga en su posición actual (mundo - cámara). La cámara la fija
+// scenes.c con setPlayerCamera antes de la cutscene.
+static void playerRenderAt(Player* p) {
+    SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, p->y - PLAYER_FOOT_OFFSET);
+    SPR_setDepth(p->sprite, -(p->y));
+}
+
+void playerCutsceneStand(Player* p) {
+    SPR_setAutoAnimation(p->sprite, TRUE);
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    SPR_setAnim(p->sprite, ANIM_IDLE);
+    playerRenderAt(p);
+}
+
+bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
+    bool arrived = TRUE;
+
+    s16 dx = targetX - p->x;
+    if (dx > 0)      { p->x += (dx <  PLAYER_SPEED) ? dx :  PLAYER_SPEED; p->dir =  1; SPR_setHFlip(p->sprite, FALSE); arrived = FALSE; }
+    else if (dx < 0) { p->x += (dx > -PLAYER_SPEED) ? dx : -PLAYER_SPEED; p->dir = -1; SPR_setHFlip(p->sprite, TRUE);  arrived = FALSE; }
+
+    s16 dy = targetY - p->y;
+    if (dy > 0)      { p->y += (dy <  PLAYER_SPEED) ? dy :  PLAYER_SPEED; arrived = FALSE; }
+    else if (dy < 0) { p->y += (dy > -PLAYER_SPEED) ? dy : -PLAYER_SPEED; arrived = FALSE; }
+
+    SPR_setAutoAnimation(p->sprite, TRUE);
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    SPR_setAnim(p->sprite, arrived ? ANIM_IDLE : ANIM_WALK_FRONT);
+    playerRenderAt(p);
+    return arrived;
 }

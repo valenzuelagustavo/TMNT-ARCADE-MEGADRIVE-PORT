@@ -15,6 +15,7 @@ typedef enum {
     SCENE_CINEMATIC_FIRE,
     SCENE_LEVEL1_TITLE,
     SCENE_LEVEL1,
+    SCENE_ENDING,       // Cutscene final: Shredder rapta a April (BG_A + BG_B)
     SCENE_GAME_OVER
 } SceneId;
 
@@ -28,6 +29,7 @@ SceneId showCharSelect();
 SceneId showFireCinematic();
 SceneId showLevel1Title();
 SceneId showLevel1();
+SceneId showEnding();
 SceneId showGameOver();
 
 // Función auxiliar para limpiar la pantalla entre escenas

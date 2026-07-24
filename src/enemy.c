@@ -133,6 +133,20 @@ void initEnemyDoorSpawn(Enemy* e, s16 doorCenterX, u8 palette) {
     SPR_setAnimationLoop(e->sprite, FALSE);
 }
 
+void initEnemyElevatorSpawn(Enemy* e, s16 doorCenterX, u8 palette) {
+    // Como el spawn de puerta, pero mostrando SÓLO los 2 últimos frames de
+    // BREAK_DOOR (índices 3 y 4): la puerta del ascensor ya se abrió con su
+    // propia animación, así que el foot soldier únicamente "sale" del hueco.
+    initEnemySpawn(e, doorCenterX - ENEMY_SPRITE_W / 2, ENEMY_LANE_TOP, 60, palette);
+    e->state = ENEMY_STATE_SPAWNING;
+    e->timer = ENEMY_ELEV_SPAWN_TIME;
+    e->dir   = 1;
+
+    e->anim = ENEMY_ANIM_BREAK_DOOR;
+    SPR_setAnimAndFrame(e->sprite, ENEMY_ANIM_BREAK_DOOR, 3);   // arranca en el 4to frame (índice 3)
+    SPR_setAnimationLoop(e->sprite, FALSE);
+}
+
 void setEnemyCamera(Enemy* e, s16 camX) {
     e->cameraOffsetX = camX;
 }

@@ -19,4 +19,5 @@ out/src/scenes.o: src/scenes.c res/scenes.h C:/SGDK/inc/genesis.h \
  C:/SGDK/inc/ext/flash-save/saveman.h C:/SGDK/inc/ext/console.h \
  C:/SGDK/inc/config.h C:/SGDK/inc/string.h C:/SGDK/inc/maths.h \
  C:/SGDK/inc/dma.h res/resources.h res/intro.h res/menus.h res/level1.h \
- res/audio.h res/player.h res/chars.h src/enemy.h res/enemies.h
+ res/audio.h res/player.h res/chars.h src/enemy.h res/enemies.h \
+ src/robot.h
