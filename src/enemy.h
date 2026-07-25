@@ -12,7 +12,12 @@
 // un spawn trasero con el jugador en la otra punta de la pantalla se
 // "olvidaba" de perseguir y quedaba patrullando fuera de cámara.
 #define ENEMY_DEAGGRO_RANGE 400
-#define ENEMY_ATTACK_RANGE  44   // Distancia (centro a centro) para lanzar ataque
+#define ENEMY_ATTACK_RANGE  60   // Distancia (centro a centro) para lanzar ataque
+// Selección de ataque por distancia: uppercut sólo si está MUY pegado; a media
+// distancia elige entre patada (se desplaza) y directo (más alcance).
+#define ENEMY_UPPERCUT_RANGE 30  // < esto -> uppercut (corto)
+#define ENEMY_UPPERCUT_REACH 40  // hitbox del uppercut (corto)
+#define ENEMY_FRONT_REACH    64  // hitbox del directo (más largo que el uppercut)
 // El sheet del foot soldier usa la MISMA grilla que las tortugas: frames de
 // 104x104px (13x13 tiles) con el arte en la parte baja del frame.
 // Mantener en sincronía con PLAYER_SPRITE_W / PLAYER_FOOT_OFFSET de player.h.
@@ -33,9 +38,12 @@
 #define ENEMY_ANIM_KICK        2   // Patada con salto: se desplaza en X
 #define ENEMY_ANIM_PUNCH       3   // Uppercut
 #define ENEMY_ANIM_WALK_UP     4   // Camina hacia arriba de la pantalla
-#define ENEMY_ANIM_EXPLODE     5   // Explosión al morir (4 frames)
+#define ENEMY_ANIM_EXPLODE     5   // Muerte (6 frames) — desplaza en X con el golpe
 #define ENEMY_ANIM_PUNCH_FRONT 6   // Golpe de frente / directo con el puño (2 frames)
 #define ENEMY_ANIM_BREAK_DOOR  7   // Rompe la puerta al spawnear (5 frames)
+#define ENEMY_ANIM_HIT_1       8   // Golpe recibido — se alternan 8/9/10 en cada golpe
+#define ENEMY_ANIM_HIT_2       9
+#define ENEMY_ANIM_HIT_3      10
 
 // ---------------------------------------------------------------------------
 // Movimiento vertical — lane de profundidad (coordenadas de PIES).
@@ -100,11 +108,13 @@
 #define ENEMY_PUNCH_TIME    16   // Duración total del uppercut (y del directo)
 #define ENEMY_KICK_TIME     32   // Duración total de la patada con salto
 #define ENEMY_KICK_LUNGE    16   // Frames iniciales del kick CON desplazamiento
-#define ENEMY_KICK_SPEED     2   // px/frame de avance durante el lunge (16*2 = 32px)
+#define ENEMY_KICK_SPEED     3   // px/frame de avance durante el lunge (16*3 = 48px, se desplaza más)
 
 // Muerte con explosión (anim 5 = 4 frames x 8) y rotura de puerta al spawnear
 // (anim 7: se reproduce desde el 2do frame → quedan 4 frames x 8).
-#define ENEMY_EXPLODE_TIME     32
+#define ENEMY_EXPLODE_TIME     48   // Muerte: 6 frames x 8 ticks
+#define ENEMY_DEATH_KNOCK_FRAMES 10 // Frames iniciales de la muerte con empuje en X
+#define ENEMY_DEATH_KNOCK_SPEED   2 // px/frame de ese empuje (alejándose del golpe)
 #define ENEMY_BREAK_DOOR_TIME  32
 // Spawn desde ascensor: sólo los 2 últimos frames de BREAK_DOOR (índices 3-4).
 #define ENEMY_ELEV_SPAWN_TIME  16
@@ -156,6 +166,7 @@ typedef struct {
     u8          anim;         // Animación actual (evita re-setear la misma anim)
     u8          attackType;   // ENEMY_ATTACK_PUNCH o ENEMY_ATTACK_KICK
     u8          attackHit;    // 1 = este ataque ya conectó (un golpe por swing)
+    u8          hitToggle;    // alterna las 3 anims de golpe recibido (0/1/2)
     u8          attackCooldown; // Frames hasta poder volver a atacar (0 = listo)
     u8          target;       // Jugador asignado: 0 = P1, 1 = P2
     u8          retargetTimer; // Frames hasta la próxima re-evaluación de target

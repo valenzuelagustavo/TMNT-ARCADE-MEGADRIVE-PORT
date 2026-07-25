@@ -60,7 +60,7 @@ TILESET hp_bar "/sprites/hp_bar.png" NONE NONE
 TILESET title_font     "/images/font/font_tmnt_arcade.png" NONE NONE
 PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
 
-// --- Globo de dialogo "Attack!!" (intro del nivel) ---
+// --- Globo de dialogo "Attack!!" (intro del nivel) --
 // 64x32px = 8x4 tiles, UN solo frame (time 0 -> sin animacion automatica).
 // NO lleva PALETTE propia: el PNG esta indexado sobre la MISMA paleta de las
 // tortugas (indices 0/7/8/9/11 coinciden con negro/dorado/verde/cyan/lavanda
@@ -72,7 +72,7 @@ SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 // --- Puerta rompible (spawn point del nivel) ---
 // 40x80px = 5x10 tiles, UN solo frame (time 0). Se dibuja sobre cada hueco de
 // puerta abierta del nivel. NO lleva PALETTE propia: el PNG comparte la paleta
-// del FONDO (PAL0) — los indices coinciden con los slots del fondo — asi que se
+// del FONDO (PAL0) -- los indices coinciden con los slots del fondo -- asi que se
 // dibuja con TILE_ATTR(PAL0,...). Al acercarse el jugador se remueve y el foot
 // soldier la reemplaza rompiendola (ENEMY_ANIM_BREAK_DOOR).
 SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0
@@ -84,23 +84,23 @@ SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0
 // time 8 -> los 4 frames en 32 ticks (calza con ELEV_DOOR_ANIM_TIME de scenes.c).
 SPRITE ascensor_door "sprites/ascensor_door.png" 6 10 NONE 8
 
-// --- Robot del látigo (mini-jefe del final) ---
-// 880x880 = grilla 11x11 de frames de 80x80 (10x10 tiles), 11 animaciones.
-// Comparte la paleta de los foot soldiers (PAL2), NO lleva PALETTE propia.
-// FAST = compresión rápida (es un sprite grande y NO se streamea).
-SPRITE robot_whip "sprites/robot_whip.png" 10 10 FAST 8
+// --- Robot del latigo (mini-jefe del final) ---
+// 2024x1040 = grilla de frames de 184x80 (23x10 tiles), 13 animaciones (0..12).
+// Frame ANCHO porque el latigo se estira DENTRO del sprite (el cuerpo va a la
+// izquierda). Comparte la paleta de los foot soldiers (PAL2), NO lleva PALETTE
+// propia. FAST = compresion rapida (sprite grande, no se streamea).
+SPRITE robot_whip "sprites/robot_whip.png" 23 10 FAST 8
 
-// --- Látigo / láser del robot (sub-sprite) ---
-// 288x80 = 5 animaciones de 3 frames de 96x16 (12x2 tiles): látigo (búsqueda,
-// contacto, electro A/B) y láser. Comparte PAL2. El "frame" del látigo es
-// medida de distancia (32px por frame).
+// --- Laser del robot (sub-sprite) ---
+// whip_waves 288x80: solo se usa su animacion de LASER (el latigo ya esta
+// integrado en el sprite del robot). Frame 96x16 (12x2 tiles). Comparte PAL2.
 SPRITE whip_waves "sprites/whip_waves.png" 12 2 NONE 8
 
-// --- Cutscene final (Shredder rapta a April) — imagen combinada en 2 planos ---
-// Dos imágenes de 320x224, cada una con SU paleta de 16 colores: BG_B_final es
+// --- Cutscene final (Shredder rapta a April) -- imagen combinada en 2 planos ---
+// Dos imagenes de 320x224, cada una con SU paleta de 16 colores: BG_B_final es
 // el fondo (plano BG_B, PAL0) y BG_A_final va ENCIMA (plano BG_A, PAL1) con el
-// índice 0 transparente, de modo que juntas forman una imagen de ~32 colores.
-// BEST = máxima compresión (son de un solo uso). La cutscene libera la VRAM de
+// indice 0 transparente, de modo que juntas forman una imagen de ~32 colores.
+// BEST = maxima compresion (son de un solo uso). La cutscene libera la VRAM de
 // sprites (SPR_end) mientras las muestra: entre las dos suman ~1000 tiles.
 IMAGE bg_b_final "/images/lvl_1_scene/BG_B_final_lvl1.png" BEST
 IMAGE bg_a_final "/images/lvl_1_scene/BG_A_final_lvl1.png" BEST

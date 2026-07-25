@@ -25,3 +25,4 @@ XGM2 golpe         "golpe.vgm"
 // del nivel (CH1) sigue sonando por debajo. Sintaxis: WAV name file driver
 // [out_rate] -> out_rate se omite = 13300 (hay que reproducirlo a rate normal).
 WAV attack_vo "audio/attack.wav" XGM2
+WAV scream_april "audio/scream_april.wav" XGM2

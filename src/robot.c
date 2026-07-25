@@ -1,125 +1,71 @@
 #include "robot.h"
 
 // ===========================================================================
-// ROBOT DEL LÁTIGO — implementación
+// ROBOT DEL LÁTIGO — implementación (sheet nuevo: 13 anims, frame 184x80)
 // ===========================================================================
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-static s16 rabs(s16 v)                    { return (v < 0) ? -v : v; }
-static s16 rclamp(s16 v, s16 a, s16 b)    { return (v < a) ? a : ((v > b) ? b : v); }
+static s16 rabs(s16 v)                 { return (v < 0) ? -v : v; }
+static s16 rclamp(s16 v, s16 a, s16 b) { return (v < a) ? a : ((v > b) ? b : v); }
 
+// Cambia de anim (con auto-animación ON: la mayoría se reproducen solas).
 static void robotSetAnim(Robot* r, u8 a, bool loop) {
     if (r->anim == a) return;
     r->anim = a;
+    SPR_setAutoAnimation(r->sprite, TRUE);
     SPR_setAnim(r->sprite, a);
     SPR_setAnimationLoop(r->sprite, loop);
 }
 
-// Reinicia desde el frame 0 aunque sea la misma anim (para anims sin loop que
-// quedan congeladas en el último frame y hay que volver a disparar).
+// Reinicia desde el frame 0 aunque sea la misma anim.
 static void robotRestartAnim(Robot* r, u8 a, bool loop) {
     r->anim = a;
+    SPR_setAutoAnimation(r->sprite, TRUE);
     SPR_setAnimAndFrame(r->sprite, a, 0);
     SPR_setAnimationLoop(r->sprite, loop);
 }
 
-// Dirección hacia la que MIRA el arte de cada animación. El idle está dibujado
-// mirando a la IZQUIERDA; el resto (giro, caminar, ataques, etc.) a la DERECHA.
-// Ajustar acá si alguna animación quedara dibujada al revés.
-static s8 robotArtDir(u8 a) {
-    return (a == ROBOT_ANIM_IDLE) ? -1 : 1;
+// El arte del robot mira SIEMPRE a la derecha -> flip cuando mira a la izquierda.
+// Como el frame es ancho (184) y el cuerpo está a la izquierda, al espejar hay
+// que correr la X para que el CENTRO del cuerpo (r->x) quede en su lugar.
+static void robotRender(Robot* r) {
+    bool flip = (r->dir < 0);
+    s16 fl = r->x - (flip ? (ROBOT_FRAME_W - ROBOT_BODY_CX) : ROBOT_BODY_CX);
+    SPR_setHFlip(r->sprite, flip);
+    SPR_setPosition(r->sprite, fl - r->cameraOffsetX, r->y - ROBOT_FOOT_OFFSET);
+    SPR_setDepth(r->sprite, -(r->y));
 }
 
 // ---------------------------------------------------------------------------
-// Sub-sprite del LÁTIGO / LÁSER (whip_waves) — creación y posicionado
+// LÁSER — proyectil de vida independiente (sub-sprite whip_waves, anim láser)
 // ---------------------------------------------------------------------------
-static void robotReleaseWhip(Robot* r) {
-    if (r->whipSpr) { SPR_releaseSprite(r->whipSpr); r->whipSpr = NULL; }
-}
-
 static void robotKillLaser(Robot* r) {
     if (r->laserSpr) { SPR_releaseSprite(r->laserSpr); r->laserSpr = NULL; }
     r->laserActive = FALSE;
 }
 
-// Coloca el sub-sprite del látigo saliendo de la "mano" del robot, extendido
-// hacia 'dir'. El arte del látigo se dibuja desde su base (izquierda); cuando
-// el robot mira a la izquierda se espeja y se ancla por el borde derecho.
-static void robotWhipPos(Robot* r, Sprite* spr) {
-    s16 handWorldX = (r->dir > 0) ? (r->x + ROBOT_SPRITE_W - 8) : (r->x + 8);
-    s16 sy = (r->y - ROBOT_FOOT_OFFSET) + WHIP_HAND_Y_OFFSET;
-    if (r->dir > 0) {
-        SPR_setHFlip(spr, FALSE);
-        SPR_setPosition(spr, handWorldX - r->cameraOffsetX, sy);
-    } else {
-        SPR_setHFlip(spr, TRUE);
-        SPR_setPosition(spr, (handWorldX - WHIP_SPRITE_W) - r->cameraOffsetX, sy);
-    }
-    SPR_setDepth(spr, -(r->y) - 1);   // delante del robot
-}
-
-static void robotSpawnWhip(Robot* r) {
-    robotReleaseWhip(r);
-    r->whipSpr = SPR_addSprite(&whip_waves, 0, 0, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
-    if (r->whipSpr) {
-        SPR_setAnimationLoop(r->whipSpr, FALSE);
-        SPR_setAnimAndFrame(r->whipSpr, WHIP_ANIM_SEARCH, 0);
-        robotWhipPos(r, r->whipSpr);
-    }
-    r->whipElectroTgl = 0;
-}
-
-// Extiende el látigo según la distancia (frame = distancia / 32, tope 2).
-static void robotUpdateWhipSearch(Robot* r, s16 distX) {
-    if (!r->whipSpr) return;
-    s16 fr = distX / ROBOT_WHIP_STEP;
-    fr = rclamp(fr, 0, 2);
-    SPR_setAnimAndFrame(r->whipSpr, WHIP_ANIM_SEARCH, (u16)fr);
-    robotWhipPos(r, r->whipSpr);
-}
-
-// Electrocución: intercala los frames A/B (una y una) al máximo de extensión.
-static void robotUpdateWhipElectro(Robot* r) {
-    if (!r->whipSpr) return;
-    r->whipElectroTgl++;
-    u8 e = (u8)((r->whipElectroTgl >> 2) & 1);   // cambia cada ~4 frames
-    SPR_setAnimAndFrame(r->whipSpr, e ? WHIP_ANIM_ELECTRO_B : WHIP_ANIM_ELECTRO_A, 2);
-    robotWhipPos(r, r->whipSpr);
-}
-
-// ---------------------------------------------------------------------------
-// LÁSER — proyectil de vida independiente
-// ---------------------------------------------------------------------------
 static void robotFireLaser(Robot* r) {
     if (r->laserActive) return;
     r->laserActive = TRUE;
     r->laserDir = r->dir;
-    s16 handWorldX = (r->dir > 0) ? (r->x + ROBOT_SPRITE_W - 8) : (r->x + 8);
-    r->laserX = (r->dir > 0) ? handWorldX : (handWorldX - WHIP_SPRITE_W);
+    // Sale de la posición del arma (centro del cuerpo) hacia 'dir'.
+    r->laserX = (r->dir > 0) ? r->x : (r->x - WHIP_SPRITE_W);
     r->laserY = r->y;
-    r->laserSpr = SPR_addSprite(&whip_waves,
-                                r->laserX - r->cameraOffsetX,
-                                (r->laserY - ROBOT_FOOT_OFFSET) + WHIP_HAND_Y_OFFSET,
+    s16 drawY = (r->y - ROBOT_FOOT_OFFSET) + 40;   // a la altura del arma
+    r->laserSpr = SPR_addSprite(&whip_waves, r->laserX - r->cameraOffsetX, drawY,
                                 TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
     if (r->laserSpr) {
         SPR_setHFlip(r->laserSpr, (r->laserDir < 0));
-        SPR_setAnimationLoop(r->laserSpr, FALSE);   // se forma y queda en el último frame
+        SPR_setAnimationLoop(r->laserSpr, FALSE);
         SPR_setAnim(r->laserSpr, WHIP_ANIM_LASER);
-        SPR_setDepth(r->laserSpr, -(r->laserY) - 1);
+        SPR_setDepth(r->laserSpr, -(r->y) - 1);
     }
 }
 
 static void robotUpdateLaser(Robot* r, Player* p1, Player* p2, bool twoP) {
     if (!r->laserActive) return;
-
     r->laserX += r->laserDir * ROBOT_LASER_SPEED;
-
-    // ¿Salió del nivel?
     if (r->laserX + WHIP_SPRITE_W < 0 || r->laserX > 1376) { robotKillLaser(r); return; }
 
-    // ¿Impactó a algún jugador?
     Player* ps[2] = { p1, p2 };
     u8 n = twoP ? 2 : 1;
     for (u8 i = 0; i < n; i++) {
@@ -134,63 +80,70 @@ static void robotUpdateLaser(Robot* r, Player* p1, Player* p2, bool twoP) {
             return;
         }
     }
-
     if (r->laserSpr)
         SPR_setPosition(r->laserSpr, r->laserX - r->cameraOffsetX,
-                        (r->laserY - ROBOT_FOOT_OFFSET) + WHIP_HAND_Y_OFFSET);
+                        (r->laserY - ROBOT_FOOT_OFFSET) + 40);
 }
 
 // ---------------------------------------------------------------------------
-// Rutina: elegir el extremo más lejano y caminar hacia él
+// Rutina: caminar hacia el extremo más lejano
 // ---------------------------------------------------------------------------
 static void robotStartWalk(Robot* r) {
     s16 dl = rabs(r->x - ROBOT_PATROL_LEFT);
     s16 dr = rabs(r->x - ROBOT_PATROL_RIGHT);
     r->patrolTarget = (dr >= dl) ? ROBOT_PATROL_RIGHT : ROBOT_PATROL_LEFT;
     r->state = ROBOT_WALK;
+    r->walkTimer = 0;
     robotSetAnim(r, ROBOT_ANIM_WALK, TRUE);
+}
+
+// Alcance actual del látigo según el frame del lanzamiento.
+static s16 robotWhipReach(const Robot* r) {
+    s16 reach = ROBOT_WHIP_REACH_MIN + (s16)r->throwFrame * ROBOT_WHIP_STEP;
+    return (reach > ROBOT_WHIP_REACH_MAX) ? ROBOT_WHIP_REACH_MAX : reach;
 }
 
 // ---------------------------------------------------------------------------
 // API pública
 // ---------------------------------------------------------------------------
 void robotInit(Robot* r) {
-    r->sprite        = NULL;
-    r->state         = ROBOT_INACTIVE;
-    r->x = r->y      = 0;
+    r->sprite = NULL;
+    r->state = ROBOT_INACTIVE;
+    r->x = r->y = 0;
     r->cameraOffsetX = 0;
-    r->dir           = -1;
-    r->hp            = ROBOT_HP;
-    r->anim          = 0xFF;
-    r->flashTimer    = 0;
-    r->timer         = 0;
-    r->patrolTarget  = ROBOT_PATROL_LEFT;
+    r->dir = -1;
+    r->hp = ROBOT_HP;
+    r->anim = 0xFF;
+    r->flashTimer = 0;
+    r->timer = 0;
+    r->patrolTarget = ROBOT_PATROL_LEFT;
+    r->walkTimer = 0;
     r->attackCooldown = 0;
-    r->drainTimer    = 0;
-    r->whipSpr       = NULL;
-    r->whipElectroTgl = 0;
-    r->laserSpr      = NULL;
-    r->laserActive   = FALSE;
+    r->drainTimer = 0;
+    r->electroTgl = 0;
+    r->grabFrame = 0;
+    r->throwFrame = 0;
+    r->throwFrames = 0;
+    r->throwTick = 0;
+    r->laserSpr = NULL;
+    r->laserActive = FALSE;
     r->laserX = r->laserY = 0;
-    r->laserDir      = 1;
+    r->laserDir = 1;
 }
 
 void robotSpawn(Robot* r, s16 centerX) {
-    r->x   = centerX - ROBOT_SPRITE_W / 2;
-    r->y   = ROBOT_SPAWN_Y;
+    r->x = centerX;
+    r->y = ROBOT_SPAWN_Y;
     r->dir = -1;
-    r->hp  = ROBOT_HP;
+    r->hp = ROBOT_HP;
     r->state = ROBOT_APPEAR;
-    r->anim  = 0xFF;
+    r->anim = 0xFF;
     r->attackCooldown = 0;
     r->drainTimer = 0;
-
-    r->sprite = SPR_addSprite(&robot_whip,
-                              r->x - r->cameraOffsetX, r->y - ROBOT_FOOT_OFFSET,
-                              TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
-    // Comparte la paleta de los foot soldiers (PAL2, ya cargada por el nivel):
-    // no se recarga.
+    r->sprite = SPR_addSprite(&robot_whip, 0, 0, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    // Comparte PAL2 (paleta de los foot soldiers), ya cargada por el nivel.
     robotRestartAnim(r, ROBOT_ANIM_APPEAR, FALSE);
+    robotRender(r);
 }
 
 bool robotIsActive(const Robot* r) {
@@ -198,32 +151,28 @@ bool robotIsActive(const Robot* r) {
 }
 
 bool robotCanBeHit(const Robot* r) {
-    // No durante la aparición (inmune), el agarre, el golpe (i-frames) ni la
-    // muerte. Sí mientras camina, gira o ataca.
+    // Hittable mientras camina, gira o ataca; NO durante aparición, agarre,
+    // golpe (i-frames) ni muerte.
     return (r->state == ROBOT_WALK || r->state == ROBOT_TURN ||
-            r->state == ROBOT_LASER || r->state == ROBOT_WHIP);
+            r->state == ROBOT_WINDUP || r->state == ROBOT_THROW ||
+            r->state == ROBOT_RETRACT || r->state == ROBOT_LASER);
 }
 
-s16 robotGetCenterX(const Robot* r) { return r->x + ROBOT_SPRITE_W / 2; }
+s16 robotGetCenterX(const Robot* r) { return r->x; }
 s16 robotGetCenterY(const Robot* r) { return r->y; }
 
 void robotDamage(Robot* r, s16 dmg) {
     if (!robotCanBeHit(r)) return;
-
     r->hp -= dmg;
 
     if (r->hp <= 0) {
-        // Destruido: explota. Suelta el látigo si lo tenía afuera.
-        robotReleaseWhip(r);
         r->flashTimer = 0;
         SPR_setPalette(r->sprite, PAL2);
         r->state = ROBOT_DEAD;
         robotRestartAnim(r, ROBOT_ANIM_DESTROY, FALSE);
         return;
     }
-
-    // Golpeado (no fatal): flash blanco (PAL3 = paleta flash del nivel) + HURT.
-    robotReleaseWhip(r);
+    // Golpeado no fatal: flash blanco (PAL3) + HURT.
     SPR_setPalette(r->sprite, PAL3);
     r->flashTimer = ROBOT_FLASH_FRAMES;
     r->state = ROBOT_HURT;
@@ -231,12 +180,23 @@ void robotDamage(Robot* r, s16 dmg) {
     robotRestartAnim(r, ROBOT_ANIM_HURT, FALSE);
 }
 
+// Comienza el lanzamiento del látigo (control manual de frames para poder
+// recogerlo al revés si no engancha).
+static void robotBeginThrow(Robot* r) {
+    r->state = ROBOT_THROW;
+    robotRestartAnim(r, ROBOT_ANIM_WHIP_THROW, FALSE);
+    SPR_setAutoAnimation(r->sprite, FALSE);   // frames a mano
+    r->throwFrames = (u8)r->sprite->animation->numFrame;
+    if (r->throwFrames == 0) r->throwFrames = 1;
+    r->throwFrame = 0;
+    r->throwTick = 0;
+    SPR_setAnimAndFrame(r->sprite, ROBOT_ANIM_WHIP_THROW, 0);
+}
+
 void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers, u16 fps) {
     if (r->state == ROBOT_INACTIVE || r->state == ROBOT_GONE || !r->sprite) return;
-
     r->cameraOffsetX = cameraX;
 
-    // Restaurar paleta al terminar el flash de golpe
     if (r->flashTimer > 0) {
         r->flashTimer--;
         if (r->flashTimer == 0) SPR_setPalette(r->sprite, PAL2);
@@ -248,17 +208,14 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
     if (twoPlayers && p2 &&
         rabs(getPlayerWorldX(p2) - r->x) < rabs(getPlayerWorldX(p1) - r->x))
         tgt = p2;
-
     s16 pcx  = getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2;
     s16 py   = getPlayerY(tgt);
-    s16 rcx  = r->x + ROBOT_SPRITE_W / 2;
-    s16 ddx  = pcx - rcx;
+    s16 ddx  = pcx - r->x;
     s16 distX = rabs(ddx);
 
     switch (r->state) {
 
         case ROBOT_APPEAR: {
-            // Inmune mientras sale del suelo. Al terminar la anim, arranca.
             if (SPR_isAnimationDone(r->sprite)) {
                 r->dir = (ddx >= 0) ? 1 : -1;
                 robotStartWalk(r);
@@ -270,7 +227,10 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
             s16 step = (r->patrolTarget > r->x) ? ROBOT_SPEED : -ROBOT_SPEED;
             r->dir = (step > 0) ? 1 : -1;
             r->x += step;
-            robotSetAnim(r, ROBOT_ANIM_WALK, TRUE);
+            // Arranque con [3] y luego [12] si el desplazamiento sigue.
+            r->walkTimer++;
+            robotSetAnim(r, (r->walkTimer < ROBOT_WALK_START_TICKS)
+                            ? ROBOT_ANIM_WALK : ROBOT_ANIM_WALK_LONG, TRUE);
             if (rabs(r->x - r->patrolTarget) <= ROBOT_ARRIVE_MARGIN) {
                 r->x = r->patrolTarget;
                 r->state = ROBOT_TURN;
@@ -281,25 +241,102 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
         }
 
         case ROBOT_TURN: {
-            // Gira mirando al jugador y se ALINEA en Y con él.
             r->dir = (ddx >= 0) ? 1 : -1;
             if      (py > r->y + ROBOT_Y_ALIGN) r->y += ROBOT_SPEED;
             else if (py < r->y - ROBOT_Y_ALIGN) r->y -= ROBOT_SPEED;
             r->y = rclamp(r->y, ROBOT_LANE_TOP, ROBOT_LANE_BOTTOM);
-
             if (r->timer > 0) r->timer--;
             if (SPR_isAnimationDone(r->sprite) || r->timer == 0) {
-                // Decidir ataque por distancia: lejos = láser, en rango = látigo.
-                if (distX > ROBOT_WHIP_REACH) {
+                if (distX > ROBOT_WHIP_REACH_MAX) {
                     r->state = ROBOT_LASER;
                     r->timer = 0;
                     robotRestartAnim(r, ROBOT_ANIM_LASER, FALSE);
                 } else {
-                    r->state = ROBOT_WHIP;
-                    r->timer = ROBOT_WHIP_HOLD;
-                    robotRestartAnim(r, ROBOT_ANIM_WHIP, FALSE);
-                    robotSpawnWhip(r);
+                    r->state = ROBOT_WINDUP;
+                    robotRestartAnim(r, ROBOT_ANIM_WHIP_WINDUP, FALSE);
                 }
+            }
+            break;
+        }
+
+        case ROBOT_WINDUP: {
+            // Preparación; siempre antes del látigo. Al terminar -> lanzar.
+            if (SPR_isAnimationDone(r->sprite)) robotBeginThrow(r);
+            break;
+        }
+
+        case ROBOT_THROW: {
+            // El látigo se estira frame a frame. En cada frame se chequea si
+            // engancha; si llega al final sin contacto, se recoge (RETRACT).
+            s16 reach = robotWhipReach(r);
+            s16 fwd = (r->dir >= 0) ? (pcx - r->x) : (r->x - pcx);
+            if (fwd >= 0 && fwd <= reach && rabs(py - r->y) <= ROBOT_WHIP_TOL_Y &&
+                playerCanBeHit(tgt)) {
+                // ¡Enganchó!
+                playerWhipGrab(tgt);
+                r->state = ROBOT_GRAB;
+                r->drainTimer = 0;
+                r->electroTgl = 0;
+                robotRestartAnim(r, ROBOT_ANIM_CAUGHT, FALSE);
+            } else if (++r->throwTick >= ROBOT_THROW_TICKS) {
+                r->throwTick = 0;
+                if (r->throwFrame + 1 >= r->throwFrames) {
+                    r->state = ROBOT_RETRACT;   // no enganchó -> recoger
+                } else {
+                    r->throwFrame++;
+                    SPR_setFrame(r->sprite, r->throwFrame);
+                }
+            }
+            break;
+        }
+
+        case ROBOT_RETRACT: {
+            if (++r->throwTick >= ROBOT_THROW_TICKS) {
+                r->throwTick = 0;
+                if (r->throwFrame == 0) {
+                    robotStartWalk(r);
+                    r->attackCooldown = ROBOT_ATTACK_COOLDOWN;
+                } else {
+                    r->throwFrame--;
+                    SPR_setFrame(r->sprite, r->throwFrame);
+                }
+            }
+            break;
+        }
+
+        case ROBOT_GRAB: {
+            // Tras "atrapada" alterna las anims de electrocución (7/8). La
+            // tortuga reproduce su anim 18 (la maneja playerWhipGrab).
+            if (r->anim == ROBOT_ANIM_CAUGHT && SPR_isAnimationDone(r->sprite)) {
+                // Calcular frame según distancia robot→player.
+                // throwFrame 0 = alcance mínimo, numFrames-1 = alcance máximo.
+                s16 distXGrab = rabs(getPlayerWorldX(tgt) - r->x);
+                r->grabFrame = (r->throwFrames > 1)
+                    ? (u8)rclamp((distXGrab - ROBOT_WHIP_REACH_MIN) * (r->throwFrames - 1)
+                                / (ROBOT_WHIP_REACH_MAX - ROBOT_WHIP_REACH_MIN),
+                                0, r->throwFrames - 1)
+                    : 0;
+                robotSetAnim(r, ROBOT_ANIM_ELECTRO_A, FALSE);
+                SPR_setAutoAnimation(r->sprite, FALSE);
+                SPR_setFrame(r->sprite, r->grabFrame);
+            }
+            if (r->anim != ROBOT_ANIM_CAUGHT) {
+                r->electroTgl++;
+                if ((r->electroTgl & 7) == 0) {
+                    u8 next = (r->anim == ROBOT_ANIM_ELECTRO_A)
+                              ? ROBOT_ANIM_ELECTRO_B : ROBOT_ANIM_ELECTRO_A;
+                    r->anim = next;
+                    SPR_setAnim(r->sprite, next);
+                    SPR_setAutoAnimation(r->sprite, FALSE);
+                    SPR_setFrame(r->sprite, r->grabFrame);
+                }
+            }
+            // Drena 1 barra por segundo.
+            if (++r->drainTimer >= fps) { r->drainTimer = 0; playerElectroDrain(tgt); }
+            // Zafó (mashing) o cayó KO -> soltar y seguir.
+            if (!playerIsGrabbed(tgt)) {
+                robotStartWalk(r);
+                r->attackCooldown = ROBOT_ATTACK_COOLDOWN;
             }
             break;
         }
@@ -308,48 +345,7 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
             r->timer++;
             if (r->timer == ROBOT_LASER_FIRE_DELAY) robotFireLaser(r);
             if (SPR_isAnimationDone(r->sprite)) {
-                robotStartWalk(r);            // el rayo sigue viajando por su cuenta
-                r->attackCooldown = ROBOT_ATTACK_COOLDOWN;
-            }
-            break;
-        }
-
-        case ROBOT_WHIP: {
-            robotSetAnim(r, ROBOT_ANIM_WHIP_HOLD, TRUE);
-            robotUpdateWhipSearch(r, distX);
-            // ¿Atrapó a la tortuga? (en rango, alineada y agarrable)
-            if (distX <= ROBOT_WHIP_REACH && rabs(py - r->y) <= ROBOT_WHIP_TOL_Y &&
-                playerCanBeHit(tgt)) {
-                playerWhipGrab(tgt);
-                r->state = ROBOT_GRAB;
-                r->drainTimer = 0;
-                robotRestartAnim(r, ROBOT_ANIM_CAUGHT, FALSE);
-                if (r->whipSpr) SPR_setAnimAndFrame(r->whipSpr, WHIP_ANIM_CONTACT, 2);
-            } else if (r->timer > 0) {
-                r->timer--;
-            } else {
-                robotReleaseWhip(r);          // volvió sin atrapar
-                robotStartWalk(r);
-                r->attackCooldown = ROBOT_ATTACK_COOLDOWN;
-            }
-            break;
-        }
-
-        case ROBOT_GRAB: {
-            // Tras "atrapada" pasa a electrocución (loop).
-            if (r->anim == ROBOT_ANIM_CAUGHT && SPR_isAnimationDone(r->sprite))
-                robotRestartAnim(r, ROBOT_ANIM_ELECTRO, TRUE);
-            robotUpdateWhipElectro(r);
-
-            // Drena 1 barra por segundo.
-            if (++r->drainTimer >= fps) {
-                r->drainTimer = 0;
-                playerElectroDrain(tgt);
-            }
-            // El jugador zafó (mashing) o cayó KO -> soltar y seguir.
-            if (!playerIsGrabbed(tgt)) {
-                robotReleaseWhip(r);
-                robotStartWalk(r);
+                robotStartWalk(r);            // el rayo sigue viajando solo
                 r->attackCooldown = ROBOT_ATTACK_COOLDOWN;
             }
             break;
@@ -374,11 +370,6 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
         default: break;
     }
 
-    // Proyectil láser (independiente del estado del robot)
     robotUpdateLaser(r, p1, p2, twoPlayers);
-
-    // Render del robot
-    SPR_setHFlip(r->sprite, (r->dir != robotArtDir(r->anim)));
-    SPR_setPosition(r->sprite, r->x - cameraX, r->y - ROBOT_FOOT_OFFSET);
-    SPR_setDepth(r->sprite, -(r->y));
+    robotRender(r);
 }

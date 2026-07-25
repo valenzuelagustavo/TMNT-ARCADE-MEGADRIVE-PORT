@@ -97,6 +97,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette) {
     e->anim        = 0xFF;   // sentinela: fuerza el primer enemySetAnim
     e->attackType  = ENEMY_ATTACK_PUNCH;
     e->attackHit   = 0;
+    e->hitToggle   = 0;
     // Cooldown inicial aleatorio: los spawns cercanos no atacan sincronizados
     e->attackCooldown = (u8)(random() & 31);
 
@@ -181,7 +182,10 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     e->state = ENEMY_STATE_HURT;
     e->timer = 12;
     e->invincible = ENEMY_INVINCIBLE;
-    enemySetAnim(e, ENEMY_ANIM_IDLE, TRUE);   // no hay anim de hurt todavía
+    // Anim de golpe recibido: alterna entre las tres (8/9/10) en cada golpe.
+    u8 hitAnim = (u8)(ENEMY_ANIM_HIT_1 + e->hitToggle);
+    if (++e->hitToggle >= 3) e->hitToggle = 0;
+    enemyRestartAnim(e, hitAnim, FALSE);
     return TRUE;
 }
 
@@ -244,6 +248,11 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
     }
 
     if (e->state == ENEMY_STATE_DEAD) {
+        // Empuje inicial en X alejándose del golpe (el enemigo mira al que lo
+        // golpeó, así que retrocede hacia -dir) los primeros frames de la muerte.
+        if (e->timer > ENEMY_EXPLODE_TIME - ENEMY_DEATH_KNOCK_FRAMES)
+            e->x = clampS16(e->x - e->dir * ENEMY_DEATH_KNOCK_SPEED,
+                            ENEMY_WORLD_MIN_X, enemyMaxX(e->y));
         if (e->timer > 0) {
             e->timer--;
             if (e->timer == 0) {
@@ -329,8 +338,13 @@ void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2
                 enemiesAttacking++;
                 // Mirar al objetivo antes de golpear
                 if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
-                // Elegir ataque al azar: uppercut, patada con salto o directo
-                e->attackType = (u8)(random() % 3);
+                // Elegir ataque según distancia: MUY pegado -> uppercut (corto);
+                // a media distancia -> patada (se desplaza) o directo (más alcance).
+                if (dist < ENEMY_UPPERCUT_RANGE)
+                    e->attackType = ENEMY_ATTACK_PUNCH;                       // uppercut
+                else
+                    e->attackType = (random() & 1) ? ENEMY_ATTACK_KICK        // patada
+                                                   : ENEMY_ATTACK_FRONT;      // directo
                 e->attackHit  = 0;   // este swing todavía no conectó
                 e->timer = (e->attackType == ENEMY_ATTACK_KICK) ? ENEMY_KICK_TIME
                                                                 : ENEMY_PUNCH_TIME;
@@ -485,12 +499,18 @@ bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py) {
     if (e->state != ENEMY_STATE_ATTACK || e->attackHit || !e->sprite)
         return FALSE;
 
-    // ¿Hitbox activa en este frame del ataque?
+    // ¿Hitbox activa en este frame del ataque? y ¿con qué alcance?
     bool active;
-    if (e->attackType == ENEMY_ATTACK_KICK)
+    s16  reach;
+    if (e->attackType == ENEMY_ATTACK_KICK) {
         active = (e->timer > ENEMY_KICK_TIME - ENEMY_KICK_LUNGE);   // todo el lunge
-    else
+        reach  = ENEMY_HIT_RANGE_X;
+    } else {
         active = (e->timer >= ENEMY_PUNCH_HIT_START && e->timer <= ENEMY_PUNCH_HIT_END);
+        // directo = más alcance; uppercut = corto (sólo si está muy pegado).
+        reach  = (e->attackType == ENEMY_ATTACK_FRONT) ? ENEMY_FRONT_REACH
+                                                       : ENEMY_UPPERCUT_REACH;
+    }
     if (!active)
         return FALSE;
 
@@ -499,7 +519,7 @@ bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py) {
     s16 ex  = getEnemyCenterX(e);
     s16 pcx = px + ENEMY_SPRITE_W / 2;   // misma grilla de frame que el enemigo
     s16 dx  = (e->dir >= 0) ? (pcx - ex) : (ex - pcx);
-    if (dx < -ENEMY_HIT_BACK_X || dx > ENEMY_HIT_RANGE_X)
+    if (dx < -ENEMY_HIT_BACK_X || dx > reach)
         return FALSE;
 
     // Alineación en profundidad (pies)

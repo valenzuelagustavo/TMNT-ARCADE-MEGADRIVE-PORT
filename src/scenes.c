@@ -1293,7 +1293,11 @@ SceneId showLevel1() {
 
         // 6e. Victoria: robot destruido y sin enemigos en pantalla -> arranca la
         //     secuencia de salida (ver después del bucle).
-        if (robot.state == ROBOT_GONE && activeEnemies == 0) { win = TRUE; break; }
+        if (robot.state == ROBOT_GONE && activeEnemies == 0) {
+            XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            win = TRUE;
+            break;
+        }
 
         // 7. Revelar columnas nuevas del fondo y aplicar el scroll
         bgUpdate(cameraX);
