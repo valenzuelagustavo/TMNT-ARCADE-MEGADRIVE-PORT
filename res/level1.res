@@ -69,6 +69,14 @@ PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
 // tortugas, PAL2 enemigos+fuego, PAL3 flash/HUD. Mismo truco que hp_bar/hud.
 SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 
+// --- Bola de hierro (obstaculo que cae rebotando por las escaleras) ---
+// 64x32px = spritesheet de 2 frames de 32x32 (4x4 tiles) -> giro de la esfera.
+// time 6 -> alterna los 2 frames cada 6 ticks (~10fps). NO lleva PALETTE propia:
+// el PNG esta indexado sobre la MISMA paleta de las tortugas (PAL1), igual que
+// attack_bubble/hp_bar, asi que se dibuja con TILE_ATTR(PAL1,...) sin gastar
+// una linea de paleta. Solo 2 frames x 16 tiles = 32 tiles en ROM.
+SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
+
 // --- Puerta rompible (spawn point del nivel) ---
 // 40x80px = 5x10 tiles, UN solo frame (time 0). Se dibuja sobre cada hueco de
 // puerta abierta del nivel. NO lleva PALETTE propia: el PNG comparte la paleta
@@ -89,7 +97,10 @@ SPRITE ascensor_door "sprites/ascensor_door.png" 6 10 NONE 8
 // Frame ANCHO porque el latigo se estira DENTRO del sprite (el cuerpo va a la
 // izquierda). Comparte la paleta de los foot soldiers (PAL2), NO lleva PALETTE
 // propia. FAST = compresion rapida (sprite grande, no se streamea).
-SPRITE robot_whip "sprites/robot_whip.png" 23 10 FAST 8
+// time 6 -> anim mas rapida que el 8 original (aparicion, giro, caminata,
+// windup del latigo, laser, etc.). El throw/recogida y la electro NO dependen
+// de esto (van a mano con ROBOT_THROW_TICKS / frame congelado).
+SPRITE robot_whip "sprites/robot_whip.png" 23 10 FAST 6
 
 // --- Laser del robot (sub-sprite) ---
 // whip_waves 288x80: solo se usa su animacion de LASER (el latigo ya esta

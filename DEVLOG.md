@@ -391,3 +391,76 @@ reemplazarse).
 - La fuente arcade solo cubre ASCII: textos de pantalla sin acentos.
 - Tilemaps que se indexan desde ROM: compresión `NONE`; tiles que se
   streamean: además sin dedup (`NONE NONE`).
+
+## 26 de julio — Scroll del fuego, la bola de hierro y ajustes del robot
+
+Sesión de pulido sobre el nivel 1: hacer que el fuego por fin scrollee, un
+obstáculo nuevo (la esfera de metal que baja por la escalera) y dos arreglos al
+robot del látigo. (Entre medio de esta entrada y la anterior el proyecto ya
+sumó el **robot del látigo** como mini-jefe del final —máquina de estados propia
+con patrulla, láser a distancia y agarre con electrocución— y la **cutscene
+final** `SCENE_ENDING`; quedan mencionados acá al pasar, su desarrollo no está
+documentado en detalle en este diario.)
+
+**El fuego ahora scrollea con el mundo (parallax por tile).**
+
+- Hasta acá el fuego estaba clavado a la pantalla: `BG_A` tenía el scroll H fijo
+  en 0. En el arcade el fuego es parte del mundo y se desplaza al avanzar. Pero
+  `BG_A` también lleva el HUD (franja superior), así que no se puede scrollear el
+  plano entero sin arrastrar el HUD.
+- **Solución:** scroll horizontal **por tile** (`VDP_setScrollingMode(HSCROLL_TILE,
+  VSCROLL_PLANE)`). Las filas del HUD (0-3) quedan en scroll 0 y las 8 filas de la
+  banda del fuego se desplazan solas. Como el modo de scroll H es **global a los
+  dos planos**, `bgUpdate()` ahora también alimenta la tabla completa de `BG_B`
+  (28 filas al mismo `-cameraX`) en vez de un solo `VDP_setHorizontalScroll`.
+- La celda del fuego (64px) se repite en todo el plano circular (512px = 8×64),
+  así que el scroll envuelve sin costura. Parallax tuneable con `FIRE_SCROLL_NUM/
+  DEN` (1/2 = deriva suave, 1/1 = anclado al mundo). `clearScene()` vuelve a
+  `HSCROLL_PLANE` para no romper el scroll de las otras escenas.
+
+**Bola de hierro: obstáculo que baja rebotando por la escalera.**
+
+- Sprite nuevo `iron_ball` (32×32, 2 frames girando) que aparece cada ~6s en lo
+  alto de la escalera del nivel y baja rebotando en diagonal hasta salir por
+  abajo. Si toca a una tortuga le resta 1 barra (vía `damagePlayer`, con sus
+  i-frames → un solo golpe por pasada); si toca a un foot soldier, lo aplasta.
+- **Coordenadas** como el resto del motor: `x` de mundo (anclada al mundo,
+  scrollea con la cámara), `y` = línea de contacto (misma escala que la lane/
+  pies) que desciende, y `z` = altura del rebote (offset visual sobre un
+  "escalón" en z=0, mismo concepto que el `jumpZ` del jugador). Colisión por
+  profundidad (`|feetY - y|`) + X, ignorando `z`. Profundidad del Y-sorting = `y`.
+- **La paleta fue el detalle fino.** El PNG venía indexado en grises genéricos
+  (índices 11-15), pero en la paleta REAL de las tortugas (PAL1) esos slots son
+  lavanda/rojo/magenta → la bola habría salido de colores. PAL1 sí tiene grises,
+  pero en los índices 1/4/10/13. Se re-indexó el PNG a esos slots por cercanía de
+  brillo (quedan 4 tonos en vez de 5) y se le puso la paleta de las tortugas.
+- **Primera versión spawneaba en X random**; comparando contra el GIF del arcade
+  se corrigió: la bola SIEMPRE baja por la escalera. Se midió sobre
+  `bg01_completa.png` que la escalera ocupa mundo X ≈ 508-620, y trackeando la
+  esfera en el GIF cuadro a cuadro se confirmó que nace arriba y rueda en
+  **diagonal a la derecha**. Ahora spawnea en X de mundo fija (`IRON_BALL_STAIRS_X`),
+  con deriva diagonal (`IRON_BALL_ROLL`) y sólo cuando el alto de la escalera está
+  en pantalla. Cadencia por `IRON_BALL_PERIOD`.
+- Toda la lógica vive en `scenes.c` (funciones `ironBall*` estáticas, misma casa
+  que el fuego y el HUD). `SPR_initEx` subió a 620 por los 16 tiles de la bola.
+
+**Robot del látigo: frame de electrocución por distancia + más velocidad.**
+
+- **Bug del frame congelado:** al atrapar a la tortuga, el látigo electrificado no
+  quedaba a la longitud correcta. El cálculo escalaba con la cantidad de frames
+  del *throw* pero lo aplicaba a la anim de *electro* (otra cantidad de frames →
+  índice fuera de rango) y medía la distancia con el borde del sprite en vez del
+  centro. Se reemplazó por un helper `robotElectroFrame()` que usa el `throwFrame`
+  con el que **realmente enganchó** (= la distancia exacta robot→player en ese
+  instante) escalado al `numFrame` REAL de la anim de electro, y se recalcula en
+  cada alternancia A↔B por si difieren.
+- **Más velocidad:** movimiento `ROBOT_SPEED` 2→3 (patrulla + alineado en Y);
+  animaciones auto (aparición, giro, caminata, windup, láser) bajando el `time`
+  del sprite `robot_whip` de 8 a 6; látigo (lanzar/recoger, a mano)
+  `ROBOT_THROW_TICKS` 5→3; y `ROBOT_LASER_FIRE_DELAY` 12→8 para que el rayo salga
+  antes y calce dentro de la anim ya acelerada.
+
+**Regla nueva de la casa:** un sprite que "comparte la paleta de X" (PAL1/PAL2/…)
+tiene que estar indexado sobre los índices REALES de esa paleta, no sobre una
+paleta de grises cualquiera. Antes de dibujarlo con `TILE_ATTR(PALx,...)` hay que
+verificar los slots contra la paleta destino — no alcanza con que "sean grises".

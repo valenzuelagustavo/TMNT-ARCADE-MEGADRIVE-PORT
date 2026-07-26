@@ -103,6 +103,20 @@ static s16 robotWhipReach(const Robot* r) {
     return (reach > ROBOT_WHIP_REACH_MAX) ? ROBOT_WHIP_REACH_MAX : reach;
 }
 
+// Frame de la anim de electrocución (la que esté seteada AHORA) cuya EXTENSIÓN
+// del látigo coincide con la que tenía al enganchar. Usa throwFrame (el frame
+// del throw que conectó = la distancia real robot->player en ese instante) y lo
+// escala al numFrame REAL de la anim de electro, que puede diferir del throw.
+// Antes se escalaba con throwFrames (frames del THROW) y se medía la distancia
+// con el borde del sprite -> frame mal seteado.
+static u8 robotElectroFrame(const Robot* r) {
+    u8 n = (u8)r->sprite->animation->numFrame;   // frames de la anim electro actual
+    if (n <= 1) return 0;
+    u8 tf = (r->throwFrames > 1) ? (u8)(r->throwFrames - 1) : 1;
+    u16 f = (u16)r->throwFrame * (n - 1) / tf;    // 0 = mínima ext. .. n-1 = máxima
+    return (f >= n) ? (u8)(n - 1) : (u8)f;
+}
+
 // ---------------------------------------------------------------------------
 // API pública
 // ---------------------------------------------------------------------------
@@ -308,16 +322,12 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
             // Tras "atrapada" alterna las anims de electrocución (7/8). La
             // tortuga reproduce su anim 18 (la maneja playerWhipGrab).
             if (r->anim == ROBOT_ANIM_CAUGHT && SPR_isAnimationDone(r->sprite)) {
-                // Calcular frame según distancia robot→player.
-                // throwFrame 0 = alcance mínimo, numFrames-1 = alcance máximo.
-                s16 distXGrab = rabs(getPlayerWorldX(tgt) - r->x);
-                r->grabFrame = (r->throwFrames > 1)
-                    ? (u8)rclamp((distXGrab - ROBOT_WHIP_REACH_MIN) * (r->throwFrames - 1)
-                                / (ROBOT_WHIP_REACH_MAX - ROBOT_WHIP_REACH_MIN),
-                                0, r->throwFrames - 1)
-                    : 0;
+                // Congelar la electrocución en el frame cuya EXTENSIÓN del látigo
+                // coincide con la que tenía al enganchar (acorde a la distancia
+                // robot->player en ese momento).
                 robotSetAnim(r, ROBOT_ANIM_ELECTRO_A, FALSE);
                 SPR_setAutoAnimation(r->sprite, FALSE);
+                r->grabFrame = robotElectroFrame(r);
                 SPR_setFrame(r->sprite, r->grabFrame);
             }
             if (r->anim != ROBOT_ANIM_CAUGHT) {
@@ -328,6 +338,8 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
                     r->anim = next;
                     SPR_setAnim(r->sprite, next);
                     SPR_setAutoAnimation(r->sprite, FALSE);
+                    // Re-escala al numFrame de ESTA anim (A y B pueden diferir).
+                    r->grabFrame = robotElectroFrame(r);
                     SPR_setFrame(r->sprite, r->grabFrame);
                 }
             }

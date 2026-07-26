@@ -113,6 +113,10 @@ void clearScene() {
     // -cameraX (y BG_A en 0); sin este reset, la escena siguiente hereda ese
     // desplazamiento y su contenido aparece corrido (p.ej. el logo TMNT del
     // menú, tras un game over que reinicia el juego).
+    // Volver al modo de scroll POR PLANO: el nivel lo pone POR TILE (para el
+    // fuego); sin este reset las demas escenas quedarian en modo tile y sus
+    // VDP_setHorizontalScroll (que escriben un solo valor) no scrollearian bien.
+    VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
     VDP_setHorizontalScroll(BG_A, 0);
     VDP_setHorizontalScroll(BG_B, 0);
     VDP_setVerticalScroll(BG_A, 0);
@@ -158,11 +162,16 @@ static s8 charMove(s8 self, s8 other, s8 dir) {
 //  3. El scroll horizontal (-cameraX) se encarga de mostrar la ventana correcta.
 // Como es beat-em-up, la cámara nunca retrocede → solo revelamos a la derecha.
 // ---------------------------------------------------------------------------
+// Filas de tile visibles en pantalla (224px / 8). Es el largo de las tablas
+// de scroll horizontal POR TILE que alimentan BG_B (fondo) y BG_A (fuego).
+#define SCROLL_TILE_ROWS  (224 / 8)   // 28
+
 static const u16* bgMapData;   // tilemap completo en ROM (sin comprimir)
 static u16        bgMapW;      // ancho del mapa en tiles (172)
 static u16        bgMapH;      // alto del mapa en tiles (28)
 static u16        bgBaseAttr;  // atributo base: paleta + índice base en VRAM
 static s16        bgLastCol;   // última columna FUENTE ya volcada al plano
+static s16        bgScrollTbl[SCROLL_TILE_ROWS];  // tabla H-scroll por tile de BG_B
 
 // Vuelca una columna del mapa fuente (srcCol) en su posición circular del plano
 static void bgDrawColumn(u16 srcCol) {
@@ -200,7 +209,12 @@ static void bgUpdate(s16 cameraX) {
         bgLastCol++;
         bgDrawColumn((u16)bgLastCol);
     }
-    VDP_setHorizontalScroll(BG_B, -cameraX);
+    // BG_B scrollea a velocidad de mundo. Como el fuego obliga a poner el scroll
+    // horizontal en modo POR TILE (y ese modo es GLOBAL a los dos planos), aca ya
+    // no alcanza VDP_setHorizontalScroll (escribe una sola entrada): hay que
+    // alimentar la tabla completa de BG_B con todas las filas al mismo -cameraX.
+    for (u16 i = 0; i < SCROLL_TILE_ROWS; i++) bgScrollTbl[i] = -cameraX;
+    VDP_setHorizontalScrollTile(BG_B, 0, bgScrollTbl, SCROLL_TILE_ROWS, DMA_QUEUE);
 }
 
 // ===========================================================================
@@ -220,9 +234,12 @@ static void bgUpdate(s16 cameraX) {
 //     deduplicar (NONE NONE en level1.res): los 64 tiles de cada frame están
 //     contiguos en ROM y se indexan directo. Son 2KB por la cola DMA cada 8
 //     frames — despreciable para el presupuesto de vblank.
-// Ventajas sobre el truco del scroll: entra en VRAM, todas las celdas quedan
-// EN FASE, y el scroll de BG_A queda LIBRE (para un HUD futuro, por ejemplo).
-// El fuego queda fijo en la banda inferior aunque la cámara recorra el nivel.
+// Ventajas sobre el truco del scroll: entra en VRAM y todas las celdas quedan
+// EN FASE. Ademas, la banda del fuego SI scrollea (parallax): BG_A pasa a modo
+// de scroll horizontal POR TILE, asi las filas del fuego se desplazan con la
+// camara mientras las del HUD (arriba) quedan fijas. Como la celda de 64px se
+// repite en todo el plano circular (512px = 8x64), el scroll envuelve sin
+// costura y el fuego parece parte del mundo (como en el arcade).
 // Paleta: el fuego COMPARTE la paleta de los foot soldiers → PAL2.
 // ---------------------------------------------------------------------------
 #define FIRE_CELL_TILES_W    8    // Celda de fuego: 8 tiles de ancho (64px)
@@ -232,9 +249,16 @@ static void bgUpdate(s16 cameraX) {
 #define FIRE_FRAME_INTERVAL  8    // Frames de juego entre cada frame de fuego
 #define FIRE_Y_TILE          ((224 / 8) - FIRE_CELL_TILES_H)  // 20: banda inferior
 
+// Parallax del fuego: scrollea a FIRE_SCROLL_NUM/FIRE_SCROLL_DEN de la camara.
+//   1/1 = anclado al mundo (igual que el fondo) | 1/2 = deriva suave ("pequeño")
+// Como la celda se repite, esto solo cambia la VELOCIDAD de deriva, no la fase.
+#define FIRE_SCROLL_NUM      1
+#define FIRE_SCROLL_DEN      2
+
 static u16 fireVramInd;  // Primer tile de VRAM de la celda del fuego
 static u16 fireFrame;    // Frame de animación actual (0..7)
 static u16 fireTimer;    // Contador hasta el próximo paso
+static s16 fireScrollTbl[FIRE_CELL_TILES_H];  // H-scroll por tile de las 8 filas del fuego
 
 // Carga el frame 0 y dibuja la celda repetida a lo ancho del plano, pegada al
 // borde inferior. 'vramInd' es el primer tile libre (después del fondo).
@@ -259,11 +283,21 @@ static void fireInit(u16 vramInd) {
                                block * FIRE_CELL_TILES_W, FIRE_Y_TILE,
                                FIRE_CELL_TILES_W, FIRE_CELL_TILES_H);
     }
-    VDP_setHorizontalScroll(BG_A, 0);
+
+    // BG_A pasa a scroll horizontal POR TILE: la banda del fuego se desplaza
+    // (fireUpdate) mientras el HUD queda clavado. El modo es GLOBAL a ambos
+    // planos -> por eso bgUpdate() ahora alimenta la tabla completa de BG_B.
+    VDP_setScrollingMode(HSCROLL_TILE, VSCROLL_PLANE);
+    // Toda la tabla de BG_A arranca en 0 (HUD + banda vacia + fuego); las filas
+    // del fuego las va pisando fireUpdate() con el offset de parallax.
+    s16 zero[SCROLL_TILE_ROWS];
+    for (u16 i = 0; i < SCROLL_TILE_ROWS; i++) zero[i] = 0;
+    VDP_setHorizontalScrollTile(BG_A, 0, zero, SCROLL_TILE_ROWS, DMA);
 }
 
-// Avanza la animación del fuego. Llamar una vez por frame en el bucle del nivel.
-static void fireUpdate() {
+// Avanza la animación del fuego + su scroll de parallax. Recibe la cámara y se
+// llama una vez por frame en el bucle del nivel.
+static void fireUpdate(s16 cameraX) {
     if (++fireTimer >= FIRE_FRAME_INTERVAL) {
         fireTimer = 0;
         fireFrame = (fireFrame + 1) & (FIRE_FRAMES - 1);
@@ -273,6 +307,158 @@ static void fireUpdate() {
         VDP_loadTileData(fire_tiles.tiles + (fireFrame * FIRE_CELL_TILES * 8),
                          fireVramInd, FIRE_CELL_TILES, DMA_QUEUE);
     }
+
+    // Scroll de parallax de la banda: las 8 filas del fuego al mismo offset.
+    s16 fscroll = (s16)(-(((s32)cameraX * FIRE_SCROLL_NUM) / FIRE_SCROLL_DEN));
+    for (u16 i = 0; i < FIRE_CELL_TILES_H; i++) fireScrollTbl[i] = fscroll;
+    VDP_setHorizontalScrollTile(BG_A, FIRE_Y_TILE, fireScrollTbl,
+                                FIRE_CELL_TILES_H, DMA_QUEUE);
+}
+
+// ===========================================================================
+// BOLA DE HIERRO — obstáculo que cae rebotando por las escaleras
+// ===========================================================================
+// Una esfera de metal de 32x32 (2 frames girando, paleta de las tortugas PAL1)
+// aparece cada IRON_BALL_PERIOD frames en lo alto de la ESCALERA del nivel (X de
+// mundo fija) y BAJA rebotando en DIAGONAL hacia el frente-derecha, cruzando las
+// lanes hasta salir por abajo (como en el arcade). Si toca a
+// un jugador le resta 1 barra de vida (via damagePlayer, con sus i-frames -> un
+// solo golpe por pasada); si toca a un foot soldier, lo aplasta.
+//
+// Modelo de coordenadas (igual que enemigos/jugador):
+//   x = MUNDO, centro de la bola (pantalla = x - cameraX) -> queda anclada al
+//       mundo: si la cámara scrollea durante la caída, la bola scrollea con él.
+//   y = línea de CONTACTO en el eje vertical (misma escala que la lane/pies);
+//       baja IRON_BALL_FALL_SPEED px/frame -> el descenso por la escalera.
+//   z = altura del rebote sobre el contacto (offset VISUAL, como jumpZ); rebota
+//       contra un "escalón" en z=0. La profundidad para el Y-sorting es 'y'.
+// La colisión se mide en profundidad (|feetY - y|) + X de mundo: la bola pega a
+// lo que esté a su MISMA profundidad y solapado en X, ignorando z (el cuerpo de
+// los personajes es alto y el rebote nunca lo supera).
+// ---------------------------------------------------------------------------
+#define IRON_BALL_SIZE        32   // px (4x4 tiles), lado del frame
+#define IRON_BALL_HALF        16
+#define IRON_BALL_PERIOD     180   // frames entre bolas (~6s a 60fps)
+// La bola SIEMPRE baja por la escalera del nivel (X de mundo FIJA, medida sobre
+// bg01_completa.png: la escalera ocupa ~508..620). Nace arriba de todo y rueda
+// en diagonal hacia el frente-derecha (ROLL>0), como en el arcade.
+#define IRON_BALL_STAIRS_X   535   // X de mundo del alto de la escalera (spawn)
+#define IRON_BALL_START_Y     44   // Y del primer escalon (parte alta de la escalera)
+#define IRON_BALL_EXIT_Y     236   // Y a la que ya salió por abajo -> se apaga
+#define IRON_BALL_FALL_SPEED   2   // px/frame que desciende la línea de contacto
+#define IRON_BALL_GRAVITY      1   // px/frame^2 del rebote
+#define IRON_BALL_BOUNCE       10   // impulso de rebote hacia arriba (apex ~18px)
+#define IRON_BALL_ROLL         1   // px/frame de deriva a la DERECHA (diagonal escalera)
+#define IRON_BALL_ONSCREEN_MARGIN 40  // solo cae si el alto de la escalera esta en pantalla
+#define IRON_BALL_HIT_X       26   // |dx| centro a centro (mundo) para golpear
+#define IRON_BALL_HIT_Y       22   // |dy| en profundidad (pies) para golpear
+#define IRON_BALL_ENEMY_DMG   ENEMY_HP   // aplasta al foot soldier de una
+
+static struct {
+    Sprite* sprite;
+    s16     x;       // mundo, centro
+    s16     y;       // línea de contacto (lane/pies)
+    s16     z;       // altura del rebote (>= 0)
+    s16     vz;      // velocidad vertical del rebote (+ = subiendo)
+    bool    active;
+    u16     timer;   // frames hasta el próximo spawn
+} ironBall;
+
+// Crea el sprite (oculto) UNA vez al iniciar el nivel. Usa PAL1 (tortugas), que
+// ya cargó initPlayer -> llamar DESPUÉS de initPlayer.
+static void ironBallInit() {
+    ironBall.sprite = SPR_addSprite(&iron_ball, -IRON_BALL_SIZE, -IRON_BALL_SIZE,
+                                    TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+    if (ironBall.sprite) {
+        SPR_setAnim(ironBall.sprite, 0);            // 2 frames girando (auto-anim)
+        SPR_setVisibility(ironBall.sprite, HIDDEN);
+    }
+    ironBall.active = FALSE;
+    ironBall.timer  = IRON_BALL_PERIOD;
+}
+
+// TRUE si la bola (activa) golpea un objetivo con centro X 'cx' (mundo) y pies
+// 'cfy'. Mide en profundidad + X; ignora la altura del rebote (z).
+static bool ironBallHits(s16 cx, s16 cfy) {
+    s16 dx = cx - ironBall.x;  if (dx < 0) dx = -dx;
+    s16 dy = cfy - ironBall.y; if (dy < 0) dy = -dy;
+    return (dx <= IRON_BALL_HIT_X && dy <= IRON_BALL_HIT_Y);
+}
+
+// Física + colisiones + render de la bola. Llamar una vez por frame en el nivel.
+static void ironBallUpdate(s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
+                           Enemy* list, u16 count) {
+    if (!ironBall.sprite) return;
+
+    // --- Spawn periódico desde la ESCALERA (una bola a la vez) ---
+    if (!ironBall.active) {
+        if (ironBall.timer > 0) ironBall.timer--;
+        if (ironBall.timer == 0) {
+            ironBall.timer = IRON_BALL_PERIOD;   // reengancha el próximo ciclo
+            // Solo cae si el alto de la escalera esta a la vista: la bola baja
+            // SIEMPRE por esa escalera (X de mundo fija), no en lugares random.
+            s16 stairScreenX = IRON_BALL_STAIRS_X - cameraX;
+            if (stairScreenX >= IRON_BALL_ONSCREEN_MARGIN &&
+                stairScreenX <= SCREEN_PIXEL_WIDTH - IRON_BALL_ONSCREEN_MARGIN) {
+                ironBall.x      = IRON_BALL_STAIRS_X;
+                ironBall.y      = IRON_BALL_START_Y;
+                ironBall.z      = 0;
+                ironBall.vz     = IRON_BALL_BOUNCE;   // arranca rebotando
+                ironBall.active = TRUE;
+                SPR_setVisibility(ironBall.sprite, VISIBLE);
+            }
+        }
+        if (!ironBall.active) return;
+    }
+
+    // --- Rebote vertical (z) sobre un "escalón" en z=0 ---
+    ironBall.z  += ironBall.vz;
+    ironBall.vz -= IRON_BALL_GRAVITY;
+    if (ironBall.z <= 0) {
+        ironBall.z  = 0;
+        ironBall.vz = IRON_BALL_BOUNCE;
+    }
+
+    // --- Descenso por la escalera + deriva horizontal ---
+    ironBall.y += IRON_BALL_FALL_SPEED;
+    ironBall.x += IRON_BALL_ROLL;
+
+    // --- ¿Salió por abajo? -> apagar y esperar al próximo ciclo ---
+    if (ironBall.y >= IRON_BALL_EXIT_Y) {
+        ironBall.active = FALSE;
+        SPR_setVisibility(ironBall.sprite, HIDDEN);
+        return;
+    }
+
+    // --- Colisiones ---
+    // Jugador: 1 barra por pasada (los i-frames de damagePlayer evitan el
+    // multi-golpe). attackerX = centro de la bola -> knockback alejándose.
+    s16 p1cx = getPlayerWorldX(p1) + PLAYER_SPRITE_W / 2;
+    if (playerCanBeHit(p1) && ironBallHits(p1cx, getPlayerY(p1)))
+        damagePlayer(p1, ironBall.x);
+    if (twoPlayers) {
+        s16 p2cx = getPlayerWorldX(p2) + PLAYER_SPRITE_W / 2;
+        if (playerCanBeHit(p2) && ironBallHits(p2cx, getPlayerY(p2)))
+            damagePlayer(p2, ironBall.x);
+    }
+    // Foot soldiers: la bola los aplasta (sin dar puntos a nadie).
+    for (u16 i = 0; i < count; i++) {
+        Enemy* e = &list[i];
+        if (enemyCanBeHit(e) && ironBallHits(getEnemyCenterX(e), getEnemyCenterY(e)))
+            damageEnemy(e, IRON_BALL_ENEMY_DMG);
+    }
+
+    // --- Render: pantalla = mundo - cámara; el rebote (z) sube el dibujo ---
+    SPR_setPosition(ironBall.sprite,
+                    ironBall.x - cameraX - IRON_BALL_HALF,
+                    ironBall.y - ironBall.z - IRON_BALL_SIZE);
+    SPR_setDepth(ironBall.sprite, -(ironBall.y));   // Y-sorting por profundidad
+}
+
+// Oculta la bola al terminar el nivel (que no quede congelada en la cutscene).
+static void ironBallEnd() {
+    ironBall.active = FALSE;
+    if (ironBall.sprite) SPR_setVisibility(ironBall.sprite, HIDDEN);
 }
 
 // ===========================================================================
@@ -283,7 +469,8 @@ static void fireUpdate() {
 // PRIORIDAD ALTA (por encima de los sprites, estilo arcade). P1 pegado al
 // borde izquierdo, P2 al derecho. Comparten la paleta de las tortugas
 // (PAL1, que carga initPlayer) -> no consumen linea de paleta propia.
-// BG_A no scrollea (el fuego anima por DMA), asi que quedan fijos solos.
+// BG_A usa scroll horizontal POR TILE: la banda del fuego (filas de abajo)
+// se desplaza, pero estas filas de arriba del HUD tienen scroll 0 -> fijas.
 // Los CONTENIDOS (vidas, puntos, barra de vida) se dibujaran adentro cuando
 // implementemos el sistema de HP.
 // ---------------------------------------------------------------------------
@@ -870,6 +1057,11 @@ SceneId showLevel1() {
         setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
     }
 
+    // --- Bola de hierro (obstáculo que cae rebotando) ---
+    // Comparte PAL1 (tortugas), ya cargada por initPlayer. Sprite oculto hasta
+    // el primer spawn (cada IRON_BALL_PERIOD frames).
+    ironBallInit();
+
     // --- HUD dinámico: barra de vida + vidas + puntaje ---
     // El texto (vidas/puntaje) va con la fuente por defecto sobre BG_A, con
     // prioridad alta (delante de los sprites) y en PAL3 (blanco puro -> texto
@@ -1280,6 +1472,12 @@ SceneId showLevel1() {
             }
         }
 
+        // 6b-bis. Bola de hierro: spawn periódico, física de rebote y
+        //     colisiones (resta 1 barra al jugador; aplasta foot soldiers).
+        //     Va ANTES del refresco del HUD para que el daño se vea el
+        //     mismo frame, y antes del game over para que un golpe fatal cuente.
+        ironBallUpdate(cameraX, &p1, &p2, dosJugadores, enemies, MAX_ENEMIES);
+
         // 6c. HUD: refrescar barra de vida, vidas y puntaje (solo redibuja lo
         //     que cambió respecto del frame anterior).
         hudPlayerUpdate(&hud1);
@@ -1302,13 +1500,17 @@ SceneId showLevel1() {
         // 7. Revelar columnas nuevas del fondo y aplicar el scroll
         bgUpdate(cameraX);
 
-        // 8. Animar el fuego del primer plano (scroll de BG_A, independiente
-        //    del scroll de cámara que usa BG_B)
-        fireUpdate();
+        // 8. Animar el fuego del primer plano + su scroll de parallax (deriva
+        //    con la cámara a FIRE_SCROLL_NUM/DEN de la velocidad del fondo)
+        fireUpdate(cameraX);
 
         SPR_update();
         SYS_doVBlankProcess();
     }
+
+    // La bola no debe seguir viva en la cutscene de victoria (evita que quede
+    // congelada en pantalla o golpee durante el paseo scripteado del outro).
+    ironBallEnd();
 
     // Restaurar atributos de texto por defecto para el resto de las escenas
     // (el HUD los dejó en prioridad alta / PAL3).
@@ -1331,7 +1533,7 @@ SceneId showLevel1() {
             playerCutsceneStand(&p1);
             if (dosJugadores) playerCutsceneStand(&p2);
             bgUpdate(cameraX);
-            fireUpdate();
+            fireUpdate(cameraX);
             SPR_update();
             SYS_doVBlankProcess();
         }
@@ -1345,7 +1547,7 @@ SceneId showLevel1() {
                 a2 = playerCutsceneWalkTo(&p2, OUTRO_DOOR_X - PLAYER_SPRITE_W, OUTRO_DOOR_Y);
             walking = !(a1 && a2);
             bgUpdate(cameraX);
-            fireUpdate();
+            fireUpdate(cameraX);
             SPR_update();
             SYS_doVBlankProcess();
         }

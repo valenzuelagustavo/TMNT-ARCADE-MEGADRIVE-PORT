@@ -60,7 +60,7 @@
 // Movimiento / patrulla (AJUSTE FINO). r->x es el CENTRO del cuerpo (mundo).
 // La cámara queda fija cerca del final (~1056), arena visible ~1056..1376.
 // ---------------------------------------------------------------------------
-#define ROBOT_SPEED            2
+#define ROBOT_SPEED            3   // px/frame de patrulla + alineado en Y (antes 2)
 #define ROBOT_LANE_TOP       142
 #define ROBOT_LANE_BOTTOM    200
 #define ROBOT_Y_ALIGN          2
@@ -81,7 +81,7 @@
 #define ROBOT_WHIP_STEP        8   // px de alcance que suma cada frame del throw
 #define ROBOT_WHIP_REACH_MAX 120   // alcance máximo (umbral látigo vs láser)
 #define ROBOT_WHIP_TOL_Y      20   // |dy| máx para poder atrapar
-#define ROBOT_THROW_TICKS      5   // ticks por frame del lanzamiento/recogida
+#define ROBOT_THROW_TICKS      3   // ticks por frame del lanzamiento/recogida (antes 5, más rápido)
 #define ROBOT_ATTACK_COOLDOWN 45   // frames entre ataques
 #define ROBOT_TURN_MAX        48   // tope de frames del giro (por si la anim es corta)
 
@@ -89,7 +89,7 @@
 #define ROBOT_LASER_SPEED      6   // px/frame (ajustable)
 #define ROBOT_LASER_DMG        4   // barras de vida al impactar
 #define ROBOT_LASER_TOL_Y     20
-#define ROBOT_LASER_FIRE_DELAY 12  // frames de la anim [9] antes de soltar el rayo
+#define ROBOT_LASER_FIRE_DELAY 8   // frames de la anim [9] antes de soltar el rayo (antes 12)
 
 // Electrocución del agarre: 1 barra por segundo.
 #define ROBOT_ELECTRO_INTERVAL 60

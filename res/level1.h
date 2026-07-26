@@ -11,6 +11,7 @@ extern const TileSet hp_bar;
 extern const TileSet title_font;
 extern const Palette title_font_pal;
 extern const SpriteDefinition attack_bubble;
+extern const SpriteDefinition iron_ball;
 extern const SpriteDefinition door_lvl_1;
 extern const SpriteDefinition ascensor_door;
 extern const SpriteDefinition robot_whip;
