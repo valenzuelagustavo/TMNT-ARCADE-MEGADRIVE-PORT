@@ -77,6 +77,12 @@ SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 // una linea de paleta. Solo 2 frames x 16 tiles = 32 tiles en ROM.
 SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
 
+// --- Sparks: efecto de fuego detras de las puertas rompibles ---
+// 32x32px = 2x2 tiles, UN solo frame. Se ubica detras de cada puerta
+// (door_lvl_1) y usa la paleta de los foot soldiers (PAL2). La animacion
+// es puramente por rotacion de paleta (indices 5-8) en el game loop.
+SPRITE sparks "sprites/sparks.png" 4 4 FAST 0
+
 // --- Puerta rompible (spawn point del nivel) ---
 // 40x80px = 5x10 tiles, UN solo frame (time 0). Se dibuja sobre cada hueco de
 // puerta abierta del nivel. NO lleva PALETTE propia: el PNG comparte la paleta
@@ -84,6 +90,15 @@ SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
 // dibuja con TILE_ATTR(PAL0,...). Al acercarse el jugador se remueve y el foot
 // soldier la reemplaza rompiendola (ENEMY_ANIM_BREAK_DOOR).
 SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0
+
+// --- Spark ascensor: fuego en los huecos de ascensores ---
+// 40x24px (5x3 tiles), UN solo frame. Misma paleta que sparks (PAL2).
+// Se ubica detras de cada ascensor_door y queda fijo en el mundo.
+SPRITE spark_ascensor "sprites/spark_ascensor.png" 5 3 FAST 0
+
+// --- Sparks 2: efecto decorativo fijo en X=330 ---
+// 64x36px (8x5 tiles), UN solo frame. Misma paleta que sparks (PAL2).
+SPRITE sparks_2 "sprites/sparks_2.png" 8 5 FAST 0
 
 // --- Puertas de ascensor (spawn animado) ---
 // 192x80px = spritesheet de 4 frames de 48x80 (6x10 tiles) -> animacion de

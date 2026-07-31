@@ -1,0 +1,2440 @@
+==================================================
+TMNT TYPE 1 & 2 AUTO-CAPTURE
+Saves cropped BMP sprites to G:\mame\snap\
+Started
+==================================================
+--- Frame 600: unique=0 ---
+--- Frame 900: unique=0 ---
+
+=== UNIQUE #1: ENEMY1 IDLE S0 ===
+  Frame=1104 Slot=3 XY(272,20) V(+184,+4)
+  AI@023462: [4 2 0 2 69 180 0 236 255 255]
+  ATK=0 DMG=0 HB=0 CFG=0100
+  Sprite: 1 tiles BBox(189,83)-(221,99) Crop(185,79,40,24)
+    S#25: tile=1B68 col=2 sz=1(32x16) XY(189,83)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S0_f001104.bmp (40x24)]
+
+=== UNIQUE #2: ENEMY1 IDLE S0 ===
+  Frame=1107 Slot=3 XY(275,20) V(+196,+4)
+  AI@02346C: [4 1 0 2 69 132 0 236 255 255]
+  ATK=0 DMG=0 HB=0 CFG=0100
+  Sprite: 1 tiles BBox(174,68)-(238,132) Crop(170,64,72,72)
+    S#26: tile=1810 col=2 sz=6(64x64) XY(174,68)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S0_f001107.bmp (72x72)]
+
+=== UNIQUE #3: FOOT_SOLDIER IDLE S0 ===
+  Frame=1113 Slot=5 XY(183,20) V(-660,-12)
+  AI@025F48: [4 2 0 2 112 78 0 236 255 255]
+  ATK=0 DMG=0 HB=0 CFG=0200
+  Sprite: 1 tiles BBox(151,79)-(215,111) Crop(147,75,72,40)
+    S#25: tile=10C0 col=2 sz=4(64x32) XY(151,79)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S0_f001113.bmp (72x40)]
+
+=== UNIQUE #4: ENEMY1 IDLE S0 ===
+  Frame=1119 Slot=3 XY(285,20) V(+244,+4)
+  AI@023476: [4 1 0 2 69 148 0 236 255 255]
+  ATK=0 DMG=0 HB=0 CFG=0100
+  Sprite: 5 tiles BBox(135,41)-(258,105) Crop(131,37,131,72)
+    S#20: tile=17B0 col=0 sz=3(32x32) XY(194,65)
+    S#21: tile=1820 col=0 sz=6(64x64) XY(194,41)
+    S#24: tile=11D5 col=2 sz=0(16x16) XY(151,65)
+    S#25: tile=1110 col=2 sz=5(32x64) XY(159,41)
+    S#26: tile=1820 col=2 sz=6(64x64) XY(135,41)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S0_f001119.bmp (131x72)]
+
+=== UNIQUE #5: FOOT_SOLDIER IDLE S0 ===
+  Frame=1119 Slot=5 XY(167,20) V(-732,-12)
+  AI@025F52: [4 2 0 2 112 102 0 236 255 255]
+  ATK=0 DMG=0 HB=0 CFG=0200
+  Sprite: 1 tiles BBox(135,41)-(199,105) Crop(131,37,72,72)
+    S#26: tile=1820 col=2 sz=6(64x64) XY(135,41)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S0_f001119.bmp (72x72)]
+
+=== UNIQUE #6: FOOT_SOLDIER IDLE S0 ===
+  Frame=1122 Slot=5 XY(158,20) V(-768,-12)
+  AI@025F52: [4 2 0 2 112 102 0 236 255 255]
+  ATK=0 DMG=0 HB=0 CFG=0200
+  Sprite: 2 tiles BBox(126,34)-(190,98) Crop(122,30,72,72)
+    S#21: tile=11D5 col=2 sz=0(16x16) XY(142,58)
+    S#23: tile=1820 col=2 sz=6(64x64) XY(126,34)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S0_f001122.bmp (72x72)]
+
+=== UNIQUE #7: ENEMY1 IDLE S0 ===
+  Frame=1149 Slot=3 XY(284,100) V(+256,+4)
+  AI@02DA1C: [0 0 0 2 234 192 0 0 255 255]
+  ATK=0 DMG=0 HB=0 CFG=0100
+  Sprite: 1 tiles BBox(100,156)-(228,284) Crop(96,152,136,136)
+    S#0: tile=27C0 col=B sz=7(128x128) XY(100,156)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S0_f001149.bmp (136x72)]
+--- Frame 1200: unique=7 ---
+--- Frame 1500: unique=7 ---
+
+=== UNIQUE #8: ENEMY1 IDLE S3 ===
+  Frame=1668 Slot=1 XY(101,52) V(+0,+0)
+  AI@02343A: [0 1 0 2 69 60 0 232 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(93,0)-(125,32) Crop(89,-4,40,40)
+    S#1: tile=1E6C col=1 sz=3(32x32) XY(93,0)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S3_f001668.bmp (40x40)]
+
+=== UNIQUE #9: ENEMY1 IDLE S3 ===
+  Frame=1671 Slot=1 XY(110,52) V(+0,+0)
+  AI@02343A: [0 1 0 2 69 60 0 232 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(72,-6)-(134,58) Crop(68,-10,70,72)
+    S#1: tile=0300 col=0 sz=3(32x32) XY(72,10)
+    S#2: tile=1E6C col=1 sz=3(32x32) XY(102,18)
+    S#3: tile=0080 col=1 sz=5(32x64) XY(94,-6)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S3_f001671.bmp (70x72)]
+
+=== UNIQUE #10: ENEMY1 IDLE S3 ===
+  Frame=1689 Slot=1 XY(164,52) V(+0,+0)
+  AI@02343A: [0 1 0 2 69 60 0 232 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(110,102)-(142,166) Crop(106,98,40,72)
+    S#2: tile=0080 col=0 sz=5(32x64) XY(110,102)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S3_f001689.bmp (40x72)]
+
+=== UNIQUE #11: ENEMY1 WALK_R S0 ===
+  Frame=1794 Slot=1 XY(277,72) V(+0,+0)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(177,132)-(209,164) Crop(173,128,40,40)
+    S#5: tile=11F0 col=0 sz=3(32x32) XY(177,132)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f001794.bmp (40x40)]
+--- Frame 1800: unique=11 ---
+
+=== UNIQUE #12: ENEMY1 ATTACK S0 ===
+  Frame=1830 Slot=1 XY(277,72) V(+960,+0)
+  AI@02384E: [4 2 0 2 78 4 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(177,132)-(209,164) Crop(173,128,40,40)
+    S#3: tile=11F0 col=0 sz=3(32x32) XY(177,132)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f001830.bmp (40x40)]
+
+=== UNIQUE #13: ENEMY1 ATTACK S0 ===
+  Frame=1875 Slot=1 XY(289,72) V(+1984,+0)
+  AI@023816: [4 1 0 2 77 172 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(143,109)-(175,189) Crop(139,105,40,88)
+    S#4: tile=0A60 col=9 sz=3(32x32) XY(143,109)
+    S#5: tile=0EC4 col=4 sz=5(32x64) XY(143,125)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f001875.bmp (40x88)]
+
+=== UNIQUE #14: ENEMY1 WALK_L S0 ===
+  Frame=1911 Slot=1 XY(271,72) V(+256,-256)
+  AI@0232AC: [4 2 0 2 66 196 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(123,81)-(155,161) Crop(119,77,40,88)
+    S#7: tile=0A60 col=9 sz=3(32x32) XY(123,81)
+    S#8: tile=0EC4 col=4 sz=5(32x64) XY(123,97)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f001911.bmp (40x88)]
+
+=== UNIQUE #15: ENEMY1 WALK_L S1 ===
+  Frame=1914 Slot=1 XY(271,75) V(+256,-256)
+  AI@023302: [4 2 0 2 67 92 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(102,100)-(166,180) Crop(98,96,72,88)
+    S#6: tile=0A60 col=9 sz=3(32x32) XY(110,100)
+    S#7: tile=08C0 col=4 sz=6(64x64) XY(102,116)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S1_f001914.bmp (72x88)]
+
+=== UNIQUE #16: ENEMY1 WALK_L S0 ===
+  Frame=1935 Slot=1 XY(267,90) V(+256,-256)
+  AI@0232B6: [4 2 0 2 66 220 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(95,92)-(159,180) Crop(91,88,72,96)
+    S#3: tile=0A64 col=9 sz=3(32x32) XY(127,92)
+    S#4: tile=08D0 col=4 sz=6(64x64) XY(95,116)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f001935.bmp (72x96)]
+
+=== UNIQUE #17: ENEMY1 WALK_R S0 ===
+  Frame=1938 Slot=1 XY(258,90) V(+256,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(90,92)-(154,180) Crop(86,88,72,96)
+    S#4: tile=0A64 col=9 sz=3(32x32) XY(122,92)
+    S#5: tile=08D0 col=4 sz=6(64x64) XY(90,116)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f001938.bmp (72x96)]
+
+=== UNIQUE #18: ENEMY1 WALK_R S0 ===
+  Frame=1941 Slot=1 XY(253,90) V(+256,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(85,108)-(169,180) Crop(81,104,92,80)
+    S#3: tile=08E0 col=4 sz=6(64x64) XY(85,116)
+    S#4: tile=0A64 col=9 sz=3(32x32) XY(137,108)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f001941.bmp (92x80)]
+
+=== UNIQUE #19: ENEMY1 WALK_R S0 ===
+  Frame=1947 Slot=1 XY(242,90) V(+256,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=20 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(74,108)-(182,180) Crop(70,104,116,80)
+    S#3: tile=08F0 col=4 sz=6(64x64) XY(74,116)
+    S#4: tile=0A64 col=9 sz=3(32x32) XY(150,108)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f001947.bmp (116x80)]
+
+=== UNIQUE #20: ENEMY1 ATTACK S0 ===
+  Frame=1950 Slot=1 XY(237,90) V(+256,-256)
+  AI@023504: [3 2 0 2 70 108 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(69,108)-(213,180) Crop(65,104,152,80)
+    S#4: tile=08F0 col=4 sz=6(64x64) XY(69,116)
+    S#5: tile=0A64 col=9 sz=3(32x32) XY(157,108)
+    S#7: tile=1334 col=1 sz=1(32x16) XY(181,124)
+    S#8: tile=1398 col=1 sz=0(16x16) XY(181,108)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f001950.bmp (152x80)]
+
+=== UNIQUE #21: ENEMY1 ATTACK S0 ===
+  Frame=1953 Slot=1 XY(233,90) V(+256,-256)
+  AI@023520: [2 3 0 2 70 164 0 4 0 4]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(65,100)-(209,180) Crop(61,96,152,88)
+    S#5: tile=0D40 col=4 sz=6(64x64) XY(65,116)
+    S#6: tile=0A64 col=9 sz=3(32x32) XY(161,108)
+    S#8: tile=140C col=1 sz=3(32x32) XY(161,100)
+    S#9: tile=1338 col=1 sz=1(32x16) XY(177,124)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f001953.bmp (152x88)]
+
+=== UNIQUE #22: ENEMY1 ATTACK S0 ===
+  Frame=1959 Slot=1 XY(233,90) V(+256,-256)
+  AI@023544: [3 3 0 2 70 228 0 4 0 4]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(81,108)-(209,180) Crop(77,104,136,80)
+    S#4: tile=08E4 col=4 sz=5(32x64) XY(81,116)
+    S#5: tile=0A64 col=9 sz=3(32x32) XY(137,108)
+    S#8: tile=1338 col=1 sz=1(32x16) XY(177,124)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f001959.bmp (136x80)]
+
+=== UNIQUE #23: ENEMY1 WALK_L S0 ===
+  Frame=1980 Slot=1 XY(242,90) V(+256,-256)
+  AI@0232B6: [4 2 0 2 66 220 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(171,133)-(187,149) Crop(167,129,24,24)
+    S#1: tile=03E9 col=0 sz=0(16x16) XY(171,133)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f001980.bmp (24x24)]
+
+=== UNIQUE #24: ENEMY1 WALK_L S0 ===
+  Frame=1989 Slot=1 XY(258,90) V(+256,-256)
+  AI@0232CA: [4 1 0 2 67 4 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(151,134)-(215,198) Crop(147,130,72,72)
+    S#2: tile=17F0 col=0 sz=6(64x64) XY(151,134)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f001989.bmp (72x72)]
+
+=== UNIQUE #25: ENEMY1 WALK_L S0 ===
+  Frame=2001 Slot=1 XY(279,90) V(+256,-256)
+  AI@0232E8: [4 1 0 2 67 52 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(153,138)-(201,202) Crop(149,134,56,72)
+    S#1: tile=0304 col=0 sz=3(32x32) XY(169,146)
+    S#2: tile=0084 col=0 sz=5(32x64) XY(153,138)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002001.bmp (56x72)]
+
+=== UNIQUE #26: ENEMY1 WALK_L S0 ===
+  Frame=2019 Slot=1 XY(288,74) V(+256,-256)
+  AI@0232CA: [4 1 0 2 67 4 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(157,55)-(221,119) Crop(153,51,72,72)
+    S#1: tile=17B8 col=0 sz=3(32x32) XY(189,71)
+    S#2: tile=1840 col=0 sz=6(64x64) XY(157,55)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002019.bmp (72x72)]
+
+=== UNIQUE #27: ENEMY1 WALK_L S0 ===
+  Frame=2022 Slot=1 XY(288,74) V(+256,-256)
+  AI@0232CA: [4 1 0 2 67 4 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(157,48)-(229,112) Crop(153,44,80,72)
+    S#1: tile=17BC col=0 sz=3(32x32) XY(197,72)
+    S#2: tile=1850 col=0 sz=6(64x64) XY(157,48)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002022.bmp (80x72)]
+
+=== UNIQUE #28: ENEMY1 WALK_L S0 ===
+  Frame=2028 Slot=1 XY(288,74) V(+256,-256)
+  AI@0232DE: [4 1 0 2 67 36 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(157,41)-(221,105) Crop(153,37,72,72)
+    S#1: tile=17A8 col=0 sz=3(32x32) XY(181,65)
+    S#2: tile=1800 col=0 sz=6(64x64) XY(157,41)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002028.bmp (72x72)]
+
+=== UNIQUE #29: ENEMY1 WALK_L S0 ===
+  Frame=2031 Slot=1 XY(288,74) V(+256,-256)
+  AI@0232E8: [4 1 0 2 67 52 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 3 tiles BBox(173,50)-(205,98) Crop(169,46,40,56)
+    S#1: tile=1B68 col=0 sz=1(32x16) XY(173,50)
+    S#2: tile=1B6C col=0 sz=1(32x16) XY(173,82)
+    S#3: tile=1E5C col=0 sz=3(32x32) XY(173,66)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002031.bmp (40x56)]
+
+=== UNIQUE #30: ENEMY1 WALK_L S0 ===
+  Frame=2034 Slot=1 XY(288,74) V(+256,-256)
+  AI@0232E8: [4 1 0 2 67 52 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(157,45)-(221,109) Crop(153,41,72,72)
+    S#1: tile=17AC col=0 sz=3(32x32) XY(173,69)
+    S#2: tile=1810 col=0 sz=6(64x64) XY(157,45)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002034.bmp (72x72)]
+
+=== UNIQUE #31: ENEMY1 WALK_L S0 ===
+  Frame=2040 Slot=1 XY(288,74) V(+256,-256)
+  AI@0232AC: [4 2 0 2 66 196 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(157,61)-(221,125) Crop(153,57,72,72)
+    S#1: tile=17B0 col=0 sz=3(32x32) XY(157,85)
+    S#2: tile=1820 col=0 sz=6(64x64) XY(157,61)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002040.bmp (72x72)]
+
+=== UNIQUE #32: ENEMY1 WALK_L S0 ===
+  Frame=2043 Slot=1 XY(288,74) V(+256,-256)
+  AI@0232B6: [4 2 0 2 66 220 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 4 tiles BBox(147,83)-(211,115) Crop(143,79,72,40)
+    S#1: tile=1F19 col=0 sz=2(16x32) XY(195,83)
+    S#2: tile=1B6A col=0 sz=1(32x16) XY(163,91)
+    S#3: tile=1B9D col=0 sz=0(16x16) XY(147,91)
+    S#4: tile=1E60 col=0 sz=3(32x32) XY(163,83)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002043.bmp (72x40)]
+
+=== UNIQUE #33: ENEMY1 WALK_L S1 ===
+  Frame=2046 Slot=1 XY(288,78) V(+256,-256)
+  AI@023302: [4 2 0 2 67 92 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(158,80)-(222,152) Crop(154,76,72,80)
+    S#1: tile=17B4 col=0 sz=3(32x32) XY(166,80)
+    S#2: tile=1830 col=0 sz=6(64x64) XY(158,88)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S1_f002046.bmp (72x80)]
+
+=== UNIQUE #34: ENEMY1 WALK_L S1 ===
+  Frame=2052 Slot=1 XY(288,87) V(+256,-256)
+  AI@023316: [4 1 0 2 67 140 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(176,118)-(224,182) Crop(172,114,56,72)
+    S#1: tile=0300 col=0 sz=3(32x32) XY(192,134)
+    S#2: tile=0080 col=0 sz=5(32x64) XY(176,118)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S1_f002052.bmp (56x72)]
+
+=== UNIQUE #35: ENEMY1 WALK_L S0 ===
+  Frame=2055 Slot=1 XY(288,88) V(+256,-256)
+  AI@0232AC: [4 2 0 2 66 196 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(177,133)-(225,197) Crop(173,129,56,72)
+    S#1: tile=0300 col=0 sz=3(32x32) XY(193,149)
+    S#2: tile=0080 col=0 sz=5(32x64) XY(177,133)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002055.bmp (56x72)]
+
+=== UNIQUE #36: ENEMY1 WALK_L S0 ===
+  Frame=2058 Slot=1 XY(288,88) V(+256,-256)
+  AI@0232B6: [4 2 0 2 66 220 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 1 tiles BBox(177,148)-(209,212) Crop(173,144,40,72)
+    S#2: tile=0080 col=0 sz=5(32x64) XY(177,148)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002058.bmp (40x72)]
+
+=== UNIQUE #37: ENEMY1 IDLE S2 ===
+  Frame=2097 Slot=1 XY(288,88) V(+960,+0)
+  AI@023430: [0 1 0 2 69 44 0 232 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(208,86)-(240,150) Crop(204,82,40,72)
+    S#12: tile=10C8 col=4 sz=3(32x32) XY(208,86)
+    S#13: tile=10C4 col=4 sz=3(32x32) XY(208,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S2_f002097.bmp (40x72)]
+--- Frame 2100: unique=37 ---
+
+=== UNIQUE #38: ENEMY1 IDLE S2 ===
+  Frame=2103 Slot=1 XY(288,88) V(+480,+0)
+  AI@02344E: [4 1 0 2 69 100 0 236 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(197,86)-(229,150) Crop(193,82,40,72)
+    S#12: tile=10CC col=4 sz=3(32x32) XY(197,86)
+    S#13: tile=10C4 col=4 sz=3(32x32) XY(197,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S2_f002103.bmp (40x72)]
+
+=== UNIQUE #39: ENEMY1 IDLE S2 ===
+  Frame=2106 Slot=1 XY(288,88) V(+240,+0)
+  AI@023458: [4 1 0 2 69 116 0 236 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 3 tiles BBox(159,86)-(224,166) Crop(155,82,73,88)
+    S#1: tile=0190 col=0 sz=4(64x32) XY(159,134)
+    S#14: tile=10CC col=4 sz=3(32x32) XY(192,86)
+    S#15: tile=10C4 col=4 sz=3(32x32) XY(192,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S2_f002106.bmp (73x88)]
+
+=== UNIQUE #40: ENEMY1 IDLE S2 ===
+  Frame=2109 Slot=1 XY(288,88) V(+0,+0)
+  AI@023462: [4 2 0 2 69 180 0 236 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(187,86)-(219,150) Crop(183,82,40,72)
+    S#14: tile=10D0 col=4 sz=3(32x32) XY(187,86)
+    S#15: tile=10C4 col=4 sz=3(32x32) XY(187,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S2_f002109.bmp (40x72)]
+
+=== UNIQUE #41: ENEMY1 IDLE S2 ===
+  Frame=2112 Slot=1 XY(288,88) V(+240,-256)
+  AI@023462: [4 2 0 2 69 180 0 236 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 3 tiles BBox(182,86)-(223,206) Crop(178,82,49,128)
+    S#1: tile=00A0 col=0 sz=5(32x64) XY(191,142)
+    S#15: tile=10D0 col=4 sz=3(32x32) XY(182,86)
+    S#16: tile=10C4 col=4 sz=3(32x32) XY(182,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S2_f002112.bmp (49x128)]
+
+=== UNIQUE #42: ENEMY1 IDLE S2 ===
+  Frame=2115 Slot=1 XY(288,88) V(+480,-256)
+  AI@02346C: [4 1 0 2 69 132 0 236 255 255]
+  ATK=140 DMG=0 HB=4 CFG=017F
+  Sprite: 2 tiles BBox(176,86)-(208,150) Crop(172,82,40,72)
+    S#13: tile=10D4 col=4 sz=3(32x32) XY(176,86)
+    S#14: tile=10C4 col=4 sz=3(32x32) XY(176,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S2_f002115.bmp (40x72)]
+
+=== UNIQUE #43: ENEMY1 IDLE S3 ===
+  Frame=2130 Slot=1 XY(303,88) V(+1280,-256)
+  AI@02343A: [0 1 0 2 69 60 0 232 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(166,86)-(198,150) Crop(162,82,40,72)
+    S#13: tile=10D4 col=4 sz=3(32x32) XY(166,86)
+    S#14: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S3_f002130.bmp (40x72)]
+
+=== UNIQUE #44: ENEMY1 IDLE S3 ===
+  Frame=2133 Slot=1 XY(305,88) V(+1280,-256)
+  AI@02343A: [0 1 0 2 69 60 0 232 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(166,86)-(198,150) Crop(162,82,40,72)
+    S#11: tile=10D0 col=4 sz=3(32x32) XY(166,86)
+    S#12: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S3_f002133.bmp (40x72)]
+
+=== UNIQUE #45: ENEMY1 WALK_R S0 ===
+  Frame=2136 Slot=1 XY(305,88) V(+1280,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(166,86)-(198,150) Crop(162,82,40,72)
+    S#12: tile=10D0 col=4 sz=3(32x32) XY(166,86)
+    S#13: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002136.bmp (40x72)]
+
+=== UNIQUE #46: ENEMY1 WALK_R S0 ===
+  Frame=2139 Slot=1 XY(305,88) V(+1280,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(166,86)-(198,150) Crop(162,82,40,72)
+    S#12: tile=10D4 col=4 sz=3(32x32) XY(166,86)
+    S#13: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002139.bmp (40x72)]
+
+=== UNIQUE #47: ENEMY1 WALK_L S0 ===
+  Frame=2142 Slot=1 XY(300,88) V(+1280,-256)
+  AI@0232AC: [4 2 0 2 66 196 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(166,86)-(198,150) Crop(162,82,40,72)
+    S#12: tile=10D4 col=4 sz=3(32x32) XY(166,86)
+    S#13: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002142.bmp (40x72)]
+
+=== UNIQUE #48: ENEMY1 WALK_L S0 ===
+  Frame=2145 Slot=1 XY(295,88) V(+1280,-256)
+  AI@0232B6: [4 2 0 2 66 220 0 4 255 255]
+  ATK=140 DMG=0 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(166,86)-(214,150) Crop(162,82,56,72)
+    S#13: tile=0D7B col=F sz=0(16x16) XY(190,86)
+    S#14: tile=1045 col=F sz=2(16x32) XY(198,86)
+    S#15: tile=10D8 col=4 sz=3(32x32) XY(174,86)
+    S#16: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002145.bmp (56x72)]
+
+=== UNIQUE #49: ENEMY1 ATTACK S2 ===
+  Frame=2148 Slot=1 XY(291,88) V(+1280,-256)
+  AI@0235C2: [4 3 0 2 71 236 0 4 255 255]
+  ATK=142 DMG=0 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(166,86)-(214,150) Crop(162,82,56,72)
+    S#15: tile=0D7C col=F sz=0(16x16) XY(190,86)
+    S#16: tile=1045 col=F sz=2(16x32) XY(198,86)
+    S#17: tile=10D8 col=4 sz=3(32x32) XY(174,86)
+    S#18: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S2_f002148.bmp (56x72)]
+
+=== UNIQUE #50: ENEMY1 ATTACK S2 ===
+  Frame=2151 Slot=1 XY(291,88) V(+1280,-256)
+  AI@0235CC: [3 2 0 2 72 12 0 4 255 255]
+  ATK=142 DMG=0 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(166,86)-(214,150) Crop(162,82,56,72)
+    S#15: tile=0D7B col=F sz=0(16x16) XY(190,86)
+    S#16: tile=1045 col=F sz=2(16x32) XY(198,86)
+    S#17: tile=10D8 col=4 sz=3(32x32) XY(174,86)
+    S#18: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S2_f002151.bmp (56x72)]
+
+=== UNIQUE #51: ENEMY1 ATTACK S2 ===
+  Frame=2163 Slot=1 XY(291,88) V(+1280,-256)
+  AI@02360C: [2 1 0 2 72 108 0 4 255 255]
+  ATK=142 DMG=0 HB=4 CFG=0100
+  Sprite: 5 tiles BBox(82,86)-(214,214) Crop(78,82,140,136)
+    S#6: tile=0C14 col=4 sz=5(32x64) XY(82,150)
+    S#14: tile=0D7B col=F sz=0(16x16) XY(190,86)
+    S#15: tile=1045 col=F sz=2(16x32) XY(198,86)
+    S#16: tile=10D8 col=4 sz=3(32x32) XY(174,86)
+    S#17: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S2_f002163.bmp (140x136)]
+
+=== UNIQUE #52: ENEMY1 WALK_R S0 ===
+  Frame=2166 Slot=1 XY(291,88) V(+1280,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=142 DMG=0 HB=4 CFG=0100
+  Sprite: 5 tiles BBox(85,86)-(214,214) Crop(81,82,137,136)
+    S#6: tile=0C14 col=4 sz=5(32x64) XY(85,150)
+    S#16: tile=0D7C col=F sz=0(16x16) XY(190,86)
+    S#17: tile=1045 col=F sz=2(16x32) XY(198,86)
+    S#18: tile=10D8 col=4 sz=3(32x32) XY(174,86)
+    S#19: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002166.bmp (137x136)]
+
+=== UNIQUE #53: ENEMY1 WALK_R S0 ===
+  Frame=2169 Slot=1 XY(291,88) V(+1280,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=142 DMG=0 HB=4 CFG=0100
+  Sprite: 5 tiles BBox(88,86)-(222,215) Crop(84,82,142,137)
+    S#4: tile=0C20 col=4 sz=5(32x64) XY(88,151)
+    S#16: tile=10DC col=4 sz=3(32x32) XY(158,86)
+    S#17: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+    S#18: tile=23B8 col=F sz=0(16x16) XY(206,88)
+    S#19: tile=0D7D col=F sz=0(16x16) XY(206,96)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002169.bmp (142x137)]
+
+=== UNIQUE #54: ENEMY1 WALK_R S0 ===
+  Frame=2175 Slot=1 XY(291,88) V(+1280,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=142 DMG=0 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(94,86)-(218,216) Crop(90,82,132,138)
+    S#4: tile=0C24 col=4 sz=5(32x64) XY(94,152)
+    S#6: tile=0A64 col=9 sz=3(32x32) XY(186,142)
+    S#16: tile=10DC col=4 sz=3(32x32) XY(158,86)
+    S#17: tile=10C4 col=4 sz=3(32x32) XY(166,118)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002175.bmp (132x138)]
+
+=== UNIQUE #55: ENEMY1 PROJ S1 ===
+  Frame=2184 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023A7C: [8 1 0 2 79 196 0 0 255 255]
+  ATK=142 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(150,86)-(198,174) Crop(146,82,56,96)
+    S#8: tile=0A64 col=9 sz=3(32x32) XY(150,142)
+    S#17: tile=0E70 col=4 sz=5(32x64) XY(166,86)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S1_f002184.bmp (56x96)]
+
+=== UNIQUE #56: ENEMY1 PROJ S1 ===
+  Frame=2193 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023A86: [8 2 0 2 79 212 0 0 255 255]
+  ATK=142 DMG=2 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(86,86)-(214,215) Crop(82,82,136,137)
+    S#6: tile=0D20 col=4 sz=6(64x64) XY(86,151)
+    S#8: tile=0A64 col=9 sz=3(32x32) XY(114,142)
+    S#19: tile=0C24 col=4 sz=5(32x64) XY(182,86)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S1_f002193.bmp (136x137)]
+
+=== UNIQUE #57: ENEMY1 PROJ S1 ===
+  Frame=2202 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023A90: [8 2 0 2 79 236 0 0 255 255]
+  ATK=142 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(194,92)-(226,156) Crop(190,88,40,72)
+    S#19: tile=0C34 col=4 sz=5(32x64) XY(194,92)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S1_f002202.bmp (40x72)]
+
+=== UNIQUE #58: ENEMY1 PROJ S1 ===
+  Frame=2205 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023A90: [8 2 0 2 79 236 0 0 255 255]
+  ATK=142 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(198,93)-(230,157) Crop(194,89,40,72)
+    S#19: tile=0C00 col=4 sz=5(32x64) XY(198,93)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S1_f002205.bmp (40x72)]
+
+=== UNIQUE #59: ENEMY1 WALK_R S0 ===
+  Frame=2208 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=142 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(202,95)-(234,159) Crop(198,91,40,72)
+    S#19: tile=0C00 col=4 sz=5(32x64) XY(202,95)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002208.bmp (40x72)]
+
+=== UNIQUE #60: ENEMY1 ATTACK S0 ===
+  Frame=2211 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023504: [3 2 0 2 70 108 0 4 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(206,97)-(238,161) Crop(202,93,40,72)
+    S#14: tile=0C04 col=4 sz=5(32x64) XY(206,97)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f002211.bmp (40x72)]
+
+=== UNIQUE #61: ENEMY1 ATTACK S0 ===
+  Frame=2217 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023532: [2 3 0 2 70 196 0 4 0 4]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(192,120)-(256,184) Crop(188,116,72,72)
+    S#8: tile=05B0 col=E sz=6(64x64) XY(192,120)
+    S#14: tile=11EC col=E sz=3(32x32) XY(207,134)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f002217.bmp (72x72)]
+
+=== UNIQUE #62: ENEMY1 ATTACK S0 ===
+  Frame=2220 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023544: [3 3 0 2 70 228 0 4 0 4]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(191,120)-(256,184) Crop(187,116,73,72)
+    S#8: tile=1240 col=E sz=6(64x64) XY(192,120)
+    S#14: tile=11EC col=E sz=3(32x32) XY(191,134)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f002220.bmp (73x72)]
+
+=== UNIQUE #63: ENEMY1 ATTACK S0 ===
+  Frame=2223 Slot=1 XY(291,88) V(+1280,+0)
+  AI@023556: [3 2 0 2 71 4 0 4 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(174,120)-(256,184) Crop(170,116,90,72)
+    S#9: tile=1250 col=E sz=6(64x64) XY(192,120)
+    S#14: tile=11EC col=E sz=3(32x32) XY(174,134)
+    S#15: tile=11E0 col=E sz=3(32x32) XY(196,134)
+    S#16: tile=0AC9 col=4 sz=0(16x16) XY(207,152)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f002223.bmp (90x72)]
+
+=== UNIQUE #64: ENEMY1 WALK_L S0 ===
+  Frame=2226 Slot=1 XY(294,88) V(+1280,+0)
+  AI@0232AC: [4 2 0 2 66 196 0 4 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(158,120)-(256,184) Crop(154,116,106,72)
+    S#9: tile=1260 col=E sz=6(64x64) XY(192,120)
+    S#14: tile=11EC col=E sz=3(32x32) XY(158,134)
+    S#15: tile=11E0 col=E sz=3(32x32) XY(180,134)
+    S#16: tile=11E0 col=E sz=3(32x32) XY(207,134)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002226.bmp (106x72)]
+
+=== UNIQUE #65: ENEMY1 WALK_L S0 ===
+  Frame=2229 Slot=1 XY(299,88) V(+1280,+0)
+  AI@0232B6: [4 2 0 2 66 220 0 4 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 5 tiles BBox(141,105)-(270,184) Crop(137,101,137,87)
+    S#9: tile=1270 col=E sz=6(64x64) XY(192,120)
+    S#14: tile=11EC col=E sz=3(32x32) XY(141,134)
+    S#15: tile=11E0 col=E sz=3(32x32) XY(163,134)
+    S#16: tile=11E0 col=E sz=3(32x32) XY(191,134)
+    S#19: tile=0D20 col=4 sz=6(64x64) XY(206,105)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002229.bmp (137x87)]
+
+=== UNIQUE #66: ENEMY1 WALK_L S0 ===
+  Frame=2232 Slot=1 XY(305,88) V(+1280,+0)
+  AI@0232C0: [4 1 0 2 66 244 0 4 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 6 tiles BBox(125,100)-(258,184) Crop(121,96,141,92)
+    S#9: tile=1240 col=E sz=6(64x64) XY(192,120)
+    S#14: tile=11EC col=E sz=3(32x32) XY(125,134)
+    S#15: tile=11E0 col=E sz=3(32x32) XY(147,134)
+    S#16: tile=11E0 col=E sz=3(32x32) XY(174,134)
+    S#17: tile=11D8 col=E sz=3(32x32) XY(202,134)
+    S#20: tile=0D20 col=4 sz=6(64x64) XY(194,100)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002232.bmp (141x92)]
+
+=== UNIQUE #67: ENEMY1 WALK_L S0 ===
+  Frame=2235 Slot=1 XY(310,88) V(+1280,+0)
+  AI@0232C0: [4 1 0 2 66 244 0 4 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 6 tiles BBox(108,97)-(256,184) Crop(104,93,156,95)
+    S#9: tile=1250 col=E sz=6(64x64) XY(192,120)
+    S#13: tile=11EC col=E sz=3(32x32) XY(108,134)
+    S#14: tile=11E0 col=E sz=3(32x32) XY(130,134)
+    S#15: tile=11E0 col=E sz=3(32x32) XY(158,134)
+    S#16: tile=11D8 col=E sz=3(32x32) XY(185,134)
+    S#19: tile=0D20 col=4 sz=6(64x64) XY(183,97)
+  [BMP SAVED: tmnt_ENEMY1_WALK_L_S0_f002235.bmp (156x95)]
+
+=== UNIQUE #68: ENEMY1 WALK_R S0 ===
+  Frame=2283 Slot=1 XY(347,88) V(+1280,+0)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(148,120)-(247,184) Crop(144,116,107,72)
+    S#6: tile=1250 col=E sz=6(64x64) XY(148,120)
+    S#7: tile=0094 col=E sz=5(32x64) XY(196,120)
+    S#8: tile=1F50 col=F sz=3(32x32) XY(215,120)
+    S#10: tile=1F50 col=F sz=3(32x32) XY(215,152)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002283.bmp (107x72)]
+
+=== UNIQUE #69: ENEMY1 IDLE S1 ===
+  Frame=2298 Slot=1 XY(326,88) V(+1280,+13)
+  AI@023426: [0 1 0 2 69 28 0 232 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(148,120)-(228,184) Crop(144,116,88,72)
+    S#7: tile=1260 col=E sz=6(64x64) XY(148,120)
+    S#8: tile=0094 col=E sz=5(32x64) XY(196,120)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f002298.bmp (88x72)]
+
+=== UNIQUE #70: ENEMY1 IDLE S1 ===
+  Frame=2301 Slot=1 XY(326,88) V(+1280,+10)
+  AI@023426: [0 1 0 2 69 28 0 232 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(148,120)-(228,184) Crop(144,116,88,72)
+    S#6: tile=1270 col=E sz=6(64x64) XY(148,120)
+    S#7: tile=0094 col=E sz=5(32x64) XY(196,120)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f002301.bmp (88x72)]
+
+=== UNIQUE #71: ENEMY1 IDLE S1 ===
+  Frame=2304 Slot=1 XY(326,88) V(+1280,+0)
+  AI@023426: [0 1 0 2 69 28 0 232 255 255]
+  ATK=140 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(148,120)-(228,184) Crop(144,116,88,72)
+    S#6: tile=1240 col=E sz=6(64x64) XY(148,120)
+    S#7: tile=0094 col=E sz=5(32x64) XY(196,120)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f002304.bmp (88x72)]
+
+=== UNIQUE #72: ENEMY1 ATTACK S1 ===
+  Frame=2307 Slot=1 XY(326,88) V(+1280,+0)
+  AI@02385A: [5 2 0 2 77 12 0 4 255 255]
+  ATK=149 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(148,120)-(228,184) Crop(144,116,88,72)
+    S#6: tile=1250 col=E sz=6(64x64) XY(148,120)
+    S#7: tile=0094 col=E sz=5(32x64) XY(196,120)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S1_f002307.bmp (88x72)]
+
+=== UNIQUE #73: ENEMY1 ATTACK S1 ===
+  Frame=2310 Slot=1 XY(314,88) V(+1088,+0)
+  AI@02385A: [5 2 0 2 77 12 0 4 255 255]
+  ATK=149 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(148,120)-(228,184) Crop(144,116,88,72)
+    S#4: tile=1260 col=E sz=6(64x64) XY(148,120)
+    S#5: tile=0094 col=E sz=5(32x64) XY(196,120)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S1_f002310.bmp (88x72)]
+
+=== UNIQUE #74: ENEMY1 ATTACK S1 ===
+  Frame=2313 Slot=1 XY(302,88) V(+896,+0)
+  AI@023864: [5 3 0 2 77 36 0 4 0 4]
+  ATK=149 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(148,120)-(228,184) Crop(144,116,88,72)
+    S#3: tile=1270 col=E sz=6(64x64) XY(148,120)
+    S#4: tile=0094 col=E sz=5(32x64) XY(196,120)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S1_f002313.bmp (88x72)]
+
+=== UNIQUE #75: ENEMY1 ATTACK S1 ===
+  Frame=2316 Slot=1 XY(290,88) V(+704,+0)
+  AI@023876: [5 2 0 2 77 68 0 4 0 4]
+  ATK=149 DMG=2 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(148,120)-(228,184) Crop(144,116,88,72)
+    S#3: tile=1240 col=E sz=6(64x64) XY(148,120)
+    S#4: tile=0094 col=E sz=5(32x64) XY(196,120)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S1_f002316.bmp (88x72)]
+
+=== UNIQUE #76: ENEMY1 WALK_R S0 ===
+  Frame=2334 Slot=1 XY(230,88) V(+384,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=149 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(148,120)-(212,184) Crop(144,116,72,72)
+    S#4: tile=1260 col=E sz=6(64x64) XY(148,120)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002334.bmp (72x72)]
+
+=== UNIQUE #77: ENEMY1 WALK_R S0 ===
+  Frame=2337 Slot=1 XY(230,88) V(+384,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=149 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(148,120)-(212,184) Crop(144,116,72,72)
+    S#4: tile=1270 col=E sz=6(64x64) XY(148,120)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002337.bmp (72x72)]
+
+=== UNIQUE #78: ENEMY1 WALK_R S0 ===
+  Frame=2340 Slot=1 XY(230,88) V(+384,-256)
+  AI@023224: [0 3 0 2 66 44 0 4 255 255]
+  ATK=149 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(148,120)-(212,184) Crop(144,116,72,72)
+    S#4: tile=1240 col=E sz=6(64x64) XY(148,120)
+  [BMP SAVED: tmnt_ENEMY1_WALK_R_S0_f002340.bmp (72x72)]
+
+=== UNIQUE #79: ENEMY1 ATTACK S0 ===
+  Frame=2382 Slot=1 XY(251,88) V(+1792,+0)
+  AI@023820: [4 2 0 2 77 188 0 4 0 4]
+  ATK=148 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(148,120)-(212,184) Crop(144,116,72,72)
+    S#4: tile=1260 col=E sz=6(64x64) XY(148,120)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f002382.bmp (72x72)]
+
+=== UNIQUE #80: ENEMY1 ATTACK S0 ===
+  Frame=2385 Slot=1 XY(251,88) V(+1600,+0)
+  AI@023832: [4 2 0 2 77 212 0 4 0 4]
+  ATK=148 DMG=2 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(148,120)-(212,184) Crop(144,116,72,72)
+    S#4: tile=1270 col=E sz=6(64x64) XY(148,120)
+  [BMP SAVED: tmnt_ENEMY1_ATTACK_S0_f002385.bmp (72x72)]
+--- Frame 2400: unique=80 ---
+
+=== UNIQUE #81: ENEMY1 PROJ S2 ===
+  Frame=2442 Slot=1 XY(222,88) V(+0,+0)
+  AI@023A7C: [8 1 0 2 79 196 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(139,120)-(203,184) Crop(135,116,72,72)
+    S#7: tile=1260 col=E sz=6(64x64) XY(139,120)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S2_f002442.bmp (72x72)]
+
+=== UNIQUE #82: ENEMY1 PROJ S2 ===
+  Frame=2445 Slot=1 XY(222,88) V(+0,+0)
+  AI@023A7C: [8 1 0 2 79 196 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(139,120)-(203,184) Crop(135,116,72,72)
+    S#7: tile=1270 col=E sz=6(64x64) XY(139,120)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S2_f002445.bmp (72x72)]
+
+=== UNIQUE #83: ENEMY1 PROJ S2 ===
+  Frame=2448 Slot=1 XY(219,88) V(+0,+0)
+  AI@023A7C: [8 1 0 2 79 196 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(136,120)-(200,184) Crop(132,116,72,72)
+    S#7: tile=1240 col=E sz=6(64x64) XY(136,120)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S2_f002448.bmp (72x72)]
+
+=== UNIQUE #84: ENEMY1 PROJ S2 ===
+  Frame=2451 Slot=1 XY(214,88) V(+0,+0)
+  AI@023A86: [8 2 0 2 79 212 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(130,120)-(194,184) Crop(126,116,72,72)
+    S#5: tile=1250 col=E sz=6(64x64) XY(130,120)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S2_f002451.bmp (72x72)]
+
+=== UNIQUE #85: ENEMY1 PROJ S3 ===
+  Frame=2466 Slot=1 XY(194,88) V(+0,+0)
+  AI@023DDC: [5 2 0 2 84 60 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(111,110)-(210,184) Crop(107,106,107,82)
+    S#8: tile=1260 col=E sz=6(64x64) XY(111,120)
+    S#9: tile=0094 col=E sz=5(32x64) XY(159,120)
+    S#10: tile=1F70 col=1 sz=2(16x32) XY(130,142)
+    S#12: tile=1510 col=1 sz=6(64x64) XY(146,110)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S3_f002466.bmp (107x82)]
+
+=== UNIQUE #86: ENEMY1 PROJ S3 ===
+  Frame=2469 Slot=1 XY(194,88) V(+0,+0)
+  AI@023DDC: [5 2 0 2 84 60 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(111,110)-(210,184) Crop(107,106,107,82)
+    S#10: tile=1270 col=E sz=6(64x64) XY(111,120)
+    S#11: tile=0094 col=E sz=5(32x64) XY(159,120)
+    S#12: tile=1F70 col=1 sz=2(16x32) XY(130,142)
+    S#14: tile=1510 col=1 sz=6(64x64) XY(146,110)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S3_f002469.bmp (107x82)]
+
+=== UNIQUE #87: ENEMY1 PROJ S3 ===
+  Frame=2472 Slot=1 XY(194,88) V(+0,+0)
+  AI@023DE6: [5 3 0 2 84 84 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 5 tiles BBox(111,120)-(210,184) Crop(107,116,107,72)
+    S#10: tile=1240 col=E sz=6(64x64) XY(111,120)
+    S#11: tile=0094 col=E sz=5(32x64) XY(159,120)
+    S#12: tile=1F71 col=1 sz=2(16x32) XY(130,142)
+    S#13: tile=1FC7 col=1 sz=0(16x16) XY(114,150)
+    S#15: tile=1E90 col=1 sz=4(64x32) XY(146,142)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S3_f002472.bmp (107x72)]
+
+=== UNIQUE #88: ENEMY1 PROJ S3 ===
+  Frame=2475 Slot=1 XY(194,88) V(+0,+0)
+  AI@023DF0: [5 3 0 2 84 116 0 0 255 255]
+  ATK=148 DMG=4 HB=4 CFG=0100
+  Sprite: 5 tiles BBox(111,120)-(210,184) Crop(107,116,107,72)
+    S#9: tile=1250 col=E sz=6(64x64) XY(111,120)
+    S#10: tile=0094 col=E sz=5(32x64) XY(159,120)
+    S#11: tile=1F71 col=1 sz=2(16x32) XY(130,142)
+    S#12: tile=1FC7 col=1 sz=0(16x16) XY(114,150)
+    S#14: tile=1E90 col=1 sz=4(64x32) XY(146,142)
+  [BMP SAVED: tmnt_ENEMY1_PROJ_S3_f002475.bmp (107x72)]
+--- Frame 2700: unique=88 ---
+--- Frame 3000: unique=88 ---
+--- Frame 3300: unique=88 ---
+--- Frame 3600: unique=88 ---
+--- Frame 3900: unique=88 ---
+--- Frame 4200: unique=88 ---
+--- Frame 4500: unique=88 ---
+--- Frame 4800: unique=88 ---
+
+=== UNIQUE #89: ENEMY1 IDLE S1 ===
+  Frame=4989 Slot=15 XY(430,124) V(-128,+0)
+  AI@055722: [6 2 0 5 94 206 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(267,139)-(299,203) Crop(263,135,40,72)
+    S#6: tile=08A0 col=4 sz=5(32x64) XY(267,139)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f004989.bmp (40x72)]
+
+=== UNIQUE #90: ENEMY1 IDLE S1 ===
+  Frame=4992 Slot=15 XY(423,124) V(-128,+0)
+  AI@055722: [6 2 0 5 94 206 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(263,134)-(295,198) Crop(259,130,40,72)
+    S#3: tile=08B4 col=4 sz=5(32x64) XY(263,134)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f004992.bmp (40x72)]
+
+=== UNIQUE #91: ENEMY1 IDLE S1 ===
+  Frame=5001 Slot=15 XY(417,121) V(-213,-137)
+  AI@055736: [4 1 0 5 94 246 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(246,105)-(321,207) Crop(242,101,83,110)
+    S#0: tile=0D20 col=4 sz=6(64x64) XY(246,143)
+    S#3: tile=14A0 col=0 sz=6(64x64) XY(257,105)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005001.bmp (78x110)]
+
+=== UNIQUE #92: ENEMY1 IDLE S1 ===
+  Frame=5019 Slot=15 XY(402,111) V(-213,-137)
+  AI@05575E: [4 1 0 5 95 62 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(165,141)-(248,207) Crop(161,137,91,74)
+    S#0: tile=0D30 col=4 sz=6(64x64) XY(184,143)
+    S#1: tile=09B0 col=7 sz=0(16x16) XY(181,165)
+    S#2: tile=0C04 col=7 sz=5(32x64) XY(165,141)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005019.bmp (91x74)]
+
+=== UNIQUE #93: ENEMY1 IDLE S1 ===
+  Frame=5025 Slot=15 XY(397,108) V(-213,-137)
+  AI@055722: [6 2 0 5 94 206 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(172,141)-(204,205) Crop(168,137,40,72)
+    S#1: tile=0B01 col=7 sz=2(16x32) XY(188,157)
+    S#2: tile=0C10 col=7 sz=5(32x64) XY(172,141)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005025.bmp (40x72)]
+
+=== UNIQUE #94: ENEMY1 IDLE S1 ===
+  Frame=5028 Slot=15 XY(394,106) V(-213,-137)
+  AI@055722: [6 2 0 5 94 206 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(176,141)-(208,205) Crop(172,137,40,72)
+    S#1: tile=0C14 col=7 sz=5(32x64) XY(176,141)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005028.bmp (40x72)]
+
+=== UNIQUE #95: ENEMY1 IDLE S1 ===
+  Frame=5031 Slot=15 XY(392,105) V(-226,-115)
+  AI@05572C: [4 1 0 5 94 230 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(180,141)-(212,205) Crop(176,137,40,72)
+    S#3: tile=0C20 col=7 sz=5(32x64) XY(180,141)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005031.bmp (40x72)]
+
+=== UNIQUE #96: ENEMY1 IDLE S1 ===
+  Frame=5034 Slot=15 XY(389,104) V(-226,-115)
+  AI@055736: [4 1 0 5 94 246 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(183,141)-(215,205) Crop(179,137,40,72)
+    S#1: tile=0C24 col=7 sz=5(32x64) XY(183,141)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005034.bmp (40x72)]
+
+=== UNIQUE #97: ENEMY1 IDLE S1 ===
+  Frame=5043 Slot=15 XY(381,100) V(-229,-109)
+  AI@05574A: [6 2 0 5 95 22 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(176,133)-(284,205) Crop(172,129,116,80)
+    S#1: tile=0B8E col=7 sz=1(32x16) XY(192,133)
+    S#2: tile=0D90 col=7 sz=6(64x64) XY(176,141)
+    S#3: tile=02D0 col=0 sz=3(32x32) XY(252,147)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005043.bmp (116x80)]
+
+=== UNIQUE #98: ENEMY1 IDLE S1 ===
+  Frame=5049 Slot=15 XY(376,97) V(-234,-98)
+  AI@055754: [4 1 0 5 95 46 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(176,125)-(274,205) Crop(172,121,106,88)
+    S#1: tile=0B08 col=7 sz=2(16x32) XY(184,125)
+    S#2: tile=0DA0 col=7 sz=6(64x64) XY(176,141)
+    S#3: tile=02D8 col=0 sz=3(32x32) XY(242,147)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005049.bmp (106x88)]
+
+=== UNIQUE #99: ENEMY1 IDLE S1 ===
+  Frame=5058 Slot=15 XY(367,94) V(-241,-80)
+  AI@055768: [4 1 0 5 95 78 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 4 tiles BBox(176,133)-(304,205) Crop(172,129,136,80)
+    S#1: tile=0B90 col=7 sz=1(32x16) XY(192,133)
+    S#2: tile=0D90 col=7 sz=6(64x64) XY(176,141)
+    S#3: tile=01B8 col=0 sz=4(64x32) XY(240,139)
+    S#4: tile=1290 col=0 sz=6(64x64) XY(232,139)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005058.bmp (136x80)]
+
+=== UNIQUE #100: ENEMY1 IDLE S1 ===
+  Frame=5064 Slot=15 XY(362,93) V(-241,-80)
+  AI@055722: [6 2 0 5 94 206 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(192,139)-(289,205) Crop(188,135,105,74)
+    S#2: tile=0CB4 col=7 sz=5(32x64) XY(192,141)
+    S#3: tile=0708 col=0 sz=4(64x32) XY(225,139)
+    S#4: tile=12C0 col=0 sz=6(64x64) XY(225,139)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005064.bmp (105x74)]
+
+=== UNIQUE #101: ENEMY1 IDLE S1 ===
+  Frame=5070 Slot=15 XY(356,91) V(-241,-80)
+  AI@055736: [4 1 0 5 94 246 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(192,139)-(288,205) Crop(188,135,104,74)
+    S#4: tile=0CD0 col=7 sz=5(32x64) XY(192,141)
+    S#5: tile=0710 col=0 sz=4(64x32) XY(224,139)
+    S#7: tile=12D0 col=0 sz=6(64x64) XY(224,139)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005070.bmp (104x74)]
+
+=== UNIQUE #102: ENEMY1 IDLE S1 ===
+  Frame=5073 Slot=15 XY(353,90) V(-241,-80)
+  AI@055736: [4 1 0 5 94 246 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(202,115)-(298,203) Crop(198,111,104,96)
+    S#3: tile=0190 col=0 sz=4(64x32) XY(234,115)
+    S#5: tile=05E0 col=0 sz=6(64x64) XY(234,139)
+    S#6: tile=0D70 col=7 sz=6(64x64) XY(202,131)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005073.bmp (104x96)]
+
+=== UNIQUE #103: ENEMY1 IDLE S1 ===
+  Frame=5076 Slot=15 XY(350,89) V(-241,-80)
+  AI@055740: [4 1 0 5 95 6 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 3 tiles BBox(210,127)-(298,203) Crop(206,123,96,84)
+    S#3: tile=061C col=0 sz=3(32x32) XY(234,139)
+    S#5: tile=05F0 col=0 sz=6(64x64) XY(234,139)
+    S#6: tile=0D70 col=7 sz=6(64x64) XY(210,127)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005076.bmp (96x84)]
+
+=== UNIQUE #104: ENEMY1 IDLE S1 ===
+  Frame=5079 Slot=15 XY(347,88) V(-241,-80)
+  AI@05574A: [6 2 0 5 95 22 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(218,115)-(298,203) Crop(214,111,88,96)
+    S#5: tile=0640 col=0 sz=6(64x64) XY(234,139)
+    S#6: tile=0D70 col=7 sz=6(64x64) XY(218,115)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005079.bmp (88x96)]
+
+=== UNIQUE #105: ENEMY1 IDLE S1 ===
+  Frame=5085 Slot=15 XY(342,86) V(-243,-74)
+  AI@055754: [4 1 0 5 95 46 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(234,139)-(298,203) Crop(230,135,72,72)
+    S#5: tile=0650 col=0 sz=6(64x64) XY(234,139)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005085.bmp (72x72)]
+
+=== UNIQUE #106: ENEMY1 IDLE S1 ===
+  Frame=5100 Slot=15 XY(329,81) V(+0,-320)
+  AI@055722: [6 2 0 5 94 206 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(176,143)-(208,207) Crop(172,139,40,72)
+    S#0: tile=0CD4 col=4 sz=5(32x64) XY(176,143)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005100.bmp (40x72)]
+--- Frame 5100: unique=106 ---
+
+=== UNIQUE #107: ENEMY1 V6 S1 ===
+  Frame=5103 Slot=15 XY(329,80) V(+0,-320)
+  AI@04CF3E: [4 1 0 4 203 116 0 0 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(176,105)-(268,207) Crop(172,101,100,110)
+    S#0: tile=0CD4 col=4 sz=5(32x64) XY(176,143)
+    S#2: tile=14A0 col=0 sz=6(64x64) XY(204,105)
+  [BMP SAVED: tmnt_ENEMY1_V6_S1_f005103.bmp (100x110)]
+
+=== UNIQUE #108: ENEMY1 V6 S1 ===
+  Frame=5109 Slot=15 XY(329,80) V(+0,-320)
+  AI@04CF48: [20 1 0 4 203 132 0 0 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(152,140)-(216,204) Crop(148,136,72,72)
+    S#0: tile=0D20 col=4 sz=6(64x64) XY(152,140)
+  [BMP SAVED: tmnt_ENEMY1_V6_S1_f005109.bmp (72x72)]
+
+=== UNIQUE #109: ENEMY1 V6 S1 ===
+  Frame=5130 Slot=15 XY(329,80) V(+0,-320)
+  AI@04CF52: [4 0 0 4 203 108 0 0 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(226,76)-(258,140) Crop(222,72,40,72)
+    S#1: tile=19C4 col=0 sz=5(32x64) XY(226,76)
+  [BMP SAVED: tmnt_ENEMY1_V6_S1_f005130.bmp (40x72)]
+
+=== UNIQUE #110: ENEMY1 V6 S2 ===
+  Frame=5133 Slot=15 XY(329,79) V(+0,-128)
+  AI@04CF5E: [4 2 0 4 203 68 0 0 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(226,76)-(258,140) Crop(222,72,40,72)
+    S#1: tile=19C4 col=0 sz=5(32x64) XY(226,76)
+  [BMP SAVED: tmnt_ENEMY1_V6_S2_f005133.bmp (40x72)]
+
+=== UNIQUE #111: ENEMY1 IDLE S1 ===
+  Frame=5229 Slot=15 XY(299,57) V(+0,+320)
+  AI@055722: [6 2 0 5 94 206 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(204,112)-(268,176) Crop(200,108,72,72)
+    S#5: tile=1890 col=0 sz=6(64x64) XY(204,112)
+  [BMP SAVED: tmnt_ENEMY1_IDLE_S1_f005229.bmp (72x72)]
+
+=== UNIQUE #112: ENEMY1 V5 S1 ===
+  Frame=5232 Slot=15 XY(304,58) V(+1144,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=8 HB=4 CFG=0100
+  Sprite: 1 tiles BBox(204,104)-(268,168) Crop(200,100,72,72)
+    S#3: tile=18A0 col=0 sz=6(64x64) XY(204,104)
+  [BMP SAVED: tmnt_ENEMY1_V5_S1_f005232.bmp (72x72)]
+
+=== UNIQUE #113: ENEMY1 V5 S1 ===
+  Frame=5235 Slot=15 XY(317,58) V(+1120,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=8 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(204,98)-(268,162) Crop(200,94,72,72)
+    S#3: tile=03EC col=0 sz=0(16x16) XY(220,98)
+    S#4: tile=18B0 col=0 sz=6(64x64) XY(204,98)
+  [BMP SAVED: tmnt_ENEMY1_V5_S1_f005235.bmp (72x72)]
+
+=== UNIQUE #114: ENEMY1 V5 S1 ===
+  Frame=5241 Slot=15 XY(343,58) V(+1072,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=8 HB=4 CFG=0100
+  Sprite: 2 tiles BBox(196,77)-(268,157) Crop(192,73,80,88)
+    S#0: tile=19C4 col=0 sz=5(32x64) XY(196,77)
+    S#1: tile=1900 col=0 sz=6(64x64) XY(204,93)
+  [BMP SAVED: tmnt_ENEMY1_V5_S1_f005241.bmp (80x88)]
+--- Frame 5400: unique=114 ---
+--- Frame 5700: unique=114 ---
+--- Frame 6000: unique=114 ---
+--- Frame 6300: unique=114 ---
+--- Frame 6600: unique=114 ---
+--- Frame 6900: unique=114 ---
+--- Frame 7200: unique=114 ---
+--- Frame 7500: unique=114 ---
+--- Frame 7800: unique=114 ---
+
+=== UNIQUE #115: FOOT_SOLDIER WALK_L S0 ===
+  Frame=7908 Slot=2 XY(288,97) V(+0,+0)
+  AI@025DC4: [4 2 0 2 109 238 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#2: tile=0004 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f007908.bmp (40x72)]
+
+=== UNIQUE #116: FOOT_SOLDIER IDLE S1 ===
+  Frame=7908 Slot=15 XY(426,106) V(+0,+0)
+  AI@057B46: [8 3 0 5 124 214 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(205,77)-(304,213) Crop(201,73,107,144)
+    S#0: tile=11FC col=3 sz=3(32x32) XY(209,123)
+    S#1: tile=1E40 col=3 sz=3(32x32) XY(213,157)
+    S#2: tile=0004 col=3 sz=5(32x64) XY(205,149)
+    S#6: tile=11F8 col=2 sz=3(32x32) XY(268,77)
+    S#9: tile=0030 col=2 sz=5(32x64) XY(272,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007908.bmp (107x144)]
+
+=== UNIQUE #117: FOOT_SOLDIER WALK_L S0 ===
+  Frame=7911 Slot=2 XY(288,97) V(+0,+0)
+  AI@025DCE: [4 2 0 2 110 6 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#3: tile=0010 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f007911.bmp (40x72)]
+
+=== UNIQUE #118: FOOT_SOLDIER WALK_L S0 ===
+  Frame=7920 Slot=2 XY(288,97) V(+0,+0)
+  AI@025D92: [4 2 0 2 109 126 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#3: tile=0020 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f007920.bmp (40x72)]
+
+=== UNIQUE #119: FOOT_SOLDIER IDLE S1 ===
+  Frame=7920 Slot=15 XY(398,104) V(-245,-68)
+  AI@057B5A: [6 2 0 5 125 30 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(205,149)-(253,213) Crop(201,145,56,72)
+    S#1: tile=1B2C col=3 sz=2(16x32) XY(221,157)
+    S#2: tile=1B8B col=3 sz=0(16x16) XY(237,165)
+    S#3: tile=0020 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007920.bmp (56x72)]
+
+=== UNIQUE #120: FOOT_SOLDIER WALK_L S0 ===
+  Frame=7923 Slot=2 XY(288,97) V(+0,+0)
+  AI@025D9C: [4 2 0 2 109 150 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#2: tile=0024 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f007923.bmp (40x72)]
+
+=== UNIQUE #121: FOOT_SOLDIER IDLE S1 ===
+  Frame=7923 Slot=15 XY(390,103) V(-255,-6)
+  AI@057B5A: [6 2 0 5 125 30 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(205,149)-(253,213) Crop(201,145,56,72)
+    S#0: tile=1B29 col=3 sz=2(16x32) XY(221,157)
+    S#1: tile=1B8A col=3 sz=0(16x16) XY(237,165)
+    S#2: tile=0024 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007923.bmp (56x72)]
+
+=== UNIQUE #122: FOOT_SOLDIER WALK_L S0 ===
+  Frame=7929 Slot=2 XY(288,97) V(+0,+0)
+  AI@025DB0: [4 1 0 2 109 198 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#2: tile=0030 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f007929.bmp (40x72)]
+
+=== UNIQUE #123: FOOT_SOLDIER IDLE S1 ===
+  Frame=7929 Slot=15 XY(373,103) V(-255,-6)
+  AI@057B64: [6 2 0 5 125 54 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(205,149)-(253,213) Crop(201,145,56,72)
+    S#0: tile=1B28 col=3 sz=2(16x32) XY(221,157)
+    S#1: tile=1B89 col=3 sz=0(16x16) XY(237,165)
+    S#2: tile=0030 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007929.bmp (56x72)]
+
+=== UNIQUE #124: FOOT_SOLDIER WALK_L S0 ===
+  Frame=7932 Slot=2 XY(288,97) V(+0,+0)
+  AI@025DB0: [4 1 0 2 109 198 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#1: tile=0034 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f007932.bmp (40x72)]
+
+=== UNIQUE #125: FOOT_SOLDIER IDLE S1 ===
+  Frame=7932 Slot=15 XY(365,103) V(-255,-6)
+  AI@057B6E: [8 3 0 5 125 78 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(205,149)-(245,213) Crop(201,145,48,72)
+    S#0: tile=1E40 col=3 sz=3(32x32) XY(213,157)
+    S#1: tile=0034 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007932.bmp (48x72)]
+
+=== UNIQUE #126: FOOT_SOLDIER WALK_L S0 ===
+  Frame=7935 Slot=2 XY(288,97) V(+0,+0)
+  AI@025DBA: [4 2 0 2 109 214 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(202,149)-(234,213) Crop(198,145,40,72)
+    S#3: tile=1EE0 col=3 sz=5(32x64) XY(202,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f007935.bmp (40x72)]
+
+=== UNIQUE #127: FOOT_SOLDIER IDLE S1 ===
+  Frame=7935 Slot=15 XY(357,103) V(-255,-6)
+  AI@057B6E: [8 3 0 5 125 78 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(202,149)-(250,213) Crop(198,145,56,72)
+    S#0: tile=1F0C col=3 sz=2(16x32) XY(234,149)
+    S#2: tile=1B52 col=3 sz=1(32x16) XY(210,154)
+    S#3: tile=1EE0 col=3 sz=5(32x64) XY(202,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007935.bmp (56x72)]
+
+=== UNIQUE #128: FOOT_SOLDIER WALK_R S0 ===
+  Frame=7938 Slot=2 XY(288,97) V(+0,+0)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(200,149)-(240,213) Crop(196,145,48,72)
+    S#2: tile=1B52 col=3 sz=1(32x16) XY(208,154)
+    S#3: tile=1EE0 col=3 sz=5(32x64) XY(200,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f007938.bmp (48x72)]
+
+=== UNIQUE #129: FOOT_SOLDIER WALK_R S0 ===
+  Frame=7941 Slot=2 XY(288,97) V(+0,+0)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(182,149)-(230,213) Crop(178,145,56,72)
+    S#1: tile=1B25 col=3 sz=2(16x32) XY(182,157)
+    S#2: tile=0000 col=3 sz=5(32x64) XY(198,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f007941.bmp (56x72)]
+
+=== UNIQUE #130: FOOT_SOLDIER IDLE S1 ===
+  Frame=7941 Slot=15 XY(352,103) V(+256,+0)
+  AI@057B46: [8 3 0 5 124 214 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(182,133)-(256,213) Crop(178,129,82,88)
+    S#0: tile=1B24 col=3 sz=2(16x32) XY(206,165)
+    S#1: tile=1B25 col=3 sz=2(16x32) XY(182,157)
+    S#2: tile=0000 col=3 sz=5(32x64) XY(198,149)
+    S#6: tile=1F14 col=2 sz=2(16x32) XY(240,133)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007941.bmp (82x88)]
+
+=== UNIQUE #131: FOOT_SOLDIER IDLE S1 ===
+  Frame=7944 Slot=15 XY(352,100) V(+0,-256)
+  AI@057B46: [8 3 0 5 124 214 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(177,133)-(256,213) Crop(173,129,87,88)
+    S#1: tile=1B25 col=3 sz=2(16x32) XY(177,157)
+    S#2: tile=0000 col=3 sz=5(32x64) XY(193,149)
+    S#6: tile=1F14 col=2 sz=2(16x32) XY(240,133)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f007944.bmp (87x88)]
+
+=== UNIQUE #132: FOOT_SOLDIER WALK_R S0 ===
+  Frame=7947 Slot=2 XY(288,97) V(+0,+0)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(180,149)-(220,213) Crop(176,145,48,72)
+    S#0: tile=1E40 col=3 sz=3(32x32) XY(180,157)
+    S#1: tile=0004 col=3 sz=5(32x64) XY(188,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f007947.bmp (48x72)]
+
+=== UNIQUE #133: FOOT_SOLDIER IDLE S2 ===
+  Frame=7947 Slot=15 XY(351,98) V(-256,+0)
+  AI@057B50: [6 4 0 5 124 246 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(180,149)-(220,213) Crop(176,145,48,72)
+    S#0: tile=1E40 col=3 sz=3(32x32) XY(180,157)
+    S#1: tile=0004 col=3 sz=5(32x64) XY(188,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f007947.bmp (48x72)]
+
+=== UNIQUE #134: FOOT_SOLDIER ATTACK S0 ===
+  Frame=7950 Slot=2 XY(288,97) V(+0,+0)
+  AI@025FEA: [3 3 0 2 113 142 0 4 255 255]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(182,149)-(214,213) Crop(178,145,40,72)
+    S#0: tile=1B28 col=3 sz=2(16x32) XY(182,157)
+    S#2: tile=0010 col=3 sz=5(32x64) XY(182,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f007950.bmp (40x72)]
+
+=== UNIQUE #135: FOOT_SOLDIER IDLE S2 ===
+  Frame=7950 Slot=15 XY(348,98) V(-256,+0)
+  AI@057B50: [6 4 0 5 124 246 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(182,149)-(214,213) Crop(178,145,40,72)
+    S#0: tile=1B28 col=3 sz=2(16x32) XY(182,157)
+    S#2: tile=0010 col=3 sz=5(32x64) XY(182,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f007950.bmp (40x72)]
+
+=== UNIQUE #136: FOOT_SOLDIER ATTACK S0 ===
+  Frame=7953 Slot=2 XY(288,97) V(+0,+0)
+  AI@025FF4: [3 3 0 2 113 174 0 4 0 4]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(177,149)-(209,213) Crop(173,145,40,72)
+    S#0: tile=1B29 col=3 sz=2(16x32) XY(177,157)
+    S#2: tile=0014 col=3 sz=5(32x64) XY(177,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f007953.bmp (40x72)]
+
+=== UNIQUE #137: FOOT_SOLDIER IDLE S2 ===
+  Frame=7953 Slot=15 XY(345,98) V(-256,+0)
+  AI@057B5A: [6 2 0 5 125 30 0 8 255 255]
+  ATK=0 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(177,149)-(209,213) Crop(173,145,40,72)
+    S#0: tile=1B29 col=3 sz=2(16x32) XY(177,157)
+    S#2: tile=0014 col=3 sz=5(32x64) XY(177,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f007953.bmp (40x72)]
+
+=== UNIQUE #138: FOOT_SOLDIER V5 S1 ===
+  Frame=7956 Slot=15 XY(343,98) V(-256,+0)
+  AI@057C62: [4 3 0 5 127 102 0 8 255 255]
+  ATK=0 DMG=24 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(172,149)-(204,213) Crop(168,145,40,72)
+    S#0: tile=1B29 col=3 sz=2(16x32) XY(172,157)
+    S#2: tile=0014 col=3 sz=5(32x64) XY(172,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007956.bmp (40x72)]
+
+=== UNIQUE #139: FOOT_SOLDIER ATTACK S0 ===
+  Frame=7959 Slot=2 XY(288,97) V(+0,+0)
+  AI@026006: [9 2 0 2 113 206 0 4 0 4]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(174,149)-(222,213) Crop(170,145,56,72)
+    S#1: tile=1B25 col=3 sz=2(16x32) XY(206,157)
+    S#2: tile=0000 col=3 sz=5(32x64) XY(174,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f007959.bmp (56x72)]
+
+=== UNIQUE #140: FOOT_SOLDIER V5 S1 ===
+  Frame=7959 Slot=15 XY(343,98) V(-256,+0)
+  AI@057C6C: [4 3 0 5 127 134 0 8 255 255]
+  ATK=0 DMG=24 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(174,149)-(222,213) Crop(170,145,56,72)
+    S#1: tile=1B25 col=3 sz=2(16x32) XY(206,157)
+    S#2: tile=0000 col=3 sz=5(32x64) XY(174,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007959.bmp (56x72)]
+
+=== UNIQUE #141: FOOT_SOLDIER ATTACK S0 ===
+  Frame=7962 Slot=2 XY(288,97) V(+0,+0)
+  AI@026006: [9 2 0 2 113 206 0 4 0 4]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(179,149)-(211,213) Crop(175,145,40,72)
+    S#2: tile=0000 col=3 sz=5(32x64) XY(179,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f007962.bmp (40x72)]
+
+=== UNIQUE #142: FOOT_SOLDIER ATTACK S0 ===
+  Frame=7965 Slot=2 XY(288,97) V(+0,+0)
+  AI@026006: [9 2 0 2 113 206 0 4 0 4]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(184,149)-(224,213) Crop(180,145,48,72)
+    S#0: tile=1E40 col=3 sz=3(32x32) XY(192,157)
+    S#1: tile=0004 col=3 sz=5(32x64) XY(184,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f007965.bmp (48x72)]
+
+=== UNIQUE #143: FOOT_SOLDIER V5 S1 ===
+  Frame=7965 Slot=15 XY(343,98) V(-256,+0)
+  AI@057C76: [4 3 0 5 127 166 0 8 255 255]
+  ATK=0 DMG=24 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(184,149)-(224,213) Crop(180,145,48,72)
+    S#0: tile=1E40 col=3 sz=3(32x32) XY(192,157)
+    S#1: tile=0004 col=3 sz=5(32x64) XY(184,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007965.bmp (48x72)]
+
+=== UNIQUE #144: FOOT_SOLDIER WALK_R S0 ===
+  Frame=7968 Slot=2 XY(288,97) V(+0,+0)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(189,149)-(221,213) Crop(185,145,40,72)
+    S#0: tile=1B28 col=3 sz=2(16x32) XY(205,157)
+    S#2: tile=0010 col=3 sz=5(32x64) XY(189,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f007968.bmp (40x72)]
+
+=== UNIQUE #145: FOOT_SOLDIER V5 S1 ===
+  Frame=7968 Slot=15 XY(343,98) V(-256,+0)
+  AI@057C80: [8 3 0 5 127 198 0 8 255 255]
+  ATK=0 DMG=24 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(189,149)-(221,213) Crop(185,145,40,72)
+    S#0: tile=1B28 col=3 sz=2(16x32) XY(205,157)
+    S#2: tile=0010 col=3 sz=5(32x64) XY(189,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007968.bmp (40x72)]
+
+=== UNIQUE #146: FOOT_SOLDIER WALK_R S0 ===
+  Frame=7971 Slot=2 XY(288,97) V(+0,+0)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(195,149)-(227,213) Crop(191,145,40,72)
+    S#2: tile=0014 col=3 sz=5(32x64) XY(195,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f007971.bmp (40x72)]
+
+=== UNIQUE #147: FOOT_SOLDIER ATTACK S0 ===
+  Frame=7974 Slot=2 XY(288,97) V(+2176,+0)
+  AI@02629E: [4 2 0 2 120 150 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(200,149)-(232,213) Crop(196,145,40,72)
+    S#2: tile=0014 col=3 sz=5(32x64) XY(200,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f007974.bmp (40x72)]
+
+=== UNIQUE #148: FOOT_SOLDIER ATTACK S0 ===
+  Frame=7977 Slot=2 XY(288,97) V(+1984,+0)
+  AI@0262A8: [4 1 0 2 120 174 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#2: tile=0020 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f007977.bmp (40x72)]
+
+=== UNIQUE #149: FOOT_SOLDIER V5 S1 ===
+  Frame=7977 Slot=15 XY(343,98) V(-256,+0)
+  AI@057C8A: [6 3 0 5 127 230 0 8 255 255]
+  ATK=0 DMG=24 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(205,149)-(237,213) Crop(201,145,40,72)
+    S#0: tile=1B2C col=3 sz=2(16x32) XY(221,157)
+    S#2: tile=0020 col=3 sz=5(32x64) XY(205,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007977.bmp (40x72)]
+
+=== UNIQUE #150: FOOT_SOLDIER PROJ S0 ===
+  Frame=7983 Slot=15 XY(343,98) V(-256,+0)
+  AI@057B46: [8 3 0 5 124 214 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(216,149)-(248,213) Crop(212,145,40,72)
+    S#0: tile=1B28 col=3 sz=2(16x32) XY(232,157)
+    S#2: tile=0030 col=3 sz=5(32x64) XY(216,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_PROJ_S0_f007983.bmp (40x72)]
+
+=== UNIQUE #151: FOOT_SOLDIER V5 S1 ===
+  Frame=7989 Slot=15 XY(365,98) V(+1112,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(210,47)-(288,225) Crop(206,43,86,186)
+    S#1: tile=1800 col=3 sz=6(64x64) XY(210,161)
+    S#8: tile=10C0 col=2 sz=4(64x32) XY(224,47)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007989.bmp (86x181)]
+
+=== UNIQUE #152: FOOT_SOLDIER V5 S1 ===
+  Frame=7992 Slot=15 XY(378,98) V(+1088,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(224,46)-(288,78) Crop(220,42,72,40)
+    S#9: tile=10C0 col=2 sz=4(64x32) XY(224,46)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007992.bmp (72x40)]
+
+=== UNIQUE #153: FOOT_SOLDIER V5 S1 ===
+  Frame=7995 Slot=15 XY(391,98) V(+1064,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(224,47)-(320,225) Crop(220,43,104,186)
+    S#1: tile=1810 col=3 sz=6(64x64) XY(228,161)
+    S#8: tile=10C0 col=2 sz=4(64x32) XY(224,47)
+    S#9: tile=1900 col=2 sz=6(64x64) XY(256,55)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007995.bmp (100x181)]
+
+=== UNIQUE #154: FOOT_SOLDIER V5 S1 ===
+  Frame=7998 Slot=15 XY(403,98) V(+1040,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(224,51)-(320,225) Crop(220,47,104,182)
+    S#1: tile=1820 col=3 sz=6(64x64) XY(237,161)
+    S#9: tile=10C0 col=2 sz=4(64x32) XY(224,51)
+    S#10: tile=1900 col=2 sz=6(64x64) XY(256,59)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f007998.bmp (100x177)]
+
+=== UNIQUE #155: FOOT_SOLDIER V5 S1 ===
+  Frame=8004 Slot=15 XY(427,98) V(+992,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(224,65)-(320,174) Crop(220,61,104,117)
+    S#5: tile=094A col=5 sz=0(16x16) XY(263,158)
+    S#7: tile=11E8 col=2 sz=0(16x16) XY(272,81)
+    S#8: tile=10C0 col=2 sz=4(64x32) XY(224,65)
+    S#9: tile=1900 col=2 sz=6(64x64) XY(256,73)
+    S#10: tile=0340 col=0 sz=1(32x16) XY(272,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f008004.bmp (100x117)]
+
+=== UNIQUE #156: FOOT_SOLDIER V5 S1 ===
+  Frame=8007 Slot=15 XY(439,98) V(+968,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 7 tiles BBox(224,76)-(346,223) Crop(220,72,130,155)
+    S#2: tile=1840 col=3 sz=6(64x64) XY(264,159)
+    S#4: tile=0AA0 col=5 sz=4(64x32) XY(282,150)
+    S#5: tile=094A col=5 sz=0(16x16) XY(266,158)
+    S#7: tile=11E8 col=2 sz=0(16x16) XY(272,92)
+    S#8: tile=10C0 col=2 sz=4(64x32) XY(224,76)
+    S#9: tile=1900 col=2 sz=6(64x64) XY(256,84)
+    S#10: tile=0340 col=0 sz=1(32x16) XY(272,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f008007.bmp (100x152)]
+
+=== UNIQUE #157: FOOT_SOLDIER V5 S1 ===
+  Frame=8010 Slot=15 XY(450,98) V(+944,+0)
+  AI@054BEC: [0 0 0 5 82 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 6 tiles BBox(224,88)-(341,220) Crop(220,84,125,140)
+    S#3: tile=1BE0 col=3 sz=6(64x64) XY(273,156)
+    S#5: tile=0AA8 col=5 sz=4(64x32) XY(277,150)
+    S#8: tile=11E8 col=2 sz=0(16x16) XY(272,104)
+    S#9: tile=10C0 col=2 sz=4(64x32) XY(224,88)
+    S#10: tile=1900 col=2 sz=6(64x64) XY(256,96)
+    S#11: tile=0340 col=0 sz=1(32x16) XY(272,149)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f008010.bmp (100x140)]
+
+=== UNIQUE #158: FOOT_SOLDIER V5 S2 ===
+  Frame=8019 Slot=15 XY(470,98) V(+864,+0)
+  AI@054BF6: [4 0 0 5 82 122 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(272,101)-(352,220) Crop(268,97,88,127)
+    S#3: tile=1BE0 col=3 sz=6(64x64) XY(288,156)
+    S#7: tile=1B46 col=2 sz=1(32x16) XY(280,125)
+    S#8: tile=1B8D col=2 sz=0(16x16) XY(272,133)
+    S#9: tile=0004 col=2 sz=5(32x64) XY(272,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S2_f008019.bmp (52x127)]
+
+=== UNIQUE #159: FOOT_SOLDIER V5 S1 ===
+  Frame=8028 Slot=15 XY(479,98) V(+736,+0)
+  AI@054DBA: [4 1 0 5 84 18 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(272,101)-(312,165) Crop(268,97,48,72)
+    S#6: tile=1B38 col=2 sz=2(16x32) XY(280,117)
+    S#7: tile=1B8F col=2 sz=0(16x16) XY(296,117)
+    S#8: tile=0014 col=2 sz=5(32x64) XY(272,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f008028.bmp (48x72)]
+
+=== UNIQUE #160: FOOT_SOLDIER V5 S1 ===
+  Frame=8052 Slot=15 XY(437,98) V(+736,+0)
+  AI@054DF6: [4 1 0 5 84 114 0 8 255 255]
+  ATK=0 DMG=32 HB=4 CFG=0200
+  Sprite: 6 tiles BBox(213,101)-(312,213) Crop(209,97,107,120)
+    S#0: tile=1F0C col=3 sz=2(16x32) XY(213,149)
+    S#2: tile=1B52 col=3 sz=1(32x16) XY(221,154)
+    S#3: tile=1EE0 col=3 sz=5(32x64) XY(229,149)
+    S#9: tile=1B46 col=2 sz=1(32x16) XY(280,125)
+    S#10: tile=1B8D col=2 sz=0(16x16) XY(272,133)
+    S#11: tile=0004 col=2 sz=5(32x64) XY(272,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_V5_S1_f008052.bmp (107x120)]
+--- Frame 8100: unique=160 ---
+
+=== UNIQUE #161: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8136 Slot=2 XY(288,97) V(+256,-256)
+  AI@025DC4: [4 2 0 2 109 238 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=027F
+  Sprite: 1 tiles BBox(207,161)-(239,177) Crop(203,157,40,24)
+    S#7: tile=09C6 col=4 sz=1(32x16) XY(207,161)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008136.bmp (40x24)]
+
+=== UNIQUE #162: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8139 Slot=2 XY(292,97) V(+256,-256)
+  AI@025DCE: [4 2 0 2 110 6 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(197,111)-(261,177) Crop(193,107,72,74)
+    S#3: tile=0ACC col=5 sz=0(16x16) XY(205,111)
+    S#4: tile=0D70 col=5 sz=6(64x64) XY(197,111)
+    S#8: tile=09C6 col=4 sz=1(32x16) XY(203,161)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008139.bmp (72x74)]
+
+=== UNIQUE #163: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8145 Slot=2 XY(302,97) V(+256,-256)
+  AI@025D88: [4 2 0 2 109 102 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(90,44)-(238,176) Crop(86,40,156,140)
+    S#1: tile=13A5 col=3 sz=0(16x16) XY(207,157)
+    S#3: tile=0ACC col=5 sz=0(16x16) XY(182,103)
+    S#4: tile=0D70 col=5 sz=6(64x64) XY(174,103)
+    S#8: tile=09C6 col=4 sz=1(32x16) XY(198,160)
+    S#14: tile=0A00 col=4 sz=3(32x32) XY(90,44)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008145.bmp (156x140)]
+
+=== UNIQUE #164: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8148 Slot=2 XY(307,97) V(+256,-256)
+  AI@025D92: [4 2 0 2 109 126 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(95,44)-(239,211) Crop(91,40,152,175)
+    S#1: tile=13CC col=3 sz=2(16x32) XY(199,155)
+    S#2: tile=1A80 col=3 sz=5(32x64) XY(207,147)
+    S#3: tile=0D80 col=5 sz=6(64x64) XY(163,102)
+    S#9: tile=0B49 col=4 sz=2(16x32) XY(206,149)
+    S#13: tile=0A00 col=4 sz=3(32x32) XY(95,44)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008148.bmp (152x175)]
+
+=== UNIQUE #165: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8151 Slot=2 XY(313,97) V(+256,-256)
+  AI@025D9C: [4 2 0 2 109 150 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(153,104)-(248,210) Crop(149,100,103,114)
+    S#3: tile=1A90 col=3 sz=5(32x64) XY(216,146)
+    S#4: tile=0D80 col=5 sz=6(64x64) XY(153,104)
+    S#10: tile=0B49 col=4 sz=2(16x32) XY(206,146)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008151.bmp (103x114)]
+
+=== UNIQUE #166: FOOT_SOLDIER WALK_L S1 ===
+  Frame=8154 Slot=2 XY(313,97) V(+256,-256)
+  AI@025DDE: [4 1 0 2 110 30 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0280
+  Sprite: 2 tiles BBox(143,112)-(248,214) Crop(139,108,113,110)
+    S#3: tile=1A90 col=3 sz=5(32x64) XY(216,150)
+    S#4: tile=0D80 col=5 sz=6(64x64) XY(143,112)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S1_f008154.bmp (113x110)]
+
+=== UNIQUE #167: FOOT_SOLDIER WALK_L S1 ===
+  Frame=8157 Slot=2 XY(313,97) V(+256,-256)
+  AI@025DE8: [4 1 0 2 110 46 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0280
+  Sprite: 3 tiles BBox(92,69)-(264,219) Crop(88,65,180,158)
+    S#1: tile=1350 col=3 sz=6(64x64) XY(200,155)
+    S#2: tile=0D80 col=5 sz=6(64x64) XY(134,123)
+    S#9: tile=0874 col=4 sz=5(32x64) XY(92,69)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S1_f008157.bmp (180x158)]
+
+=== UNIQUE #168: FOOT_SOLDIER WALK_L S1 ===
+  Frame=8163 Slot=2 XY(313,97) V(+256,-256)
+  AI@025DFC: [4 1 0 2 110 78 0 4 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0280
+  Sprite: 1 tiles BBox(118,150)-(182,214) Crop(114,146,72,72)
+    S#3: tile=0D80 col=5 sz=6(64x64) XY(118,150)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S1_f008163.bmp (72x72)]
+
+=== UNIQUE #169: FOOT_SOLDIER IDLE S1 ===
+  Frame=8169 Slot=2 XY(313,97) V(+1280,+14)
+  AI@025F02: [0 2 0 2 111 198 0 232 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0280
+  Sprite: 2 tiles BBox(94,87)-(158,151) Crop(90,83,72,72)
+    S#9: tile=0A04 col=4 sz=3(32x32) XY(94,87)
+    S#10: tile=0880 col=4 sz=5(32x64) XY(126,87)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f008169.bmp (72x72)]
+
+=== UNIQUE #170: FOOT_SOLDIER IDLE S1 ===
+  Frame=8175 Slot=2 XY(313,106) V(+1280,+8)
+  AI@025F02: [0 2 0 2 111 198 0 232 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(103,87)-(167,151) Crop(99,83,72,72)
+    S#10: tile=09D0 col=4 sz=6(64x64) XY(103,87)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f008175.bmp (72x72)]
+
+=== UNIQUE #171: FOOT_SOLDIER IDLE S1 ===
+  Frame=8178 Slot=2 XY(313,112) V(+1280,+0)
+  AI@025F02: [0 2 0 2 111 198 0 232 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(103,85)-(172,238) Crop(99,81,77,161)
+    S#4: tile=0E34 col=5 sz=5(32x64) XY(103,174)
+    S#10: tile=09D0 col=4 sz=6(64x64) XY(108,85)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f008178.bmp (77x143)]
+
+=== UNIQUE #172: FOOT_SOLDIER IDLE S2 ===
+  Frame=8184 Slot=2 XY(311,118) V(+800,+0)
+  AI@025F20: [4 2 0 2 112 6 0 236 255 255]
+  ATK=32 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(95,85)-(165,238) Crop(91,81,78,161)
+    S#3: tile=0E34 col=5 sz=5(32x64) XY(95,174)
+    S#5: tile=0B48 col=4 sz=2(16x32) XY(117,85)
+    S#6: tile=0864 col=4 sz=5(32x64) XY(133,85)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008184.bmp (78x143)]
+
+=== UNIQUE #173: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8187 Slot=2 XY(301,118) V(+1152,+0)
+  AI@0262EC: [5 3 0 2 120 14 0 4 255 255]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(91,69)-(230,238) Crop(87,65,147,177)
+    S#3: tile=0E34 col=5 sz=5(32x64) XY(91,174)
+    S#6: tile=09C2 col=4 sz=1(32x16) XY(198,159)
+    S#8: tile=0ACA col=4 sz=0(16x16) XY(206,175)
+    S#9: tile=0A00 col=4 sz=3(32x32) XY(153,69)
+    S#10: tile=0870 col=4 sz=5(32x64) XY(137,85)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008187.bmp (147x159)]
+
+=== UNIQUE #174: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8190 Slot=2 XY(289,118) V(+960,+0)
+  AI@0262F6: [5 2 0 2 120 46 0 4 0 4]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(121,69)-(190,206) Crop(117,65,77,145)
+    S#3: tile=0B5D col=5 sz=2(16x32) XY(121,174)
+    S#8: tile=0A00 col=4 sz=3(32x32) XY(158,69)
+    S#9: tile=0870 col=4 sz=5(32x64) XY(142,85)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008190.bmp (77x145)]
+
+=== UNIQUE #175: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8193 Slot=2 XY(277,118) V(+768,+0)
+  AI@0262F6: [5 2 0 2 120 46 0 4 0 4]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(130,85)-(194,149) Crop(126,81,72,72)
+    S#7: tile=09B0 col=4 sz=6(64x64) XY(130,85)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008193.bmp (72x72)]
+
+=== UNIQUE #176: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8199 Slot=2 XY(253,118) V(+384,+0)
+  AI@026308: [5 3 0 2 120 70 0 4 0 4]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(139,85)-(187,149) Crop(135,81,56,72)
+    S#9: tile=0AC6 col=4 sz=0(16x16) XY(139,85)
+    S#10: tile=0874 col=4 sz=5(32x64) XY(155,85)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008199.bmp (56x72)]
+
+=== UNIQUE #177: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8205 Slot=2 XY(229,118) V(+0,+0)
+  AI@026308: [5 3 0 2 120 70 0 4 0 4]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(148,85)-(212,149) Crop(144,81,72,72)
+    S#8: tile=09C0 col=4 sz=6(64x64) XY(148,85)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008205.bmp (72x72)]
+
+=== UNIQUE #178: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8208 Slot=2 XY(217,119) V(+192,-256)
+  AI@026308: [5 3 0 2 120 70 0 4 0 4]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(151,84)-(215,148) Crop(147,80,72,72)
+    S#7: tile=0ACC col=4 sz=0(16x16) XY(159,84)
+    S#8: tile=0D70 col=4 sz=6(64x64) XY(151,84)
+    S#9: tile=0340 col=0 sz=1(32x16) XY(167,132)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008208.bmp (72x72)]
+
+=== UNIQUE #179: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8217 Slot=2 XY(186,127) V(+640,-256)
+  AI@025D88: [4 2 0 2 109 102 0 4 255 255]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(117,67)-(181,140) Crop(113,63,72,81)
+    S#9: tile=0D80 col=4 sz=6(64x64) XY(117,67)
+    S#10: tile=0340 col=0 sz=1(32x16) XY(133,124)
+    S#12: tile=1B44 col=2 sz=1(32x16) XY(146,95)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008217.bmp (72x81)]
+
+=== UNIQUE #180: FOOT_SOLDIER WALK_R S0 ===
+  Frame=8220 Slot=2 XY(182,127) V(+640,-256)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=161 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(70,69)-(214,229) Crop(66,65,152,168)
+    S#4: tile=1C10 col=F sz=6(64x64) XY(70,165)
+    S#9: tile=0D80 col=4 sz=6(64x64) XY(107,69)
+    S#10: tile=0340 col=0 sz=1(32x16) XY(123,124)
+    S#13: tile=1DF0 col=2 sz=6(64x64) XY(150,71)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f008220.bmp (152x159)]
+
+=== UNIQUE #181: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8223 Slot=2 XY(182,127) V(+640,-256)
+  AI@025FEA: [3 3 0 2 113 142 0 4 255 255]
+  ATK=152 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(70,71)-(214,229) Crop(66,67,152,166)
+    S#2: tile=1C20 col=F sz=6(64x64) XY(70,165)
+    S#5: tile=0D80 col=4 sz=6(64x64) XY(98,73)
+    S#6: tile=0340 col=0 sz=1(32x16) XY(114,124)
+    S#7: tile=1540 col=2 sz=6(64x64) XY(150,71)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008223.bmp (152x157)]
+
+=== UNIQUE #182: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8226 Slot=2 XY(182,126) V(+640,-256)
+  AI@025FF4: [3 3 0 2 113 174 0 4 0 4]
+  ATK=152 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(89,76)-(196,140) Crop(85,72,115,72)
+    S#5: tile=0B5D col=4 sz=2(16x32) XY(137,76)
+    S#6: tile=0BC8 col=4 sz=4(64x32) XY(89,108)
+    S#9: tile=10C0 col=2 sz=4(64x32) XY(132,78)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008226.bmp (115x72)]
+
+=== UNIQUE #183: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8232 Slot=2 XY(182,126) V(+640,-256)
+  AI@026006: [9 2 0 2 113 206 0 4 0 4]
+  ATK=152 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(88,72)-(199,140) Crop(84,68,119,76)
+    S#5: tile=0E34 col=4 sz=5(32x64) XY(88,76)
+    S#6: tile=037E col=2 sz=1(32x16) XY(103,88)
+    S#8: tile=1DE0 col=2 sz=6(64x64) XY(135,72)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008232.bmp (119x76)]
+
+=== UNIQUE #184: FOOT_SOLDIER WALK_L S1 ===
+  Frame=8241 Slot=2 XY(184,126) V(+640,-256)
+  AI@025DDE: [4 1 0 2 110 30 0 4 255 255]
+  ATK=152 DMG=0 HB=4 CFG=0280
+  Sprite: 1 tiles BBox(68,79)-(100,143) Crop(64,75,40,72)
+    S#5: tile=0E34 col=4 sz=5(32x64) XY(68,79)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S1_f008241.bmp (40x72)]
+
+=== UNIQUE #185: FOOT_SOLDIER WALK_L S1 ===
+  Frame=8247 Slot=2 XY(184,126) V(+640,-256)
+  AI@025DF2: [4 1 0 2 110 62 0 4 255 255]
+  ATK=152 DMG=0 HB=4 CFG=0280
+  Sprite: 2 tiles BBox(41,88)-(105,152) Crop(37,84,72,72)
+    S#5: tile=0B5D col=4 sz=2(16x32) XY(89,88)
+    S#6: tile=0BC8 col=4 sz=4(64x32) XY(41,120)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S1_f008247.bmp (72x72)]
+
+=== UNIQUE #186: FOOT_SOLDIER WALK_L S1 ===
+  Frame=8250 Slot=2 XY(184,126) V(+640,-256)
+  AI@025DF2: [4 1 0 2 110 62 0 4 255 255]
+  ATK=152 DMG=0 HB=4 CFG=0280
+  Sprite: 2 tiles BBox(37,125)-(117,157) Crop(33,121,88,40)
+    S#6: tile=0B61 col=4 sz=2(16x32) XY(101,125)
+    S#7: tile=0BD0 col=4 sz=4(64x32) XY(37,125)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S1_f008250.bmp (88x40)]
+
+=== UNIQUE #187: FOOT_SOLDIER ATTACK S2 ===
+  Frame=8259 Slot=2 XY(187,126) V(+640,-256)
+  AI@02605E: [3 3 0 2 114 126 0 4 255 255]
+  ATK=26 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(35,72)-(171,166) Crop(31,68,144,102)
+    S#5: tile=0B61 col=4 sz=2(16x32) XY(99,134)
+    S#6: tile=0BD0 col=4 sz=4(64x32) XY(35,134)
+    S#8: tile=139C col=2 sz=0(16x16) XY(155,72)
+    S#9: tile=13F5 col=2 sz=2(16x32) XY(155,104)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S2_f008259.bmp (144x102)]
+
+=== UNIQUE #188: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8277 Slot=2 XY(191,125) V(+640,-256)
+  AI@02613A: [4 4 0 2 116 30 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(35,134)-(115,166) Crop(31,130,88,40)
+    S#3: tile=0B61 col=4 sz=2(16x32) XY(99,134)
+    S#4: tile=0BD0 col=4 sz=4(64x32) XY(35,134)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008277.bmp (88x40)]
+
+=== UNIQUE #189: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8286 Slot=2 XY(180,124) V(+640,-256)
+  AI@02614E: [4 5 0 2 116 102 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(146,106)-(162,138) Crop(142,102,24,40)
+    S#7: tile=1B1D col=2 sz=2(16x32) XY(146,106)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008286.bmp (24x40)]
+
+=== UNIQUE #190: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8289 Slot=2 XY(175,124) V(+640,-256)
+  AI@026158: [4 2 0 2 116 150 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(151,74)-(183,138) Crop(147,70,40,72)
+    S#6: tile=19C0 col=2 sz=5(32x64) XY(151,74)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008289.bmp (40x72)]
+
+=== UNIQUE #191: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8295 Slot=2 XY(166,124) V(+640,-256)
+  AI@026162: [4 4 0 2 116 174 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(125,74)-(173,138) Crop(121,70,56,72)
+    S#6: tile=1B86 col=2 sz=0(16x16) XY(125,74)
+    S#8: tile=19F0 col=2 sz=5(32x64) XY(141,74)
+    S#11: tile=0340 col=0 sz=1(32x16) XY(135,122)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008295.bmp (56x72)]
+
+=== UNIQUE #192: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8298 Slot=2 XY(162,124) V(+640,-256)
+  AI@02616C: [4 3 0 2 116 214 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(91,74)-(171,138) Crop(87,70,88,72)
+    S#5: tile=1B40 col=2 sz=1(32x16) XY(107,82)
+    S#6: tile=1B88 col=2 sz=0(16x16) XY(91,74)
+    S#7: tile=19F4 col=2 sz=5(32x64) XY(139,74)
+    S#9: tile=0340 col=0 sz=1(32x16) XY(120,122)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008298.bmp (88x72)]
+
+=== UNIQUE #193: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8301 Slot=2 XY(157,124) V(+640,-256)
+  AI@026176: [4 1 0 2 116 246 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(86,74)-(182,138) Crop(82,70,104,72)
+    S#4: tile=1168 col=2 sz=3(32x32) XY(86,106)
+    S#5: tile=1F10 col=2 sz=6(64x64) XY(118,74)
+    S#7: tile=0340 col=0 sz=1(32x16) XY(104,122)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008301.bmp (104x72)]
+
+=== UNIQUE #194: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8307 Slot=2 XY(153,124) V(+640,-256)
+  AI@025D88: [4 2 0 2 109 102 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(75,74)-(169,138) Crop(71,70,102,72)
+    S#5: tile=1B42 col=2 sz=1(32x16) XY(129,98)
+    S#7: tile=0000 col=2 sz=5(32x64) XY(137,74)
+    S#9: tile=0340 col=0 sz=1(32x16) XY(75,122)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008307.bmp (102x72)]
+
+=== UNIQUE #195: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8310 Slot=2 XY(153,124) V(+640,-256)
+  AI@025D92: [4 2 0 2 109 126 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(62,74)-(169,138) Crop(58,70,115,72)
+    S#6: tile=1B8D col=2 sz=0(16x16) XY(137,106)
+    S#7: tile=0004 col=2 sz=5(32x64) XY(137,74)
+    S#9: tile=0340 col=0 sz=1(32x16) XY(62,122)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008310.bmp (115x72)]
+
+=== UNIQUE #196: FOOT_SOLDIER IDLE S1 ===
+  Frame=8316 Slot=2 XY(153,124) V(+1280,+15)
+  AI@025F02: [0 2 0 2 111 198 0 232 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(35,64)-(169,138) Crop(31,60,142,82)
+    S#4: tile=1B74 col=2 sz=1(32x16) XY(137,88)
+    S#6: tile=0084 col=2 sz=5(32x64) XY(137,64)
+    S#7: tile=0340 col=0 sz=1(32x16) XY(137,122)
+    S#8: tile=0340 col=0 sz=1(32x16) XY(35,122)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f008316.bmp (142x82)]
+
+=== UNIQUE #197: FOOT_SOLDIER IDLE S1 ===
+  Frame=8322 Slot=2 XY(153,124) V(+1280,+9)
+  AI@025F02: [0 2 0 2 111 198 0 232 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(137,122)-(169,138) Crop(133,118,40,24)
+    S#8: tile=0340 col=0 sz=1(32x16) XY(137,122)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f008322.bmp (40x24)]
+
+=== UNIQUE #198: FOOT_SOLDIER IDLE S2 ===
+  Frame=8331 Slot=2 XY(144,111) V(+960,+0)
+  AI@025F0C: [0 1 0 2 111 222 0 232 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(128,135)-(160,151) Crop(124,131,40,24)
+    S#7: tile=0340 col=0 sz=1(32x16) XY(128,135)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008331.bmp (40x24)]
+
+=== UNIQUE #199: FOOT_SOLDIER IDLE S2 ===
+  Frame=8340 Slot=2 XY(143,99) V(+240,+0)
+  AI@025F34: [4 2 0 2 112 54 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(127,38)-(159,163) Crop(123,34,40,133)
+    S#5: tile=11D2 col=2 sz=0(16x16) XY(135,38)
+    S#8: tile=0340 col=0 sz=1(32x16) XY(127,147)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008340.bmp (40x133)]
+
+=== UNIQUE #200: FOOT_SOLDIER IDLE S2 ===
+  Frame=8346 Slot=2 XY(143,99) V(+240,-256)
+  AI@025F3E: [4 3 0 2 112 150 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(111,39)-(175,163) Crop(107,35,72,132)
+    S#4: tile=11D3 col=2 sz=0(16x16) XY(127,39)
+    S#5: tile=10D0 col=2 sz=4(64x32) XY(111,47)
+    S#8: tile=0340 col=0 sz=1(32x16) XY(127,147)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008346.bmp (72x132)]
+
+=== UNIQUE #201: FOOT_SOLDIER IDLE S2 ===
+  Frame=8349 Slot=2 XY(143,99) V(+480,-256)
+  AI@025F48: [4 2 0 2 112 78 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(127,35)-(159,163) Crop(123,31,40,136)
+    S#5: tile=11D4 col=2 sz=0(16x16) XY(135,35)
+    S#8: tile=0340 col=0 sz=1(32x16) XY(127,147)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008349.bmp (40x136)]
+
+=== UNIQUE #202: FOOT_SOLDIER IDLE S2 ===
+  Frame=8352 Slot=2 XY(143,99) V(+720,-256)
+  AI@025F52: [4 2 0 2 112 102 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(127,35)-(159,163) Crop(123,31,40,136)
+    S#7: tile=11D5 col=2 sz=0(16x16) XY(127,35)
+    S#10: tile=0340 col=0 sz=1(32x16) XY(127,147)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008352.bmp (40x136)]
+
+=== UNIQUE #203: FOOT_SOLDIER IDLE S2 ===
+  Frame=8358 Slot=2 XY(143,99) V(+1200,-256)
+  AI@025F5C: [4 3 0 2 112 182 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(107,64)-(171,163) Crop(103,60,72,107)
+    S#8: tile=10C0 col=2 sz=4(64x32) XY(107,64)
+    S#9: tile=11D6 col=2 sz=0(16x16) XY(133,74)
+    S#11: tile=1E60 col=2 sz=3(32x32) XY(117,66)
+    S#12: tile=0340 col=0 sz=1(32x16) XY(127,147)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008358.bmp (72x107)]
+
+=== UNIQUE #204: FOOT_SOLDIER IDLE S2 ===
+  Frame=8361 Slot=2 XY(143,99) V(+1280,-256)
+  AI@025F66: [4 2 0 2 112 126 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(111,39)-(177,163) Crop(107,35,74,132)
+    S#8: tile=11D7 col=2 sz=0(16x16) XY(135,65)
+    S#9: tile=1700 col=2 sz=6(64x64) XY(113,39)
+    S#10: tile=1830 col=2 sz=6(64x64) XY(111,49)
+    S#11: tile=0340 col=0 sz=1(32x16) XY(127,147)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008361.bmp (74x132)]
+
+=== UNIQUE #205: FOOT_SOLDIER IDLE S3 ===
+  Frame=8364 Slot=2 XY(143,99) V(+1280,-256)
+  AI@025F16: [0 2 0 2 111 238 0 232 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(127,64)-(159,163) Crop(123,60,40,107)
+    S#10: tile=1B76 col=2 sz=1(32x16) XY(127,96)
+    S#12: tile=0080 col=2 sz=5(32x64) XY(127,64)
+    S#13: tile=0340 col=0 sz=1(32x16) XY(127,147)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S3_f008364.bmp (40x107)]
+
+=== UNIQUE #206: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8379 Slot=2 XY(143,99) V(+1280,-256)
+  AI@025D92: [4 2 0 2 109 126 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(127,99)-(167,163) Crop(123,95,48,72)
+    S#11: tile=1B46 col=2 sz=1(32x16) XY(135,123)
+    S#12: tile=1B8D col=2 sz=0(16x16) XY(127,131)
+    S#13: tile=0004 col=2 sz=5(32x64) XY(127,99)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008379.bmp (48x72)]
+
+=== UNIQUE #207: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8385 Slot=2 XY(154,99) V(+1280,-256)
+  AI@025DA6: [4 2 0 2 109 174 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(138,99)-(170,163) Crop(134,95,40,72)
+    S#12: tile=0014 col=2 sz=5(32x64) XY(138,99)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008385.bmp (40x72)]
+--- Frame 8400: unique=207 ---
+
+=== UNIQUE #208: FOOT_SOLDIER IDLE S1 ===
+  Frame=8439 Slot=2 XY(230,95) V(+1280,+14)
+  AI@025F02: [0 2 0 2 111 198 0 232 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(177,154)-(193,170) Crop(173,150,24,24)
+    S#2: tile=1B89 col=3 sz=0(16x16) XY(177,154)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S1_f008439.bmp (24x24)]
+
+=== UNIQUE #209: FOOT_SOLDIER IDLE S2 ===
+  Frame=8457 Slot=2 XY(256,95) V(+880,+0)
+  AI@025F20: [4 2 0 2 112 6 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(170,138)-(202,202) Crop(166,134,40,72)
+    S#2: tile=1B24 col=3 sz=2(16x32) XY(178,154)
+    S#4: tile=0000 col=3 sz=5(32x64) XY(170,138)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008457.bmp (40x72)]
+
+=== UNIQUE #210: FOOT_SOLDIER IDLE S2 ===
+  Frame=8466 Slot=2 XY(263,95) V(+160,+0)
+  AI@025F34: [4 2 0 2 112 54 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(186,138)-(218,202) Crop(182,134,40,72)
+    S#3: tile=0010 col=3 sz=5(32x64) XY(186,138)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008466.bmp (40x72)]
+
+=== UNIQUE #211: FOOT_SOLDIER IDLE S2 ===
+  Frame=8469 Slot=2 XY(268,95) V(+80,-256)
+  AI@025F3E: [4 3 0 2 112 150 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(162,132)-(226,196) Crop(158,128,72,72)
+    S#1: tile=1024 col=3 sz=2(16x32) XY(194,156)
+    S#3: tile=1560 col=3 sz=6(64x64) XY(162,132)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008469.bmp (72x72)]
+
+=== UNIQUE #212: FOOT_SOLDIER IDLE S2 ===
+  Frame=8475 Slot=2 XY(279,95) V(+560,-256)
+  AI@025F48: [4 2 0 2 112 78 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(120,102)-(263,179) Crop(116,98,151,85)
+    S#2: tile=1090 col=3 sz=1(32x16) XY(152,127)
+    S#3: tile=1570 col=3 sz=6(64x64) XY(120,103)
+    S#5: tile=1CC0 col=F sz=6(64x64) XY(199,115)
+    S#13: tile=1C40 col=F sz=6(64x64) XY(199,102)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008475.bmp (151x85)]
+
+=== UNIQUE #213: FOOT_SOLDIER IDLE S2 ===
+  Frame=8478 Slot=2 XY(282,95) V(+800,-256)
+  AI@025F52: [4 2 0 2 112 102 0 236 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(112,93)-(263,179) Crop(108,89,159,94)
+    S#2: tile=1092 col=3 sz=1(32x16) XY(144,125)
+    S#3: tile=1FE2 col=3 sz=0(16x16) XY(160,109)
+    S#4: tile=1580 col=3 sz=6(64x64) XY(112,93)
+    S#6: tile=1CC0 col=F sz=6(64x64) XY(199,115)
+    S#14: tile=1C80 col=F sz=6(64x64) XY(199,102)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S2_f008478.bmp (159x94)]
+
+=== UNIQUE #214: FOOT_SOLDIER IDLE S3 ===
+  Frame=8490 Slot=2 XY(282,95) V(+1280,-256)
+  AI@025F16: [0 2 0 2 111 238 0 232 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(112,79)-(263,166) Crop(108,75,159,95)
+    S#1: tile=1092 col=3 sz=1(32x16) XY(144,111)
+    S#2: tile=1FE2 col=3 sz=0(16x16) XY(160,95)
+    S#3: tile=1580 col=3 sz=6(64x64) XY(112,79)
+    S#7: tile=1CC0 col=F sz=6(64x64) XY(199,102)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S3_f008490.bmp (159x95)]
+
+=== UNIQUE #215: FOOT_SOLDIER IDLE S3 ===
+  Frame=8493 Slot=2 XY(287,95) V(+1280,-256)
+  AI@025F16: [0 2 0 2 111 238 0 232 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(112,84)-(263,166) Crop(108,80,159,90)
+    S#1: tile=1031 col=3 sz=2(16x32) XY(120,100)
+    S#2: tile=10A6 col=3 sz=1(32x16) XY(136,100)
+    S#3: tile=1FF3 col=3 sz=0(16x16) XY(144,84)
+    S#4: tile=1660 col=3 sz=6(64x64) XY(112,84)
+    S#7: tile=1CD0 col=F sz=6(64x64) XY(199,102)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_IDLE_S3_f008493.bmp (159x90)]
+
+=== UNIQUE #216: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8502 Slot=2 XY(296,95) V(+1280,-256)
+  AI@025D88: [4 2 0 2 109 102 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0280
+  Sprite: 4 tiles BBox(112,107)-(176,171) Crop(108,103,72,72)
+    S#1: tile=1031 col=3 sz=2(16x32) XY(120,123)
+    S#2: tile=10A6 col=3 sz=1(32x16) XY(136,123)
+    S#3: tile=1FF3 col=3 sz=0(16x16) XY(144,107)
+    S#4: tile=1660 col=3 sz=6(64x64) XY(112,107)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008502.bmp (72x72)]
+
+=== UNIQUE #217: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8505 Slot=2 XY(296,95) V(+1280,-256)
+  AI@025FEA: [3 3 0 2 113 142 0 4 255 255]
+  ATK=24 DMG=0 HB=4 CFG=0280
+  Sprite: 3 tiles BBox(112,123)-(176,187) Crop(108,119,72,72)
+    S#1: tile=10A8 col=3 sz=1(32x16) XY(120,147)
+    S#2: tile=1FF4 col=3 sz=0(16x16) XY(136,131)
+    S#3: tile=1670 col=3 sz=6(64x64) XY(112,123)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008505.bmp (72x72)]
+
+=== UNIQUE #218: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8508 Slot=2 XY(296,95) V(+1280,-256)
+  AI@025FF4: [3 3 0 2 113 174 0 4 0 4]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(120,154)-(152,186) Crop(116,150,40,40)
+    S#1: tile=15C8 col=3 sz=3(32x32) XY(120,154)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008508.bmp (40x40)]
+
+=== UNIQUE #219: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8514 Slot=2 XY(298,95) V(+1280,-256)
+  AI@026006: [9 2 0 2 113 206 0 4 0 4]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(120,146)-(152,162) Crop(116,142,40,24)
+    S#2: tile=036E col=3 sz=1(32x16) XY(120,146)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008514.bmp (40x24)]
+
+=== UNIQUE #220: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8517 Slot=2 XY(299,95) V(+1280,-256)
+  AI@026006: [9 2 0 2 113 206 0 4 0 4]
+  ATK=24 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(128,146)-(160,162) Crop(124,142,40,24)
+    S#2: tile=108C col=3 sz=1(32x16) XY(128,146)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008517.bmp (40x24)]
+
+=== UNIQUE #221: FOOT_SOLDIER WALK_R S0 ===
+  Frame=8538 Slot=2 XY(301,95) V(+1280,-256)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=28 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(128,146)-(160,162) Crop(124,142,40,24)
+    S#4: tile=108C col=3 sz=1(32x16) XY(128,146)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f008538.bmp (40x24)]
+
+=== UNIQUE #222: FOOT_SOLDIER WALK_R S0 ===
+  Frame=8541 Slot=2 XY(301,95) V(+1280,-256)
+  AI@025D00: [0 2 0 2 108 190 0 4 255 255]
+  ATK=28 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(120,146)-(152,162) Crop(116,142,40,24)
+    S#4: tile=036E col=3 sz=1(32x16) XY(120,146)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_R_S0_f008541.bmp (40x24)]
+
+=== UNIQUE #223: FOOT_SOLDIER ATTACK S2 ===
+  Frame=8544 Slot=2 XY(301,95) V(+1280,-256)
+  AI@02605E: [3 3 0 2 114 126 0 4 255 255]
+  ATK=26 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(120,146)-(152,162) Crop(116,142,40,24)
+    S#4: tile=036E col=3 sz=1(32x16) XY(120,146)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S2_f008544.bmp (40x24)]
+
+=== UNIQUE #224: FOOT_SOLDIER ATTACK S2 ===
+  Frame=8550 Slot=2 XY(301,95) V(+1280,-256)
+  AI@026084: [2 3 0 2 114 206 0 4 0 4]
+  ATK=26 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(112,130)-(176,194) Crop(108,126,72,72)
+    S#3: tile=16A0 col=3 sz=6(64x64) XY(112,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S2_f008550.bmp (72x72)]
+
+=== UNIQUE #225: FOOT_SOLDIER ATTACK S2 ===
+  Frame=8553 Slot=2 XY(301,95) V(+1280,-256)
+  AI@026096: [3 4 0 2 114 238 0 4 0 4]
+  ATK=26 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(104,130)-(176,194) Crop(100,126,80,72)
+    S#1: tile=1281 col=3 sz=0(16x16) XY(104,138)
+    S#2: tile=1282 col=3 sz=0(16x16) XY(112,146)
+    S#3: tile=11BD col=3 sz=2(16x32) XY(144,130)
+    S#4: tile=16B0 col=3 sz=6(64x64) XY(112,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S2_f008553.bmp (80x72)]
+
+=== UNIQUE #226: FOOT_SOLDIER ATTACK S2 ===
+  Frame=8556 Slot=2 XY(301,95) V(+1280,-256)
+  AI@0260A8: [2 3 0 2 115 22 0 4 255 255]
+  ATK=26 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(128,130)-(176,194) Crop(124,126,56,72)
+    S#1: tile=1F0C col=3 sz=2(16x32) XY(160,130)
+    S#3: tile=1B52 col=3 sz=1(32x16) XY(136,135)
+    S#4: tile=1EE0 col=3 sz=5(32x64) XY(128,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S2_f008556.bmp (56x72)]
+
+=== UNIQUE #227: FOOT_SOLDIER ATTACK S2 ===
+  Frame=8559 Slot=2 XY(301,95) V(+1280,-256)
+  AI@0260B2: [3 2 0 2 115 54 0 4 255 255]
+  ATK=26 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(102,130)-(173,194) Crop(98,126,79,72)
+    S#1: tile=1148 col=3 sz=3(32x32) XY(141,130)
+    S#2: tile=1320 col=3 sz=6(64x64) XY(102,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S2_f008559.bmp (79x72)]
+
+=== UNIQUE #228: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8562 Slot=2 XY(301,95) V(+1280,-256)
+  AI@02613A: [4 4 0 2 116 30 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(102,130)-(166,194) Crop(98,126,72,72)
+    S#1: tile=1330 col=3 sz=6(64x64) XY(102,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008562.bmp (72x72)]
+
+=== UNIQUE #229: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8565 Slot=2 XY(301,95) V(+1280,-256)
+  AI@026144: [4 3 0 2 116 70 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(102,130)-(166,194) Crop(98,126,72,72)
+    S#1: tile=1340 col=3 sz=6(64x64) XY(102,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008565.bmp (72x72)]
+
+=== UNIQUE #230: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8568 Slot=2 XY(301,95) V(+1280,-256)
+  AI@02614E: [4 5 0 2 116 102 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(103,130)-(167,194) Crop(99,126,72,72)
+    S#3: tile=1350 col=3 sz=6(64x64) XY(103,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008568.bmp (72x72)]
+
+=== UNIQUE #231: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8577 Slot=2 XY(301,95) V(+1280,-256)
+  AI@026162: [4 4 0 2 116 174 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 1 tiles BBox(118,154)-(150,170) Crop(114,150,40,24)
+    S#1: tile=1444 col=3 sz=1(32x16) XY(118,154)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008577.bmp (40x24)]
+
+=== UNIQUE #232: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8580 Slot=2 XY(301,95) V(+1280,-256)
+  AI@02616C: [4 3 0 2 116 214 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(112,130)-(160,194) Crop(108,126,56,72)
+    S#1: tile=1446 col=3 sz=1(32x16) XY(112,154)
+    S#2: tile=14E0 col=3 sz=5(32x64) XY(128,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008580.bmp (56x72)]
+
+=== UNIQUE #233: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8583 Slot=2 XY(301,95) V(+1280,-256)
+  AI@02616C: [4 3 0 2 116 214 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(103,130)-(159,194) Crop(99,126,64,72)
+    S#1: tile=1510 col=3 sz=3(32x32) XY(103,138)
+    S#2: tile=14E4 col=3 sz=5(32x64) XY(127,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008583.bmp (64x72)]
+
+=== UNIQUE #234: FOOT_SOLDIER ATTACK S1 ===
+  Frame=8586 Slot=2 XY(301,95) V(+1280,-256)
+  AI@026176: [4 1 0 2 116 246 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(102,122)-(158,194) Crop(98,118,64,80)
+    S#1: tile=1514 col=3 sz=3(32x32) XY(102,122)
+    S#2: tile=14F0 col=3 sz=5(32x64) XY(126,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S1_f008586.bmp (64x80)]
+
+=== UNIQUE #235: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8589 Slot=2 XY(303,95) V(+1280,-256)
+  AI@025D88: [4 2 0 2 109 102 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 2 tiles BBox(102,122)-(158,194) Crop(98,118,64,80)
+    S#2: tile=1514 col=3 sz=3(32x32) XY(102,122)
+    S#3: tile=14F0 col=3 sz=5(32x64) XY(126,130)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008589.bmp (64x80)]
+
+=== UNIQUE #236: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8592 Slot=2 XY(308,95) V(+1280,-256)
+  AI@025D92: [4 2 0 2 109 126 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 3 tiles BBox(118,68)-(280,189) Crop(114,64,170,129)
+    S#2: tile=1444 col=3 sz=1(32x16) XY(118,154)
+    S#9: tile=0C14 col=4 sz=5(32x64) XY(218,125)
+    S#13: tile=0D80 col=4 sz=6(64x64) XY(216,68)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008592.bmp (170x129)]
+
+=== UNIQUE #237: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8595 Slot=2 XY(313,95) V(+1280,-256)
+  AI@025D92: [4 2 0 2 109 126 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(112,77)-(271,194) Crop(108,73,167,125)
+    S#2: tile=1446 col=3 sz=1(32x16) XY(112,154)
+    S#3: tile=14E0 col=3 sz=5(32x64) XY(128,130)
+    S#9: tile=0C20 col=4 sz=5(32x64) XY(215,125)
+    S#13: tile=0D80 col=4 sz=6(64x64) XY(207,77)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008595.bmp (167x125)]
+
+=== UNIQUE #238: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8601 Slot=2 XY(324,95) V(+1280,-256)
+  AI@025DA6: [4 2 0 2 109 174 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(103,100)-(257,194) Crop(99,96,162,102)
+    S#2: tile=1510 col=3 sz=3(32x32) XY(103,138)
+    S#3: tile=14E4 col=3 sz=5(32x64) XY(127,130)
+    S#8: tile=0C24 col=4 sz=5(32x64) XY(209,125)
+    S#12: tile=0D80 col=4 sz=6(64x64) XY(193,100)
+    S#13: tile=0340 col=0 sz=1(32x16) XY(209,151)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008601.bmp (162x102)]
+
+=== UNIQUE #239: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8607 Slot=2 XY(334,95) V(+1280,-256)
+  AI@025DB0: [4 1 0 2 109 198 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(126,103)-(235,194) Crop(122,99,117,99)
+    S#3: tile=14F0 col=3 sz=5(32x64) XY(126,130)
+    S#4: tile=0C30 col=4 sz=5(32x64) XY(203,125)
+    S#11: tile=0B60 col=4 sz=2(16x32) XY(180,135)
+    S#12: tile=0E34 col=4 sz=5(32x64) XY(196,103)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008607.bmp (117x99)]
+
+=== UNIQUE #240: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8610 Slot=2 XY(339,95) V(+1280,-256)
+  AI@025DBA: [4 2 0 2 109 214 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(112,103)-(232,194) Crop(108,99,128,99)
+    S#1: tile=0ACD col=4 sz=0(16x16) XY(112,138)
+    S#3: tile=1280 col=3 sz=6(64x64) XY(112,130)
+    S#5: tile=0C34 col=4 sz=5(32x64) XY(200,125)
+    S#13: tile=0B60 col=4 sz=2(16x32) XY(175,135)
+    S#14: tile=0E34 col=4 sz=5(32x64) XY(191,103)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008610.bmp (128x99)]
+
+=== UNIQUE #241: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8625 Slot=2 XY(343,95) V(+1280,-256)
+  AI@025D92: [4 2 0 2 109 126 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 7 tiles BBox(116,82)-(226,186) Crop(112,78,118,112)
+    S#1: tile=1500 col=3 sz=3(32x32) XY(134,138)
+    S#3: tile=14D4 col=3 sz=5(32x64) XY(118,122)
+    S#4: tile=0ACC col=4 sz=0(16x16) XY(156,82)
+    S#5: tile=0D70 col=4 sz=6(64x64) XY(116,82)
+    S#7: tile=0CA0 col=4 sz=5(32x64) XY(194,117)
+    S#14: tile=0B5D col=4 sz=2(16x32) XY(204,94)
+    S#15: tile=0BC8 col=4 sz=4(64x32) XY(156,126)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008625.bmp (118x112)]
+
+=== UNIQUE #242: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8628 Slot=2 XY(337,95) V(+1280,-256)
+  AI@025D9C: [4 2 0 2 109 150 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 9 tiles BBox(118,78)-(234,186) Crop(114,74,124,116)
+    S#0: tile=1504 col=3 sz=3(32x32) XY(126,146)
+    S#1: tile=13A5 col=3 sz=0(16x16) XY(150,130)
+    S#2: tile=14D4 col=3 sz=5(32x64) XY(118,122)
+    S#3: tile=0ACC col=4 sz=0(16x16) XY(168,78)
+    S#4: tile=0D70 col=4 sz=6(64x64) XY(128,78)
+    S#7: tile=0CA4 col=4 sz=5(32x64) XY(172,112)
+    S#15: tile=1B80 col=F sz=0(16x16) XY(178,142)
+    S#16: tile=0B61 col=4 sz=2(16x32) XY(218,126)
+    S#17: tile=0BD0 col=4 sz=4(64x32) XY(154,126)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008628.bmp (124x116)]
+
+=== UNIQUE #243: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8634 Slot=2 XY(327,95) V(+1280,-256)
+  AI@025DA6: [4 2 0 2 109 174 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 9 tiles BBox(110,76)-(234,183) Crop(106,72,132,115)
+    S#0: tile=12F9 col=3 sz=2(16x32) XY(158,151)
+    S#1: tile=1AD4 col=3 sz=3(32x32) XY(126,119)
+    S#2: tile=1390 col=3 sz=0(16x16) XY(110,119)
+    S#3: tile=1A84 col=3 sz=5(32x64) XY(126,119)
+    S#4: tile=0D80 col=4 sz=6(64x64) XY(150,76)
+    S#6: tile=0F10 col=4 sz=6(64x64) XY(140,99)
+    S#14: tile=1B81 col=F sz=0(16x16) XY(178,142)
+    S#15: tile=0B61 col=4 sz=2(16x32) XY(218,126)
+    S#16: tile=0BD0 col=4 sz=4(64x32) XY(154,126)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008634.bmp (132x115)]
+
+=== UNIQUE #244: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8637 Slot=2 XY(322,95) V(+1280,-256)
+  AI@025DB0: [4 1 0 2 109 198 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 8 tiles BBox(109,78)-(234,183) Crop(105,74,133,113)
+    S#1: tile=1AD8 col=3 sz=3(32x32) XY(109,111)
+    S#2: tile=13CD col=3 sz=2(16x32) XY(133,127)
+    S#3: tile=1A90 col=3 sz=5(32x64) XY(125,119)
+    S#4: tile=0D80 col=4 sz=6(64x64) XY(160,78)
+    S#6: tile=0F10 col=4 sz=6(64x64) XY(133,94)
+    S#13: tile=1D90 col=F sz=3(32x32) XY(170,126)
+    S#14: tile=0B61 col=4 sz=2(16x32) XY(218,126)
+    S#15: tile=0BD0 col=4 sz=4(64x32) XY(154,126)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008637.bmp (133x113)]
+
+=== UNIQUE #245: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8652 Slot=2 XY(296,95) V(+1280,-256)
+  AI@025D88: [4 2 0 2 109 102 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0280
+  Sprite: 7 tiles BBox(104,92)-(265,183) Crop(100,88,169,99)
+    S#3: tile=10A8 col=3 sz=1(32x16) XY(120,122)
+    S#4: tile=1FF4 col=3 sz=0(16x16) XY(136,106)
+    S#5: tile=1670 col=3 sz=6(64x64) XY(112,98)
+    S#7: tile=0D80 col=4 sz=6(64x64) XY(201,119)
+    S#9: tile=0F10 col=4 sz=6(64x64) XY(104,96)
+    S#17: tile=1C10 col=F sz=6(64x64) XY(154,92)
+    S#19: tile=0BD0 col=4 sz=4(64x32) XY(154,124)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008652.bmp (169x99)]
+
+=== UNIQUE #246: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8661 Slot=2 XY(296,95) V(+1280,-256)
+  AI@025D9C: [4 2 0 2 109 150 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0280
+  Sprite: 5 tiles BBox(110,102)-(202,171) Crop(106,98,100,77)
+    S#3: tile=15C8 col=3 sz=3(32x32) XY(120,130)
+    S#4: tile=0720 col=3 sz=4(64x32) XY(112,138)
+    S#5: tile=0340 col=0 sz=1(32x16) XY(128,155)
+    S#14: tile=0CA0 col=4 sz=5(32x64) XY(110,102)
+    S#15: tile=1DA0 col=F sz=3(32x32) XY(170,111)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008661.bmp (100x77)]
+
+=== UNIQUE #247: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8664 Slot=2 XY(294,93) V(+1280,-256)
+  AI@025DA6: [4 2 0 2 109 174 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 4 tiles BBox(110,101)-(176,169) Crop(106,97,74,76)
+    S#7: tile=15D0 col=3 sz=3(32x32) XY(120,137)
+    S#8: tile=036E col=3 sz=1(32x16) XY(120,121)
+    S#9: tile=0738 col=3 sz=4(64x32) XY(112,137)
+    S#16: tile=0CA0 col=4 sz=5(32x64) XY(110,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008664.bmp (74x76)]
+
+=== UNIQUE #248: FOOT_SOLDIER WALK_L S0 ===
+  Frame=8670 Slot=2 XY(283,93) V(+1280,-256)
+  AI@025DB0: [4 1 0 2 109 198 0 4 255 255]
+  ATK=29 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(110,101)-(160,169) Crop(106,97,58,76)
+    S#9: tile=15CC col=3 sz=3(32x32) XY(112,137)
+    S#10: tile=108C col=3 sz=1(32x16) XY(128,121)
+    S#11: tile=1798 col=3 sz=3(32x32) XY(128,137)
+    S#12: tile=03DD col=3 sz=0(16x16) XY(112,145)
+    S#15: tile=0C00 col=4 sz=5(32x64) XY(110,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_WALK_L_S0_f008670.bmp (58x76)]
+
+=== UNIQUE #249: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8673 Slot=2 XY(282,93) V(+2176,+0)
+  AI@02629E: [4 2 0 2 120 150 0 4 255 255]
+  ATK=160 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(107,101)-(160,169) Crop(103,97,61,76)
+    S#12: tile=15CC col=3 sz=3(32x32) XY(112,137)
+    S#13: tile=108C col=3 sz=1(32x16) XY(128,121)
+    S#14: tile=1798 col=3 sz=3(32x32) XY(128,137)
+    S#15: tile=03DD col=3 sz=0(16x16) XY(112,145)
+    S#18: tile=0C00 col=4 sz=5(32x64) XY(107,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008673.bmp (61x76)]
+
+=== UNIQUE #250: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8679 Slot=2 XY(282,93) V(+1792,+0)
+  AI@0262B2: [4 2 0 2 120 190 0 4 0 4]
+  ATK=160 DMG=0 HB=4 CFG=0200
+  Sprite: 5 tiles BBox(101,101)-(268,185) Crop(97,97,175,92)
+    S#9: tile=10C8 col=2 sz=4(64x32) XY(204,108)
+    S#12: tile=1034 col=3 sz=2(16x32) XY(128,153)
+    S#13: tile=1FF5 col=3 sz=0(16x16) XY(112,137)
+    S#14: tile=0728 col=3 sz=4(64x32) XY(112,137)
+    S#18: tile=0C04 col=4 sz=5(32x64) XY(101,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008679.bmp (175x92)]
+
+=== UNIQUE #251: FOOT_SOLDIER ATTACK S0 ===
+  Frame=8685 Slot=2 XY(282,93) V(+1536,+0)
+  AI@0262C4: [5 2 0 2 120 214 0 4 0 4]
+  ATK=160 DMG=0 HB=4 CFG=0200
+  Sprite: 6 tiles BBox(97,65)-(258,169) Crop(93,61,169,112)
+    S#7: tile=10C0 col=2 sz=4(64x32) XY(194,65)
+    S#10: tile=15CC col=3 sz=3(32x32) XY(112,137)
+    S#11: tile=108C col=3 sz=1(32x16) XY(128,121)
+    S#12: tile=1798 col=3 sz=3(32x32) XY(128,137)
+    S#13: tile=03DD col=3 sz=0(16x16) XY(112,145)
+    S#17: tile=0C10 col=4 sz=5(32x64) XY(97,101)
+  [BMP SAVED: tmnt_FOOT_SOLDIER_ATTACK_S0_f008685.bmp (169x112)]
+--- Frame 8700: unique=251 ---
+--- Frame 9000: unique=251 ---
+--- Frame 9300: unique=251 ---
+--- Frame 9600: unique=251 ---
+--- Frame 9900: unique=251 ---
+
+=== CAPTURE COMPLETE ===
+Total unique: 251
+==================================================

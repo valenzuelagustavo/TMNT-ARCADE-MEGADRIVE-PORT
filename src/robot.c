@@ -180,15 +180,11 @@ void robotDamage(Robot* r, s16 dmg) {
     r->hp -= dmg;
 
     if (r->hp <= 0) {
-        r->flashTimer = 0;
-        SPR_setPalette(r->sprite, PAL2);
         r->state = ROBOT_DEAD;
         robotRestartAnim(r, ROBOT_ANIM_DESTROY, FALSE);
         return;
     }
-    // Golpeado no fatal: flash blanco (PAL3) + HURT.
-    SPR_setPalette(r->sprite, PAL3);
-    r->flashTimer = ROBOT_FLASH_FRAMES;
+    // Golpeado no fatal: HURT.
     r->state = ROBOT_HURT;
     r->timer = ROBOT_HURT_FRAMES;
     robotRestartAnim(r, ROBOT_ANIM_HURT, FALSE);
@@ -211,10 +207,6 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
     if (r->state == ROBOT_INACTIVE || r->state == ROBOT_GONE || !r->sprite) return;
     r->cameraOffsetX = cameraX;
 
-    if (r->flashTimer > 0) {
-        r->flashTimer--;
-        if (r->flashTimer == 0) SPR_setPalette(r->sprite, PAL2);
-    }
     if (r->attackCooldown > 0) r->attackCooldown--;
 
     // Jugador objetivo: el más cercano en X.
@@ -285,7 +277,7 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
             s16 reach = robotWhipReach(r);
             s16 fwd = (r->dir >= 0) ? (pcx - r->x) : (r->x - pcx);
             if (fwd >= 0 && fwd <= reach && rabs(py - r->y) <= ROBOT_WHIP_TOL_Y &&
-                playerCanBeHit(tgt)) {
+                playerCanBeHit(tgt) && !playerIsGrabbed(tgt)) {
                 // ¡Enganchó!
                 playerWhipGrab(tgt);
                 r->state = ROBOT_GRAB;

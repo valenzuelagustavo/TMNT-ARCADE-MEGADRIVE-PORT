@@ -1,4 +1,5 @@
 #include "player.h"
+#include "audio.h"
 
 // ===========================================================================
 // MÓDULO DE JUGADOR — MULTI-INSTANCIA
@@ -15,10 +16,10 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     const SpriteDefinition* spriteDef = &leo_player;
 
     switch(selectedCharacter) {
-        case 0: spriteDef = &leo_player;  break;
-        case 1: spriteDef = &mike_player; break;
-        case 2: spriteDef = &don_player;  break;   // Columna 2 = Don
-        case 3: spriteDef = &raph_player; break;   // Columna 3 = Raph
+        case 0: spriteDef = &leo_player;  p->atkReach = PLAYER_ATK_REACH_LEO;  break;
+        case 1: spriteDef = &mike_player; p->atkReach = PLAYER_ATK_REACH_MIKE; break;
+        case 2: spriteDef = &don_player;  p->atkReach = PLAYER_ATK_REACH_DON;  break;
+        case 3: spriteDef = &raph_player; p->atkReach = PLAYER_ATK_REACH_RAPH; break;
     }
 
     p->x             = startX;
@@ -33,6 +34,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->airFrame      = 1;
     p->airTimer      = 0;
     p->attackIsSpecial = 0;
+    p->atkReach        = PLAYER_ATK_REACH_LEO;   // default, se ajusta abajo
     p->jumpVel       = 0;
     p->jumpZ         = 0;
     p->isJumpKicking = FALSE;
@@ -52,6 +54,12 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->score         = 0;
     p->numAnims      = (u8)spriteDef->numAnimation;   // habilita anims nuevas si la sheet las tiene
     p->grabTimer     = 0;
+    p->idleTimer     = 0;
+    p->idleTwice     = 0;
+    p->grabType      = GRAB_TYPE_WHIP;
+    p->heldFrame     = 0;
+    p->heldTimer     = 0;
+    p->heldHit       = 0;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     // Las 4 tortugas comparten la misma paleta unificada; cargarla en 'palette'.
@@ -89,6 +97,16 @@ static s16 clampS16(s16 val, s16 minVal, s16 maxVal) {
 
 static bool justPressed(u16 joy, u16 prev, u16 button) {
     return (bool)((joy & button) && !(prev & button));
+}
+
+// Setea un frame de la anim ANIM_HELD (agarre) con clamp al largo real de la
+// animación. Las sheets viejas (Raph/Don) tienen el HELD "corrido" a otra fila
+// con menos frames; sin el clamp, setear el frame 2/3 leería fuera de la anim.
+static void setHeldFrame(Player* p, u8 frame) {
+    u16 nf = p->sprite->animation->numFrame;
+    if (nf == 0) return;
+    if (frame >= nf) frame = (u8)(nf - 1);
+    SPR_setAnimAndFrame(p->sprite, ANIM_HELD, frame);
 }
 
 // Pared diagonal del final del nivel: interpola linealmente entre los dos
@@ -144,12 +162,37 @@ void updatePlayer(Player* p) {
                 p->x = clampS16(p->x + moveX, p->boundLeft, effRight);
                 p->y = clampS16(p->y + moveY, BOUND_LANE_TOP, BOUND_LANE_BOTTOM);
                 p->state = STATE_WALKING;
-
+                // Reiniciar el timer de la pose de espera: hubo movimiento
+                p->idleTimer = 0;
+                p->idleTwice = 0;
+                SPR_setAnimationLoop(p->sprite, TRUE);
                 if (moveY < 0) SPR_setAnim(p->sprite, ANIM_WALK_BACK);
                 else           SPR_setAnim(p->sprite, ANIM_WALK_FRONT);
             } else {
                 p->state = STATE_IDLE;
-                SPR_setAnim(p->sprite, ANIM_IDLE);
+                if (p->numAnims > ANIM_IDLE2) {
+                    // Pose de espera nueva: tras PLAYER_IDLE_ANIM_DELAY frames
+                    // quieto se reproduce ANIM_IDLE2 UNA vez (sin loop) y se
+                    // vuelve a ANIM_IDLE. En las sheets viejas (Raph/Don) el
+                    // índice 1 es otra cosa → quedan "corridas" (aceptado).
+                    if (p->idleTwice) {
+                        if (SPR_isAnimationDone(p->sprite)) {
+                            p->idleTwice = 0;
+                            p->idleTimer = 0;
+                            SPR_setAnimationLoop(p->sprite, TRUE);
+                            SPR_setAnim(p->sprite, ANIM_IDLE);
+                        }
+                    } else if (++p->idleTimer >= PLAYER_IDLE_ANIM_DELAY) {
+                        p->idleTimer = 0;
+                        p->idleTwice = 1;
+                        SPR_setAnimationLoop(p->sprite, FALSE);
+                        SPR_setAnimAndFrame(p->sprite, ANIM_IDLE2, 0);
+                    } else {
+                        SPR_setAnim(p->sprite, ANIM_IDLE);
+                    }
+                } else {
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                }
             }
 
             // Detectar presses individuales antes de evaluar combos
@@ -167,8 +210,11 @@ void updatePlayer(Player* p) {
                 p->comboBuffered = 0;
                 p->comboLinger   = COMBO_LINK_WINDOW;
                 p->attackIsSpecial = 1;
+                p->idleTimer = 0;
+                p->idleTwice = 0;
                 SPR_setAnimationLoop(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
+                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             } else if (cJust) {
                 // SALTO: la anim se controla a MANO por fases (subida/ápice/
                 // aterrizaje), así que se apaga la auto-animación del sprite.
@@ -180,6 +226,8 @@ void updatePlayer(Player* p) {
                 p->apexHang  = APEX_HANG;
                 p->airFrame  = 1;
                 p->airTimer  = 0;
+                p->idleTimer = 0;
+                p->idleTwice = 0;
                 SPR_setAutoAnimation(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
             } else if (bJust) {
@@ -188,8 +236,11 @@ void updatePlayer(Player* p) {
                 p->comboBuffered = 0;
                 p->comboLinger   = COMBO_LINK_WINDOW;
                 p->attackIsSpecial = 0;
+                p->idleTimer = 0;
+                p->idleTwice = 0;
                 SPR_setAnimationLoop(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_1, 0);
+                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             } else if (justPressed(joy, p->prevJoy, BUTTON_A)) {
                 // ESPECIAL (A): antes disparaba ANIM_KICK; el kick queda
                 // reservado para otro uso futuro.
@@ -198,8 +249,11 @@ void updatePlayer(Player* p) {
                 p->comboBuffered = 0;
                 p->comboLinger   = COMBO_LINK_WINDOW;
                 p->attackIsSpecial = 1;
+                p->idleTimer = 0;
+                p->idleTwice = 0;
                 SPR_setAnimationLoop(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
+                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             }
             break;
         }
@@ -225,6 +279,7 @@ void updatePlayer(Player* p) {
                 SPR_setAnimAndFrame(p->sprite,
                                     (p->comboStep == 2) ? ANIM_ATTACK_2
                                                         : ANIM_ATTACK_3, 0);
+                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             } else if (canChain && p->comboLinger > 0) {
                 // Ventana de enlace: quedarse unos frames en la pose final
                 // esperando el press que encadena
@@ -374,10 +429,11 @@ void updatePlayer(Player* p) {
         }
 
         case STATE_GRABBED: {
-            // Agarrado por el látigo del robot: se ZAFA SÓLO masheando (no hay
-            // liberación por tiempo — si no zafás, la electrocución del robot te
-            // vacía la vida). El robot aplica el drenaje (playerElectroDrain) y
-            // detecta cuándo dejaste de estar agarrado (playerIsGrabbed).
+            // Agarrado por el látigo del robot o por la espalda (foot soldier).
+            // Se ZAFA masheando A/B/C (el metro grabTimer baja con cada press);
+            // el robot además drena vida mientras agarra (playerElectroDrain).
+            // La liberación por mash la hace playerReleaseGrab (i-frames para
+            // que no lo vuelvan a agarrar en el acto).
             u16 mash = 0;
             if (justPressed(joy, p->prevJoy, BUTTON_A)) mash += PLAYER_GRAB_MASH_STEP;
             if (justPressed(joy, p->prevJoy, BUTTON_B)) mash += PLAYER_GRAB_MASH_STEP;
@@ -386,12 +442,23 @@ void updatePlayer(Player* p) {
             if (mash > 0 && p->grabTimer > 0) {
                 p->grabTimer = (p->grabTimer > mash) ? (u8)(p->grabTimer - mash) : 0;
                 if (p->grabTimer == 0) {
-                    // Zafó: vuelve a jugable con unos i-frames para que el robot
-                    // no lo vuelva a atrapar en el acto.
-                    p->state      = STATE_IDLE;
-                    p->invincible = PLAYER_HURT_INVINCIBLE;
-                    SPR_setAnimationLoop(p->sprite, TRUE);
-                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                    playerReleaseGrab(p);
+                    break;
+                }
+            }
+
+            if (p->grabType == GRAB_TYPE_FOOT) {
+                // Agarre por la espalda (foot soldier): anim HELD a MANO. El
+                // loop 0→1→2 da vida a la pose de "sostenido"; tras recibir un
+                // golpe (damagePlayer) se muestra el frame 3 (golpe en pleno
+                // agarre) PLAYER_HELD_HIT_FRAMES frames y se vuelve al loop.
+                if (p->heldHit > 0) {
+                    if (--p->heldHit == 0)
+                        setHeldFrame(p, 0);
+                } else if (++p->heldTimer >= PLAYER_HELD_LOOP_TICKS) {
+                    p->heldTimer = 0;
+                    p->heldFrame = (u8)((p->heldFrame + 1) % 3);
+                    setHeldFrame(p, p->heldFrame);
                 }
             }
             break;
@@ -448,7 +515,8 @@ bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY) {
     // "arriba" de la tortuga y nunca adelante, donde frenan los enemigos.)
     s16 pcx = p->x + PLAYER_SPRITE_W / 2;
     s16 dx  = (p->dir >= 0) ? (targetCX - pcx) : (pcx - targetCX);
-    if (dx < -PLAYER_ATK_BACK || dx > PLAYER_ATK_REACH)
+    s16 reach = p->isJumpKicking ? PLAYER_JUMPKICK_REACH : p->atkReach;
+    if (dx < -PLAYER_ATK_BACK || dx > reach)
         return FALSE;
 
     // Profundidad: tolerancia SIMÉTRICA alrededor del lane del jugador.
@@ -462,6 +530,13 @@ bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY) {
 
 bool isPlayerSpecialAttack(const Player* p) {
     return (p->state == STATE_ATTACKING && p->attackIsSpecial);
+}
+
+// TRUE si la tortuga está en el aire ejecutando la patada con salto (suave o
+// fuerte). Sirve para dispararle un SFX de impacto sólo cuando el golpe que
+// conecta es la patada aérea, no el combo de tierra ni el especial.
+bool isPlayerJumpKicking(const Player* p) {
+    return (p->state == STATE_JUMPING && p->isJumpKicking != JUMPKICK_NONE);
 }
 
 s8 getPlayerDir(const Player* p) {
@@ -478,9 +553,12 @@ s16 getPlayerY(const Player* p) {
 bool playerCanBeHit(const Player* p) {
     if (p->invincible > 0) return FALSE;
     // Saltando no se recibe daño (esquive aéreo estilo arcade). KO = ya está
-    // en el piso; GRABBED lo manejará el sistema de agarre cuando exista.
+    // en el piso. AGARRADO SÍ se puede: los otros foot soldiers le pegan a la
+    // tortuga inmovilizada (damagePlayer lo resuelve mostrando el frame 3 del
+    // HELD sin soltar el agarre). El doble agarre se bloquea aparte con
+    // playerIsGrabbed (ver playerWhipGrab y el grab de enemy.c).
     if (p->state == STATE_HURT || p->state == STATE_JUMPING ||
-        p->state == STATE_KO   || p->state == STATE_GRABBED)
+        p->state == STATE_KO)
         return FALSE;
     return TRUE;
 }
@@ -544,6 +622,22 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
 
 // Golpe de foot soldier (1 barra).
 void damagePlayer(Player* p, s16 attackerX) {
+    // AgarraDO por un foot soldier: el golpe NO lo suelta. Muestra el frame 3
+    // del HELD (golpe en pleno agarre) y sigue agarrado — se zafa masheando o
+    // si le pegan al soldier. Si la barra llega a 0 → knockout (que sí termina
+    // el agarre al pasar a STATE_KO).
+    if (p->state == STATE_GRABBED && p->grabType == GRAB_TYPE_FOOT) {
+        if (p->health > 0) p->health--;
+        if (p->health == 0) {
+            p->hurtDir = 0;
+            playerEnterKO(p);
+            return;
+        }
+        p->heldHit = PLAYER_HELD_HIT_FRAMES;
+        SPR_setAutoAnimation(p->sprite, FALSE);
+        setHeldFrame(p, 3);
+        return;
+    }
     if (!playerCanBeHit(p)) return;
     playerTakeHit(p, attackerX, 1);
 }
@@ -555,12 +649,28 @@ void playerHitBars(Player* p, s16 attackerX, u8 bars) {
 }
 
 // ---------------------------------------------------------------------------
-// AGARRE DEL LÁTIGO (lo maneja el robot; ver robot.c)
+// AGARRES (látigo del robot y espalda del foot soldier)
 // ---------------------------------------------------------------------------
+// Suelta a la tortuga de CUALQUIER agarre: vuelve a STATE_IDLE con i-frames
+// para que no la vuelvan a agarrar en el acto. La llaman el mash del
+// STATE_GRABBED, enemy.c (le pegaron al soldier que la tenía) y el tope de
+// seguridad por tiempo del grab de foot soldier.
+void playerReleaseGrab(Player* p) {
+    if (p->state != STATE_GRABBED) return;
+    p->state      = STATE_IDLE;
+    p->invincible = PLAYER_HURT_INVINCIBLE;
+    p->grabTimer  = 0;
+    p->heldHit    = 0;
+    SPR_setAutoAnimation(p->sprite, TRUE);
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    SPR_setAnim(p->sprite, ANIM_IDLE);
+}
+
 // Pone a la tortuga en STATE_GRABBED reproduciendo la anim de agarre/
 // electrocución. Se zafa masheando (ver STATE_GRABBED en updatePlayer).
 void playerWhipGrab(Player* p) {
-    if (!playerCanBeHit(p)) return;   // no agarrable (KO, salto, hurt, i-frames…)
+    if (!playerCanBeHit(p)) return;          // no agarrable (KO, salto, hurt, i-frames…)
+    if (playerIsGrabbed(p)) return;          // ya agarrada por un foot soldier: no doble-agarre
 
     p->comboStep     = 0;
     p->comboBuffered = 0;
@@ -568,6 +678,7 @@ void playerWhipGrab(Player* p) {
     p->attackIsSpecial = 0;
 
     p->state     = STATE_GRABBED;
+    p->grabType  = GRAB_TYPE_WHIP;
     p->grabTimer = PLAYER_GRAB_ESCAPE;   // metro de forcejeo (baja masheando)
     SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, TRUE);
@@ -575,6 +686,30 @@ void playerWhipGrab(Player* p) {
         SPR_setAnimAndFrame(p->sprite, ANIM_WHIP_SHOCK, 0);
     else
         SPR_setAnimAndFrame(p->sprite, ANIM_HELD, 0);   // fallback (todas las sheets)
+}
+
+// Agarre por la espalda del foot soldier morado: misma mecánica que el látigo
+// (STATE_GRABBED + mash) pero con la anim HELD a MANO — los frames 0-2 se
+// alternan en updatePlayer y el frame 3 (golpe en el agarre) lo muestra
+// damagePlayer cuando le pegan mientras está agarrada. Igual que el látigo,
+// bloquea el doble agarre (si ya está agarrada, no hace nada).
+void playerFootGrab(Player* p) {
+    if (!playerCanBeHit(p)) return;          // no agarrable (KO, salto, hurt, i-frames…)
+    if (playerIsGrabbed(p)) return;          // ya agarrada (látigo u otro soldier)
+
+    p->comboStep     = 0;
+    p->comboBuffered = 0;
+    p->comboLinger   = 0;
+    p->attackIsSpecial = 0;
+
+    p->state     = STATE_GRABBED;
+    p->grabType  = GRAB_TYPE_FOOT;
+    p->grabTimer = PLAYER_GRAB_ESCAPE;   // metro de forcejeo (baja masheando)
+    p->heldFrame = 0;
+    p->heldTimer = 0;
+    p->heldHit   = 0;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_HELD, 0);
 }
 
 bool playerIsGrabbed(const Player* p) {

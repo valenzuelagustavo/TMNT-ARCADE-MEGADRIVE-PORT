@@ -3,6 +3,13 @@
 
 #include <genesis.h>
 #include "enemies.h"
+#include "player.h"
+
+// ---------------------------------------------------------------------------
+// Tipos de enemigo (determinan spritesheet, paleta y comportamiento de ataque)
+// ---------------------------------------------------------------------------
+#define ENEMY_TYPE_FOOT_SOLDIER        0   // foot soldier regular (PAL2)
+#define ENEMY_TYPE_FOOT_SOLDIER_ORANGE 1   // foot soldier naranja (PAL3, shuriken)
 
 #define MAX_ENEMIES         8
 #define ENEMY_SPEED         1
@@ -16,18 +23,24 @@
 // Selección de ataque por distancia: uppercut sólo si está MUY pegado; a media
 // distancia elige entre patada (se desplaza) y directo (más alcance).
 #define ENEMY_UPPERCUT_RANGE 30  // < esto -> uppercut (corto)
-#define ENEMY_UPPERCUT_REACH 40  // hitbox del uppercut (corto)
-#define ENEMY_FRONT_REACH    64  // hitbox del directo (más largo que el uppercut)
-// El sheet del foot soldier usa la MISMA grilla que las tortugas: frames de
-// 104x104px (13x13 tiles) con el arte en la parte baja del frame.
-// Mantener en sincronía con PLAYER_SPRITE_W / PLAYER_FOOT_OFFSET de player.h.
-#define ENEMY_SPRITE_W      104  // Ancho del frame (px)
-#define ENEMY_SPRITE_H      104  // Alto del frame (px)
-#define ENEMY_FOOT_OFFSET   96   // Pies ~96px por debajo del borde superior del frame
+#define ENEMY_UPPERCUT_REACH 24  // hitbox del uppercut (corto, -40%)
+#define ENEMY_FRONT_REACH    38  // hitbox del directo (medio, -40%)
+// ---------------------------------------------------------------------------
+// Dimensiones de frame POR TIPO.
+// El morado usa la sheet nueva de 64x80px (8x10 tiles) con los pies pegados al
+// borde inferior; el naranja mantiene la grilla vieja de 104x104px (13x13
+// tiles, arte en la parte baja del frame). Mantener sincronizado con el
+// .res (enemies.res) y con PLAYER_SPRITE_W / PLAYER_FOOT_OFFSET de player.h.
+// ---------------------------------------------------------------------------
+#define ENEMY_SPRITE_W_PURPLE   64   // Ancho del frame morado (px)
+#define ENEMY_SPRITE_H_PURPLE   80   // Alto del frame morado (px)
+#define ENEMY_FOOT_OFFSET_PURPLE 80  // Pies en el borde inferior del frame morado
+#define ENEMY_SPRITE_W_ORANGE  104   // Ancho del frame naranja (px)
+#define ENEMY_SPRITE_H_ORANGE  104   // Alto del frame naranja (px)
+#define ENEMY_FOOT_OFFSET_ORANGE 96  // Pies ~96px bajo el borde superior (naranja)
 #define ENEMY_HP            4    // Golpes necesarios para eliminar al foot soldier
 #define MAX_ACTIVE_ENEMIES  4    // Foot soldiers vivos al mismo tiempo (tope de spawn)
 #define ENEMY_INVINCIBLE    20
-#define ENEMY_FLASH_FRAMES  6    // Frames que dura el flash blanco al recibir golpe
 
 // ---------------------------------------------------------------------------
 // Animaciones del spritesheet del foot soldier (orden de filas en Aseprite).
@@ -44,6 +57,26 @@
 #define ENEMY_ANIM_HIT_1       8   // Golpe recibido — se alternan 8/9/10 en cada golpe
 #define ENEMY_ANIM_HIT_2       9
 #define ENEMY_ANIM_HIT_3      10
+#define ENEMY_ANIM_GIRO       11   // Giro (2f): arranca mirando a la derecha y termina
+                                   // mirando a la izquierda (se HFlip con dir)
+#define ENEMY_ANIM_GUARD      12   // Guardia (3f): postura defensiva mientras otros atacan
+#define ENEMY_ANIM_STANCE     13   // Otra postura de espera (3f), parado sin moverse
+#define ENEMY_ANIM_GRAB       14   // Agarre por la espalda (frame VACIO, con hitbox)
+#define ENEMY_ANIM_VOLTERETA  15   // Voltereta de entrada (7f), avanza mas en X
+
+// ---------------------------------------------------------------------------
+// Animaciones del foot soldier NARANJA (orden de filas en foot_soldier_orange.png).
+// El orden es DISTINTO al regular: las constantes no coinciden.
+// ---------------------------------------------------------------------------
+#define ORANGE_ANIM_IDLE          0   // Quietoa (1 frame)
+#define ORANGE_ANIM_WALK          1   // Caminar (4 frames)
+#define ORANGE_ANIM_WALK_UP       2   // Caminar hacia arriba (4 frames)
+#define ORANGE_ANIM_SHURIKEN      3   // Lanzar shuriken (3 frames) — spawnea proyectil
+#define ORANGE_ANIM_PUNCH_FRONT   4   // Puñetazo de frente (2 frames)
+#define ORANGE_ANIM_UPPERCUT      5   // Uppercut, menor alcance (3 frames)
+#define ORANGE_ANIM_EXPLODE       6   // Muerte (4 frames)
+#define ORANGE_ANIM_HIT           7   // Golpe recibido (1 frame, sin alternancia)
+#define ORANGE_ANIM_KICK          8   // Patada con salto (4 frames, desplaza en X)
 
 // ---------------------------------------------------------------------------
 // Movimiento vertical — lane de profundidad (coordenadas de PIES).
@@ -53,10 +86,10 @@
 // zonas de la vereda sin cobertura de IA).
 #define ENEMY_LANE_TOP      142  // Pies al fondo (1 tile mas alla del muro de edificios)
 #define ENEMY_LANE_BOTTOM   200  // Pies al frente (1 tile mas alla del borde de la vereda/cuneta)
-// X mínima de mundo: NEGATIVA para que los spawns "por la espalda" puedan
+// X mínima de mundo: NEGATIVA por tipo para que los spawns "por la espalda" puedan
 // nacer fuera de pantalla a la izquierda cuando la cámara está cerca del
-// inicio del nivel (con el clamp viejo en 0 aparecían con medio cuerpo visible)
-#define ENEMY_WORLD_MIN_X   (-ENEMY_SPRITE_W)
+// inicio del nivel (con el clamp viejo en 0 aparecían con medio cuerpo visible).
+// En el código se usa -(s16)e->w.
 
 // ---------------------------------------------------------------------------
 // Pared diagonal al FINAL del nivel (hueco de escalera / fire escape).
@@ -102,6 +135,33 @@
 #define ENEMY_ATTACK_PUNCH  0    // valor de Enemy.attackType — uppercut (anim 3)
 #define ENEMY_ATTACK_KICK   1    // patada con salto (anim 2)
 #define ENEMY_ATTACK_FRONT  2    // golpe de frente / directo (anim 6)
+#define ENEMY_ATTACK_SHURIKEN 3  // lanzar shuriken (solo naranja, anim 3)
+
+// --- Shuriken (proyectil del foot soldier naranja) ---
+#define MAX_SHURIKENS           4   // proyectiles simultáneos en pantalla
+#define ORANGE_SHURIKEN_SPEED   3   // px/frame de desplazamiento en X
+#define ORANGE_SHURIKEN_DMG     1   // barras de vida al impactar
+#define ORANGE_SHURIKEN_SPAWN_TIMER 16  // timer del ataque al que se spawnea (frame 1 de 3)
+#define ORANGE_SHURIKEN_RANGE_MIN 30   // rango mínimo para elegir shuriken
+#define ORANGE_SHURIKEN_RANGE_MAX 180  // rango máximo para elegir shuriken (kiter a distancia larga)
+
+// ---------------------------------------------------------------------------
+// COMPORTAMIENTO POR TIPO (28/07)
+// ---------------------------------------------------------------------------
+// Morado (ENEMY_TYPE_FOOT_SOLDIER): en vez de encarar de frente, maniobra para
+// caer en la ESPALDA del jugador (lado opuesto a su mirada) y pegar desde atrás
+// (que dispara la anim HIT_BEHIND del jugador). Si no lo logra en cierto tiempo
+// —jugador contra la pared, encimado con otro enemigo— ataca de frente igual.
+#define MORADO_BACK_STANDOFF   20   // Punto objetivo: px por detrás del jugador
+                                    // (dentro del alcance del uppercut, 24px)
+#define MORADO_GOAL_TOL         4   // Tolerancia al llegar a ese punto (≈1 paso)
+#define MORADO_FLANK_TIMEOUT   90   // Frames intentando flanquear antes de encarar
+
+// Naranja (ENEMY_TYPE_FOOT_SOLDIER_ORANGE): kiter. Se mantiene a distancia LARGA
+// tirando shurikens; si el jugador lo acorrala, responde con la patada.
+#define ORANGE_KITE_MIN       120   // Más cerca que esto → retrocede
+#define ORANGE_KITE_MAX       160   // Más lejos que esto → se acerca (banda ~140)
+#define ORANGE_KICK_RANGE      56   // Jugador dentro de esto → patada (acorralado)
 
 // Duraciones calzadas con el sheet real (frames de anim x 8 ticks de FAST 8):
 // punch = 2 frames x 8 = 16 | kick = 4 frames x 8 = 32 | front = 2 frames x 8 = 16
@@ -119,13 +179,37 @@
 // Spawn desde ascensor: sólo los 2 últimos frames de BREAK_DOOR (índices 3-4).
 #define ENEMY_ELEV_SPAWN_TIME  16
 
+// --- Animaciones nuevas del morado (duraciones en frames x 8 ticks) ---
+#define ENEMY_GIRO_TIME        16   // Giro: 2 frames x 8
+#define ENEMY_SOMERSAULT_TIME  56   // Voltereta de entrada: 7 frames x 8
+#define ENEMY_SOMERSAULT_SPEED  3   // px/frame durante la voltereta (avanza mas que el walk)
+#define ENEMY_GRAB_RANGE       44   // Distancia (centro de frame a centro) para agarrar por la espalda
+// Agarre por la espalda: distancia centro-a-centro al sostener al jugador
+// (el soldier queda justo detrás de la espalda del jugador agarrado).
+#define ENEMY_GRAB_BACK_OFFSET 42
+// Tope de SEGURIDAD del agarre de pie: si el jugador no mashea ni lo golpean
+// (p.ej. quedó solo contra el soldier), se suelta solo a los 4s. El látigo del
+// robot no tiene este tope (su drenaje vacía la vida y termina en KO).
+#define ENEMY_GRAB_MAX_TIME    240
+// Posturas de espera del morado: frames alternando IDLE/STANCE estando quieto
+// (STANCE = la nueva "otra postura de espera", fila 13).
+#define ENEMY_STANCE_SWITCH    120
+
+// --- Duraciones del foot soldier naranja (frames x 8 ticks) ---
+#define ORANGE_SHURIKEN_TIME    24   // 3 frames x 8 = lanzamiento de shuriken
+#define ORANGE_UPPERCUT_TIME    24   // 3 frames x 8
+#define ORANGE_PUNCH_TIME       16   // 2 frames x 8
+#define ORANGE_EXPLODE_TIME     32   // 4 frames x 8
+#define ORANGE_KICK_TIME        32   // 4 frames x 8
+#define ORANGE_KICK_LUNGE       16   // frames iniciales con desplazamiento
+
 // --- Hitbox de los ataques (contra el jugador) ---
 // Ventanas ACTIVAS en frames del timer (que cuenta hacia atrás desde *_TIME):
 //   kick : activa durante todo el lunge (timer > KICK_TIME - LUNGE)
 //   punch: activa en el tramo medio del uppercut
 #define ENEMY_PUNCH_HIT_START  4   // timer mínimo (inclusive) con hitbox activa
 #define ENEMY_PUNCH_HIT_END   12   // timer máximo (inclusive) con hitbox activa
-#define ENEMY_HIT_RANGE_X     56   // Alcance del golpe hacia adelante (centro a centro)
+#define ENEMY_HIT_RANGE_X     34   // Alcance del golpe hacia adelante (centro a centro, -40%)
 #define ENEMY_HIT_BACK_X       8   // Tolerancia hacia atrás (encimados)
 #define ENEMY_HIT_TOL_Y       16   // |dy| máximo (pies) para conectar el golpe
 
@@ -136,7 +220,9 @@ typedef enum {
     ENEMY_STATE_ATTACK,
     ENEMY_STATE_HURT,
     ENEMY_STATE_DEAD,
-    ENEMY_STATE_SPAWNING   // rompiendo la puerta; al terminar la anim pasa a CHASE
+    ENEMY_STATE_SPAWNING,   // rompiendo la puerta; al terminar la anim pasa a CHASE
+    ENEMY_STATE_TURN,       // giro (cambio de direccion mientras flanquea)
+    ENEMY_STATE_GRAB        // agarrando al jugador por la espalda
 } EnemyState;
 
 // Entrada de spawn de una OLEADA: cuando el borde derecho de la cámara supera
@@ -162,19 +248,39 @@ typedef struct {
     s16         hp;
     u8          invincible;
     u8          palette;      // Línea de paleta normal del sprite (PAL0..PAL3)
-    u8          flashTimer;   // Frames restantes de flash blanco (0 = sin flash)
+    u8          type;         // ENEMY_TYPE_FOOT_SOLDIER o ENEMY_TYPE_FOOT_SOLDIER_ORANGE
     u8          anim;         // Animación actual (evita re-setear la misma anim)
-    u8          attackType;   // ENEMY_ATTACK_PUNCH o ENEMY_ATTACK_KICK
+    u8          attackType;   // ENEMY_ATTACK_PUNCH / KICK / FRONT / SHURIKEN
     u8          attackHit;    // 1 = este ataque ya conectó (un golpe por swing)
     u8          hitToggle;    // alterna las 3 anims de golpe recibido (0/1/2)
     u8          attackCooldown; // Frames hasta poder volver a atacar (0 = listo)
     u8          target;       // Jugador asignado: 0 = P1, 1 = P2
     u8          retargetTimer; // Frames hasta la próxima re-evaluación de target
+    u8          flankTimer;   // Morado: frames intentando flanquear (fallback por timeout)
+
+    // --- Animaciones nuevas del morado (31/07) ---
+    s16         w;            // Ancho del frame (px, según el tipo)
+    s16         h;            // Alto del frame (px, según el tipo)
+    s16         footOffset;   // Pies dentro del frame (px, según el tipo)
+    s8          lastMoveDir;  // Última dirección horizontal de movimiento (+1/-1/0)
+    u8          turnTimer;    // Frames restantes del giro (ENEMY_STATE_TURN)
+    u8          somersault;   // 1 = spawn entrando con voltereta (anim 15)
+    u8          grabTarget;   // Jugador agarrado (0/1) durante ENEMY_STATE_GRAB
+    Player*     grabbed;      // Puntero al jugador agarrado (liberado en damageEnemy)
+    u8          grabTimer;    // Tope de seguridad del agarre (frames restantes)
+    u8          stancePhase;  // Frames en la postura de espera actual (IDLE/STANCE)
+    u8          stanceToggle; // 0 = IDLE, 1 = STANCE (alterna cada STANCE_SWITCH)
 } Enemy;
 
-// Carga la paleta "flash" (silueta blanca) en la línea palLine. Llamar UNA VEZ
-// al iniciar el nivel, antes del primer spawn. En Level 1: PAL3 (libre).
-void initEnemyFlashPalette(u16 palLine);
+// --- Shuriken (proyectil del foot soldier naranja) ---
+typedef struct {
+    Sprite*     sprite;
+    s16         x;           // X de mundo
+    s16         y;           // Y de mundo (pies)
+    s8          dir;         // +1 derecha, -1 izquierda
+    s16         cameraOffsetX;
+    u8          active;      // 1 = en vuelo, 0 = inactivo
+} Shuriken;
 
 // Resetea el estado global de la IA (contador de atacantes simultáneos y
 // reparto de targets) e informa cuántos jugadores hay (1 o 2).
@@ -186,7 +292,7 @@ void resetEnemyAI(u8 numPlayers);
 // Llamar una vez por frame ANTES de los updateEnemy.
 void separateEnemies(Enemy* list, u16 count);
 
-void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette);
+void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8 type);
 
 // Spawnea un foot soldier ROMPIENDO una puerta: aparece centrado en el hueco
 // (doorCenterX) y en la lane del fondo, reproduciendo ANIM_BREAK_DOOR desde el
@@ -198,7 +304,20 @@ void initEnemyDoorSpawn(Enemy* e, s16 doorCenterX, u8 palette);
 // frames de ANIM_BREAK_DOOR (índices 3-4) — "sale" del hueco sin romper nada.
 void initEnemyElevatorSpawn(Enemy* e, s16 doorCenterX, u8 palette);
 
-void updateEnemy(Enemy* e, s16 player1X, s16 player1Y, s16 player2X, s16 player2Y, bool twoPlayers);
+// Spawnea un foot soldier con PATADA (kick) desde fuera de pantalla: aparece
+// off-screen y se desplaza hacia la pantalla durante ENEMY_KICK_LUNGE frames.
+// dir: +1 entra desde la izquierda, -1 desde la derecha.
+void initEnemyKickSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type);
+
+// Spawnea un foot soldier morado entrando con VOLTERETA (anim 15) desde fuera
+// de pantalla: se desplaza más rápido en X durante ENEMY_SOMERSAULT_TIME frames
+// y luego pasa a CHASE. Usada para las oleadas "por la espalda".
+void initEnemySomersaultSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type);
+
+// Los Player* se usan para el AGARRE por la espalda: el morado pone al jugador
+// en STATE_GRABBED (playerFootGrab) y lo suelta al zafarse (mash), ser golpeado
+// o si le pegan al soldier (damageEnemy lo saca de GRAB).
+void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers);
 void setEnemyCamera(Enemy* e, s16 camX);
 bool damageEnemy(Enemy* e, s16 dmg);
 bool enemyCanBeHit(const Enemy* e);
@@ -211,5 +330,16 @@ s16  getEnemyCenterY(const Enemy* e);
 // damagePlayer. Chequear playerCanBeHit ANTES de llamar, para no "gastar" el
 // golpe contra un jugador invulnerable.
 bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py);
+
+// ---------------------------------------------------------------------------
+// Sistema de shurikens (proyectiles del foot soldier naranja)
+// ---------------------------------------------------------------------------
+void shurikenInit(void);
+void shurikenSpawn(s16 x, s16 y, s8 dir, u8 palette);
+void shurikenUpdate(s16 camX);
+void shurikenReleaseAll(void);
+// Chequea colisión de todos los shurikens activos contra un jugador en (px, py)
+// (centro del frame). Devuelve TRUE si alguno impactó (una sola vez por shuriken).
+bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX);
 
 #endif

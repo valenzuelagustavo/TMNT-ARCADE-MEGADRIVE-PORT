@@ -464,3 +464,51 @@ documentado en detalle en este diario.)
 tiene que estar indexado sobre los índices REALES de esa paleta, no sobre una
 paleta de grises cualquiera. Antes de dibujarlo con `TILE_ATTR(PALx,...)` hay que
 verificar los slots contra la paleta destino — no alcanza con que "sean grises".
+## 31 de julio de 2026 - Phase A: foot soldier morado rediseñado (64x80), hojas de tortuga nuevas y sistema de agarre
+
+- **Foot soldier morado rediseñado:** nueva hoja `foot_soldier_16colors.png` de
+  448x1280 (7x16 celdas de 64x80). Nueva fila por animación, documentada en el
+  `.res`: 0 idle (1f), 1 caminar (5f), 2 patada (4f), 3 uppercut (2f), 4
+  caminar de frente (4f), 5 explosión (6f), 6 golpe frontal (2f), 7 romper
+  puerta (4f), 8-10 golpe recibido 1-3 (1f cada una), 11 giro (2f, flip-aware),
+  12 guardia (3f), 13 stance / postura de espera (3f), 14 GRAB (celdas
+  transparentes, hay que animarla), 15 voltereta (7f). La fila 12 de la hoja
+  vieja (shuriken) quedó descartada: el naranja sigue usando su hoja 104x104.
+- **Hojas de tortuga nuevas (Leo/Mike):** 1248x2184 = 12x21 celdas (Raph/Don
+  quedan con la hoja vieja 12x19 "corrida": se decidió NO compensarles offset
+  por personaje). El enum `PlayerAnim` se reordenó para el layout nuevo:
+  `IDLE2` (1) entra después de ~5s parado (`PLAYER_IDLE_ANIM_DELAY`), se
+  reproduce una vez y vuelve a IDLE; `ANIM_HELD` (18) ahora tiene 4 frames
+  (0-2 = loop del agarre, 3 = frame de recibir golpe mientras lo sostienen) y
+  `ANIM_KO` (20) 4 frames. Para no romper las hojas viejas de Raph/Don,
+  `setHeldFrame()` ajusta el frame al `numFrame` real de la anim.
+- **Geometría por tipo de enemigo:** el `Enemy` ahora carga su ancho, alto y
+  offset de pies en runtime (`w`/`h`/`footOffset`, morado 64/80/80, naranja
+  104/104/96) en `initEnemySpawn()`. Todas las referencias viejas a
+  `ENEMY_SPRITE_W` / `ENEMY_FOOT_OFFSET` (centros, X máx, Y de sprite,
+  shurikens, hitbox) pasaron a `e->w` / `e->footOffset`, y el clamp de mundo
+  izquierdo a `-(s16)e->w`.
+- **Estados nuevos:** `ENEMY_STATE_TURN` (el giro de 16 ticks al cambiar de
+  dirección mientras persigue, anim 11) y `ENEMY_STATE_GRAB` (agarra a la
+  tortuga por la espalda). En idle el morado alterna IDLE/stance
+  (`ENEMY_STANCE_SWITCH`) y si ya hay atacantes activos se pone en guardia
+  (anim 12). Las oleadas que entran "por la espalda" spawnean con voltereta
+  (anim 15, `initEnemySomersaultSpawn`, 56 ticks) en vez de caminando; las de
+  puertas/ascensor no.
+- **Sistema de agarre:** `playerFootGrab()` (agarre a mano del morado) y
+  `playerWhipGrab()` (eléctrico del robot) comparten la liberación
+  `playerReleaseGrab()` (idle + invencibilidad de hurt). El agarrado queda en
+  `STATE_GRABBED` con loop manual de frames (0-1-2) y el morado se pega a su
+  espalda con `ENEMY_GRAB_BACK_OFFSET`. Se rompe si la tortuga golpea el
+  mashing, si golpean al soldado, o por timeout de `ENEMY_GRAB_MAX_TIME` (240).
+  Decisiones de diseño: **el agarrado SÍ puede recibir daño** (el jugador 2 lo
+  libera pegándole al soldado) pero el **doble agarre está bloqueado**
+  (`playerIsGrabbed`), y Raph/Don solo reciben daño, nunca se les muestra el
+  loop de agarre.
+- **Build verde:** `make` completo con la hoja 8x10 del morado (0 warnings de
+  enemigos, solo el warning benigno de `lto-wrapper`). `out/rom.bin` generado y
+  checksumeado (786432 bytes).
+
+**Siguiente paso (Phase B):** portar el comportamiento fiel del arcade desde
+`arcade_reverse_eng/` y pasar el HUD de P1/P2 a spritesheets (4 anims de 1
+frame, índice = personaje elegido).

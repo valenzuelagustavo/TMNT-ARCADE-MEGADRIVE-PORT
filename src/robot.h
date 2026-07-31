@@ -68,9 +68,9 @@
 #define ROBOT_PATROL_RIGHT  1250   // centro del cuerpo, extremo derecho (antes de la pared)
 #define ROBOT_ARRIVE_MARGIN    4
 #define ROBOT_WALK_START_TICKS 24  // cuánto dura la anim de arranque [3] antes de pasar a [12]
-#define ROBOT_SPAWN_CENTER  1250   // centro de mundo donde emerge
-#define ROBOT_SPAWN_TRIGGER 1120   // el jugador supera este worldX -> aparece
-#define ROBOT_SPAWN_Y        188   // lane de pies al aparecer
+#define ROBOT_SPAWN_CENTER  1256   // centro de mundo donde emerge
+#define ROBOT_SPAWN_TRIGGER 1200   // el jugador supera este worldX -> aparece
+#define ROBOT_SPAWN_Y        150   // lane de pies al aparecer
 
 // ---------------------------------------------------------------------------
 // Ataques

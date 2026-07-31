@@ -12,7 +12,7 @@
 // --- Música ---
 XGM2 music_sega    "musica_intro.vgm"
 XGM2 select_music  "/music/turtles2-selectcharacter_wip2.vgm"
-XGM2 music_level1  "music/fire_v3.vgm" 
+XGM2 music_level1  "music/fire_v3.vgm"
 
 // --- Efectos de Sonido ---
 XGM2 golpe         "golpe.vgm"
@@ -26,3 +26,7 @@ XGM2 golpe         "golpe.vgm"
 // [out_rate] -> out_rate se omite = 13300 (hay que reproducirlo a rate normal).
 WAV attack_vo "audio/attack.wav" XGM2
 WAV scream_april "audio/scream_april.wav" XGM2
+WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
+WAV attack_turtles "audio/attack_turtles.wav" XGM2
+WAV hit_turtles "audio/hit_turtles.wav" XGM2
+WAV foot_soldier_explode "audio/foot_soldier_explode.wav" XGM2

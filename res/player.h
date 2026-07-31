@@ -5,29 +5,38 @@
 #include "chars.h"   // leo_player, mike_player, raph_player, don_player
 
 // ---------------------------------------------------------------------------
-// Animaciones del personaje (orden = índice de animación en el spritesheet)
+// Animaciones del personaje (orden = índice de animación en el spritesheet).
+// OJO: el 31/07 se REDISEÑARON las sheets de Leo y Mike a 21 filas y se metió
+// una animación de espera nueva en el índice 1. TODO el enum se corrió 1.
+// Raph y Don mantienen las sheets VIEJAS (19 y 20 filas respectivamente):
+// hasta que se actualicen quedan "corridas" — se aceptó así a propósito.
 // ---------------------------------------------------------------------------
 typedef enum {
     ANIM_IDLE         = 0,
-    ANIM_KICK         = 1,
-    ANIM_ATTACK_1     = 2,   // Combo paso 1
-    ANIM_ATTACK_2     = 3,   // Combo paso 2
-    ANIM_ATTACK_3     = 4,   // Combo paso 3 (finalizador)
-    ANIM_JUMP         = 5,
-    ANIM_JUMP_KICK    = 6,
-    ANIM_WALK_FRONT   = 7,
-    ANIM_WALK_BACK    = 8,
-    ANIM_SPECIAL      = 9,
-    ANIM_HIT_1        = 10,
-    ANIM_HIT_2        = 11,
-    ANIM_HIT_3        = 12,
-    ANIM_GET_UP_1     = 13,
-    ANIM_HIT_BEHIND_1 = 14,
-    ANIM_HIT_BEHIND_2 = 15,
-    ANIM_GET_UP_2     = 16,
-    ANIM_HELD         = 17,
-    ANIM_WHIP_SHOCK   = 18,  // Atrapado por el látigo (frame 0) + electrocución (frames 1-2)
-    ANIM_KO           = 19   // Knockeado — pose dedicada (por ahora 1 frame)
+    ANIM_IDLE2        = 1,   // Nueva pose de espera: se reproduce una vez tras
+                             // ~5s quieto (PLAYER_IDLE_ANIM_DELAY) y vuelve a IDLE
+    ANIM_KICK         = 2,
+    ANIM_ATTACK_1     = 3,   // Combo paso 1
+    ANIM_ATTACK_2     = 4,   // Combo paso 2
+    ANIM_ATTACK_3     = 5,   // Combo paso 3 (finalizador)
+    ANIM_JUMP         = 6,
+    ANIM_JUMP_KICK    = 7,
+    ANIM_WALK_FRONT   = 8,
+    ANIM_WALK_BACK    = 9,
+    ANIM_SPECIAL      = 10,
+    ANIM_HIT_1        = 11,
+    ANIM_HIT_2        = 12,
+    ANIM_HIT_3        = 13,
+    ANIM_GET_UP_1     = 14,
+    ANIM_HIT_BEHIND_1 = 15,
+    ANIM_HIT_BEHIND_2 = 16,
+    ANIM_GET_UP_2     = 17,
+    ANIM_HELD         = 18,  // Agarre (4 frames): 0-2 agarrado (loop manual en
+                             // el grab de foot soldier), frame 3 = golpe mientras
+                             // lo tienen agarrado (solo se muestra al recibir un
+                             // golpe en pleno agarre)
+    ANIM_WHIP_SHOCK   = 19,  // Atrapado por el látigo (frame 0) + electrocución (frames 1-2)
+    ANIM_KO           = 20   // Knockeado — pose dedicada (4 frames)
 } PlayerAnim;
 
 // ---------------------------------------------------------------------------
@@ -117,16 +126,23 @@ typedef enum {
 // congelado en la última pose) durante la cual un press todavía encadena.
 // Antes la ventana efectiva era 1 frame (había que apretar B en el frame
 // exacto en que terminaba la animación) → combos casi imposibles.
-#define COMBO_LINK_WINDOW   20
+#define COMBO_LINK_WINDOW   10
 
 // ---------------------------------------------------------------------------
 // Hitbox de ataque (tortuga → enemigos), medida desde el CENTRO del frame.
-// Las tortugas pegan con armas: su alcance (64px) supera el rango de ataque
-// del foot soldier (44px) y su distancia de frenado (36px).
+// El alcance varía por personaje según el largo de su arma:
+//   Donatello (bō)     → 72px
+//   Leonardo  (katana)  → 60px
+//   Raphael   (sai)     → 48px
+//   Michelangelo (nunchaku) → 44px
 // ---------------------------------------------------------------------------
-#define PLAYER_ATK_REACH    64  // Alcance hacia adelante (centro a centro)
+#define PLAYER_ATK_REACH_LEO    56  // Katana: alcance medio
+#define PLAYER_ATK_REACH_MIKE   40  // Nunchaku: alcance corto
+#define PLAYER_ATK_REACH_DON    60  // Bō: alcance largo
+#define PLAYER_ATK_REACH_RAPH   38  // Sai: alcance corto-medio
 #define PLAYER_ATK_BACK     12  // Tolerancia hacia atrás (enemigo encimado)
 #define PLAYER_ATK_TOL_Y    20  // |dy| máximo en profundidad (pies)
+#define PLAYER_JUMPKICK_REACH  28  // Alcance de la patada en salto (medido desde centro del sprite)
 
 // ---------------------------------------------------------------------------
 // Daño recibido (golpes de los foot soldiers)
@@ -149,6 +165,18 @@ typedef enum {
 #define PLAYER_GRAB_ESCAPE           90
 // Cuánto baja el metro por cada press de A/B/C al mashear.
 #define PLAYER_GRAB_MASH_STEP        18
+
+// Agarre por la ESPALDA del foot soldier morado (a diferencia del látigo del
+// robot, el agarre de pie usa la anim ANIM_HELD a MANO — el frame 4 es el golpe
+// mientras lo sostienen — y tiene un tope de seguridad por tiempo).
+#define GRAB_TYPE_WHIP   0   // robot: anim WHIP_SHOCK con auto-animación
+#define GRAB_TYPE_FOOT   1   // foot soldier: anim HELD manual (frames 0-2)
+#define PLAYER_HELD_LOOP_TICKS 12  // Frames entre pasos del loop de HELD 0→1→2
+#define PLAYER_HELD_HIT_FRAMES 8   // Frames mostrando el frame 3 (golpe en el agarre)
+
+// Pose de espera nueva: tras este tiempo quieto sin atacar/saltar/mover, la
+// tortuga reproduce ANIM_IDLE2 una vez y vuelve a ANIM_IDLE (y repite).
+#define PLAYER_IDLE_ANIM_DELAY 300  // ~5s quieto
 
 // ---------------------------------------------------------------------------
 // Vida / vidas / puntaje (HUD)
@@ -197,6 +225,7 @@ typedef struct {
     // Ataque especial (botón A o B+C): mata foot soldiers de un golpe.
     // TODO: cuando exista HP, usarlo debe restar vida al jugador.
     u8          attackIsSpecial;
+    s16         atkReach;       // Alcance frontal del ataque (varía por arma)
 
     // Entrada
     u16         joyId;          // JOY_1 o JOY_2
@@ -228,6 +257,14 @@ typedef struct {
     u8          numAnims;
     // Timer del preview de agarre del látigo (TEMPORAL, hasta que exista el robot).
     u8          grabTimer;
+
+    // --- Rediseño 31/07 ---
+    u16         idleTimer;   // Frames quieto sin atacar/saltar/mover (0 = en movimiento)
+    u8          idleTwice;   // 1 = ya reproduciendo ANIM_IDLE2 (esperando que termine)
+    u8          grabType;    // GRAB_TYPE_WHIP (látigo del robot) o GRAB_TYPE_FOOT
+    u8          heldFrame;   // Frame actual del loop manual de ANIM_HELD (0-2)
+    u8          heldTimer;   // Ticks hasta el próximo paso del loop de HELD
+    u8          heldHit;     // Frames restantes del frame 3 de HELD (golpe en el agarre)
 } Player;
 
 // ---------------------------------------------------------------------------
@@ -271,6 +308,10 @@ bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY);
 // golpe). Consultar junto con playerAttackHits para decidir el daño.
 bool isPlayerSpecialAttack(const Player* p);
 
+// TRUE si la tortuga está ejecutando la patada con salto (en el aire). Se usa
+// para reproducir el SFX de impacto sólo cuando conecta la patada aérea.
+bool isPlayerJumpKicking(const Player* p);
+
 // Devuelve la dirección de la mirada (-1 izquierda, +1 derecha)
 s8   getPlayerDir(const Player* p);
 
@@ -280,8 +321,11 @@ s16  getPlayerY(const Player* p);
 // --- Daño recibido (llamadas desde el sistema de colisiones en scenes.c) ---
 
 // TRUE si el jugador puede recibir un golpe en este frame. Saltando NO se
-// puede ser golpeado (esquive aéreo estilo arcade), tampoco durante HURT,
-// GRABBED o con i-frames activos.
+// puede ser golpeado (esquive aéreo estilo arcade), tampoco durante HURT o KO
+// o con i-frames activos. AGARRADO SÍ se puede (los otros foot soldiers le
+// pegan a la tortuga que tienen inmovilizada — la anim HELD frame 3 lo muestra);
+// el doble agarre lo bloquean explícitamente playerWhipGrab / enemy.c con
+// playerIsGrabbed.
 bool playerCanBeHit(const Player* p);
 
 // Aplica un golpe: entra en STATE_HURT con la animación correcta según de
@@ -296,15 +340,28 @@ void playerHitBars(Player* p, s16 attackerX, u8 bars);
 // --- Agarre del látigo del robot (lo maneja robot.c) ---
 
 // Pone a la tortuga en STATE_GRABBED (agarrada/electrocutada). No hace nada si
-// no es agarrable en ese momento (KO, salto, hurt, i-frames…).
+// no es agarrable en ese momento (KO, salto, hurt, i-frames…) o si ya está
+// agarrada por algo (foot soldier).
 void playerWhipGrab(Player* p);
 
-// TRUE mientras la tortuga está agarrada por el látigo.
+// TRUE mientras la tortuga está agarrada por el látigo o por un foot soldier.
 bool playerIsGrabbed(const Player* p);
 
 // Drena 1 barra de vida (el robot lo llama ~1 vez por segundo mientras agarra).
 // Si la deja en 0, dispara el knockout (que además termina el agarre).
 void playerElectroDrain(Player* p);
+
+// --- Agarre por la espalda del foot soldier morado (lo maneja enemy.c) ---
+
+// Igual que playerWhipGrab pero con la anim ANIM_HELD a MANO (frames 0-2 con
+// loop manual; el frame 3 solo al recibir un golpe en pleno agarre). La tortuga
+// se zafa masheando A/B/C (grabTimer) o si alguien le pega al soldier.
+void playerFootGrab(Player* p);
+
+// Suelta a la tortuga de CUALQUIER agarre: vuelve a STATE_IDLE con i-frames
+// para que no la vuelvan a agarrar en el acto. La llaman enemy.c (le pegaron
+// al soldier que la tenía) y el mash del STATE_GRABBED.
+void playerReleaseGrab(Player* p);
 
 // --- Vida / vidas / puntaje (lectura desde el HUD en scenes.c) ---
 

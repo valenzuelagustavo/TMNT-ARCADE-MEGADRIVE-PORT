@@ -26,6 +26,7 @@
 // 2P: la cámara nunca avanza si va a dejar al jugador rezagado fuera de
 // pantalla; su frame conserva como mínimo este margen desde el borde izquierdo
 #define CAM_TRAIL_MARGIN       8
+#define CAM_MAX_SPEED          4    // max pixels de scroll por frame (suaviza desbloqueo de cámara)
 
 #define BG_PLANE_W           64     // Ancho del plano circular de fondo (tiles)
 
@@ -57,6 +58,29 @@
 #define DOOR_VIS_MARGIN      48    // Crea/suelta el sprite de la puerta según cercanía a la pantalla
 
 // ---------------------------------------------------------------------------
+// Sparks: efecto de fuego detrás de las puertas rompibles
+// ---------------------------------------------------------------------------
+// Sprite de 32x32 (2x2 tiles) en PAL2, ubicado detrás de cada door_lvl_1.
+// La animación es puramente por rotación de paleta: 4 cuadros que rotan los
+// índices 5-8 de PAL2 (colores de fuego del foot soldier morado).
+#define SPARKS_SPRITE_TOP_Y  56    // Centrado verticalmente en la puerta (puerta va de 48 a 128)
+#define SPARKS_HALF_W        16    // 32px / 2
+#define SPARKS_PAL_FRAME_COUNT 4   // Cuadros de rotación de paleta
+#define SPARKS_PAL_SPEED      4    // Ticks entre cada rotación (~6fps a 25fps)
+#define SPARKS_PAL_IDX_START  5    // Primer índice de paleta a rotar
+#define SPARKS_PAL_IDX_COUNT  4    // Cantidad de índices a rotar (5,6,7,8)
+
+// Paleta del foot soldier morado (copia de PAL2 base, que rescomp genera).
+// Los 4 cuadros rotan los índices 5-8 para simular fuego. Solo se escriben
+// los 4 colores que cambian; el resto de PAL2 se deja intacto.
+static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
+    { 0x008E, 0x00AE, 0x00AE, 0x06CE },   // cuadro 0
+    { 0x06CE, 0x008E, 0x00AE, 0x00AE },   // cuadro 1
+    { 0x00AE, 0x06CE, 0x008E, 0x00AE },   // cuadro 2
+    { 0x00AE, 0x00AE, 0x06CE, 0x008E },   // cuadro 3
+};
+
+// ---------------------------------------------------------------------------
 // Puertas de ASCENSOR (2 huecos anchos del fondo) — spawn animado
 // ---------------------------------------------------------------------------
 // Dos instancias del sprite ascensor_door (48x80, 4 frames, PAL0) sobre los
@@ -67,9 +91,23 @@
 #define LEVEL1_ELEV_COUNT     2
 #define ELEV_SPRITE_TOP_Y    48    // Y de pantalla del tope del sprite (el hueco va de y=51 a 127)
 #define ELEV_HALF_W          24    // ascensor_door = 48px de ancho → mitad, para centrar en el hueco
+#define ELEV_SPARK_HALF_W    20    // spark_ascensor = 40px de ancho → mitad
+#define ELEV_SPARK_TOP_Y    104    //Parte inferior de la puerta (48+80-24=104), fuego asoma abajo
 #define ELEV_CENTER_MIN      40    // "centradas": ambos centros con screenX ≥ esto...
 #define ELEV_CENTER_MAX     280    // ...y ≤ esto (ambas puertas cómodamente dentro de la pantalla)
 #define ELEV_DOOR_ANIM_TIME  32    // Duración de la animación de apertura (4 frames x 8 ticks)
+
+// ---------------------------------------------------------------------------
+// Zonas de combate: la cámara se bloquea y spawnean enemigos
+// ---------------------------------------------------------------------------
+// Cada zona bloquea la cámara en un cameraX fijo. La cámara se desbloquea
+// cuando activeEnemies == 0. Las coordenadas se calculan a partir del
+// borde derecho de la cámara (edgeX - SCREEN_PIXEL_WIDTH = cameraX).
+#define ZONE1_CAM_LOCK   150    // borde derecho = 470
+#define ZONE2_CAM_LOCK   300    // borde derecho = 620
+#define ZONE3_CAM_LOCK   614    // borde derecho = 934
+#define ZONE4_ELEV_LOCK  880    // cameraX fijo donde frena la zona de ascensores
+#define ZONE5_ROBOT_LOCK 1056   // cameraX fijo donde frena la zona del robot (= CAM_MAX_X)
 
 // ---------------------------------------------------------------------------
 // Secuencia de SALIDA del nivel (tras matar al robot) — AJUSTE FINO
@@ -417,6 +455,7 @@ static void ironBallUpdate(s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
     if (ironBall.z <= 0) {
         ironBall.z  = 0;
         ironBall.vz = IRON_BALL_BOUNCE;
+        XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
     }
 
     // --- Descenso por la escalera + deriva horizontal ---
@@ -434,18 +473,24 @@ static void ironBallUpdate(s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
     // Jugador: 1 barra por pasada (los i-frames de damagePlayer evitan el
     // multi-golpe). attackerX = centro de la bola -> knockback alejándose.
     s16 p1cx = getPlayerWorldX(p1) + PLAYER_SPRITE_W / 2;
-    if (playerCanBeHit(p1) && ironBallHits(p1cx, getPlayerY(p1)))
+    if (playerCanBeHit(p1) && ironBallHits(p1cx, getPlayerY(p1))) {
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
         damagePlayer(p1, ironBall.x);
+    }
     if (twoPlayers) {
         s16 p2cx = getPlayerWorldX(p2) + PLAYER_SPRITE_W / 2;
-        if (playerCanBeHit(p2) && ironBallHits(p2cx, getPlayerY(p2)))
+        if (playerCanBeHit(p2) && ironBallHits(p2cx, getPlayerY(p2))) {
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
             damagePlayer(p2, ironBall.x);
+        }
     }
     // Foot soldiers: la bola los aplasta (sin dar puntos a nadie).
     for (u16 i = 0; i < count; i++) {
         Enemy* e = &list[i];
-        if (enemyCanBeHit(e) && ironBallHits(getEnemyCenterX(e), getEnemyCenterY(e)))
-            damageEnemy(e, IRON_BALL_ENEMY_DMG);
+        if (enemyCanBeHit(e) && ironBallHits(getEnemyCenterX(e), getEnemyCenterY(e))) {
+            if (damageEnemy(e, IRON_BALL_ENEMY_DMG))
+                XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        }
     }
 
     // --- Render: pantalla = mundo - cámara; el rebote (z) sube el dibujo ---
@@ -511,8 +556,8 @@ static u16 hudInit(u16 vramInd) {
 // indexado en esa misma paleta.
 //
 // VIDAS y PUNTAJE van como TEXTO con la fuente por defecto (VDP_drawText) sobre
-// BG_A. Se dibujan en PAL3 (la paleta "flash" es blanco puro en todos sus
-// índices), así el texto sale blanco sin gastar una línea de paleta propia.
+// BG_A. Se dibujan en PAL3; el color 1 se sobrescribe a blanco (0x0EEE) tras
+// cargar la paleta del foot soldier naranja, así el texto sale blanco.
 // ---------------------------------------------------------------------------
 #define HPBAR_FRAME_TILES_W  4                                            // 32px
 #define HPBAR_FRAME_TILES_H  1                                            // 8px
@@ -1018,7 +1063,7 @@ SceneId showLevel1() {
     // 64 columnas en el plano circular BG_B. bgUpdate() revela columnas nuevas
     // a medida que la cámara avanza.
     // Mapa de paletas del nivel:
-    //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers + fuego | PAL3 → flash de golpe
+    //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers + fuego | PAL3 → foot soldier naranja
     bgInit();
 
     // --- Fuego en primer plano (BG_A, prioridad alta) ---
@@ -1031,12 +1076,18 @@ SceneId showLevel1() {
     // la barra de vida (8 tiles por jugador).
     u16 hudVramFree = hudInit(TILE_USER_INDEX + bg_level1.tileset->numTile + FIRE_CELL_TILES);
 
-    // Paleta "flash" (silueta blanca al recibir golpe) en PAL3, la única libre.
-    initEnemyFlashPalette(PAL3);
-
     // Estado global de la IA de grupo: contador de atacantes simultáneos y
     // reparto de targets entre los jugadores presentes (1 o 2).
     resetEnemyAI(cantidadJugadores);
+
+    // Shurikens: resetear el sistema de proyectiles del foot soldier naranja.
+    shurikenInit();
+
+    // Cargar la paleta del foot soldier naranja en PAL3 ahora, para que
+    // el texto del HUD (VDP_setTextPalette(PAL3)) tenga una paleta válida
+    // desde el primer frame. El PNG tiene blanco (0x0EEE) en el índice 1
+    // para que VDP_drawText lo use como color de texto.
+    PAL_setPalette(PAL3, foot_soldier_orange.palette->data, DMA);
 
     // --- Música del nivel (volumen reducido, ver VOL_MUSIC_LEVEL1) ---
     playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
@@ -1134,12 +1185,28 @@ SceneId showLevel1() {
         doorSpr[d] = NULL; doorArmed[d] = FALSE; doorTriggered[d] = FALSE;
     }
 
+    // --- Sparks: efecto de fuego detrás de cada puerta rompible ---
+    Sprite* sparkSpr[LEVEL1_DOOR_COUNT];
+    for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) sparkSpr[d] = NULL;
+    u16 sparksTimer = 0;   // Ticks para la próxima rotación de paleta
+    u16 sparksFrame = 0;   // Cuadro actual de la rotación (0..3)
+
+    // --- Sparks 2: efecto decorativo fijo en el mundo ---
+    #define SPARKS2_WORLD_X  330
+    #define SPARKS2_WORLD_Y  160
+    Sprite* sparks2Spr = SPR_addSprite(&sparks_2,
+                                       SPARKS2_WORLD_X, SPARKS2_WORLD_Y,
+                                       TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    if (sparks2Spr) SPR_setDepth(sparks2Spr, -SPARKS2_WORLD_Y);
+
     // --- Ascensores: 2 puertas animadas que se abren JUNTAS ---
     // elevPhase: 0=cerradas (esperando que ambas estén centradas) · 1=abriendo
     // (animación) · 2=remover + spawnear · 3=hecho (no vuelve a disparar).
     static const s16 elevCenterX[LEVEL1_ELEV_COUNT] = { 972, 1100 };
     Sprite* elevSpr[LEVEL1_ELEV_COUNT];
     for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) elevSpr[ev] = NULL;
+    Sprite* elevSparkSpr[LEVEL1_ELEV_COUNT];
+    for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) elevSparkSpr[ev] = NULL;
     u8  elevPhase = 0;
     u16 elevTimer = 0;
 
@@ -1170,8 +1237,8 @@ SceneId showLevel1() {
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         if (enemies[i].state == ENEMY_STATE_INACTIVE) {
             initEnemySpawn(&enemies[i],
-                           cameraX + SCREEN_PIXEL_WIDTH - ENEMY_SPRITE_W,
-                           180, 60, PAL2);
+                           cameraX + SCREEN_PIXEL_WIDTH - ENEMY_SPRITE_W_PURPLE,
+                           180, 60, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
             enemies[i].state = ENEMY_STATE_CHASE;
             break;
         }
@@ -1181,6 +1248,10 @@ SceneId showLevel1() {
     u16 introTimer = 0;
 
     bool win = FALSE;     // TRUE al matar al robot y limpiar enemigos (fin del nivel)
+
+    // --- Zonas de combate ---
+    s16  cameraLockX = -1;    // -1 = sin bloqueo; >=0 = cameraX no puede superar este valor
+    u8   combatZone = 0;      // Zona actual (0-9)
 
     // --- Bucle principal del nivel ---
     while (1) {
@@ -1206,11 +1277,13 @@ SceneId showLevel1() {
         if (leadScreenX > CAM_DEAD_ZONE_RIGHT && cameraX < CAM_MAX_X) {
             s16 newCam = cameraX + (leadScreenX - CAM_DEAD_ZONE_RIGHT);
             if (newCam > CAM_MAX_X) newCam = CAM_MAX_X;
+            if (cameraLockX >= 0 && newCam > cameraLockX) newCam = cameraLockX;
             if (dosJugadores) {
                 // Tope por el rezagado: su frame nunca pasa el borde izquierdo
                 s16 camCap = trailX - CAM_TRAIL_MARGIN;
                 if (newCam > camCap) newCam = camCap;
             }
+            if (newCam - cameraX > CAM_MAX_SPEED) newCam = cameraX + CAM_MAX_SPEED;
             if (newCam > cameraX) cameraX = newCam;   // nunca retrocede
         }
 
@@ -1266,46 +1339,67 @@ SceneId showLevel1() {
         //       soldier que ROMPE la puerta, remueve el sprite y no vuelve a
         //       disparar.
         for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) {
-            if (doorTriggered[d]) continue;
-
             s16 screenX = doorCenterX[d] - cameraX;   // centro del hueco en pantalla
 
             bool nearScreen = (screenX > -DOOR_VIS_MARGIN) &&
                               (screenX < SCREEN_PIXEL_WIDTH + DOOR_VIS_MARGIN);
-            if (nearScreen && !doorSpr[d]) {
-                doorSpr[d] = SPR_addSprite(&door_lvl_1,
-                                           screenX - DOOR_HALF_W, DOOR_SPRITE_TOP_Y,
-                                           TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
-                // Escenografía del fondo: detrás de personajes y enemigos.
-                if (doorSpr[d]) SPR_setDepth(doorSpr[d], SPR_MAX_DEPTH);
-            } else if (!nearScreen && doorSpr[d]) {
-                SPR_releaseSprite(doorSpr[d]);
-                doorSpr[d] = NULL;
+
+            if (!doorTriggered[d]) {
+                if (nearScreen && !doorSpr[d]) {
+                    doorSpr[d] = SPR_addSprite(&door_lvl_1,
+                                               screenX - DOOR_HALF_W, DOOR_SPRITE_TOP_Y,
+                                               TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+                    if (doorSpr[d]) SPR_setDepth(doorSpr[d], SPR_MAX_DEPTH - 1);
+                    // Sparks: fuego detrás de la puerta (misma paleta PAL2, fondo).
+                    if (!sparkSpr[d]) {
+                        sparkSpr[d] = SPR_addSprite(&sparks,
+                                                    screenX - SPARKS_HALF_W, SPARKS_SPRITE_TOP_Y,
+                                                    TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+                        if (sparkSpr[d]) SPR_setDepth(sparkSpr[d], SPR_MAX_DEPTH);
+                    }
+                } else if (!nearScreen && doorSpr[d]) {
+                    SPR_releaseSprite(doorSpr[d]);
+                    doorSpr[d] = NULL;
+                    if (sparkSpr[d]) { SPR_releaseSprite(sparkSpr[d]); sparkSpr[d] = NULL; }
+                }
+                if (doorSpr[d])
+                    SPR_setPosition(doorSpr[d], screenX - DOOR_HALF_W, DOOR_SPRITE_TOP_Y);
             }
-            if (doorSpr[d])
-                SPR_setPosition(doorSpr[d], screenX - DOOR_HALF_W, DOOR_SPRITE_TOP_Y);
+
+            // Spark sigue vivo después del trigger: mantenerlo fijo en el mundo
+            // y liberarlo cuando salga de cámara.
+            if (sparkSpr[d]) {
+                if (nearScreen) {
+                    SPR_setPosition(sparkSpr[d], screenX - SPARKS_HALF_W, SPARKS_SPRITE_TOP_Y);
+                } else {
+                    SPR_releaseSprite(sparkSpr[d]);
+                    sparkSpr[d] = NULL;
+                }
+            }
 
             // Armar por cercanía del jugador (el más cercano en 2P): centro de
             // la tortuga (frame +52) contra el centro del hueco.
-            s16 pdx = getPlayerWorldX(&p1) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
-            if (pdx < 0) pdx = -pdx;
-            if (dosJugadores) {
-                s16 pdx2 = getPlayerWorldX(&p2) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
-                if (pdx2 < 0) pdx2 = -pdx2;
-                if (pdx2 < pdx) pdx = pdx2;
-            }
-            if (!doorArmed[d] && pdx < DOOR_TRIGGER_DIST) doorArmed[d] = TRUE;
+            if (!doorTriggered[d]) {
+                s16 pdx = getPlayerWorldX(&p1) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
+                if (pdx < 0) pdx = -pdx;
+                if (dosJugadores) {
+                    s16 pdx2 = getPlayerWorldX(&p2) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
+                    if (pdx2 < 0) pdx2 = -pdx2;
+                    if (pdx2 < pdx) pdx = pdx2;
+                }
+                if (!doorArmed[d] && pdx < DOOR_TRIGGER_DIST) doorArmed[d] = TRUE;
 
-            // Disparar el spawn cuando esté armada y haya cupo (respeta el tope
-            // de foot soldiers simultáneos, igual que las oleadas).
-            if (doorArmed[d] && activeEnemies < MAX_ACTIVE_ENEMIES) {
-                for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                        initEnemyDoorSpawn(&enemies[i], doorCenterX[d], PAL2);
-                        activeEnemies++;
-                        doorTriggered[d] = TRUE;
-                        if (doorSpr[d]) { SPR_releaseSprite(doorSpr[d]); doorSpr[d] = NULL; }
-                        break;
+                // Disparar el spawn cuando esté armada y haya cupo (respeta el tope
+                // de foot soldiers simultáneos, igual que las oleadas).
+                if (doorArmed[d] && activeEnemies < MAX_ACTIVE_ENEMIES) {
+                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                            initEnemyDoorSpawn(&enemies[i], doorCenterX[d], PAL2);
+                            activeEnemies++;
+                            doorTriggered[d] = TRUE;
+                            if (doorSpr[d]) { SPR_releaseSprite(doorSpr[d]); doorSpr[d] = NULL; }
+                            break;
+                        }
                     }
                 }
             }
@@ -1314,6 +1408,8 @@ SceneId showLevel1() {
         // 4c. Ascensores: dos puertas que se abren JUNTAS cuando ambas quedan
         //     centradas en la cámara; al terminar la animación se remueven y de
         //     cada hueco sale un foot soldier (BREAK_DOOR frames 3-4).
+        //     Sparks de ascensor: fuego fijo en el hueco, se crea con la puerta
+        //     y persiste después de que se remueve, se libera al salir de cámara.
         if (elevPhase < 3) {
             // Crear/mantener los sprites de ambas puertas mientras estén cerca
             // de pantalla (frame 0 = cerrada, auto-animación congelada).
@@ -1327,8 +1423,14 @@ SceneId showLevel1() {
                                                     sx - ELEV_HALF_W, ELEV_SPRITE_TOP_Y,
                                                     TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
                         if (elevSpr[ev]) {
-                            SPR_setDepth(elevSpr[ev], SPR_MAX_DEPTH);      // escenografía
-                            SPR_setAutoAnimation(elevSpr[ev], FALSE);      // congelada en cerrada
+                            SPR_setDepth(elevSpr[ev], SPR_MAX_DEPTH - 1);
+                            SPR_setAutoAnimation(elevSpr[ev], FALSE);
+                        }
+                        if (!elevSparkSpr[ev]) {
+                            elevSparkSpr[ev] = SPR_addSprite(&spark_ascensor,
+                                                              sx - ELEV_SPARK_HALF_W, ELEV_SPARK_TOP_Y,
+                                                              TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+                            if (elevSparkSpr[ev]) SPR_setDepth(elevSparkSpr[ev], SPR_MAX_DEPTH);
                         }
                     } else if (!nearScr && elevSpr[ev] && elevPhase == 0) {
                         SPR_releaseSprite(elevSpr[ev]); elevSpr[ev] = NULL;
@@ -1353,6 +1455,8 @@ SceneId showLevel1() {
                     }
                     elevTimer = ELEV_DOOR_ANIM_TIME;
                     elevPhase = 1;
+                    // Bloquear cámara en posición fija (más adelante que el centering)
+                    cameraLockX = ZONE4_ELEV_LOCK;
                 }
             } else if (elevPhase == 1) {
                 // Esperar a que termine la animación de apertura.
@@ -1374,34 +1478,171 @@ SceneId showLevel1() {
             }
         }
 
+        // Sparks de ascensor: mantener fijos en el mundo y liberar al salir de cámara.
+        for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
+            if (elevSparkSpr[ev]) {
+                s16 sx = elevCenterX[ev] - cameraX;
+                bool nearScr = (sx > -DOOR_VIS_MARGIN) &&
+                               (sx < SCREEN_PIXEL_WIDTH + DOOR_VIS_MARGIN);
+                if (nearScr) {
+                    SPR_setPosition(elevSparkSpr[ev], sx - ELEV_SPARK_HALF_W, ELEV_SPARK_TOP_Y);
+                } else {
+                    SPR_releaseSprite(elevSparkSpr[ev]);
+                    elevSparkSpr[ev] = NULL;
+                }
+            }
+        }
+
+        // 4d. Zonas de combate: bloqueo de cámara y spawns secuenciales.
+        //     combatZone: 0=pre-1, 1=z1 activa, 2=heading z2, 3=z2 activa,
+        //     4=heading z3, 5=z3 activa, 6=heading z4, 7=z4 ascensores,
+        //     8=z4 delay, 9=z4 robot+naranja.
+        {
+            s16 camL, camR;
+            u16 s;
+
+            // --- Zona 1: cameraX >= 150 → 2 morados kick + 1 naranja kick ---
+            if (combatZone == 0 && cameraX >= ZONE1_CAM_LOCK) {
+                combatZone = 1;
+                cameraLockX = ZONE1_CAM_LOCK;
+                camL = cameraLockX;
+                camR = cameraLockX + SCREEN_PIXEL_WIDTH;
+                for (s = 0; s < 3; s++) {
+                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                            if (s == 0)
+                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 160,
+                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                            else if (s == 1)
+                                initEnemyKickSpawn(&enemies[i], camR, 160,
+                                                   -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                            else
+                                initEnemyKickSpawn(&enemies[i], camR, 166,
+                                                   -1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                            activeEnemies++;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (combatZone == 1 && activeEnemies == 0) {
+                cameraLockX = -1;
+                combatZone = 2;
+            }
+
+            // --- Zona 2: cameraX >= 300 → 2 morados walk (izq Y=145, der Y=160) ---
+            if (combatZone == 2 && cameraX >= ZONE2_CAM_LOCK) {
+                cameraLockX = ZONE2_CAM_LOCK;
+                combatZone = 3;
+                camL = cameraLockX;
+                camR = cameraLockX + SCREEN_PIXEL_WIDTH;
+                for (s = 0; s < 2; s++) {
+                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                            if (s == 0) {
+                                // Voltereta desde la espalda: entra haciendo la
+                                // voltereta y recién al terminar pasa a CHASE.
+                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 145,
+                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                            } else {
+                                initEnemySpawn(&enemies[i], camR, 160,
+                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                enemies[i].dir = -1;
+                                enemies[i].state = ENEMY_STATE_CHASE;
+                            }
+                            activeEnemies++;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (combatZone == 3 && activeEnemies == 0) {
+                cameraLockX = -1;
+                combatZone = 4;
+            }
+
+            // --- Zona 3: cameraX >= 614 → 1 morado walk izq Y=162 + 1 naranja walk der Y=150 ---
+            if (combatZone == 4 && cameraX >= ZONE3_CAM_LOCK) {
+                cameraLockX = ZONE3_CAM_LOCK;
+                combatZone = 5;
+                camL = cameraLockX;
+                camR = cameraLockX + SCREEN_PIXEL_WIDTH;
+                for (s = 0; s < 2; s++) {
+                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                            if (s == 0) {
+                                // Voltereta desde la espalda (entra del lado
+                                // izquierdo de la cámara).
+                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 162,
+                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                            } else {
+                                initEnemySpawn(&enemies[i], camR, 150,
+                                               0, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                enemies[i].dir = -1;
+                                enemies[i].state = ENEMY_STATE_CHASE;
+                            }
+                            activeEnemies++;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (combatZone == 5 && activeEnemies == 0) {
+                cameraLockX = -1;
+                combatZone = 6;
+            }
+
+            // --- Zona 4 (ascensores): esperar centering → clear → desbloquear ---
+            if (combatZone == 6 && elevPhase >= 1) {
+                // Ascensores dispararon por centering y bloquearon cámara
+                combatZone = 7;
+            }
+            if (combatZone == 7 && elevPhase >= 2 && activeEnemies == 0) {
+                // Ascensores limpiados → desbloquear cámara, permitir avanzar
+                cameraLockX = -1;
+                combatZone = 8;
+            }
+
+            // --- Zona 5 (robot): cameraX alcanza CAM_MAX_X → lock + spawn ---
+            if (combatZone == 8 && cameraX >= CAM_MAX_X) {
+                cameraLockX = ZONE5_ROBOT_LOCK;
+                combatZone = 9;
+                // Spawn 1 naranja walk desde la izquierda Y=160
+                for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                        initEnemySpawn(&enemies[i],
+                                       cameraLockX - ENEMY_SPRITE_W_ORANGE, 160,
+                                       0, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                        enemies[i].dir = 1;
+                        enemies[i].state = ENEMY_STATE_CHASE;
+                        activeEnemies++;
+                        break;
+                    }
+                }
+                // Robot
+                if (robot.state == ROBOT_INACTIVE)
+                    robotSpawn(&robot, ROBOT_SPAWN_CENTER);
+            }
+            // Zona 9: esperar robot muerto + sin enemigos → victoria (check en sección 6e)
+        }
+
         // 5. Actualizar enemigos con IA.
-        //    Primero la separación de grupo (que no se apilen entre ellos) y
-        //    después el update individual de cada uno.
+        // 5. Actualizar enemigos con IA. updateEnemy recibe los Player* (los
+        //    usa el agarre por la espalda del morado); la separación va primero.
         separateEnemies(enemies, MAX_ENEMIES);
 
-        s16 p1wx = getPlayerWorldX(&p1);
-        s16 p1wy = getPlayerY(&p1);
-        s16 p2wx = p1wx, p2wy = p1wy;
-        if (dosJugadores) {
-            p2wx = getPlayerWorldX(&p2);
-            p2wy = getPlayerY(&p2);
-        }
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (enemies[i].state == ENEMY_STATE_INACTIVE) continue;
             setEnemyCamera(&enemies[i], cameraX);
-            updateEnemy(&enemies[i], p1wx, p1wy, p2wx, p2wy, dosJugadores);
+            updateEnemy(&enemies[i], &p1, &p2, dosJugadores);
         }
 
-        // 5c. Robot del látigo (mini-jefe): aparece al llegar al final del nivel
-        //     y corre su propia máquina de estados (patrulla, láser, látigo con
-        //     agarre). Aplica por su cuenta el daño de láser/electrocución.
-        {
-            s16 leadWX = p1wx;
-            if (dosJugadores && p2wx > leadWX) leadWX = p2wx;
-            if (robot.state == ROBOT_INACTIVE && leadWX > ROBOT_SPAWN_TRIGGER)
-                robotSpawn(&robot, ROBOT_SPAWN_CENTER);
-        }
+        // 5c. Robot del látigo (mini-jefe): spawneado por zona 4 (combatZone == 9).
+        //     Solo update: la máquina de estados corre por su cuenta.
         robotUpdate(&robot, cameraX, &p1, dosJugadores ? &p2 : NULL, dosJugadores, fps);
+
+        // 5d. Shurikens: actualizar posición, auto-destrucción off-screen.
+        shurikenUpdate(cameraX);
 
         // 6. Colisiones: ataque del jugador → enemigos.
         //    playerAttackHits mide desde el CENTRO de la tortuga, con alcance
@@ -1426,10 +1667,17 @@ SceneId showLevel1() {
 
             if (dmg > 0) {
                 damageEnemy(&enemies[i], dmg);
+                // Mismo golpe seco de los foot soldiers, pero cuando el impacto
+                // vino de la patada con salto de la tortuga. Los i-frames del
+                // enemigo (ENEMY_INVINCIBLE) evitan que se repita cada frame.
+                if (attacker && isPlayerJumpKicking(attacker))
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 // El enemigo pasó enemyCanBeHit (estaba vivo). Si este golpe lo
                 // dejó en DEAD, es una baja: +1 punto al jugador que lo remató.
-                if (attacker && enemies[i].state == ENEMY_STATE_DEAD)
+                if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
+                    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
                     addPlayerScore(attacker, 1);
+                }
             }
         }
 
@@ -1448,6 +1696,9 @@ SceneId showLevel1() {
             }
             if (rdmg > 0) {
                 robotDamage(&robot, rdmg);
+                // Impacto de la patada con salto también contra el mini-jefe
+                if (ratt && isPlayerJumpKicking(ratt))
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 if (ratt && robot.state == ROBOT_DEAD)
                     addPlayerScore(ratt, 5);   // baja del mini-jefe
             }
@@ -1465,10 +1716,27 @@ SceneId showLevel1() {
 
             if (playerCanBeHit(&p1) &&
                 enemyTryHitPlayer(e, getPlayerWorldX(&p1), getPlayerY(&p1))) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(&p1, getEnemyCenterX(e));
             } else if (dosJugadores && playerCanBeHit(&p2) &&
                        enemyTryHitPlayer(e, getPlayerWorldX(&p2), getPlayerY(&p2))) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(&p2, getEnemyCenterX(e));
+            }
+        }
+
+        // 6b-bis. Shurikens → jugadores: colisión proyectil.
+        {
+            s16 hitX = 0;
+            if (playerCanBeHit(&p1) &&
+                shurikenCheckHitPlayer(getPlayerWorldX(&p1), getPlayerY(&p1), &hitX)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p1, hitX);
+            }
+            if (dosJugadores && playerCanBeHit(&p2) &&
+                shurikenCheckHitPlayer(getPlayerWorldX(&p2), getPlayerY(&p2), &hitX)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p2, hitX);
             }
         }
 
@@ -1504,6 +1772,23 @@ SceneId showLevel1() {
         //    con la cámara a FIRE_SCROLL_NUM/DEN de la velocidad del fondo)
         fireUpdate(cameraX);
 
+        // 8b. Sparks: rotación de paleta constante durante el nivel.
+        //     Escribe directamente en CRAM (PAL2, índices 5-8) cada SPARKS_PAL_SPEED ticks.
+        {
+            if (++sparksTimer >= SPARKS_PAL_SPEED) {
+                sparksTimer = 0;
+                sparksFrame = (sparksFrame + 1) % SPARKS_PAL_FRAME_COUNT;
+                // PAL2 empieza en CRAM index 32; +5 = index 37
+                PAL_setColors(32 + SPARKS_PAL_IDX_START,
+                              sparksPalAnim[sparksFrame],
+                              SPARKS_PAL_IDX_COUNT, DMA);
+            }
+        }
+
+        // 8c. Sparks 2: reposicionar sprite decorativo fijo en el mundo.
+        if (sparks2Spr)
+            SPR_setPosition(sparks2Spr, SPARKS2_WORLD_X - cameraX, SPARKS2_WORLD_Y);
+
         SPR_update();
         SYS_doVBlankProcess();
     }
@@ -1511,6 +1796,18 @@ SceneId showLevel1() {
     // La bola no debe seguir viva en la cutscene de victoria (evita que quede
     // congelada en pantalla o golpee durante el paseo scripteado del outro).
     ironBallEnd();
+
+    // Liberar shurikens activos (evita que queden volando en la cutscene).
+    shurikenReleaseAll();
+
+    // Liberar sparks que pudieran quedar visibles.
+    for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) {
+        if (sparkSpr[d]) { SPR_releaseSprite(sparkSpr[d]); sparkSpr[d] = NULL; }
+    }
+    for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
+        if (elevSparkSpr[ev]) { SPR_releaseSprite(elevSparkSpr[ev]); elevSparkSpr[ev] = NULL; }
+    }
+    if (sparks2Spr) { SPR_releaseSprite(sparks2Spr); sparks2Spr = NULL; }
 
     // Restaurar atributos de texto por defecto para el resto de las escenas
     // (el HUD los dejó en prioridad alta / PAL3).

@@ -1,0 +1,373 @@
+TMNT Enemy Tracker started 
+
+=== ENEMY SNAPSHOT at frame 120 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 150 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 180 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 210 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 240 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 270 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 300 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 330 === 
+  Slot  0: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  1: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  2: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  3: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  4: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  5: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  6: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  7: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  8: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot  9: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 10: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 11: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 12: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 13: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 14: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 15: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 16: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 17: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 18: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 19: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 20: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 21: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 22: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 23: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 24: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 25: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 26: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 27: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 28: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 29: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 30: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Slot 31: type=FFFF flags=FFFF pos=(65535,65535) hp=65535 state=FFFF timer=FFFF dir=FFFF vel=(   -1,   -1) 
+  Total active: 32 
+
+=== ENEMY SNAPSHOT at frame 360 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 390 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 420 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 450 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 480 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 510 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 540 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 570 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 600 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 630 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 660 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 690 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 720 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 750 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 780 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 810 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 840 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 870 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 900 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 930 === 
+  Total active: 0 
+
+=== ENEMY SNAPSHOT at frame 960 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 990 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 1020 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 1050 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Total active: 1 
+
+=== ENEMY SNAPSHOT at frame 1080 === 
+  Slot  0: type=00 flags=8100 pos=(   0,   0) hp=0 state=00 timer=00 dir=00 vel=(    0,    0) 
+  Slot  5: type=200 flags=8100 pos=( 516,   0) hp=65272 state=3180 timer=02 dir=00 vel=(  -12,    0) 
+  Total active: 2 
+
+=== TRACKING COMPLETE === 
