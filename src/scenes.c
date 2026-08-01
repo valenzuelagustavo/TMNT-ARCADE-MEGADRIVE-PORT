@@ -2,6 +2,7 @@
 #include "intro.h"   // sega_logo_spr, rocksteady_spr
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
+#include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
@@ -1865,7 +1866,423 @@ SceneId showLevel1() {
             SYS_doVBlankProcess();
         }
 
-        // 3) Fundido y a la cutscene final
+        // 3) Fundido y al nivel 2 (pasillo en llamas, 2da parte)
+        PAL_fadeOutAll(30, FALSE);
+        while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+        clearScene();
+        return SCENE_LEVEL2;
+    }
+
+    clearScene();
+    return SCENE_GAME_OVER;
+}
+
+// ===========================================================================
+// Nivel 2 — pasillo en llamas, 2da parte (sala cerrada)
+// ===========================================================================
+// bg_test (440x192) es MÁS angosto que el nivel 1 pero sigue sin entrar en
+// pantalla (440 > 320). La diferencia: sus 55 columnas sí caben en el plano
+// circular de 64 tiles, así que se dibuja COMPLETO una sola vez y solo se
+// scrollea (sin streaming de columnas). La cámara es BIDIRECCIONAL (la sala
+// se recorre de ida y vuelta) y topeada en 0..LEVEL2_CAM_MAX_X.
+//
+// El humo (smoke_lvl1, tira vertical de 8 frames de 64x64) se anima por
+// STREAMING igual que el fuego, pero en una banda de 64px justo debajo del
+// HUD (filas 4-11) y con PRIORIDAD BAJA: queda DETRÁS de los sprites.
+// Comparte la paleta de las tortugas (PAL1).
+// ---------------------------------------------------------------------------
+#define LEVEL2_PIXEL_WIDTH   440
+#define LEVEL2_CAM_MAX_X     (LEVEL2_PIXEL_WIDTH - SCREEN_PIXEL_WIDTH)  // 120
+// El fondo (192px = 24 filas) es más bajo que la pantalla (224px = 28 filas).
+// Se dibuja PEGADO AL BORDE INFERIOR (filas 4..27); la franja de arriba
+// (filas 0-3) queda libre para el HUD y las 4 filas de la base (24-27) las
+// tapa el fuego. offset = 28 - 24 = 4.
+#define LEVEL2_BG_OFFSET_Y   (SCROLL_TILE_ROWS - (192 / 8))  // 4
+
+#define SMOKE_CELL_TILES_W   8    // Celda de humo: 8 tiles de ancho (64px)
+#define SMOKE_CELL_TILES_H   8    // 8 tiles de alto (64px)
+#define SMOKE_CELL_TILES     (SMOKE_CELL_TILES_W * SMOKE_CELL_TILES_H)  // 64
+#define SMOKE_FRAMES         8    // Frames de animación en smoke_lvl1.png
+#define SMOKE_FRAME_INTERVAL 8    // Frames de juego entre cada frame de humo
+#define SMOKE_Y_TILE         4    // Banda 64px justo debajo del HUD (filas 0-3)
+
+static u16 smokeVramInd;   // Primer tile de VRAM de la celda del humo
+static u16 smokeFrame;     // Frame de animación actual (0..7)
+static u16 smokeTimer;     // Contador hasta el próximo paso
+static s16 smokeScrollTbl[SMOKE_CELL_TILES_H];  // H-scroll de las 8 filas del humo
+
+// Fondo del nivel 2: paleta, tileset a VRAM y TODAS las columnas al plano.
+// A diferencia de bgInit (streaming), acá no hay columnas por revelar: el mapa
+// (55x24) entra en el plano circular de 64. Los índices del tilemap NO son
+// secuenciales, así que se copia tile por tile. La imagen (24 filas) se dibuja
+// PEGADA AL BORDE INFERIOR: las filas del mapa van a destRow = r + LEVEL2_BG_OFFSET_Y.
+static void bgInit2(void) {
+    VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);   // plano circular 64x32
+
+    PAL_setPalette(PAL0, bg_test.palette->data, DMA);
+    VDP_loadTileSet(bg_test.tileset, TILE_USER_INDEX, DMA);
+
+    u16 attrBase = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX);
+    u16 w = bg_test.tilemap->w;
+    u16 h = bg_test.tilemap->h;
+    const u16* map = bg_test.tilemap->tilemap;
+    for (u16 c = 0; c < w; c++)
+        for (u16 r = 0; r < h; r++)
+            VDP_setTileMapXY(BG_B, attrBase + map[r * w + c], c, r + LEVEL2_BG_OFFSET_Y);
+}
+
+// Scroll del fondo del nivel 2: solo alimenta la tabla H-scroll de BG_B (el
+// mapa ya está completo en el plano, no hay columnas nuevas que revelar).
+static void bgUpdate2(s16 cameraX) {
+    for (u16 i = 0; i < SCROLL_TILE_ROWS; i++) bgScrollTbl[i] = -cameraX;
+    VDP_setHorizontalScrollTile(BG_B, 0, bgScrollTbl, SCROLL_TILE_ROWS, DMA_QUEUE);
+}
+
+// Carga el frame 0 del humo y dibuja la celda repetida a lo ancho del plano,
+// en la banda superior (debajo del HUD). 'vramInd' es el primer tile libre
+// (después del fondo). NO carga paleta: el humo comparte PAL1 (tortugas), ya
+// cargada por initPlayer -> llamar DESPUÉS de initPlayer.
+static void smokeInit(u16 vramInd) {
+    smokeVramInd = vramInd;
+    smokeFrame   = 0;
+    smokeTimer   = 0;
+
+    // Frame 0 a VRAM (64 tiles)
+    VDP_loadTileData(smoke_tiles.tiles, vramInd, SMOKE_CELL_TILES, DMA);
+
+    // Tilemap: celda 8x8 repetida en las 64 columnas del plano, filas 4-11.
+    // PRIORIDAD BAJA (FALSE) -> el humo queda DETRÁS de los sprites.
+    for (u16 block = 0; block < BG_PLANE_W / SMOKE_CELL_TILES_W; block++) {
+        VDP_fillTileMapRectInc(BG_A,
+                               TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, vramInd),
+                               block * SMOKE_CELL_TILES_W, SMOKE_Y_TILE,
+                               SMOKE_CELL_TILES_W, SMOKE_CELL_TILES_H);
+    }
+    // El scroll de la banda arranca en 0: fireInit ya puso TODA la tabla de
+    // BG_A en 0, así que no hay que escribirla acá.
+}
+
+// Avanza la animación del humo + su scroll de parallax (misma técnica que el
+// fuego). Recibe la cámara y se llama una vez por frame en el bucle del nivel.
+static void smokeUpdate(s16 cameraX) {
+    if (++smokeTimer >= SMOKE_FRAME_INTERVAL) {
+        smokeTimer = 0;
+        smokeFrame = (smokeFrame + 1) & (SMOKE_FRAMES - 1);
+        // Pisar los MISMOS 64 tiles de VRAM con el frame siguiente. El frame N
+        // arranca en tiles + N*64*8 longwords. DMA_QUEUE: transferencia en el
+        // próximo vblank.
+        VDP_loadTileData(smoke_tiles.tiles + (smokeFrame * SMOKE_CELL_TILES * 8),
+                         smokeVramInd, SMOKE_CELL_TILES, DMA_QUEUE);
+    }
+
+    // Scroll de parallax de la banda: mismas constantes que el fuego.
+    s16 sscroll = (s16)(-(((s32)cameraX * FIRE_SCROLL_NUM) / FIRE_SCROLL_DEN));
+    for (u16 i = 0; i < SMOKE_CELL_TILES_H; i++) smokeScrollTbl[i] = sscroll;
+    VDP_setHorizontalScrollTile(BG_A, SMOKE_Y_TILE, smokeScrollTbl,
+                                SMOKE_CELL_TILES_H, DMA_QUEUE);
+}
+
+// ---------------------------------------------------------------------------
+// Escena completa del nivel 2. Flujo:
+//   fase 0: oleada A (2 morados entrando de frente). Cámara bloqueada en 0:
+//           no se sale de la primera pantalla.
+//   fase 1: oleada A limpia -> sala libre (ida y vuelta, cámara 0..120).
+//   fase 2: al llegar al límite -> cámara bloqueada + oleada B (2 naranjas de
+//           frente + 1 morado que entra por la espalda).
+//   fase 3: oleada B limpia -> victoria -> cutscene final (Shredder/April).
+// ---------------------------------------------------------------------------
+SceneId showLevel2() {
+    clearScene();
+
+    // --- Fondo (sala de 440px): dibujo completo + scroll (sin streaming) ---
+    // Mapa de paletas (igual que el nivel 1):
+    //   PAL0 → fondo | PAL1 → tortugas + humo | PAL2 → foot soldiers + fuego | PAL3 → foot soldier naranja
+    bgInit2();
+
+    // --- Fuego en primer plano (BG_A, prioridad alta) ---
+    // VRAM de usuario: fondo, luego humo (64), luego fuego (64), luego barra.
+    u16 bgTiles = TILE_USER_INDEX + bg_test.tileset->numTile;
+    fireInit(bgTiles + FIRE_CELL_TILES);
+
+    // --- Humo del techo (BG_A, prioridad baja → detrás de los sprites) ---
+    // DESPUÉS de fireInit: éste resetea toda la tabla de scroll de BG_A.
+    smokeInit(bgTiles);
+
+    // --- Marcos del HUD (sprites de alto nivel, franja superior de 32px) ---
+    hudInit();
+    u16 hudVramFree = bgTiles + (FIRE_CELL_TILES * 2);
+
+    // --- Estado global de la IA de grupo y proyectiles ---
+    resetEnemyAI(cantidadJugadores);
+    shurikenInit();
+
+    // --- PAL3: foot soldier naranja + texto del HUD en blanco ---
+    PAL_setPalette(PAL3, foot_soldier_orange.palette->data, DMA);
+
+    // --- Música (misma del pasillo en llamas, volumen reducido) ---
+    playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
+
+    // --- Inicializar jugador(es) ---
+    bool dosJugadores = (cantidadJugadores == 2);
+
+    Player p1;
+    initPlayer(&p1, personajeSeleccionado, JOY_1, PAL1, 40, 182);
+    setPlayerRightBound(&p1, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+
+    Player p2;
+    if (dosJugadores) {
+        initPlayer(&p2, personaje2Seleccionado, JOY_2, PAL1, 160, 182);
+        setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+    }
+
+    // --- HUD dinámico: barra de vida + vidas + puntaje ---
+    VDP_setTextPlane(BG_A);
+    VDP_setTextPriority(1);
+    VDP_setTextPalette(PAL3);
+
+    HudPlayer hud1;
+    hudPlayerInit(&hud1, &p1, 0, hudVramFree);
+    HudPlayer hud2;
+    if (dosJugadores)
+        hudPlayerInit(&hud2, &p2, 40 - HUD_TILE_W, hudVramFree + HPBAR_FRAME_TILES);
+
+    // --- Pool de enemigos ---
+    Enemy enemies[MAX_ENEMIES];
+    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+        enemies[i].state = ENEMY_STATE_INACTIVE;
+        enemies[i].sprite = NULL;
+    }
+
+    s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
+    bgUpdate2(0);      // Scroll inicial
+
+    // --- Oleada A: 2 foot soldiers morados entrando de FRENTE ---
+    // Ambos caminan (CHASE) hacia el jugador desde el borde derecho, lanes
+    // distintas para que no vengan en fila india.
+    {
+        s16 camR = cameraX + SCREEN_PIXEL_WIDTH;
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                initEnemySpawn(&enemies[i], camR - ENEMY_SPRITE_W_PURPLE, 160,
+                               60, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                enemies[i].dir = -1;
+                enemies[i].state = ENEMY_STATE_CHASE;
+                break;
+            }
+        }
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                initEnemySpawn(&enemies[i], camR, 186,
+                               60, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                enemies[i].dir = -1;
+                enemies[i].state = ENEMY_STATE_CHASE;
+                break;
+            }
+        }
+    }
+
+    // --- Fases del nivel ---
+    u8   phase       = 0;    // 0=oleada A · 1=sala libre · 2=oleada B · 3=victoria
+    s16  cameraLockX = 0;    // >=0 = cameraX no puede superar este valor
+    bool win         = FALSE;
+
+    while (1) {
+        // 1. Input y física de cada jugador
+        updatePlayer(&p1);
+        if (dosJugadores) updatePlayer(&p2);
+
+        // 2. Cámara con dead-zone BIDIRECCIONAL (la sala se recorre de ida y
+        //    vuelta). Derecha: igual que el nivel 1 (capped por cameraLockX).
+        //    Izquierda: retrocede cuando el que va adelante queda muy atrás.
+        s16 leadX  = getPlayerWorldX(&p1);
+        s16 trailX = leadX;
+        if (dosJugadores) {
+            s16 x2 = getPlayerWorldX(&p2);
+            if (x2 > leadX)  leadX  = x2;
+            if (x2 < trailX) trailX = x2;
+        }
+        s16 leadScreenX = leadX - cameraX;
+
+        if (leadScreenX > CAM_DEAD_ZONE_RIGHT && cameraX < LEVEL2_CAM_MAX_X) {
+            s16 newCam = cameraX + (leadScreenX - CAM_DEAD_ZONE_RIGHT);
+            if (newCam > LEVEL2_CAM_MAX_X) newCam = LEVEL2_CAM_MAX_X;
+            if (cameraLockX >= 0 && newCam > cameraLockX) newCam = cameraLockX;
+            if (dosJugadores) {
+                // Tope por el rezagado: su frame nunca pasa el borde izquierdo
+                s16 camCap = trailX - CAM_TRAIL_MARGIN;
+                if (newCam > camCap) newCam = camCap;
+            }
+            if (newCam - cameraX > CAM_MAX_SPEED) newCam = cameraX + CAM_MAX_SPEED;
+            if (newCam > cameraX) cameraX = newCam;   // nunca retrocede
+        } else if (leadScreenX < CAM_DEAD_ZONE_LEFT && cameraX > 0) {
+            s16 newCam = cameraX - (CAM_DEAD_ZONE_LEFT - leadScreenX);
+            if (newCam < 0) newCam = 0;
+            if (newCam < cameraX) cameraX = newCam;   // retroceder en la sala
+        }
+
+        // 3. Notificar a cada jugador la cámara y los bordes de movimiento.
+        s16 rightBound = cameraX + SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W;
+        setPlayerCamera(&p1, cameraX);
+        setPlayerLeftBound(&p1, cameraX);
+        setPlayerRightBound(&p1, rightBound);
+        if (dosJugadores) {
+            setPlayerCamera(&p2, cameraX);
+            setPlayerLeftBound(&p2, cameraX);
+            setPlayerRightBound(&p2, rightBound);
+        }
+
+        // 4. Conteo de enemigos activos.
+        u16 activeEnemies = 0;
+        for (u16 i = 0; i < MAX_ENEMIES; i++)
+            if (enemies[i].state != ENEMY_STATE_INACTIVE) activeEnemies++;
+
+        // 4b. Fases / oleadas.
+        if (phase == 0 && activeEnemies == 0) {
+            // Oleada A limpia: desbloquear la cámara (sala libre, ida y vuelta)
+            cameraLockX = -1;
+            phase = 1;
+        } else if (phase == 1 && cameraX >= LEVEL2_CAM_MAX_X) {
+            // Llegó al límite del nivel: oleada B (2 naranjas de frente + 1
+            // morado que entra por la espalda) y cámara bloqueada ahí.
+            cameraLockX = LEVEL2_CAM_MAX_X;
+            phase = 2;
+            s16 camL = cameraX;
+            s16 camR = cameraX + SCREEN_PIXEL_WIDTH;
+            // 2 naranjas (PAL3) desde el borde derecho, lanes distintas.
+            for (u16 s = 0; s < 2; s++) {
+                for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                        initEnemySpawn(&enemies[i], camR + (s * 48), 158,
+                                       0, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                        enemies[i].dir = -1;
+                        enemies[i].state = ENEMY_STATE_CHASE;
+                        break;
+                    }
+                }
+            }
+            // 1 morado que entra por la espalda (voltereta desde la izquierda).
+            for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 148,
+                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                    break;
+                }
+            }
+        } else if (phase == 2 && activeEnemies == 0) {
+            // Oleada B limpia: victoria.
+            win = TRUE;
+            break;
+        }
+
+        // 5. Enemigos: separación + IA.
+        separateEnemies(enemies, MAX_ENEMIES);
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (enemies[i].state == ENEMY_STATE_INACTIVE) continue;
+            setEnemyCamera(&enemies[i], cameraX);
+            updateEnemy(&enemies[i], &p1, &p2, dosJugadores);
+        }
+
+        // 5b. Shurikens: actualizar posición, auto-destrucción off-screen.
+        shurikenUpdate(cameraX);
+
+        // 6. Colisiones: ataque del jugador → enemigos.
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (!enemyCanBeHit(&enemies[i])) continue;
+
+            s16 ex = getEnemyCenterX(&enemies[i]);
+            s16 ey = getEnemyCenterY(&enemies[i]);
+
+            s16     dmg      = 0;
+            Player* attacker = NULL;
+            if (playerAttackHits(&p1, ex, ey)) {
+                dmg = isPlayerSpecialAttack(&p1) ? ENEMY_HP : 1; attacker = &p1;
+            } else if (dosJugadores && playerAttackHits(&p2, ex, ey)) {
+                dmg = isPlayerSpecialAttack(&p2) ? ENEMY_HP : 1; attacker = &p2;
+            }
+
+            if (dmg > 0) {
+                damageEnemy(&enemies[i], dmg);
+                if (attacker && isPlayerJumpKicking(attacker))
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
+                    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    addPlayerScore(attacker, 1);
+                }
+            }
+        }
+
+        // 6b. Colisiones: ataques de los foot soldiers → jugadores.
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            Enemy* e = &enemies[i];
+            if (e->state != ENEMY_STATE_ATTACK) continue;
+
+            if (playerCanBeHit(&p1) &&
+                enemyTryHitPlayer(e, getPlayerWorldX(&p1), getPlayerY(&p1))) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p1, getEnemyCenterX(e));
+            } else if (dosJugadores && playerCanBeHit(&p2) &&
+                       enemyTryHitPlayer(e, getPlayerWorldX(&p2), getPlayerY(&p2))) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p2, getEnemyCenterX(e));
+            }
+        }
+
+        // 6c. Shurikens → ataque del jugador (rompe proyectiles) y → jugadores.
+        {
+            if (shurikenBreakByPlayerAttack(&p1)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            }
+            if (dosJugadores && shurikenBreakByPlayerAttack(&p2)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            }
+        }
+        {
+            s16 hitX = 0;
+            if (playerCanBeHit(&p1) &&
+                shurikenCheckHitPlayer(getPlayerWorldX(&p1), getPlayerY(&p1), &hitX)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p1, hitX);
+            }
+            if (dosJugadores && playerCanBeHit(&p2) &&
+                shurikenCheckHitPlayer(getPlayerWorldX(&p2), getPlayerY(&p2), &hitX)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p2, hitX);
+            }
+        }
+
+        // 6d. HUD: refrescar barra de vida, vidas y puntaje.
+        hudPlayerUpdate(&hud1);
+        if (dosJugadores) hudPlayerUpdate(&hud2);
+
+        // 6e. Game over: sin vidas ni barra. En 2P, cuando ambos cayeron.
+        if (isPlayerGameOver(&p1) && (!dosJugadores || isPlayerGameOver(&p2)))
+            break;
+
+        // 7. Scroll del fondo.
+        bgUpdate2(cameraX);
+
+        // 8. Animar el fuego del primer plano + su scroll de parallax.
+        fireUpdate(cameraX);
+
+        // 8b. Animar el humo del techo + su scroll de parallax.
+        smokeUpdate(cameraX);
+
+        SPR_update();
+        SYS_doVBlankProcess();
+    }
+
+    // Liberar shurikens activos (evita que queden volando en la cutscene).
+    shurikenReleaseAll();
+
+    // Restaurar atributos de texto por defecto para el resto de las escenas
+    // (el HUD los dejó en prioridad alta / PAL3).
+    VDP_setTextPriority(0);
+    VDP_setTextPalette(PAL0);
+
+    // Secuencia de salida (victoria): fundido y a la cutscene final (Shredder
+    // se lleva a April).
+    if (win) {
         PAL_fadeOutAll(30, FALSE);
         while (PAL_isDoingFade()) SYS_doVBlankProcess();
 

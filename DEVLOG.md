@@ -619,3 +619,101 @@ frame, índice = personaje elegido).
 captura arcade (`arcade_reverse_eng/footsoldier_capture.txt`) si el morado
 debe también tirar shurikens (`PROJ S0`, DMG=32) — hoy solo lo hace el
 naranja — y el ritmo de estados del arcade (ciclo por timer de 24 frames).
+
+## 31 de julio de 2026 - Sin retroceso al golpear + agarre revisado (indices [14]/[18])
+
+- **Se eliminó el "retroceso" en X al golpear:** `ENEMY_STATE_HURT` ya no hace
+  `e->x += (e->dir * -1) * 3` — el enemigo queda CLAVADO en el lugar mientras
+  muestra la anim de daño. También se quitó el empuje de la muerte
+  (`ENEMY_DEATH_KNOCK_FRAMES`/`ENEMY_DEATH_KNOCK_SPEED` y el bloque que
+  desplazaba en X durante los primeros 10 frames del `ENEMY_STATE_DEAD`): el
+  soldier muere EN EL LUGAR, igual que se golpea. Así el player puede encadenar
+  golpes sin arrastrar al enemigo fuera del alcance.
+- **Agarre por la espalda revisado:** se confirmó que el código ya muestra
+  exactamente lo pedido — el soldier usa la anim **índice [14]** (`ENEMY_ANIM_GRAB`,
+  seteada con `enemyRestartAnim` al entrar en `ENEMY_STATE_GRAB`) y la tortuga la
+  anim **índice [18]** (`ANIM_HELD`) con los frames 0→1→2 mientras está agarrada
+  (loop manual de `updatePlayer`) y el **frame 3** durante los
+  `PLAYER_HELD_HIT_FRAMES = 8` ticks en que le pegan (lo dispara `damagePlayer`).
+  Solo se actualizaron comentarios que decían "frame VACIO" (el usuario redibujó
+  la pose de la fila 14 en `foot_soldier_16colors.png`, que ahora SÍ se ve).
+- **Nota de build:** rescomp siempre se re-ejecuta (el `.rs` intermedio se
+  borra solo al terminar `make`), así que una modificación a cualquier PNG de
+  una sheet se refleja en el ROM sin pasos extra.
+- **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes (solo los
+  warnings conocidos de `scenes.c`).
+
+## 31 de julio de 2026 - BUG REAL: la fila 14 vacía rompía los indices [14] y [15]
+
+- **Síntoma:** al agarrar, el foot soldier (en vez de quedar en la pose de
+  agarre) "ejecutaba toda la animación [15]" (la voltereta), y en la entrada
+  con voltereta el sprite mostraba BASURA.
+- **Causa raíz (confirmada leyendo el código fuente de rescomp):** la fila 14
+  (grab) del morado estaba 100% transparente. `rescomp` ELIMINA las filas de
+  animación totalmente transparentes (`Sprite.java`, `if (!animation.isEmpty())`)
+  y ademas RECORTA los frames transparentes del final de cada fila
+  (`SpriteAnimation.java`, `numFrame = f + 1`). Con la fila 14 vacía el índice
+  14 quedaba apuntando a la VOLTERETA (fila 15) y el índice 15 quedaba FUERA
+  DE RANGO (tabla de 15 animaciones) → puntero basura → arte corrupto.
+- **Fix:** un punto placeholder de 4px en la celda 0 de la fila 14. Verificado
+  en el ROM: `numAnimation` = 16 (0x0010) y la tabla de punteros de animación
+  tiene 16 entradas contiguas → el índice 14 vuelve a ser el grab y el 15 la
+  voltereta. Ambos bugs desaparecen.
+- **Pendiente (arte):** dibujar la pose real de agarre en la fila 14. Basta con
+  ponerla en la celda 0 (si solo hay arte en la celda 0, `numFrame` = 1 y el
+  soldier la mantiene clavada todo el agarre; si se ponen celdas vacías delante
+  del arte, esas se reproducen primero por `frameDuration`).
+- **Auditoría:** se verificaron las otras sheets (naranja, Leo/Mike/Raph/Don,
+  robot) — ninguna tiene filas vacías. Se agregó la regla a AGENTS.md.
+- **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes.
+
+## 31 de julio de 2026 - Golpe de las tortugas: menos "trabado" (frame time de 7-10 a 5)
+
+- **Diagnóstico del golpe lento:** NO era el sistema de "esperar el botón para
+  encadenar" — el press de B ya se bufferea durante todo el swing y encadena al
+  instante al terminar la anim (`player.c` STATE_ATTACKING). El problema era la
+  DURACIÓN de cada swing: las filas de ataque tienen 4-10 frames (A1/A2/A3) y
+  corrían a 7-10 ticks/frame. Combo total medido: Leo 2.33s (FAST 10),
+  Mike/Raph 2.22s, Don 2.57s — el arcade hace el combo de 3 en ~0.8-1.0s.
+  Además `SPR_isAnimationDone` exige la última tick del último frame para
+  considerar el swing terminado: no hay cancel.
+- **Fix (solo res):** `chars.res` pasa las 4 sheets a `FAST 5` (Leo estaba en
+  FAST 10 por un cambio sin commit, el resto en 7). Combo total resultante:
+  Leo 1.17s, Mike/Raph 0.95s, Don 1.10s. Walk sigue OK (8 frames x 5 = 0.67s
+  el ciclo); salto y agarre son manuales, no se ven afectados.
+- **Palancas que quedaron afuera (decisión):** recortar frames de ataque en las
+  sheets (arte, lo más fiel al arcade) y/o encadenado sin esperar la última
+  tick + `COMBO_LINK_WINDOW` menor. Si todavía se siente lento, son los pasos
+  siguientes.
+- **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes (solo los
+  warnings conocidos).
+
+## 1 de agosto de 2026 - Nivel 2: pasillo en llamas, 2da parte (sala cerrada)
+
+- **Cadena de niveles nueva:** la victoria del nivel 1 ya no va a la cutscene
+  de Shredder: `showLevel1` (outro: cruzar la puerta + fade) ahora devuelve
+  `SCENE_LEVEL2`. El nivel 2 completo termina devolviendo `SCENE_ENDING`
+  (Shredder se lleva a April) y de ahí el logo de SEGA, como antes.
+- **Escena nueva** (`showLevel2()` en `scenes.c`): el fondo `bg_test.png`
+  (440x192, 55x24 tiles, 467 tiles únicos) se dibuja COMPLETO una sola vez
+  (`bgInit2`) y solo se scrollea (`bgUpdate2`) — a diferencia del nivel 1, sus
+  55 columnas entran en el plano circular de 64, así que no hace falta
+  streaming. Cámara BIDIRECCIONAL (la sala se recorre de ida y vuelta,
+  topeada en 0..120): se agregó la rama de scroll a la izquierda que el nivel 1
+  no tenía (beat-em-up clásico de un solo sentido).
+- **Humo del techo** (`smoke_lvl1.png`, tira vertical 64x512 = 8 frames de
+  64x64): mismo streaming que el fuego (`smokeInit`/`smokeUpdate`), banda de
+  64px justo debajo del HUD (filas 4-11), parallax 1/2 y comparte PAL1
+  (tortugas). A pedido: PRIORIDAD BAJA (tile attr priority FALSE) → el humo
+  queda DETRÁS de los sprites; el fuego del suelo sigue en primer plano.
+  VRAM de usuario: fondo → humo (64) → fuego (64) → barra HUD.
+- **Oleadas:** fase 0 = 2 morados entrando de frente (lanes 160/186) con la
+  cámara bloqueada en 0 (no se sale de la primera pantalla). Al caer →
+  desbloqueo. Fase 1 = sala libre; al llegar a cameraX=120 → cámara bloqueada
+  y oleada B: 2 naranjas (PAL3) de frente (lanes 158/186) + 1 morado que entra
+  por la espalda con voltereta (`initEnemySomersaultSpawn`). Al caer →
+  victoria → `SCENE_ENDING`. Game over → `SCENE_GAME_OVER`.
+- **Recursos:** `level2.res` nuevo (IMAGE `bg_test` NONE + TILESET
+  `smoke_tiles` NONE NONE); el makefile lo toma solo (glob de `res/*.res`).
+- **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes (solo los
+  warnings conocidos).

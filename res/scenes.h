@@ -15,6 +15,7 @@ typedef enum {
     SCENE_CINEMATIC_FIRE,
     SCENE_LEVEL1_TITLE,
     SCENE_LEVEL1,
+    SCENE_LEVEL2,       // Nivel 2: pasillo en llamas, 2da parte (sala cerrada)
     SCENE_ENDING,       // Cutscene final: Shredder rapta a April (BG_A + BG_B)
     SCENE_GAME_OVER
 } SceneId;
@@ -29,6 +30,7 @@ SceneId showCharSelect();
 SceneId showFireCinematic();
 SceneId showLevel1Title();
 SceneId showLevel1();
+SceneId showLevel2();
 SceneId showEnding();
 SceneId showGameOver();
 
