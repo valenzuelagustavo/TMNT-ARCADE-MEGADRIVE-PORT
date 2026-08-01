@@ -142,6 +142,10 @@
 #define ORANGE_SHURIKEN_SPEED   3   // px/frame de desplazamiento en X
 #define ORANGE_SHURIKEN_DMG     1   // barras de vida al impactar
 #define ORANGE_SHURIKEN_SPAWN_TIMER 16  // timer del ataque al que se spawnea (frame 1 de 3)
+// Desplazamiento del spawn respecto del CENTRO del frame: borde del frame
+// (w/2 = 52px) quedaba lejos del cuerpo → el shuriken "nacía" pegado a la
+// punta del frame. Ahora nace 2 tiles (16px) más cerca del soldier (52-16=36).
+#define ORANGE_SHURIKEN_NEAR_OFFSET 16
 #define ORANGE_SHURIKEN_RANGE_MIN 30   // rango mínimo para elegir shuriken
 #define ORANGE_SHURIKEN_RANGE_MAX 180  // rango máximo para elegir shuriken (kiter a distancia larga)
 

@@ -569,6 +569,31 @@ frame, índice = personaje elegido).
 - **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes. Commit:
   `dda832c`.
 
+## 31 de julio de 2026 - Fix del foot soldier naranja: no se retira del nivel y el shuriken nace más cerca
+
+- **Bug reportado:** el kiter naranja siempre se alejaba del jugador para
+  tirar shurikens → podía retirarse hasta X negativa, fuera del nivel e
+  inalcanzable (el jugador no pasa del borde izquierdo de la cámara:
+  `boundLeft = cameraX`), y por tanto imposible de matar.
+- **Fix (retirada):** nueva cota `enemyMinX(e)` en `enemy.c` (gemela de
+  `enemyMaxX`): durante `ENEMY_STATE_SPAWNING` devuelve `-w` (las volteretas
+  de entrada siguen pudiendo nacer desde fuera de pantalla); para el naranja
+  devuelve `e->cameraOffsetX` (el borde visible de la cámara, setteado cada
+  frame por `setEnemyCamera` antes de `updateEnemy`); el morado conserva `-w`
+  (nace por la espalda con la voltereta). Se aplicó en TODAS las llamadas de
+  clamp X (7 en `updateEnemy` + 2 en `separateEnemies`). Además, en CHASE la
+  retirada por `dist < ORANGE_KITE_MIN` ahora se bloquea si `e->x` ya está
+  pegado al borde (`e->x > e->cameraOffsetX`): en vez de caminar en el lugar
+  contra el clamp, el naranja se queda quieto y el jugador puede cerrar
+  distancia. Como el clamp sigue a la cámara, si el jugador avanza a la
+  izquierda el naranja continúa retrocediendo sin salir de pantalla.
+- **Fix (spawn del shuriken):** antes nacía a `centro + dir * (w/2)` (52px
+  para el frame 104px, pegado a la punta del frame, lejos del cuerpo). Ahora
+  `ORANGE_SHURIKEN_NEAR_OFFSET = 16` (2 tiles de 8px) → nace a 36px del
+  centro, cerca de la mano que lo lanza.
+- **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes (sin
+  warnings nuevos).
+
 **Siguiente paso (Phase B, resto):** con los combos hechos, evaluar con la
 captura arcade (`arcade_reverse_eng/footsoldier_capture.txt`) si el morado
 debe también tirar shurikens (`PROJ S0`, DMG=32) — hoy solo lo hace el

@@ -175,6 +175,18 @@ static s16 enemyMaxX(const Enemy* e) {
     return (wallMax < levelMax) ? wallMax : levelMax;
 }
 
+// Cota izquierda de movimiento por tipo. El morado conserva la negativa
+// (-w) para poder nacer con la voltereta por la espalda desde fuera de
+// pantalla; el naranja (kiter) NUNCA retrocede a la izquierda del borde
+// visible de la cámara: si se retirara hasta X negativa quedaría fuera
+// del nivel, inalcanzable para el jugador (que no pasa del borde de la
+// cámara) e imposible de matar.
+static s16 enemyMinX(const Enemy* e) {
+    if (e->state == ENEMY_STATE_SPAWNING) return -(s16)e->w;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return e->cameraOffsetX;
+    return -(s16)e->w;
+}
+
 // ---------------------------------------------------------------------------
 // IA DE GRUPO — atacantes simultáneos
 // ---------------------------------------------------------------------------
@@ -476,7 +488,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
     if (e->state == ENEMY_STATE_DEAD) {
         if (e->timer > explodeTime - ENEMY_DEATH_KNOCK_FRAMES)
             e->x = clampS16(e->x - e->dir * ENEMY_DEATH_KNOCK_SPEED,
-                            (-(s16)e->w), enemyMaxX(e));
+                            enemyMinX(e), enemyMaxX(e));
         if (e->timer > 0) {
             e->timer--;
             if (e->timer == 0) {
@@ -499,14 +511,14 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             u16 kickTime  = enemyAttackTime(e);
             if (e->timer > (kickTime - kickLunge)) {
                 e->x += e->dir * ENEMY_KICK_SPEED;
-                e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
+                e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
             }
         }
         // Voltereta de entrada: avanza en X durante TODO el SPAWNING (más rápido
         // que el walk; el sprite hace la voltereta sola con la anim 15).
         if (e->somersault) {
             e->x += e->dir * ENEMY_SOMERSAULT_SPEED;
-            e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
+            e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
         }
         if (e->timer > 0) e->timer--;
         else              e->state = ENEMY_STATE_CHASE;
@@ -656,10 +668,17 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             s16 moveX = 0;
             if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
                 // Kiter: mantener la banda [KITE_MIN, KITE_MAX] con el jugador.
-                if (dist < ORANGE_KITE_MIN)
-                    moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;   // alejarse
-                else if (dist > ORANGE_KITE_MAX)
+                // La retirada NO sale del nivel: si el naranja ya está pegado
+                // al borde izquierdo visible (la cámara), deja de retroceder y
+                // se queda quieto — el jugador (que no pasa del borde de la
+                // cámara) puede cerrar distancia y alcanzarlo. Antes se iba a
+                // X negativa fuera del nivel y era imposible matarlo.
+                if (dist < ORANGE_KITE_MIN) {
+                    if (e->x > e->cameraOffsetX)
+                        moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;   // alejarse
+                } else if (dist > ORANGE_KITE_MAX) {
                     moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;   // acercarse
+                }
                 // dentro de la banda → se queda en X
             } else {
                 // Morado: apunta a un punto DETRÁS del jugador (espalda = lado
@@ -679,7 +698,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             }
             if (moveX != 0) {
                 e->x += moveX;
-                e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
+                e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
             }
 
             // --- Morado: GIRO al invertir el sentido de la maniobra ---
@@ -754,7 +773,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                     // Patada con salto: desplazamiento en X durante el lunge
                     if (step->lunge > 0 && e->timer > (step->time - step->lunge)) {
                         e->x += e->dir * ENEMY_KICK_SPEED;
-                        e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
+                        e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
                     }
                     if (e->timer == 0) {
                         if (e->comboStep + 1 < e->comboLen) {
@@ -780,13 +799,16 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 if (e->attackType == ENEMY_ATTACK_KICK &&
                     e->timer > (kickTime - kickLunge)) {
                     e->x += e->dir * ENEMY_KICK_SPEED;
-                    e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
+                    e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
                 }
 
-                // Shuriken: spawnear proyectil en el frame 1 (timer == SPAWN_TIMER)
+                // Shuriken: spawnear proyectil en el frame 1 (timer == SPAWN_TIMER).
+                // Nace 2 tiles más cerca del soldier que el borde del frame
+                // (w/2 - ORANGE_SHURIKEN_NEAR_OFFSET) — antes aparecía pegado
+                // a la punta del frame, lejos del cuerpo.
                 if (e->attackType == ENEMY_ATTACK_SHURIKEN &&
                     e->timer == ORANGE_SHURIKEN_SPAWN_TIMER) {
-                    s16 spawnX = getEnemyCenterX(e) + e->dir * (e->w / 2);
+                    s16 spawnX = getEnemyCenterX(e) + e->dir * (e->w / 2 - ORANGE_SHURIKEN_NEAR_OFFSET);
                     shurikenSpawn(spawnX, e->y, e->dir, e->palette);
                 }
             } else {
@@ -842,7 +864,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             e->y  = gy;
             e->x = clampS16(gx + (PLAYER_SPRITE_W / 2) - (s16)gdir * ENEMY_GRAB_BACK_OFFSET
                             - (ENEMY_SPRITE_W_PURPLE / 2),
-                            (-(s16)e->w), enemyMaxX(e));
+                            enemyMinX(e), enemyMaxX(e));
             e->dir = (s8)-gdir;
             if (e->grabTimer > 0) {
                 e->grabTimer--;
@@ -909,8 +931,8 @@ void separateEnemies(Enemy* list, u16 count) {
                 continue;
 
             s16 push = (dx > 0 || (dx == 0 && (i & 1))) ? 1 : -1;
-            list[i].x = clampS16(list[i].x - push, (-(s16)list[i].w), enemyMaxX(&list[i]));
-            list[j].x = clampS16(list[j].x + push, (-(s16)list[j].w), enemyMaxX(&list[j]));
+            list[i].x = clampS16(list[i].x - push, enemyMinX(&list[i]), enemyMaxX(&list[i]));
+            list[j].x = clampS16(list[j].x + push, enemyMinX(&list[j]), enemyMaxX(&list[j]));
 
             if (dy != 0) {
                 s16 pushY = (dy > 0) ? 1 : -1;
