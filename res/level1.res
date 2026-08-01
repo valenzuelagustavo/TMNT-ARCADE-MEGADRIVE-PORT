@@ -29,11 +29,15 @@ IMAGE bg_level1 "/images/lvl_1_scene/bg01_completa.png" NONE
 TILESET fire_tiles "/sprites/fire_strip.png" NONE NONE
 
 // --- HUD: marcos de vidas / puntos / barra de vida (72x32 cada uno) ---
-// Van en la franja superior de 32px que el fondo deja libre (sus 4 primeras
-// filas de tiles usan un indice fuera de la linea -> transparente en juego).
-// Comparten la paleta de las tortugas (PAL1): NO llevan PALETTE propia.
-IMAGE hud_1p "/images/hud/hud_1p.png" BEST
-IMAGE hud_2p "/images/hud/hud_2p.png" BEST
+// Spritesheet de 4 animaciones de 1 frame (celda 72x32), UNA por tortuga en
+// ORDEN DE PERSONAJE: fila 0=Leo(azul) 1=Mike(rojo) 2=Don(purpura)
+// 3=Raph(dorado). time 0 -> sin auto-animacion: scenes.c elige la fila con
+// SPR_setAnim(sprite, personajeSeleccionado). Se dibujan como SPRITES de alto
+// nivel en la franja superior de 32px (siempre por encima de los planos, sin
+// gastar VRAM de tiles de fondo). Comparten la paleta de las tortugas (PAL1):
+// NO llevan PALETTE propia.
+SPRITE hud_1p "/images/hud/hud_1p.png" 9 4 NONE 0
+SPRITE hud_2p "/images/hud/hud_2p.png" 9 4 NONE 0
 
 // --- Barra de vida (11 frames de 32x8 apilados en vertical) ---
 // hp_bar.png (32x88): frame[0] = 10 barras (vida llena), frame[10] = 0 barras.

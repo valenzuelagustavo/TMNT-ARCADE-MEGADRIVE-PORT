@@ -1,7 +1,7 @@
 #include "scenes.h"
 #include "intro.h"   // sega_logo_spr, rocksteady_spr
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
-#include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (IMAGE, 72x32), title_font, title_font_pal
+#include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
@@ -509,34 +509,38 @@ static void ironBallEnd() {
 // ===========================================================================
 // HUD — marcos de P1 y P2 en la franja superior de 32px
 // ===========================================================================
-// El fondo del nivel deja libres sus 4 primeras filas de tiles (32px):
-// los marcos del HUD (72x32) van ahi, dibujados UNA vez en BG_A con
-// PRIORIDAD ALTA (por encima de los sprites, estilo arcade). P1 pegado al
-// borde izquierdo, P2 al derecho. Comparten la paleta de las tortugas
-// (PAL1, que carga initPlayer) -> no consumen linea de paleta propia.
-// BG_A usa scroll horizontal POR TILE: la banda del fuego (filas de abajo)
-// se desplaza, pero estas filas de arriba del HUD tienen scroll 0 -> fijas.
-// Los CONTENIDOS (vidas, puntos, barra de vida) se dibujaran adentro cuando
-// implementemos el sistema de HP.
+// El fondo del nivel deja libres sus 4 primeras filas de tiles (32px) y los
+// marcos del HUD (72x32) van ahi como SPRITES: los sprites siempre quedan por
+// encima de los planos, asi el marco queda sobre la accion sin depender de la
+// prioridad de BG ni de gastar VRAM de tiles de fondo. P1 pegado al borde
+// izquierdo, P2 al derecho. Comparten la paleta de las tortugas (PAL1, que
+// carga initPlayer) -> no consumen linea de paleta propia.
+// Cada marco es un SPRITE de 4 animaciones de 1 frame (una por tortuga, en
+// orden de personaje). Se elige con SPR_setAnim(sprite, personajeElegido).
+// Los CONTENIDOS (vidas, puntos, barra de vida) se dibujan aparte como tiles
+// de BG_A (ver seccion siguiente).
 // ---------------------------------------------------------------------------
-#define HUD_TILE_Y  0   // Fila de tiles donde arranca el HUD
+#define HUD_TILE_W     9                                              // Ancho del marco en tiles (72px)
+#define HUD_P1_X       0                                              // P1 pegado al borde izquierdo
+#define HUD_P2_X       (SCREEN_PIXEL_WIDTH - (HUD_TILE_W * 8))        // P2 pegado al borde derecho
 
-// Dibuja los dos marcos. 'vramInd' = primer tile de VRAM libre.
-// Devuelve el primer tile libre despues de los tiles del HUD.
-static u16 hudInit(u16 vramInd) {
-    // P1: pegado al borde izquierdo
-    VDP_drawImageEx(BG_A, &hud_1p,
-                    TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, vramInd),
-                    0, HUD_TILE_Y, FALSE, TRUE);
-    vramInd += hud_1p.tileset->numTile;
+static Sprite* hudSprite1 = NULL;
+static Sprite* hudSprite2 = NULL;
 
-    // P2: pegado al borde derecho (pantalla de 40 columnas)
-    VDP_drawImageEx(BG_A, &hud_2p,
-                    TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, vramInd),
-                    40 - hud_2p.tilemap->w, HUD_TILE_Y, FALSE, TRUE);
-    vramInd += hud_2p.tileset->numTile;
+// Crea los marcos del HUD como sprites de alto nivel. En 1 jugador solo se
+// crea el de P1. No consume VRAM de planos (los tiles viven en el area de
+// sprites del motor, SPR_initEx). Los sprites se liberan solos en clearScene
+// (SPR_reset) al terminar la escena.
+static void hudInit(void) {
+    hudSprite1 = SPR_addSprite(&hud_1p, HUD_P1_X, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (hudSprite1)
+        SPR_setAnim(hudSprite1, personajeSeleccionado);
 
-    return vramInd;
+    if (cantidadJugadores == 2) {
+        hudSprite2 = SPR_addSprite(&hud_2p, HUD_P2_X, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+        if (hudSprite2)
+            SPR_setAnim(hudSprite2, personaje2Seleccionado);
+    }
 }
 
 // ===========================================================================
@@ -544,16 +548,16 @@ static u16 hudInit(u16 vramInd) {
 // ===========================================================================
 // Todo entra en el marco original (72x32), que deja 2 filas de tiles de
 // interior útil. Distribución estilo arcade (compacta):
-//   fila 1 -> [1UP baked]            PUNTAJE (arriba, alineado a la derecha)
+//   fila 1 -> PUNTAJE (arriba, alineado a la derecha, cols 4..7 del marco)
 //   fila 2 -> [VIDAS]  [BARRA]       vidas a la IZQUIERDA, barra a la derecha
 //
-// La BARRA DE VIDA se dibuja como TILES en BG_A (prioridad alta, igual que el
-// marco), NO como sprite: no consume presupuesto del motor de sprites
-// (SPR_initEx) ni depende del layering sprite/plano. La barra es de 32x8 (una
-// fila de tiles): un frame (4x1 = 4 tiles) vive en VRAM por jugador y, al
-// recibir un golpe, se pisa con el frame siguiente via DMA (misma técnica de
-// streaming que el fuego). Comparte PAL1 (paleta de las tortugas): el PNG está
-// indexado en esa misma paleta.
+// La BARRA DE VIDA se dibuja como TILES en BG_A (prioridad alta), NO como
+// sprite: no consume presupuesto del motor de sprites (SPR_initEx) ni depende
+// del layering sprite/plano. La barra es de 32x8 (una fila de tiles): un frame
+// (4x1 = 4 tiles) vive en VRAM por jugador y, al recibir un golpe, se pisa con
+// el frame siguiente via DMA (misma técnica de streaming que el fuego).
+// Comparte PAL1 (paleta de las tortugas): el PNG está indexado en esa misma
+// paleta.
 //
 // VIDAS y PUNTAJE van como TEXTO con la fuente por defecto (VDP_drawText) sobre
 // BG_A. Se dibujan en PAL3; el color 1 se sobrescribe a blanco (0x0EEE) tras
@@ -564,8 +568,7 @@ static u16 hudInit(u16 vramInd) {
 #define HPBAR_FRAME_TILES    (HPBAR_FRAME_TILES_W * HPBAR_FRAME_TILES_H)  // 4
 
 // Posiciones (en tiles) RELATIVAS a la columna donde arranca el marco.
-// El interior útil es cols 1..7 (col 0 y col 8 son borde; fila 1 además tiene
-// el "1UP" pintado en cols 0..3, así que ahí sólo cols 4..7 quedan libres).
+// El interior útil es cols 1..7 (col 0 y col 8 son borde del marco).
 #define HUD_SCORE_ROW   1   // fila superior; el puntaje se alinea a la derecha
 #define HUD_SCORE_LEFT  4   // primera col libre de la fila superior (tras "1UP")
 #define HUD_SCORE_RIGHT 8   // borde derecho (col 8); el puntaje termina en col 7
@@ -1070,11 +1073,12 @@ SceneId showLevel1() {
     // Los tiles del fuego van a VRAM justo después del tileset del fondo.
     fireInit(TILE_USER_INDEX + bg_level1.tileset->numTile);
 
-    // --- Marcos del HUD (BG_A, franja superior, prioridad alta) ---
-    // Sus tiles van después de los del fuego (que ocupa FIRE_CELL_TILES).
-    // Guardamos el primer tile libre después del HUD: ahí van los bloques de
-    // la barra de vida (8 tiles por jugador).
-    u16 hudVramFree = hudInit(TILE_USER_INDEX + bg_level1.tileset->numTile + FIRE_CELL_TILES);
+    // --- Marcos del HUD (sprites de alto nivel, franja superior de 32px) ---
+    // Los marcos ya NO consumen tiles de plano: viven en el area de sprites
+    // (SPR_initEx). El primer tile libre de BG es el que sigue al fuego; ahi
+    // van los bloques de la barra de vida (8 tiles por jugador).
+    hudInit();
+    u16 hudVramFree = TILE_USER_INDEX + bg_level1.tileset->numTile + FIRE_CELL_TILES;
 
     // Estado global de la IA de grupo: contador de atacantes simultáneos y
     // reparto de targets entre los jugadores presentes (1 o 2).
@@ -1126,7 +1130,7 @@ SceneId showLevel1() {
     hudPlayerInit(&hud1, &p1, 0, hudVramFree);
     HudPlayer hud2;
     if (dosJugadores)
-        hudPlayerInit(&hud2, &p2, 40 - hud_2p.tilemap->w, hudVramFree + HPBAR_FRAME_TILES);
+        hudPlayerInit(&hud2, &p2, 40 - HUD_TILE_W, hudVramFree + HPBAR_FRAME_TILES);
 
     // --- Definición de spawns por OLEADAS (trigger-based) ---
     // DESACTIVADOS por ahora (a pedido): el nivel sólo tiene el foot soldier de
