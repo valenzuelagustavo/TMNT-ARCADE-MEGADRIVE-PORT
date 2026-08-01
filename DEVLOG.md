@@ -512,3 +512,64 @@ verificar los slots contra la paleta destino — no alcanza con que "sean grises
 **Siguiente paso (Phase B):** portar el comportamiento fiel del arcade desde
 `arcade_reverse_eng/` y pasar el HUD de P1/P2 a spritesheets (4 anims de 1
 frame, índice = personaje elegido).
+
+## 31 de julio de 2026 - Phase B (1/2): HUD de P1/P2 como spritesheet (un frame por tortuga)
+
+- **HUD a sprites:** se reemplazó el HUD dibujado como imagen de fondo por
+  sprites de 72x32 por jugador. `hud_1p.png`/`hud_2p.png` = 72x128 (4 frames
+  de 72x32 apilados), reordenados a **orden de personaje** (0=Leo, 1=Mike,
+  2=Don, 3=Raph) con permutación [0,3,2,1] para que `SPR_setAnim(sprite,
+  personajeSeleccionado)` funcione directo. En `level1.res`:
+  `SPRITE hud_1p "/images/hud/hud_1p.png" 9 4 NONE 0` (9x4 tiles = 72x32 px,
+  `NONE NONE` para que rescomp no reordene ni comprima — indexing directo).
+  Paleta = PAL1 (la de las tortugas, verificada idéntica), prioridad alta.
+- **scenes.c:** `#define HUD_TILE_W 9`, P1 en X=0 y P2 en
+  `SCREEN_PIXEL_WIDTH - (HUD_TILE_W * 8)` = 248. `hudInit()` agrega los
+  sprites con `SPR_addSprite` en Y=0 y el `SPR_setAnim` según
+  `personajeSeleccionado`/`personaje2Seleccionado` (P2 solo si
+  `cantidadJugadores == 2`). El VRAM de tiles libres (`hudVramFree`) ahora
+  arranca justo después de los tiles del fuego (antes lo consumía el HUD de
+  fondo); la base de tiles de P2 es `40 - HUD_TILE_W`. Se quitaron las
+  referencias al HUD viejo por imagen.
+- **main.c:** `SPR_initEx(620)` → `SPR_initEx(720)` (los 2 HUD suman 70 tiles
+  al presupuesto de sprites; el viejo 620 no alcanzaba).
+- **Build verde:** `hud_1p`/`hud_2p` rescompilan en 4 anims x 1 frame x 3
+  VDP sprites / 35 tiles c/u (4736 B raw) y las paletas deduplican a
+  `hud_1p_palette`. `out/rom.bin` = 786432 bytes. Commits: `a00c395`.
+
+## 31 de julio de 2026 - Phase B (2/2): combos de 2-3 golpes del foot soldier morado (fiel al arcade)
+
+- **Combos (fiel al arcade ATTACK S0/S1/S2):** el foot soldier morado ya no
+  pega un solo golpe: al atacar entra a `ENEMY_STATE_ATTACK` con un COMBO de
+  pasos (`comboLen`/`comboStep` nuevos en `Enemy`), cada uno con su propia
+  animación, duración, alcance y ventana de hitbox (`ComboStep` + tablas
+  `purpleComboPunch/Kick/Front` en `enemy.c`). Combos:
+  - `purpleComboPunch` (arcade S0, elegido pegado): directo → directo →
+    uppercut (3 golpes).
+  - `purpleComboKick` (arcade S1/S2, elegido a media distancia): directo →
+    patada con salto (lunge de 16 ticks, 3px/frame).
+  - `purpleComboFront` (variante corta): doble directo.
+  Al expirar el timer de un paso avanza al siguiente reseteando `attackHit`
+  (cada golpe conecta UNA vez), y al terminar el combo vuelve a CHASE con el
+  cooldown de siempre. El timer del estado es el del paso actual; los
+  i-frames del jugador (45) hacen que una cadena completa rara vez conecte
+  entera — como el knockback del arcade, el golpe 1 suele sacarte del
+  alcance de los siguientes. El naranja no usa combos (`comboLen` = 0 → el
+  camino simple de siempre queda intacto).
+- **Fix del clamp de la pared diagonal (bug latente de Phase A):** todas las
+  llamadas `enemyMaxX()` pasaban el valor `e->y` (o `gy`/`list[i].y`) donde la
+  función espera un `const Enemy*` — el compilador avisaba
+  `-Wint-conversion` y el bound del clamp se computaba leyendo basura de una
+  dirección baja de ROM. Resultado: la pared diagonal del final (fire escape)
+  NO limitaba a los enemigos, que podían caminar a través de ella. Se corrigió
+  en las 8 llamadas (`enemyMaxX(e)`, `enemyMaxX(&list[i])`) y en el agarre se
+  reordenó para setear `e->y = gy` antes de calcular el bound. Los warnings
+  de `enemy.c` desaparecieron (quedan solo los `-Wchar-subscripts` de
+  `scenes.c`).
+- **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes. Commit:
+  `dda832c`.
+
+**Siguiente paso (Phase B, resto):** con los combos hechos, evaluar con la
+captura arcade (`arcade_reverse_eng/footsoldier_capture.txt`) si el morado
+debe también tirar shurikens (`PROJ S0`, DMG=32) — hoy solo lo hace el
+naranja — y el ritmo de estados del arcade (ciclo por timer de 24 frames).
