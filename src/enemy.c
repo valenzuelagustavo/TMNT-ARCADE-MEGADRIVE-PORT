@@ -298,6 +298,27 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
     return FALSE;
 }
 
+bool shurikenBreakByPlayerAttack(const Player* p) {
+    // La hitbox del ataque de la tortuga (MISMA geometría que contra los
+    // enemigos: playerAttackHits) rompe los shurikens que la cruzan: el
+    // proyectil desaparece SIN dañar al jugador. Devuelve TRUE si rompió
+    // alguno (para tocar un SFX). Se llama por jugador, ANTES de
+    // shurikenCheckHitPlayer: un shuriken roto este frame ya no pega.
+    bool broke = FALSE;
+    for (u16 i = 0; i < MAX_SHURIKENS; i++) {
+        if (!shurikens[i].active) continue;
+        s16 scx = shurikens[i].x + 8;   // centro del shuriken (16px wide → +8)
+        s16 scy = shurikens[i].y;       // lane (pies) del lanzador = la del shuriken
+        if (playerAttackHits(p, scx, scy)) {
+            if (shurikens[i].sprite) SPR_releaseSprite(shurikens[i].sprite);
+            shurikens[i].sprite = NULL;
+            shurikens[i].active = 0;
+            broke = TRUE;
+        }
+    }
+    return broke;
+}
+
 // ---------------------------------------------------------------------------
 // SPAWN DE ENEMIGOS
 // ---------------------------------------------------------------------------
@@ -620,7 +641,15 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
                 if (e->attackCooldown == 0 && absS16(dy) <= ENEMY_ATTACK_TOL_Y) {
                     if (dist <= ORANGE_KICK_RANGE && enemiesAttacking < ENEMY_MAX_ATTACKERS) {
-                        e->attackType = ENEMY_ATTACK_KICK;       // acorralado
+                        // Jugador CERCANO → melee. A corta distancia alterna
+                        // patada y directo (usa la anim 4, que hoy no se ve);
+                        // más lejos (aún dentro del alcance del kick) va la
+                        // patada con salto, que se desplaza 48px y alcanza.
+                        if (dist <= ENEMY_FRONT_REACH)
+                            e->attackType = (random() & 1) ? ENEMY_ATTACK_KICK
+                                                           : ENEMY_ATTACK_FRONT;
+                        else
+                            e->attackType = ENEMY_ATTACK_KICK;
                         wantAttack = TRUE;
                     } else if (dist >= ORANGE_SHURIKEN_RANGE_MIN &&
                                dist <= ORANGE_SHURIKEN_RANGE_MAX) {
@@ -667,19 +696,15 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             // -----------------------------------------------------------------
             s16 moveX = 0;
             if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
-                // Kiter: mantener la banda [KITE_MIN, KITE_MAX] con el jugador.
-                // La retirada NO sale del nivel: si el naranja ya está pegado
-                // al borde izquierdo visible (la cámara), deja de retroceder y
-                // se queda quieto — el jugador (que no pasa del borde de la
-                // cámara) puede cerrar distancia y alcanzarlo. Antes se iba a
-                // X negativa fuera del nivel y era imposible matarlo.
-                if (dist < ORANGE_KITE_MIN) {
-                    if (e->x > e->cameraOffsetX)
-                        moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;   // alejarse
-                } else if (dist > ORANGE_KITE_MAX) {
+                // El naranja NO se aleja del jugador (ya no kitea): si el
+                // jugador está FUERA del rango del shuriken, se acerca
+                // caminando hasta entrar en rango; dentro del rango se queda
+                // quieto lanzando shurikens, y si el jugador se acerca ataca
+                // melee (selección de ataque de arriba). El clamp de
+                // enemyMinX (borde de cámara) queda como red de seguridad.
+                if (dist > ORANGE_SHURIKEN_RANGE_MAX)
                     moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;   // acercarse
-                }
-                // dentro de la banda → se queda en X
+                // dentro del rango de lanzamiento → se queda en X
             } else {
                 // Morado: apunta a un punto DETRÁS del jugador (espalda = lado
                 // opuesto a su mirada). Si ya agotó el flanqueo, va directo.

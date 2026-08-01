@@ -1729,6 +1729,18 @@ SceneId showLevel1() {
             }
         }
 
+        // 6b-bis. Shurikens → ataque del jugador: la hitbox del golpe ROMPE los
+        //     shurikens que cruza (desaparecen sin dañar). Va ANTES de la
+        //     colisión proyectil→jugador: un shuriken roto este frame no pega.
+        {
+            if (shurikenBreakByPlayerAttack(&p1)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            }
+            if (dosJugadores && shurikenBreakByPlayerAttack(&p2)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            }
+        }
+
         // 6b-bis. Shurikens → jugadores: colisión proyectil.
         {
             s16 hitX = 0;

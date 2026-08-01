@@ -161,11 +161,11 @@
 #define MORADO_GOAL_TOL         4   // Tolerancia al llegar a ese punto (≈1 paso)
 #define MORADO_FLANK_TIMEOUT   90   // Frames intentando flanquear antes de encarar
 
-// Naranja (ENEMY_TYPE_FOOT_SOLDIER_ORANGE): kiter. Se mantiene a distancia LARGA
-// tirando shurikens; si el jugador lo acorrala, responde con la patada.
-#define ORANGE_KITE_MIN       120   // Más cerca que esto → retrocede
-#define ORANGE_KITE_MAX       160   // Más lejos que esto → se acerca (banda ~140)
-#define ORANGE_KICK_RANGE      56   // Jugador dentro de esto → patada (acorralado)
+// Naranja (ENEMY_TYPE_FOOT_SOLDIER_ORANGE): NO kitea ni se aleja del jugador.
+// A distancia lanza shurikens (solo se acerca caminando si el jugador está
+// FUERA del rango del shuriken, para no quedar en un punto muerto); cuando el
+// jugador se acerca, responde con ataques melee (patada o directo).
+#define ORANGE_KICK_RANGE      56   // Jugador dentro de esto → melee (patada/directo)
 
 // Duraciones calzadas con el sheet real (frames de anim x 8 ticks de FAST 8):
 // punch = 2 frames x 8 = 16 | kick = 4 frames x 8 = 32 | front = 2 frames x 8 = 16
@@ -353,5 +353,11 @@ void shurikenReleaseAll(void);
 // Chequea colisión de todos los shurikens activos contra un jugador en (px, py)
 // (centro del frame). Devuelve TRUE si alguno impactó (una sola vez por shuriken).
 bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX);
+
+// Rompe los shurikens activos alcanzados por la hitbox del ataque del jugador
+// (playerAttackHits: misma geometría que contra los enemigos). El proyectil
+// desaparece sin dañar al jugador. Devuelve TRUE si rompió alguno. Llamar por
+// jugador y ANTES de shurikenCheckHitPlayer.
+bool shurikenBreakByPlayerAttack(const Player* p);
 
 #endif
