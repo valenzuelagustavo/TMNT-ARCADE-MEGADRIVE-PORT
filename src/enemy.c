@@ -93,6 +93,63 @@ static s16 enemyAttackReach(const Enemy* e) {
 }
 
 // ---------------------------------------------------------------------------
+// COMBOS DEL FOOT SOLDIER MORADO (fiel al arcade)
+// ---------------------------------------------------------------------------
+// En el arcade el foot soldier lanza cadenas de 2-3 golpes (ATTACK S0 = puños,
+// S1/S2 = variantes de patada): cada golpe es un PASO con su propia animación,
+// duración y ventana de hitbox. El morado entra a ENEMY_STATE_ATTACK con un
+// combo de N pasos; arranca en el paso 0 y al expirar su timer avanza al
+// siguiente (reseteando attackHit para que cada golpe conecte una vez). El
+// timer del estado es el del paso actual; los i-frames del jugador (45) hacen
+// que una cadena completa rara vez conecte entera — como el knockback del
+// arcade, el golpe 1 suele sacarte del alcance de los siguientes.
+typedef struct {
+    u8   anim;      // Índice de animación (ENEMY_ANIM_* del morado)
+    u16  time;      // Duración total del paso (ticks, calzada a FAST 8 del sheet)
+    u16  hitStart;  // Timer mínimo (inclusive) con hitbox activa
+    u16  hitEnd;    // Timer máximo (inclusive) con hitbox activa
+    s16  reach;     // Alcance del golpe (centro a centro)
+    u16  lunge;     // Frames iniciales con desplazamiento en X (patada; 0 = fijo)
+} ComboStep;
+
+// Combo de puño (arcade ATTACK S0): doble directo + uppercut final.
+static const ComboStep purpleComboPunch[] = {
+    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH,    0 },
+    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH,    0 },
+    { ENEMY_ANIM_PUNCH,       16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_UPPERCUT_REACH, 0 }
+};
+// Combo de patada (arcade ATTACK S1/S2): directo + patada con salto (lunge).
+static const ComboStep purpleComboKick[] = {
+    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH, 0 },
+    { ENEMY_ANIM_KICK, ENEMY_KICK_TIME,
+      (u16)(ENEMY_KICK_TIME - ENEMY_KICK_LUNGE + 1), ENEMY_KICK_TIME,
+      ENEMY_HIT_RANGE_X, ENEMY_KICK_LUNGE }
+};
+// Doble directo (variante corta, arcade ATTACK S0 sin uppercut).
+static const ComboStep purpleComboFront[] = {
+    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH, 0 },
+    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH, 0 }
+};
+
+// Devuelve la tabla del combo según el tipo de ataque (solo morado; el naranja
+// no usa combos → comboLen queda en 0 y usa el camino simple).
+static const ComboStep* comboStepsFor(u8 attackType) {
+    switch (attackType) {
+        case ENEMY_ATTACK_KICK:  return purpleComboKick;
+        case ENEMY_ATTACK_PUNCH: return purpleComboPunch;
+        default:                 return purpleComboFront;   // FRONT
+    }
+}
+
+static u8 comboLengthFor(u8 attackType) {
+    switch (attackType) {
+        case ENEMY_ATTACK_KICK:  return (u8)(sizeof(purpleComboKick)  / sizeof(ComboStep));
+        case ENEMY_ATTACK_PUNCH: return (u8)(sizeof(purpleComboPunch) / sizeof(ComboStep));
+        default:                 return (u8)(sizeof(purpleComboFront) / sizeof(ComboStep));
+    }
+}
+
+// ---------------------------------------------------------------------------
 // UTILIDADES
 // ---------------------------------------------------------------------------
 static s16 absS16(s16 v) {
@@ -259,6 +316,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->grabTimer   = 0;
     e->stancePhase = 0;
     e->stanceToggle = 0;
+    e->comboStep  = 0;
+    e->comboLen   = 0;
 
     // Dimensiones de frame según el tipo (sheet morada 64x80 con los pies en
     // el borde; la naranja mantiene la grilla vieja 104x104).
@@ -417,7 +476,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
     if (e->state == ENEMY_STATE_DEAD) {
         if (e->timer > explodeTime - ENEMY_DEATH_KNOCK_FRAMES)
             e->x = clampS16(e->x - e->dir * ENEMY_DEATH_KNOCK_SPEED,
-                            (-(s16)e->w), enemyMaxX(e->y));
+                            (-(s16)e->w), enemyMaxX(e));
         if (e->timer > 0) {
             e->timer--;
             if (e->timer == 0) {
@@ -440,14 +499,14 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             u16 kickTime  = enemyAttackTime(e);
             if (e->timer > (kickTime - kickLunge)) {
                 e->x += e->dir * ENEMY_KICK_SPEED;
-                e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e->y));
+                e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
             }
         }
         // Voltereta de entrada: avanza en X durante TODO el SPAWNING (más rápido
         // que el walk; el sprite hace la voltereta sola con la anim 15).
         if (e->somersault) {
             e->x += e->dir * ENEMY_SOMERSAULT_SPEED;
-            e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e->y));
+            e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
         }
         if (e->timer > 0) e->timer--;
         else              e->state = ENEMY_STATE_CHASE;
@@ -581,6 +640,12 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
                 e->attackHit  = 0;
                 e->flankTimer = 0;   // reinicia la frustración de flanqueo
+                // El morado ataca con COMBOS (cadenas de 2-3 golpes como el
+                // arcade ATTACK S0/S1/S2): comboLen > 0 activa la tabla de
+                // pasos; el naranja deja comboLen en 0 (ataque simple).
+                e->comboLen   = (e->type == ENEMY_TYPE_FOOT_SOLDIER)
+                                ? comboLengthFor(e->attackType) : 0;
+                e->comboStep  = 0;
                 e->timer      = enemyAttackTime(e);
                 break;
             }
@@ -614,7 +679,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             }
             if (moveX != 0) {
                 e->x += moveX;
-                e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e->y));
+                e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
             }
 
             // --- Morado: GIRO al invertir el sentido de la maniobra ---
@@ -677,7 +742,35 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
         }
 
         case ENEMY_STATE_ATTACK: {
-            if (e->timer > 0) {
+            if (e->comboLen > 0) {
+                // --- Combo del morado: secuencia de golpes ---
+                // Cada paso corre su animación con su propio timer y ventana de
+                // hitbox; al expirar se avanza al siguiente (attackHit = 0 para
+                // que cada golpe conecte una vez) hasta terminar el combo.
+                const ComboStep* steps = comboStepsFor(e->attackType);
+                const ComboStep* step  = &steps[e->comboStep];
+                if (e->timer > 0) {
+                    e->timer--;
+                    // Patada con salto: desplazamiento en X durante el lunge
+                    if (step->lunge > 0 && e->timer > (step->time - step->lunge)) {
+                        e->x += e->dir * ENEMY_KICK_SPEED;
+                        e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
+                    }
+                    if (e->timer == 0) {
+                        if (e->comboStep + 1 < e->comboLen) {
+                            e->comboStep++;
+                            e->attackHit = 0;
+                            const ComboStep* ns = &steps[e->comboStep];
+                            e->timer = ns->time;
+                            enemyRestartAnim(e, ns->anim, FALSE);
+                        } else {
+                            leaveAttackState(e);
+                            e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
+                            newState = ENEMY_STATE_CHASE;
+                        }
+                    }
+                }
+            } else if (e->timer > 0) {
                 e->timer--;
 
                 // Kick con salto: desplazamiento en X durante el lunge
@@ -687,7 +780,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 if (e->attackType == ENEMY_ATTACK_KICK &&
                     e->timer > (kickTime - kickLunge)) {
                     e->x += e->dir * ENEMY_KICK_SPEED;
-                    e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e->y));
+                    e->x = clampS16(e->x, (-(s16)e->w), enemyMaxX(e));
                 }
 
                 // Shuriken: spawnear proyectil en el frame 1 (timer == SPAWN_TIMER)
@@ -746,10 +839,10 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             s16 gy   = getPlayerY(gp);
             // Espalda del jugador: centro del player − gdir * ENEMY_GRAB_BACK_OFFSET,
             // con el soldier centrado en ese punto (su centro = x + w/2).
+            e->y  = gy;
             e->x = clampS16(gx + (PLAYER_SPRITE_W / 2) - (s16)gdir * ENEMY_GRAB_BACK_OFFSET
                             - (ENEMY_SPRITE_W_PURPLE / 2),
-                            (-(s16)e->w), enemyMaxX(gy));
-            e->y  = gy;
+                            (-(s16)e->w), enemyMaxX(e));
             e->dir = (s8)-gdir;
             if (e->grabTimer > 0) {
                 e->grabTimer--;
@@ -771,16 +864,24 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
     if (newState != e->state) {
         e->state = newState;
         if (newState == ENEMY_STATE_ATTACK) {
-            u8 atkAnim;
-            if (e->attackType == ENEMY_ATTACK_KICK)
-                atkAnim = enemyAnimKick(e);
-            else if (e->attackType == ENEMY_ATTACK_FRONT)
-                atkAnim = enemyAnimPunchFront(e);
-            else if (e->attackType == ENEMY_ATTACK_SHURIKEN)
-                atkAnim = ORANGE_ANIM_SHURIKEN;
-            else
-                atkAnim = enemyAnimUppercut(e);
-            enemyRestartAnim(e, atkAnim, FALSE);
+            if (e->comboLen > 0) {
+                // Combo del morado: arranca en el paso 0 (su anim y timer).
+                const ComboStep* s = comboStepsFor(e->attackType);
+                e->comboStep = 0;
+                e->timer     = s->time;
+                enemyRestartAnim(e, s->anim, FALSE);
+            } else {
+                u8 atkAnim;
+                if (e->attackType == ENEMY_ATTACK_KICK)
+                    atkAnim = enemyAnimKick(e);
+                else if (e->attackType == ENEMY_ATTACK_FRONT)
+                    atkAnim = enemyAnimPunchFront(e);
+                else if (e->attackType == ENEMY_ATTACK_SHURIKEN)
+                    atkAnim = ORANGE_ANIM_SHURIKEN;
+                else
+                    atkAnim = enemyAnimUppercut(e);
+                enemyRestartAnim(e, atkAnim, FALSE);
+            }
         }
     }
 
@@ -808,8 +909,8 @@ void separateEnemies(Enemy* list, u16 count) {
                 continue;
 
             s16 push = (dx > 0 || (dx == 0 && (i & 1))) ? 1 : -1;
-            list[i].x = clampS16(list[i].x - push, (-(s16)list[i].w), enemyMaxX(list[i].y));
-            list[j].x = clampS16(list[j].x + push, (-(s16)list[j].w), enemyMaxX(list[j].y));
+            list[i].x = clampS16(list[i].x - push, (-(s16)list[i].w), enemyMaxX(&list[i]));
+            list[j].x = clampS16(list[j].x + push, (-(s16)list[j].w), enemyMaxX(&list[j]));
 
             if (dy != 0) {
                 s16 pushY = (dy > 0) ? 1 : -1;
@@ -833,7 +934,12 @@ bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py) {
 
     bool active;
     s16  reach;
-    if (e->attackType == ENEMY_ATTACK_KICK) {
+    if (e->comboLen > 0) {
+        // Combo del morado: la ventana y el alcance los da el paso actual.
+        const ComboStep* step = &comboStepsFor(e->attackType)[e->comboStep];
+        active = (e->timer >= step->hitStart && e->timer <= step->hitEnd);
+        reach  = step->reach;
+    } else if (e->attackType == ENEMY_ATTACK_KICK) {
         u16 kickLunge = (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE)
                         ? ORANGE_KICK_LUNGE : ENEMY_KICK_LUNGE;
         u16 kickTime  = enemyAttackTime(e);

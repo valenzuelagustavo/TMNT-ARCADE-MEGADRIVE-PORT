@@ -270,6 +270,14 @@ typedef struct {
     u8          grabTimer;    // Tope de seguridad del agarre (frames restantes)
     u8          stancePhase;  // Frames en la postura de espera actual (IDLE/STANCE)
     u8          stanceToggle; // 0 = IDLE, 1 = STANCE (alterna cada STANCE_SWITCH)
+
+    // --- Combos del morado (31/07, fiel al arcade ATTACK S0/S1/S2) ---
+    // Al atacar, el morado entra a ATTACK con un combo de N golpes; cada paso
+    // tiene su propia anim, duración y ventana de hitbox (ver ComboStep en
+    // enemy.c). comboLen > 0 activa el camino de combo; el naranja lo deja en
+    // 0 y usa el ataque simple de siempre.
+    u8          comboStep;    // Índice del golpe actual dentro del combo (0 = primero)
+    u8          comboLen;     // Golpes del combo actual (0 = ataque simple, sin combo)
 } Enemy;
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
