@@ -594,6 +594,27 @@ frame, índice = personaje elegido).
 - **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes (sin
   warnings nuevos).
 
+## 31 de julio de 2026 - Rediseño del naranja (sin kiting) + el ataque del jugador rompe shurikens
+
+- **Comportamiento nuevo (reemplaza al kite):** el naranja YA NO se aleja del
+  jugador. En CHASE solo se acerca caminando si el jugador está FUERA del
+  rango del shuriken (`ORANGE_SHURIKEN_RANGE_MAX = 180`); dentro del rango se
+  queda quieto lanzando shurikens. Si el jugador se acerca (≤ `ORANGE_KICK_RANGE`
+  = 56) responde con ataques MELEE: a corta distancia alterna patada y directo
+  (usa `ORANGE_ANIM_PUNCH_FRONT`, que hoy no se veía) y más lejos la patada con
+  salto (que se desplaza 48px y alcanza). Se eliminaron `ORANGE_KITE_MIN/MAX` y
+  el bloque de retirada. El clamp `enemyMinX` (borde de cámara) queda solo como
+  red de seguridad.
+- **El ataque del jugador rompe los shurikens:** nueva `shurikenBreakByPlayerAttack(Player*)`
+  en `enemy.c`: usa la MISMA geometría del golpe contra enemigos
+  (`playerAttackHits`: centro de la tortuga + alcance frontal + tolerancia de
+  lane de 20px) contra el centro de cada shuriken activo → el proyectil
+  desaparece sin dañar al jugador. Se llama en `scenes.c` por cada jugador
+  ANTES de `shurikenCheckHitPlayer` (un shuriken roto este frame ya no pega),
+  con SFX `hit_turtles`. Funciona también con el especial y la patada en salto.
+- **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes (solo los
+  warnings conocidos de `scenes.c`). Commit: `184f18b`.
+
 **Siguiente paso (Phase B, resto):** con los combos hechos, evaluar con la
 captura arcade (`arcade_reverse_eng/footsoldier_capture.txt`) si el morado
 debe también tirar shurikens (`PROJ S0`, DMG=32) — hoy solo lo hace el
