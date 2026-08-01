@@ -19,7 +19,10 @@
 //   [11] giro (2f: arranca mirando a la derecha, termina mirando a la izquierda)
 //   [12] guard espera (3f: el frame 2 se mantiene mas tiempo; f1/f3 = entrada/salida)
 //   [13] stance, otra postura de espera (3f)
-//   [14] grab agarre por la espalda (frame VACIO, con hitbox)
+//   [14] grab agarre por la espalda (ATENCION: si esta fila queda 100%
+//        transparente, rescomp la elimina y todos los indices siguientes
+//        se corren UNO: 14 pasa a ser la voltereta y 15 queda fuera de rango.
+//        Hoy tiene un punto placeholder de 4px hasta dibujar la pose).
 //   [15] voltereta (7f, avanza mas en X que el walk)
 //
 // IMPORTANTE: el ultimo parametro es el TIEMPO DE FRAME en 1/60s. Si se omite,

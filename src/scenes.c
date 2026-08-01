@@ -7,6 +7,7 @@
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
 #include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
+#include "rocksteady.h"  // jefe final del nivel 2 (taladro; rocksteady_boss, boss_bullet, taladro_emergin/out)
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
 #ifndef IS_PAL_SYSTEM
@@ -1984,6 +1985,96 @@ static void smokeUpdate(s16 cameraX) {
 }
 
 // ---------------------------------------------------------------------------
+// Taladro + puerta del jefe Rocksteady (fondo de la sala, fase 2)
+// ---------------------------------------------------------------------------
+// La puerta (taladro_out, 2 frames de 80x144 apilados) se dibuja UNA vez al
+// inicio en BG_B, anclada al MUNDO (cols 37..46 = x 296..376, centro ~336 =
+// el taladro de ROCKSTEADY_TALADRO_X=340). Como BG_B scrollea con la cámara,
+// la puerta se desplaza con el pasillo y queda en su lugar cuando la cámara
+// se bloquea en LEVEL2_CAM_MAX_X (120) para la pelea. Se ve la franja central
+// de la puerta (filas 5..12 de su frame de 18): el resto lo tapan el humo
+// (filas 4-11) arriba y el fuego (filas 20-27) abajo.
+//
+// El taladro (taladro_emergin, 6 frames de 80x56 en tira HORIZONTAL) se dibuja
+// en BG_A, en la banda SIN parallax (filas 12..19, scroll 0 siempre). La cámara
+// queda BLOQUEADA en 120 durante toda la pelea, así que la posición de pantalla
+// cols 22..31 coincide con la puerta del mundo. Como BG_A está VACÍO en esa
+// banda, los píxeles transparentes del taladro dejan ver la puerta (BG_B).
+//
+// Streaming: la puerta conmuta cerrada<->abierta pisando sus MISMOS 80 tiles
+// de VRAM (tilemap fijo apuntando a la ventana); el taladro igual pero con sus
+// 70 tiles, frame a frame. NONE NONE (res/level2.res) indexa los tiles desde
+// ROM sin comprimir: en la tira HORIZONTAL del taladro, tile(fila r, col c) =
+// r*60 + frame*10 + c (los tiles de cada frame NO son contiguos).
+// ---------------------------------------------------------------------------
+// Ancho/alto en tiles de cada celda de los dos assets.
+#define TALADRO_TILE_W         10   // 80px
+#define TALADRO_TILE_H          7   // 56px (taladro)
+#define DOOR_TILE_H             8   // 64px visibles de la puerta (filas 5..12)
+#define TALADRO_STRIP_COLS     60   // Columnas de tiles de la tira del taladro (6x10)
+#define TALADRO_FRAMES          6
+#define TALADRO_FRAME_TICKS     6   // Frames de juego entre frames del taladro
+#define DOOR_FRAME_TILES      180   // Tiles por frame del PNG de la puerta (80x144)
+#define DOOR_CROP_ROW           5   // Fila del frame donde arranca la franja visible
+// Puerta en BG_B (mundo): col 296/8 = 37, 10 cols, filas 12..19.
+#define TALADRO_DOOR_COL       37
+#define TALADRO_DOOR_ROW       12
+// Taladro en BG_A (pantalla fija, cámara en 120): col 22 = x 176, 10 cols.
+#define TALADRO_SCREEN_COL     22
+#define TALADRO_ROW_TOP        12
+// VRAM de las ventanas (después de las barras de HP, por debajo de la región
+// de sprites que showLevel2 achica a SPR_initEx(560) → región [880..1439]).
+#define TALADRO_DOOR_VRAM    700
+#define TALADRO_EMERGIN_VRAM 780
+
+// Puerta cerrada sobre el muro del fondo (frame 0 de taladro_out, tira VERTICAL:
+// los 80 tiles del frame SI son contiguos → una sola DMA). 'frame' 0 = cerrada,
+// 1 = abierta. El tilemap queda fijo apuntando a la ventana.
+static void taladroDoorFrame(u8 frame) {
+    u32 srcOffset = ((u32)frame * DOOR_FRAME_TILES + DOOR_CROP_ROW * TALADRO_TILE_W) * 8;
+    VDP_loadTileData(taladro_out.tiles + srcOffset, TALADRO_DOOR_VRAM,
+                     DOOR_TILE_H * TALADRO_TILE_W, DMA_QUEUE);
+}
+
+// Dibuja el tilemap de la puerta en BG_B (anclado al mundo) y carga la cerrada.
+// Se llama UNA vez al inicializar la escena; de ahí en más taladroDoorFrame
+// solo pisa los tiles de la ventana (cerrada ↔ abierta).
+static void taladroDoorInit(void) {
+    for (u16 r = 0; r < DOOR_TILE_H; r++) {
+        for (u16 c = 0; c < TALADRO_TILE_W; c++) {
+            VDP_setTileMapXY(BG_B,
+                             TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE,
+                                            TALADRO_DOOR_VRAM + r * TALADRO_TILE_W + c),
+                             TALADRO_DOOR_COL + c, TALADRO_DOOR_ROW + r);
+        }
+    }
+    taladroDoorFrame(0);
+}
+
+// Dibuja la celda del taladro (ventana de 70 tiles) y su tilemap en BG_A.
+// 'frame' 0..5. Los tiles de cada frame del strip HORIZONTAL no son contiguos:
+// se copian tile a tile (fila r, col c) → r*60 + frame*10 + c.
+static void taladroEmerginFrame(u8 frame) {
+    for (u16 r = 0; r < TALADRO_TILE_H; r++) {
+        for (u16 c = 0; c < TALADRO_TILE_W; c++) {
+            u16 srcIdx = r * TALADRO_STRIP_COLS + (u16)frame * TALADRO_TILE_W + c;
+            u16 dstIdx = TALADRO_EMERGIN_VRAM + r * TALADRO_TILE_W + c;
+            VDP_loadTileData(taladro_emergin.tiles + (u32)srcIdx * 8, dstIdx,
+                             1, DMA_QUEUE);
+        }
+    }
+    for (u16 r = 0; r < TALADRO_TILE_H; r++) {
+        for (u16 c = 0; c < TALADRO_TILE_W; c++) {
+            VDP_setTileMapXY(BG_A,
+                             TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE,
+                                            TALADRO_EMERGIN_VRAM + r * TALADRO_TILE_W + c),
+                             TALADRO_SCREEN_COL + c, TALADRO_ROW_TOP + r);
+        }
+    }
+}
+
+
+// ---------------------------------------------------------------------------
 // Escena completa del nivel 2. Flujo:
 //   fase 0: oleada A (2 morados entrando de frente). Cámara bloqueada en 0:
 //           no se sale de la primera pantalla.
@@ -1995,10 +2086,21 @@ static void smokeUpdate(s16 cameraX) {
 SceneId showLevel2() {
     clearScene();
 
+    // --- Motor de sprites con menos VRAM para el nivel 2 ---
+    // Este nivel no usa robot/látigo/cadena ni la bola de hierro: el pico de
+    // sprites (2 tortugas 128 + April 64 + 2 morados 92 + jefe 68 + balas 24 +
+    // HUD 70 + burbujas 64) no llega a 560 tiles. Achicar la región de sprites
+    // a [880..1439] libera los tiles 720..879 para las ventanas de la puerta y
+    // el taladro del jefe (140 tiles). Se restaura a 720 al salir de la escena.
+    SPR_initEx(560);
+
     // --- Fondo (sala de 440px): dibujo completo + scroll (sin streaming) ---
     // Mapa de paletas (igual que el nivel 1):
     //   PAL0 → fondo | PAL1 → tortugas + humo | PAL2 → foot soldiers + fuego | PAL3 → foot soldier naranja
     bgInit2();
+
+    // --- Puerta cerrada del jefe en el muro del fondo (BG_B, mundo) ---
+    taladroDoorInit();
 
     // --- Fuego en primer plano (BG_A, prioridad alta) ---
     // VRAM de usuario: fondo, luego humo (64), luego fuego (64), luego barra.
@@ -2036,6 +2138,20 @@ SceneId showLevel2() {
         setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
     }
 
+    // --- April (rehén) atada al fondo de la sala ---
+    // Decorativa: usa PAL1 (tortugas, ya cargada). Fondo del mundo (x=205,
+    // lane 148) y con DEPTH FIJA por detrás de toda la acción (SPR_setDepth
+    // con valor MENOS negativo que el de los jugadores/el jefe, que usan -y):
+    // así queda detrás aunque se agregue antes o después que ellos.
+    static const s16 APRIL_WORLD_X    = 205;
+    static const s16 APRIL_LANE_Y     = 148;
+    static const s16 APRIL_FOOT_OFFSET = 58;
+    Sprite* aprilSpr = SPR_addSprite(&april, APRIL_WORLD_X /*cámara en 0 al inicio*/,
+                                     APRIL_LANE_Y - APRIL_FOOT_OFFSET,
+                                     TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+    if (aprilSpr) SPR_setDepth(aprilSpr, -APRIL_LANE_Y + 20);
+    u16 aprilTimer = 0;
+
     // --- HUD dinámico: barra de vida + vidas + puntaje ---
     VDP_setTextPlane(BG_A);
     VDP_setTextPriority(1);
@@ -2056,6 +2172,18 @@ SceneId showLevel2() {
 
     s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
     bgUpdate2(0);      // Scroll inicial
+
+    // --- Jefe Rocksteady + secuencia del taladro (fase 2) ---
+    // bossStage: 0=puerta cerrada (pausa) · 1=taladro perforando (frames 0..5)
+    // 2=puerta abierta + Rocksteady emerge · 3=espera a que se aleje del taladro
+    // 4=taladro se retira + puerta cierra · 99=pelea en curso (esperar victoria).
+    Rocksteady boss;
+    rocksteadyInit(&boss);
+    rocksteadyBulletInit();
+    u8   bossStage    = 0;
+    u8   bossTimer    = 0;
+    u8   taladroFrame = 0;
+    bool bossSpawned  = FALSE;
 
     // --- Oleada A: 2 foot soldiers morados entrando de FRENTE ---
     // Ambos caminan (CHASE) hacia el jugador desde el borde derecho, lanes
@@ -2115,7 +2243,9 @@ SceneId showLevel2() {
             }
             if (newCam - cameraX > CAM_MAX_SPEED) newCam = cameraX + CAM_MAX_SPEED;
             if (newCam > cameraX) cameraX = newCam;   // nunca retrocede
-        } else if (leadScreenX < CAM_DEAD_ZONE_LEFT && cameraX > 0) {
+        } else if (leadScreenX < CAM_DEAD_ZONE_LEFT && cameraX > 0 && phase != 2) {
+            // Retroceder en la sala (prohibido durante la pelea contra el jefe:
+            // el taladro en BG_A está anclado a la pantalla y se alinearía mal).
             s16 newCam = cameraX - (CAM_DEAD_ZONE_LEFT - leadScreenX);
             if (newCam < 0) newCam = 0;
             if (newCam < cameraX) cameraX = newCam;   // retroceder en la sala
@@ -2143,36 +2273,66 @@ SceneId showLevel2() {
             cameraLockX = -1;
             phase = 1;
         } else if (phase == 1 && cameraX >= LEVEL2_CAM_MAX_X) {
-            // Llegó al límite del nivel: oleada B (2 naranjas de frente + 1
-            // morado que entra por la espalda) y cámara bloqueada ahí.
+            // Llegó al límite de la sala: cámara bloqueada y comienza la pelea
+            // contra Rocksteady (el taladro perfora la puerta del fondo).
             cameraLockX = LEVEL2_CAM_MAX_X;
             phase = 2;
-            s16 camL = cameraX;
-            s16 camR = cameraX + SCREEN_PIXEL_WIDTH;
-            // 2 naranjas (PAL3) desde el borde derecho, lanes distintas.
-            for (u16 s = 0; s < 2; s++) {
-                for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                        initEnemySpawn(&enemies[i], camR + (s * 48), 158,
-                                       0, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
-                        enemies[i].dir = -1;
-                        enemies[i].state = ENEMY_STATE_CHASE;
-                        break;
-                    }
-                }
-            }
-            // 1 morado que entra por la espalda (voltereta desde la izquierda).
-            for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 148,
-                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                    break;
-                }
-            }
-        } else if (phase == 2 && activeEnemies == 0) {
-            // Oleada B limpia: victoria.
+            bossStage = 0;
+            bossTimer = 0;
+        } else if (phase == 2 && bossStage == 99 && bossSpawned &&
+                   boss.state == ROCKSTEADY_GONE) {
+            // Jefe muerto: victoria.
             win = TRUE;
             break;
+        }
+
+        // 4c. Secuencia de introducción del jefe (fase 2, stages 0..4).
+        if (phase == 2 && bossStage < 99) {
+            switch (bossStage) {
+                case 0:   // pausa dramática con la puerta cerrada
+                    if (++bossTimer >= 30) { bossStage = 1; bossTimer = 0; }
+                    break;
+                case 1:   // el taladro perfora la puerta (frames 0..5)
+                    if (bossTimer == 0) taladroEmerginFrame(0);
+                    if (++bossTimer >= TALADRO_FRAME_TICKS) {
+                        bossTimer = 0;
+                        if (taladroFrame < TALADRO_FRAMES - 1) {
+                            taladroFrame++;
+                            taladroEmerginFrame(taladroFrame);
+                        } else {
+                            bossStage = 2; bossTimer = 0;
+                        }
+                    }
+                    break;
+                case 2:   // la puerta se abre y Rocksteady sale del taladro
+                    if (bossTimer == 0) {
+                        taladroDoorFrame(1);
+                        if (!bossSpawned) {
+                            bossSpawned = TRUE;
+                            // Paleta del jefe en PAL3 (índice 1 blanco: HUD).
+                            PAL_setPalette(PAL3, rocksteady_boss.palette->data, DMA);
+                            PAL_setColor(PAL3 * 16 + 1, 0x0EEE);
+                            rocksteadySpawn(&boss);
+                        }
+                    }
+                    if (++bossTimer >= 10) { bossStage = 3; bossTimer = 0; }
+                    break;
+                case 3:   // espera a que el jefe se aleje del taladro
+                    if (++bossTimer >= 35) { bossStage = 4; bossTimer = 0; }
+                    break;
+                case 4:   // el taladro se retira (frames 5..0) y la puerta cierra
+                    if (++bossTimer >= TALADRO_FRAME_TICKS) {
+                        bossTimer = 0;
+                        if (taladroFrame > 0) {
+                            taladroFrame--;
+                            taladroEmerginFrame(taladroFrame);
+                        } else {
+                            taladroDoorFrame(0);
+                            bossStage = 99;
+                        }
+                    }
+                    break;
+            }
         }
 
         // 5. Enemigos: separación + IA.
@@ -2185,6 +2345,12 @@ SceneId showLevel2() {
 
         // 5b. Shurikens: actualizar posición, auto-destrucción off-screen.
         shurikenUpdate(cameraX);
+
+        // 5c. Rocksteady (jefe de la fase 2).
+        rocksteadyUpdate(&boss, cameraX, &p1, &p2, dosJugadores);
+
+        // 5d. Balas del disparo del jefe.
+        rocksteadyBulletUpdate(cameraX);
 
         // 6. Colisiones: ataque del jugador → enemigos.
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -2209,6 +2375,30 @@ SceneId showLevel2() {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
                     addPlayerScore(attacker, 1);
                 }
+            }
+        }
+
+        // 6-boss. Colisiones: ataque del jugador → Rocksteady.
+        // Normal −1 barra, especial −ROCKSTEADY_SPECIAL_DMG. Golpear con la
+        // patada voladora suena el "pum" (igual que contra los foot soldiers).
+        if (rocksteadyCanBeHit(&boss)) {
+            s16     bx = rocksteadyGetCenterX(&boss);
+            s16     by = rocksteadyGetCenterY(&boss);
+            s16     bdmg = 0;
+            Player* batt = NULL;
+            if (playerAttackHits(&p1, bx, by)) {
+                bdmg = isPlayerSpecialAttack(&p1) ? ROCKSTEADY_SPECIAL_DMG : 1;
+                batt = &p1;
+            } else if (dosJugadores && playerAttackHits(&p2, bx, by)) {
+                bdmg = isPlayerSpecialAttack(&p2) ? ROCKSTEADY_SPECIAL_DMG : 1;
+                batt = &p2;
+            }
+            if (bdmg > 0) {
+                rocksteadyDamage(&boss, bdmg);
+                if (batt && isPlayerJumpKicking(batt))
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                if (batt && boss.state == ROCKSTEADY_DEAD)
+                    addPlayerScore(batt, 10);   // baja del jefe final
             }
         }
 
@@ -2251,9 +2441,43 @@ SceneId showLevel2() {
             }
         }
 
+        // 6c-bis. Balas del jefe → el ataque del jugador las rompe (antes de
+        //         chequear impacto contra el jugador) y → los jugadores.
+        {
+            if (rocksteadyBulletBreakByPlayerAttack(&p1)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            }
+            if (dosJugadores && rocksteadyBulletBreakByPlayerAttack(&p2)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            }
+        }
+        {
+            s16 hitX = 0;
+            if (playerCanBeHit(&p1) &&
+                rocksteadyBulletCheckHitPlayer(getPlayerWorldX(&p1), getPlayerY(&p1), &hitX)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p1, hitX);
+            }
+            if (dosJugadores && playerCanBeHit(&p2) &&
+                rocksteadyBulletCheckHitPlayer(getPlayerWorldX(&p2), getPlayerY(&p2), &hitX)) {
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damagePlayer(&p2, hitX);
+            }
+        }
+
         // 6d. HUD: refrescar barra de vida, vidas y puntaje.
         hudPlayerUpdate(&hud1);
         if (dosJugadores) hudPlayerUpdate(&hud2);
+
+        // 6d-bis. April (rehén): bobbing suave de "respirando".
+        {
+            s16 bob = (s16)((aprilTimer >> 3) & 7);
+            if (bob > 3) bob = 7 - bob;
+            aprilTimer++;
+            if (aprilSpr)
+                SPR_setPosition(aprilSpr, APRIL_WORLD_X - cameraX,
+                                APRIL_LANE_Y - APRIL_FOOT_OFFSET + bob - 2);
+        }
 
         // 6e. Game over: sin vidas ni barra. En 2P, cuando ambos cayeron.
         if (isPlayerGameOver(&p1) && (!dosJugadores || isPlayerGameOver(&p2)))
@@ -2272,8 +2496,14 @@ SceneId showLevel2() {
         SYS_doVBlankProcess();
     }
 
-    // Liberar shurikens activos (evita que queden volando en la cutscene).
+    // Liberar shurikens y balas activos (evita que queden volando en la cutscene).
+    rocksteadyBulletReleaseAll();
     shurikenReleaseAll();
+
+    // Restaurar el motor de sprites al presupuesto global de 720 tiles (este
+    // nivel lo había achicado a 560 para liberar la VRAM de las ventanas del
+    // taladro y la puerta). SPR_initEx libera los sprites que quedaran vivos.
+    SPR_initEx(720);
 
     // Restaurar atributos de texto por defecto para el resto de las escenas
     // (el HUD los dejó en prioridad alta / PAL3).

@@ -61,7 +61,8 @@
                                    // mirando a la izquierda (se HFlip con dir)
 #define ENEMY_ANIM_GUARD      12   // Guardia (3f): postura defensiva mientras otros atacan
 #define ENEMY_ANIM_STANCE     13   // Otra postura de espera (3f), parado sin moverse
-#define ENEMY_ANIM_GRAB       14   // Agarre por la espalda (frame VACIO, con hitbox)
+#define ENEMY_ANIM_GRAB       14   // Agarre por la espalda (pose visible: el soldier
+                                   // la muestra durante todo el GRAB)
 #define ENEMY_ANIM_VOLTERETA  15   // Voltereta de entrada (7f), avanza mas en X
 
 // ---------------------------------------------------------------------------
@@ -176,9 +177,9 @@
 
 // Muerte con explosión (anim 5 = 4 frames x 8) y rotura de puerta al spawnear
 // (anim 7: se reproduce desde el 2do frame → quedan 4 frames x 8).
+// Sin retroceso: el enemigo muere (y se golpea) EN EL LUGAR, sin desplazarse
+// en X — se eliminó el knockback de HURT y el empuje de la muerte.
 #define ENEMY_EXPLODE_TIME     48   // Muerte: 6 frames x 8 ticks
-#define ENEMY_DEATH_KNOCK_FRAMES 10 // Frames iniciales de la muerte con empuje en X
-#define ENEMY_DEATH_KNOCK_SPEED   2 // px/frame de ese empuje (alejándose del golpe)
 #define ENEMY_BREAK_DOOR_TIME  32
 // Spawn desde ascensor: sólo los 2 últimos frames de BREAK_DOOR (índices 3-4).
 #define ENEMY_ELEV_SPAWN_TIME  16

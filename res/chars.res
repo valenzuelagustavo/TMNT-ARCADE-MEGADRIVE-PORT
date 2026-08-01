@@ -31,7 +31,7 @@
 //   Fila 20 -> ANIM_KO (4 frames)
 // =============================================================================
 
-SPRITE leo_player  "/sprites/leo_anim_13x13.png"  13 13 FAST 7
-SPRITE mike_player "/sprites/mike_anim_13x13.png" 13 13 FAST 7
-SPRITE raph_player "/sprites/raph_anim_13x13.png" 13 13 FAST 7
-SPRITE don_player  "/sprites/don_anim_13x13.png"  13 13 FAST 7
+SPRITE leo_player  "/sprites/leo_anim_13x13.png"  13 13 FAST 5
+SPRITE mike_player "/sprites/mike_anim_13x13.png" 13 13 FAST 5
+SPRITE raph_player "/sprites/raph_anim_13x13.png" 13 13 FAST 5
+SPRITE don_player  "/sprites/don_anim_13x13.png"  13 13 FAST 5

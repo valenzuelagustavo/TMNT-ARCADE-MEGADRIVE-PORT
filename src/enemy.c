@@ -470,7 +470,7 @@ bool damageEnemy(Enemy* e, s16 dmg) {
         return TRUE;
     }
 
-    // Golpe NO fatal: estado HURT con knockback.
+    // Golpe NO fatal: estado HURT sin retroceso (el enemigo no se mueve en X).
     e->state = ENEMY_STATE_HURT;
     e->timer = 12;
     e->invincible = ENEMY_INVINCIBLE;
@@ -507,9 +507,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
     u16 explodeTime = enemyExplodeTime(e);
 
     if (e->state == ENEMY_STATE_DEAD) {
-        if (e->timer > explodeTime - ENEMY_DEATH_KNOCK_FRAMES)
-            e->x = clampS16(e->x - e->dir * ENEMY_DEATH_KNOCK_SPEED,
-                            enemyMinX(e), enemyMaxX(e));
+        // Sin empuje: muere EN EL LUGAR (igual que HURT, sin retroceso en X).
         if (e->timer > 0) {
             e->timer--;
             if (e->timer == 0) {
@@ -845,7 +843,8 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
         }
 
         case ENEMY_STATE_HURT: {
-            e->x += (e->dir * -1) * 3;
+            // Sin retroceso: el golpe NO desplaza al enemigo en X (queda clavado
+            // en el lugar mientras muestra la anim de daño).
             if (e->timer > 0) {
                 e->timer--;
             } else {
@@ -869,11 +868,12 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
 
         case ENEMY_STATE_GRAB: {
             // Agarre por la espalda: el soldier queda CLAVADO a la espalda del
-            // jugador (que está inmovilizado en su propio STATE_GRABBED). La
-            // anim del soldier (fila 14) es toda transparente a propósito: así
-            // no tapa el agarre que muestra el jugador. Suelta cuando el jugador
-            // zafa (mash), le pegan al soldier (damageEnemy lo libera) o expira
-            // el tope de seguridad (grabTimer).
+            // jugador (que está inmovilizado en su propio STATE_GRABBED)
+            // mostrando la anim [14] (grab). La tortuga muestra la anim [18]
+            // (ANIM_HELD): frames 0-2 mientras está agarrada y el frame 3
+            // cuando le pegan en pleno agarre (lo maneja damagePlayer). Suelta
+            // cuando el jugador zafa (mash), le pegan al soldier (damageEnemy
+            // lo libera) o expira el tope de seguridad (grabTimer).
             Player* gp = e->grabbed;
             if (!gp || !playerIsGrabbed(gp)) {
                 e->grabbed = NULL;
