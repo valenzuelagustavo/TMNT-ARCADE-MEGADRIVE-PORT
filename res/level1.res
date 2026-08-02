@@ -64,6 +64,16 @@ TILESET hp_bar "/sprites/hp_bar.png" NONE NONE
 TILESET title_font     "/images/font/font_tmnt_arcade.png" NONE NONE
 PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
 
+// --- Fuente arcade del HUD (vidas/puntaje), MISMA regla que title_font ---
+// 95 tiles de 8x8 en orden ASCII (32..126), compatible con VDP_loadFont.
+// NONE NONE es CRITICO por el mismo motivo (sin dedup -> mapeo char->tile 1:1).
+// NO lleva PALETTE propia: el PNG esta indexado sobre la MISMA paleta de las
+// tortugas (los indices 11/13 del PNG = lavanda/gris claro de PAL1), asi que
+// el HUD se dibuja con VDP_setTextPalette(PAL1) sin gastar una linea de
+// paleta (PAL0-3 ya estan ocupadas en ambos niveles). Mismo truco que
+// attack_bubble/hp_bar/hud.
+TILESET hud_font "/images/font/font_tmnt_arcade_2.png" NONE NONE
+
 // --- Globo de dialogo "Attack!!" (intro del nivel) --
 // 64x32px = 8x4 tiles, UN solo frame (time 0 -> sin animacion automatica).
 // NO lleva PALETTE propia: el PNG esta indexado sobre la MISMA paleta de las

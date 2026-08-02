@@ -2,6 +2,7 @@ out/res/audio.o: res/audio.res \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/drill.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/attack.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/musica_intro.vgm \
+G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/boss_hit.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/shredder_laugh.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/say_your_p.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/foot_soldier_explode.wav \

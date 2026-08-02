@@ -45,6 +45,14 @@ SPRITE taladro_capsula "sprites/taladro_capsula.png" 12 13 NONE 0
 // time = 12: animacion automatica (~5 fps, balanceo).
 SPRITE april "sprites/april.png" 4 8 NONE 12
 
+// Globo de dialogo del jefe "SAY YOUR PRAYERS!" (96x32 = grilla 12x4 de celdas
+// de 8px). Un solo frame (time = 0). Usa la paleta de las tortugas (PAL1),
+// igual que attack_bubble del nivel 1: el PNG esta cuantizado sobre esa misma
+// paleta indexada (sin PALETTE propia -> no gasta linea de paleta). Aparece
+// ~2 tiles sobre Rocksteady apenas emerge de la capsula y desaparece con el
+// mismo ciclo del globo "Attack!!" (solido -> parpadeo -> se suelta).
+SPRITE say_your_prayers "sprites/say_your_prayers.png" 12 4 NONE 0
+
 // Rocksteady (jefe): 832x1144 = grilla 8x11 de celdas de 104x104 (13x13 tiles).
 // 11 anims: [0]Idle [1]Caminar [2]Estampida [3]Patada [4]Recibe golpes/cae
 // [5]Saca arma [6]Camina con arma [7]Camina apuntando [8]Patada con arma
@@ -61,3 +69,15 @@ SPRITE rocksteady_boss "sprites/rocksteady_boss.png" 13 13 FAST 6
 // Bala del disparo de Rocksteady (fase 2): 16x16 = 2x2 tiles, un frame.
 // Paleta indexada con la del boss (indice 11 = nucleo blanco, 4 = halo oro).
 SPRITE boss_bullet "sprites/boss_bullet.png" 2 2 FAST 0
+
+// Shredder (cutscene de victoria del nivel 2): 432x240 = grilla 6x3 de celdas
+// 72x80 (9x10 tiles). Indices de animacion: [0] Idle (1 frame, apenas sale de la
+// capsula) [1] Walk (6 frames) [2] Rapto (3 frames: 0-1 toma a April, que va
+// INCLUIDA en el sprite - por eso se libera el sprite propio de April -, y el
+// frame 2 es la pose de salto que queda CONGELADA mientras Shredder vuela en
+// arco hacia la ventana del extremo derecho). Tiene PALETA PROPIA que se carga
+// en PAL3 cuando muere Rocksteady (PAL3[1] se fuerza blanco para el HUD: el PNG
+// no usa el indice 1, igual que rocksteady_boss). El arte mira a la derecha
+// (flip con SPR_setHFlip al caminar hacia April). FAST para sprites streameados
+// por frame; time = 6 (~10 fps, igual que el jefe).
+SPRITE shredder_lvl1 "sprites/shredder_lvl1.png" 9 10 FAST 6

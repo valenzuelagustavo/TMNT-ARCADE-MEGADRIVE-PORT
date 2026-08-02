@@ -561,9 +561,9 @@ static void hudInit(void) {
 // Comparte PAL1 (paleta de las tortugas): el PNG está indexado en esa misma
 // paleta.
 //
-// VIDAS y PUNTAJE van como TEXTO con la fuente por defecto (VDP_drawText) sobre
-// BG_A. Se dibujan en PAL3; el color 1 se sobrescribe a blanco (0x0EEE) tras
-// cargar la paleta del foot soldier naranja, así el texto sale blanco.
+// VIDAS y PUNTAJE van como TEXTO con la fuente arcade del HUD (hud_font, via
+// VDP_drawText) sobre BG_A. Se dibujan en PAL1 (paleta de las tortugas): la
+// fuente está indexada sobre esa misma paleta (indices 11/13 -> lavanda/gris).
 // ---------------------------------------------------------------------------
 #define HPBAR_FRAME_TILES_W  4                                            // 32px
 #define HPBAR_FRAME_TILES_H  1                                            // 8px
@@ -737,9 +737,14 @@ SceneId showPlayerSelect() {
     PAL_setPalette(PAL0, logo.palette->data, DMA);
     VDP_drawImageEx(BG_B, &logo, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 3, 0, FALSE, TRUE);
 
+    // Misma fuente arcade que el título del nivel (title_font). El logo ocupa
+    // PAL0 y el cursor PAL1, así que la paleta de la fuente va en PAL2.
+    VDP_loadFont(&title_font, DMA);
+    PAL_setColors(PAL2 * 16, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPalette(PAL2);
+
     VDP_drawText("1 TORTUGA",  14, 18);
     VDP_drawText("2 TORTUGAS", 14, 20);
-    VDP_drawText("Desarrollado por: Gustavo Valenzuela", 2, 26);
 
     Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 14 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
@@ -762,6 +767,10 @@ SceneId showPlayerSelect() {
 
     // selectedOption 0 → 1 jugador | 1 → 2 jugadores
     cantidadJugadores = selectedOption + 1;
+
+    // Restaurar la fuente por defecto de SGDK (la selección de personaje la
+    // vuelve a cargar igual, pero así el estado queda consistente).
+    VDP_loadFont(&font_default, DMA);
 
     return SCENE_CHAR_SELECT;
 }
@@ -833,6 +842,8 @@ SceneId showCharSelect() {
         SPR_update();
         SYS_doVBlankProcess();
 
+        // Nueva partida: reiniciar vidas/puntaje persistentes antes del nivel 1.
+        playerPersistReset();
         return SCENE_LEVEL1_TITLE;
     }
 
@@ -907,6 +918,8 @@ SceneId showCharSelect() {
     SPR_update();
     SYS_doVBlankProcess();
 
+    // Nueva partida: reiniciar vidas/puntaje persistentes antes del nivel 1.
+    playerPersistReset();
     return SCENE_LEVEL1_TITLE;
 }
 
@@ -1089,14 +1102,11 @@ SceneId showLevel1() {
     // Shurikens: resetear el sistema de proyectiles del foot soldier naranja.
     shurikenInit();
 
-    // Cargar la paleta del foot soldier naranja en PAL3 ahora, para que
-    // el texto del HUD (VDP_setTextPalette(PAL3)) tenga una paleta válida
-    // desde el primer frame. El PNG tiene blanco (0x0EEE) en el índice 1
-    // para que VDP_drawText lo use como color de texto.
+    // Cargar la paleta del foot soldier naranja en PAL3 (sus sprites usan PAL3).
     PAL_setPalette(PAL3, foot_soldier_orange.palette->data, DMA);
 
-    // --- Música del nivel (volumen reducido, ver VOL_MUSIC_LEVEL1) ---
-    playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
+    // --- Música del nivel (DESACTIVADA; los SFX por PCM siguen activos) ---
+    // playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
 
     // --- Inicializar jugador(es) ---
     // Las 4 tortugas comparten la paleta unificada, así que P1 y P2 usan PAL1.
@@ -1120,13 +1130,15 @@ SceneId showLevel1() {
     ironBallInit();
 
     // --- HUD dinámico: barra de vida + vidas + puntaje ---
-    // El texto (vidas/puntaje) va con la fuente por defecto sobre BG_A, con
-    // prioridad alta (delante de los sprites) y en PAL3 (blanco puro -> texto
-    // blanco). La barra usa PAL1 (ya cargada por initPlayer). Cada jugador
-    // tiene su bloque de barra en VRAM: P1 en hudVramFree, P2 a +8.
+    // El texto (vidas/puntaje) va con la fuente arcade del HUD (hud_font) sobre
+    // BG_A, con prioridad alta (delante de los sprites) y en PAL1 (paleta de
+    // las tortugas: la fuente está indexada sobre esa misma paleta). La barra
+    // usa PAL1 (ya cargada por initPlayer). Cada jugador tiene su bloque de
+    // barra en VRAM: P1 en hudVramFree, P2 a +8.
+    VDP_loadFont(&hud_font, DMA);
     VDP_setTextPlane(BG_A);
     VDP_setTextPriority(1);
-    VDP_setTextPalette(PAL3);
+    VDP_setTextPalette(PAL1);
 
     HudPlayer hud1;
     hudPlayerInit(&hud1, &p1, 0, hudVramFree);
@@ -1839,6 +1851,10 @@ SceneId showLevel1() {
     // cutscene final.
     // ---------------------------------------------------------------------
     if (win) {
+        // Victoria: guardar vidas/puntaje para que persistan al nivel 2.
+        playerPersistSave(&p1);
+        if (dosJugadores) playerPersistSave(&p2);
+
         setPlayerCamera(&p1, cameraX);
         if (dosJugadores) setPlayerCamera(&p2, cameraX);
 
@@ -1908,6 +1924,16 @@ SceneId showLevel1() {
 #define SMOKE_FRAME_INTERVAL 8    // Frames de juego entre cada frame de humo
 #define SMOKE_Y_TILE         4    // Banda 64px justo debajo del HUD (filas 0-3)
 
+// La cápsula del taladro (sprite de la fase 2) debe quedar DETRÁS del humo del
+// techo. Como la prioridad del plano es global por TILE, solo las columnas del
+// plano que cubren la cápsula se pintan con PRIORIDAD ALTA (TRUE): ahí el humo
+// se dibuja delante de la cápsula (sprite, prioridad 0). El resto del humo
+// sigue con prioridad baja (detrás de los sprites). Con la cámara bloqueada en
+// 120 toda la pelea (fase 2), la cápsula anclada a pantalla (172..268, ±8 de
+// temblor) cubre las columnas del plano (screen + 120) / 8 = 35..49.
+#define SMOKE_FRONT_COL_MIN   35
+#define SMOKE_FRONT_COL_MAX   49
+
 static u16 smokeVramInd;   // Primer tile de VRAM de la celda del humo
 static u16 smokeFrame;     // Frame de animación actual (0..7)
 static u16 smokeTimer;     // Contador hasta el próximo paso
@@ -1953,12 +1979,19 @@ static void smokeInit(u16 vramInd) {
     VDP_loadTileData(smoke_tiles.tiles, vramInd, SMOKE_CELL_TILES, DMA);
 
     // Tilemap: celda 8x8 repetida en las 64 columnas del plano, filas 4-11.
-    // PRIORIDAD BAJA (FALSE) -> el humo queda DETRÁS de los sprites.
-    for (u16 block = 0; block < BG_PLANE_W / SMOKE_CELL_TILES_W; block++) {
-        VDP_fillTileMapRectInc(BG_A,
-                               TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, vramInd),
-                               block * SMOKE_CELL_TILES_W, SMOKE_Y_TILE,
-                               SMOKE_CELL_TILES_W, SMOKE_CELL_TILES_H);
+    // PRIORIDAD BAJA (FALSE) -> el humo queda DETRÁS de los sprites, salvo en
+    // las columnas de la cápsula del taladro (SMOKE_FRONT_COL_MIN..MAX), que se
+    // pintan con PRIORIDAD ALTA (TRUE) para que la cápsula salga DETRÁS del humo.
+    // Se escribe columna por columna (no por bloque) porque la celda NO es
+    // secuencial: el tile (col,row) de la celda está en (col%8) + row*8.
+    for (u16 col = 0; col < BG_PLANE_W; col++) {
+        bool front = (col >= SMOKE_FRONT_COL_MIN && col <= SMOKE_FRONT_COL_MAX);
+        for (u16 r = 0; r < SMOKE_CELL_TILES_H; r++)
+            VDP_setTileMapXY(BG_A,
+                             TILE_ATTR_FULL(PAL1, front, FALSE, FALSE,
+                                            vramInd + (r * SMOKE_CELL_TILES_W) +
+                                            (col % SMOKE_CELL_TILES_W)),
+                             col, SMOKE_Y_TILE + r);
     }
     // El scroll de la banda arranca en 0: fireInit ya puso TODA la tabla de
     // BG_A en 0, así que no hay que escribirla acá.
@@ -2007,6 +2040,8 @@ static void smokeUpdate(s16 cameraX) {
 #define CAPSULA_SCREEN_Y      (CAPSULA_CENTER_Y - (CAPSULA_TILE_H * 8) / 2)   // 51
 #define CAPSULA_FRAMES        7     // Frames del índice [0] (emergencia)
 #define CAPSULA_FRAME_TICKS   29    // Frames de juego entre frames (~203 total ≈ duración de drill.wav)
+#define CAPSULA_DOOR_FRAMES   4     // Frames del índice [1] (apertura de la puerta)
+#define CAPSULA_DOOR_TICKS    14    // Frames de juego entre frames de apertura (~0.23s)
 #define CAPSULA_SHAKE_AMP     8     // Amplitud del temblor de pantalla (px)
 
 // Flash de paleta por HP bajo del jefe (efecto "quemado" brillante). Con <= 20
@@ -2028,6 +2063,52 @@ static s16 capsuleShake(u8 tick) {
                  - CAPSULA_SHAKE_AMP);
 }
 
+// ---------------------------------------------------------------------------
+// Cutscene de victoria — Shredder rapta a April
+// ---------------------------------------------------------------------------
+// Al morir Rocksteady la tortuga se queda quieta en el frame de "caminar hacia
+// arriba" (observando) y Shredder sale de la cápsula del taladro (sprite
+// shredder_lvl1, 72x80, paleta PROPIA en PAL3): camina por el lane de April
+// (148) hacia la izquierda, la toma por detrás (Rapto: los frames 0-1 incluyen
+// a April DENTRO del sprite, por eso se libera el sprite propio de April), y el
+// frame 2 (pose de salto) queda CONGELADO mientras Shredder vuela en arco hacia
+// la ventana del extremo derecho. Al salir por la ventana → SCENE_ENDING.
+// El ancla del sprite es el tope izquierdo: X de MUNDO, Y de pantalla.
+//   - Idle [0]: 1 frame | Walk [1]: 6 frames | Rapto [2]: 3 frames.
+//   - El arte ya trae la dirección correcta por animación: Walk [1] mira a la
+//     IZQUIERDA (hacia April) y el último frame del Rapto mira a la DERECHA
+//     (de frente al saltar). NO se aplica SPR_setHFlip en ningún momento.
+//   - April está parada en mundo (205, 148); su contenido ocupa 205..269 con
+//     centro 237. El centro del cuerpo de Shredder en el frame está en ~+33 de
+//     su ancla, así que el ancla de agarre (216) lo centra sobre April; el
+//     frame 1 de Rapto muestra la cabeza de April en ~+21 del ancla → queda
+//     exactamente sobre la posición que tenía el sprite de April (205+32=237).
+//   - El salto es de MUNDO 216→456 (pantalla 96→336, cámara 120): cruza todo el
+//     hueco abierto de la derecha (bg_test: cielo abierto en mundo 56..440,
+//     y 128..186) y termina FUERA de pantalla a la derecha. Y de ancla 68→70
+//     (pies 148→150, dentro de la banda del cielo); el ápice del arco sube a
+//     ~25 (pies ~105). OJO: pantalla = mundo − cámara (no al revés).
+#define SHREDDER_FRAME_W       72    // 9 tiles
+#define SHREDDER_FRAME_H       80    // 10 tiles
+#define SHREDDER_FEET_Y        (148) // Lane de April: pisa el mismo piso que ella
+// 304 = 340 - 36: el ancla es el tope IZQUIERDO, así que para que el CUERPO
+// (72px) quede sobre la puerta/cápsula (centro mundo 340, pantalla 220) el
+// ancla debe ir 36px (media anchura) a la izquierda del centro.
+#define SHREDDER_SPAWN_X       (ROCKSTEADY_TALADRO_X - SHREDDER_FRAME_W / 2)  // 304
+#define SHREDDER_GRAB_X        (216) // Ancla detrás de April (ver comentario arriba)
+#define SHREDDER_WALK_SPEED    3     // px/frame caminando hacia April
+#define SHREDDER_RAPTO_TICKS   12    // Ticks por cada frame 0 y 1 del Rapto
+#define SHREDDER_JUMP_FRAMES   64    // Duración del vuelo en arco (frames)
+#define SHREDDER_JUMP_X_END    456   // X de mundo al salir (pantalla 336: FUERA por la derecha)
+#define SHREDDER_JUMP_Y_END    70    // Y de ancla al salir (pies ~150, en la banda del cielo)
+#define SHREDDER_ARC_HEIGHT    24    // Elevación extra del ápice del arco (px)
+// Fade a negro del final: arranca cuando el ancla de Shredder llega a 3 tiles
+// (24px) del extremo del nivel (440). Con la cámara fija en 120, el sprite está
+// entonces casi fuera de pantalla (pantalla 296..368: quedan ~24px visibles) y
+// el fundido tapa la carga de SCENE_ENDING.
+#define SHREDDER_FADE_START_X  (LEVEL2_PIXEL_WIDTH - 24)   // 416
+#define SHREDDER_FADE_FRAMES   30                          // ~0.5s
+
 
 // ---------------------------------------------------------------------------
 // Escena completa del nivel 2. Flujo:
@@ -2038,6 +2119,25 @@ static s16 capsuleShake(u8 tick) {
 //           frente + 1 morado que entra por la espalda).
 //   fase 3: oleada B limpia -> victoria -> cutscene final (Shredder/April).
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Globo de diálogo "SAY YOUR PRAYERS!" del jefe (say_your_prayers, 96x32)
+// ---------------------------------------------------------------------------
+// Aparece apenas Rocksteady emerge de la cápsula (cámara bloqueada en 120 →
+// posición de pantalla FIJA), el mismo tick en que suena say_your_p_sfx.
+// Mismo ciclo que el globo "Attack!!" del nivel 1: sólido → parpadeo → se
+// suelta. 120+45 = 165 frames encajan dentro de los 170 del taunt
+// (ROCKSTEADY_EMERGE_STAND).
+// Posición ajustada en emulador: tope a 16px sobre el tope del frame del jefe
+// (el globo de 32px solapa ~16px la cabeza) y corrido 16px a la izquierda del
+// centro del cuerpo — 4 tiles abajo y 2 a la izquierda del tiro original.
+#define BOSS_BUBBLE_W        96    // ancho del globo (12 tiles)
+#define BOSS_BUBBLE_Y_OFFSET  -16   // tope del globo: tope del jefe - 16px
+#define BOSS_BUBBLE_X_OFFSET  -16   // 2 tiles (16px) a la izquierda del CENTRO del cuerpo
+#define BOSS_BUBBLE_SOLID_F      120   // ~2s sólido (cubre el inicio del taunt)
+#define BOSS_BUBBLE_BLINK_F      45    // ~0.75s de parpadeo antes de irse
+#define BOSS_BUBBLE_TOGGLE       4     // frames por semiciclo de parpadeo (~7-8 Hz)
+
 SceneId showLevel2() {
     clearScene();
 
@@ -2072,11 +2172,11 @@ SceneId showLevel2() {
     resetEnemyAI(cantidadJugadores);
     shurikenInit();
 
-    // --- PAL3: foot soldier naranja + texto del HUD en blanco ---
+    // --- PAL3: foot soldier naranja (sus sprites usan PAL3) ---
     PAL_setPalette(PAL3, foot_soldier_orange.palette->data, DMA);
 
-    // --- Música (misma del pasillo en llamas, volumen reducido) ---
-    playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
+    // --- Música (DESACTIVADA; los SFX por PCM siguen activos) ---
+    // playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
 
     // --- Inicializar jugador(es) ---
     bool dosJugadores = (cantidadJugadores == 2);
@@ -2106,9 +2206,12 @@ SceneId showLevel2() {
     u16 aprilTimer = 0;
 
     // --- HUD dinámico: barra de vida + vidas + puntaje ---
+    // Mismo esquema que el nivel 1: texto con hud_font en PAL1 (paleta de las
+    // tortugas, ya cargada por initPlayer).
+    VDP_loadFont(&hud_font, DMA);
     VDP_setTextPlane(BG_A);
     VDP_setTextPriority(1);
-    VDP_setTextPalette(PAL3);
+    VDP_setTextPalette(PAL1);
 
     HudPlayer hud1;
     hudPlayerInit(&hud1, &p1, 0, hudVramFree);
@@ -2146,6 +2249,23 @@ SceneId showLevel2() {
     u8      bossFlashTick = 0;
     u8      bossFlashOn   = 0;
 
+    // --- Globo de diálogo "SAY YOUR PRAYERS!" (aparece con el jefe, en la
+    //     puerta; ciclo sólido → parpadeo → se suelta, igual que el del nivel 1)
+    Sprite* sayBubble   = NULL;
+    u8      bubblePhase = 0;   // 0=inactivo 1=sólido 2=parpadeo 3=terminado
+    u16     bubbleTimer = 0;
+
+    // --- Cutscene de victoria: Shredder rapta a April ---
+    // 0 = inactiva · 1 = Shredder aparece en la puerta (Idle) · 2 = camina hacia
+    // April · 3 = Rapto frames 0-1 (libera el sprite de April) · 4 = frame 2
+    // congelado + vuelo en arco · 5 = salió por la ventana → victoria.
+    u8      cutScene    = 0;
+    u8      cutTimer    = 0;
+    bool    winFade     = FALSE;  // ya se disparó el fade a negro del final
+    Sprite* shredderSpr = NULL;
+    s16     shredderX   = 0;   // Ancla del sprite de Shredder (X de mundo)
+    s16     shredderY   = 0;   // Ancla del sprite de Shredder (Y de pantalla)
+
     // --- Oleada A: 2 foot soldiers morados entrando de FRENTE ---
     // Ambos caminan (CHASE) hacia el jugador desde el borde derecho, lanes
     // distintas para que no vengan en fila india.
@@ -2177,9 +2297,18 @@ SceneId showLevel2() {
     bool win         = FALSE;
 
     while (1) {
-        // 1. Input y física de cada jugador
-        updatePlayer(&p1);
-        if (dosJugadores) updatePlayer(&p2);
+        // 1. Input y física de cada jugador. Durante la cutscene de victoria la
+        // tortuga deja de leer input y se queda congelada en el frame de
+        // "caminar hacia arriba" (observando a Shredder llevarse a April).
+        if (cutScene > 0) {
+            // La tortuga viva se congela observando; la caída (game over) queda
+            // tirada como estaba.
+            if (!isPlayerGameOver(&p1)) playerCutsceneWatch(&p1);
+            if (dosJugadores && !isPlayerGameOver(&p2)) playerCutsceneWatch(&p2);
+        } else {
+            updatePlayer(&p1);
+            if (dosJugadores) updatePlayer(&p2);
+        }
 
         // 2. Cámara con dead-zone BIDIRECCIONAL (la sala se recorre de ida y
         //    vuelta). Derecha: igual que el nivel 1 (capped por cameraLockX).
@@ -2248,11 +2377,22 @@ SceneId showLevel2() {
                 SPR_setDepth(capsulaSpr, SPR_MAX_DEPTH);
                 SPR_setVisibility(capsulaSpr, HIDDEN);
             }
-        } else if (phase == 2 && bossStage == 99 && bossSpawned &&
+        } else if (cutScene == 0 && phase == 2 && bossSpawned &&
                    boss.state == ROCKSTEADY_GONE) {
-            // Jefe muerto: victoria.
-            win = TRUE;
-            break;
+            // Jefe muerto (el sprite ya se liberó solo al terminar la anim de
+            // muerte): arranca la cutscene de victoria. Aplica aunque el jefe
+            // muriera durante la introducción (bossStage < 99): se fuerza
+            // bossStage = 99 para abortar el taunt y no esperar a que termine.
+            // Se desactiva el flash de paleta para que nada pise la paleta de
+            // Shredder en PAL3.
+            bossFlashOn = 0;
+            bossStage = 99;
+            cutScene = 1;
+            cutTimer = 0;
+            // Si el jefe murió durante el taunt, suelta el globo de diálogo
+            // que aún estuviera vivo (no debe verse en la cutscene).
+            if (sayBubble) { SPR_releaseSprite(sayBubble); sayBubble = NULL; }
+            bubblePhase = 3;
         }
 
         // 4c. Secuencia de introducción del jefe (fase 2, stages 0..3).
@@ -2280,11 +2420,19 @@ SceneId showLevel2() {
                         }
                     }
                     break;
-                case 2:   // la puerta se abre (índice [1]) + suena capsule_door
+                case 2:   // la puerta se abre (índice [1], CAPSULA_DOOR_FRAMES frames) + suena capsule_door
                     if (bossTimer == 0 && capsulaSpr) {
                         SPR_setAnimAndFrame(capsulaSpr, 1, 0);
                         XGM2_playPCMEx(capsule_door_sfx, sizeof(capsule_door_sfx),
                                        SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    }
+                    // Avanza un frame cada CAPSULA_DOOR_TICKS y queda FIJO en el
+                    // último (CAPSULA_DOOR_FRAMES-1) hasta el final de la secuencia
+                    // (y de la pelea: nada más toca la cápsula después).
+                    if (bossTimer > 0 && (bossTimer % CAPSULA_DOOR_TICKS) == 0 && capsulaSpr) {
+                        u16 doorFrame = bossTimer / CAPSULA_DOOR_TICKS;
+                        if (doorFrame >= CAPSULA_DOOR_FRAMES) doorFrame = CAPSULA_DOOR_FRAMES - 1;
+                        SPR_setAnimAndFrame(capsulaSpr, 1, doorFrame);
                     }
                     // Espera a que suene el arranque de la puerta (~1.2s, ya
                     // reducido 1s respecto a la duración completa del wav).
@@ -2316,11 +2464,169 @@ SceneId showLevel2() {
                         }
                         XGM2_playPCMEx(say_your_p_sfx, sizeof(say_your_p_sfx),
                                        SOUND_PCM_CH2, 15, FALSE, FALSE);
+
+                        // Globo de diálogo justo cuando el jefe aparece (mismo
+                        // tick que el wav). Posición FIJA de pantalla: tope a
+                        // BOSS_BUBBLE_Y_OFFSET del tope del frame del jefe
+                        // (cámara bloqueada en 120 → ancla del jefe x-cam = 156,
+                        // tope y = 52) y BOSS_BUBBLE_X_OFFSET del centro del cuerpo.
+                        if (!sayBubble) {
+                            s16 bossTopY = boss.y - ROCKSTEADY_FOOT_OFFSET;
+                            s16 bubbleY  = bossTopY + BOSS_BUBBLE_Y_OFFSET;
+                            // Centrado en el cuerpo (mitad del frame − mitad del
+                            // globo) MÁS el offset a la izquierda del centro.
+                            s16 bubbleX  = (boss.x - cameraX) + ROCKSTEADY_FRAME_W / 2
+                                           - BOSS_BUBBLE_W / 2 + BOSS_BUBBLE_X_OFFSET;
+                            sayBubble = SPR_addSprite(&say_your_prayers,
+                                                      bubbleX, bubbleY,
+                                                      TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+                            if (sayBubble) {
+                                SPR_setDepth(sayBubble, SPR_MIN_DEPTH);
+                                bubblePhase = 1;
+                                bubbleTimer = 0;
+                            }
+                        }
+                    }
+                    // Ciclo del globo: sólido → parpadeo → se suelta.
+                    if (bubblePhase == 1) {
+                        if (++bubbleTimer >= BOSS_BUBBLE_SOLID_F) {
+                            bubblePhase = 2; bubbleTimer = 0;
+                        }
+                    } else if (bubblePhase == 2) {
+                        if (sayBubble)
+                            SPR_setVisibility(sayBubble,
+                                ((bubbleTimer / BOSS_BUBBLE_TOGGLE) & 1) ? HIDDEN : VISIBLE);
+                        if (++bubbleTimer >= BOSS_BUBBLE_BLINK_F) {
+                            if (sayBubble) { SPR_releaseSprite(sayBubble); sayBubble = NULL; }
+                            bubblePhase = 3;
+                        }
                     }
                     // Espera a que termine el taunt (~2.8s) → empieza la batalla.
                     if (++bossTimer >= 170) { bossStage = 99; bossTimer = 0; }
                     break;
             }
+        }
+
+        // 4d. Cutscene de victoria: Shredder rapta a April (se dispara en 4b
+        //     cuando el jefe llega a ROCKSTEADY_GONE).
+        if (cutScene > 0) {
+            switch (cutScene) {
+                case 1: {   // Shredder aparece en la puerta de la cápsula (Idle)
+                    if (cutTimer == 0) {
+                        // Paleta propia de Shredder en PAL3 (Rocksteady ya la
+                        // liberó al morir); índice 1 blanco para el HUD.
+                        PAL_setPalette(PAL3, shredder_lvl1.palette->data, DMA);
+                        PAL_setColor(PAL3 * 16 + 1, 0x0EEE);
+                        shredderX = SHREDDER_SPAWN_X;
+                        shredderY = SHREDDER_FEET_Y - SHREDDER_FRAME_H;
+                        shredderSpr = SPR_addSprite(&shredder_lvl1,
+                                                    shredderX - cameraX, shredderY,
+                                                    TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+                        if (shredderSpr) {
+                            // Detrás de April (depth -APRIL_LANE_Y+20 = -128):
+                            // menor valor = delante, así que con -108 Shredder
+                            // queda DETRÁS de ella (y de los jugadores, que usan
+                            // -y con y >= 118) pero delante de la cápsula.
+                            SPR_setDepth(shredderSpr, -APRIL_LANE_Y + 40);
+                            SPR_setAutoAnimation(shredderSpr, FALSE);
+                            SPR_setAnim(shredderSpr, 0);          // Idle [0] (sin flip: el arte ya mira a la izquierda)
+                        }
+                    }
+                    // Pausa dramática corta mirando la escena, luego camina.
+                    if (++cutTimer >= 20) { cutScene = 2; cutTimer = 0; }
+                    break;
+                }
+                case 2: {   // Camina (Walk [1]) por el lane de April. El spawn está a la
+                            // derecha (sobre la cápsula) y April a la izquierda: hay que
+                            // caminar en AMBOS sentidos (dx < 0 aquí).
+                    if (cutTimer == 0 && shredderSpr) {
+                        SPR_setAutoAnimation(shredderSpr, TRUE);   // walk = 6 frames ~10 fps
+                        SPR_setAnim(shredderSpr, 1);
+                    }
+                    s16 dx = SHREDDER_GRAB_X - shredderX;
+                    if (dx == 0) {
+                        cutScene = 3; cutTimer = 0;
+                    } else {
+                        s16 step = (abs(dx) > SHREDDER_WALK_SPEED) ? SHREDDER_WALK_SPEED : abs(dx);
+                        shredderX += (dx > 0) ? step : -step;
+                        if (shredderSpr)
+                            SPR_setPosition(shredderSpr, shredderX - cameraX, shredderY);
+                    }
+                    break;
+                }
+                case 3: {   // Rapto [2]: la toma por detrás (frames 0-1 incluyen a
+                            // April DENTRO del sprite) → se libera el sprite propio.
+                    if (cutTimer == 0) {
+                        if (shredderSpr) {
+                            SPR_setAutoAnimation(shredderSpr, FALSE);  // frames MANUALES
+                            SPR_setAnimAndFrame(shredderSpr, 2, 0);    // arte a la derecha (de frente al salir), sin flip
+                        }
+                        if (aprilSpr) { SPR_releaseSprite(aprilSpr); aprilSpr = NULL; }
+                        XGM2_playPCMEx(scream_april, sizeof(scream_april),
+                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    } else if (cutTimer == SHREDDER_RAPTO_TICKS) {
+                        if (shredderSpr) SPR_setAnimAndFrame(shredderSpr, 2, 1);
+                    }
+                    if (++cutTimer >= SHREDDER_RAPTO_TICKS * 2) {
+                        cutScene = 4; cutTimer = 0;
+                    }
+                    break;
+                }
+                case 4: {   // Frame 2 del Rapto CONGELADO (pose de salto) + arco
+                            // hacia la ventana del extremo derecho. A 3 tiles del
+                            // borde del nivel arranca el fade a negro (corre por
+                            // VBlank mientras el sprite sigue volando); al
+                            // completarse → victoria.
+                    if (cutTimer == 0 && shredderSpr)
+                        SPR_setAnimAndFrame(shredderSpr, 2, 2);
+                    if (cutTimer < SHREDDER_JUMP_FRAMES) {
+                        u16 t = cutTimer;
+                        s16 sx = SHREDDER_GRAB_X;
+                        s16 sy = SHREDDER_FEET_Y - SHREDDER_FRAME_H;
+                        s16 ex = SHREDDER_JUMP_X_END;
+                        s16 ey = SHREDDER_JUMP_Y_END;
+                        s16 px = sx + ((s16)(ex - sx) * t) / SHREDDER_JUMP_FRAMES;
+                        s16 py = sy + ((s16)(ey - sy) * t) / SHREDDER_JUMP_FRAMES;
+                        // Ápice del arco: sube más en la mitad del vuelo (la
+                        // parábola t*(N-t) vale 0 en los extremos y máximo en t=N/2).
+                        s16 arc = (SHREDDER_ARC_HEIGHT * (s16)t * (s16)(SHREDDER_JUMP_FRAMES - t))
+                                  / ((SHREDDER_JUMP_FRAMES * SHREDDER_JUMP_FRAMES) / 4);
+                        py -= arc;
+                        shredderX = px;
+                        shredderY = py;
+                        if (shredderSpr)
+                            SPR_setPosition(shredderSpr, px - cameraX, py);
+                        cutTimer++;
+                        // Fade a negro cuando el sprite está a 3 tiles del extremo:
+                        // el sprite sigue saliendo por la ventana mientras la
+                        // pantalla se funde, y el negro tapa la carga de la
+                        // escena siguiente (sin "pop" en la transición).
+                        if (!winFade && shredderX >= SHREDDER_FADE_START_X) {
+                            PAL_fadeOutAll(SHREDDER_FADE_FRAMES, FALSE);
+                            winFade = TRUE;
+                        }
+                    } else if (winFade) {
+                        // El arco terminó (el sprite ya salió por la ventana):
+                        // esperar a que el fade a negro se complete antes de
+                        // cortar a la escena siguiente.
+                        if (!PAL_isDoingFade()) {
+                            cutScene = 5;
+                            win = TRUE;
+                        }
+                    } else {
+                        cutScene = 5;   // salió sin fade (fallback, no debería pasar)
+                        // Marcar la victoria ANTES de salir del bucle: el
+                        // `if (cutScene == 5) break;` de abajo rompe el while
+                        // en el MISMO frame, así que el case 5 nunca corre.
+                        win = TRUE;
+                    }
+                    break;
+                }
+                case 5:   // (no-op: la victoria se marcó en el case 4)
+                    break;
+            }
+            if (cutScene == 5)
+                break;
         }
 
         // 5. Enemigos: separación + IA.
@@ -2416,6 +2722,9 @@ SceneId showLevel2() {
             }
             if (bdmg > 0) {
                 rocksteadyDamage(&boss, bdmg);
+                // Golpe al jefe: "pum" propio de Rocksteady (distinto del de los
+                // foot soldiers, que usa hit_turtles).
+                XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 if (batt && isPlayerJumpKicking(batt))
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 if (batt && boss.state == ROCKSTEADY_DEAD)
@@ -2501,7 +2810,16 @@ SceneId showLevel2() {
         }
 
         // 6e. Game over: sin vidas ni barra. En 2P, cuando ambos cayeron.
-        if (isPlayerGameOver(&p1) && (!dosJugadores || isPlayerGameOver(&p2)))
+        //     Durante la cutscene de victoria no aplica: la tortuga está
+        //     congelada observando y no puede morir (y un jugador caído antes
+        //     de matar al jefe no debe impedir que se vea la cutscene).
+        //     Tampoco aplica si el jefe ya está muriendo o murió (DEAD/GONE):
+        //     un KO simultáneo del jugador en la misma frame en que muere el
+        //     jefe no debe convertir la victoria en un game over.
+        bool bossDown = (boss.state == ROCKSTEADY_DEAD ||
+                         boss.state == ROCKSTEADY_GONE);
+        if (cutScene == 0 && !bossDown && isPlayerGameOver(&p1) &&
+            (!dosJugadores || isPlayerGameOver(&p2)))
             break;
 
         // 7. Scroll del fondo. Durante la emergencia de la cápsula (stage 1) se
@@ -2544,8 +2862,17 @@ SceneId showLevel2() {
     // Secuencia de salida (victoria): fundido y a la cutscene final (Shredder
     // se lleva a April).
     if (win) {
-        PAL_fadeOutAll(30, FALSE);
-        while (PAL_isDoingFade()) SYS_doVBlankProcess();
+        // Victoria: guardar vidas/puntaje persistentes (por si se rejuega o hay
+        // más niveles; el estado se resetea en la selección de personajes).
+        playerPersistSave(&p1);
+        if (dosJugadores) playerPersistSave(&p2);
+
+        // Si la cutscene ya fundió a negro (fade del final en el vuelo), la
+        // pantalla ya está en negro: no volver a fadear.
+        if (!winFade) {
+            PAL_fadeOutAll(30, FALSE);
+            while (PAL_isDoingFade()) SYS_doVBlankProcess();
+        }
 
         clearScene();
         return SCENE_ENDING;

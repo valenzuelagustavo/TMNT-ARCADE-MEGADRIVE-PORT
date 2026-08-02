@@ -29,6 +29,7 @@ WAV scream_april "audio/scream_april.wav" XGM2
 WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
 WAV attack_turtles "audio/attack_turtles.wav" XGM2
 WAV hit_turtles "audio/hit_turtles.wav" XGM2
+WAV boss_hit "audio/boss_hit.wav" XGM2
 WAV foot_soldier_explode "audio/foot_soldier_explode.wav" XGM2
 WAV drill_sfx "audio/drill.wav" XGM2
 WAV electric_shock_sfx "audio/electric_shock.wav" XGM2

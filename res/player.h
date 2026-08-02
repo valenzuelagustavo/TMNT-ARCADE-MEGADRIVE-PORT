@@ -383,6 +383,20 @@ u16  getPlayerScore(const Player* p);
 // Suma 'points' al puntaje (p.ej. al matar un foot soldier).
 void addPlayerScore(Player* p, u16 points);
 
+// --- Persistencia entre niveles (vidas + puntaje) ---
+// Cada nivel crea un Player nuevo con initPlayer (que resetea todo el struct).
+// Para que vidas y puntaje NO se reinicien al cambiar de nivel, el módulo
+// guarda un estado "meta" por joystick (JOY_1 -> P1, JOY_2 -> P2) del que
+// initPlayer arranca. La barra de vida SÍ se recarga al máximo por nivel.
+
+// Guarda las vidas/puntaje de la instancia en el estado persistente. Llamar
+// al GANAR un nivel (escena de victoria), antes del cambio de escena.
+void playerPersistSave(const Player* p);
+
+// Vuelve el estado persistente a los valores iniciales (partida nueva).
+// Llamar al iniciar una partida (selección de personajes).
+void playerPersistReset(void);
+
 // TRUE cuando el jugador agoto vidas y vida (game over). scenes.c lo consulta
 // para cortar el nivel.
 bool isPlayerGameOver(const Player* p);
@@ -396,5 +410,10 @@ void playerCutsceneStand(Player* p);
 // Camina la tortuga hacia (targetX, targetY) de MUNDO a velocidad normal, con
 // la anim de caminata. Devuelve TRUE cuando ya llegó al destino.
 bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY);
+
+// Congela la tortuga en un frame de "caminar hacia arriba" (ANIM_WALK_BACK, de
+// espaldas a la cámara) y deja de leer input: da la apariencia de que observa la
+// cutscene de victoria del nivel 2 (Shredder raptando a April).
+void playerCutsceneWatch(Player* p);
 
 #endif

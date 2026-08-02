@@ -9,6 +9,25 @@
 // uno con su propio sprite, estado, combo y salto.
 // ===========================================================================
 
+// ===========================================================================
+// ESTADO PERSISTENTE ENTRE NIVELES (vidas + puntaje)
+// ===========================================================================
+// Cada nivel crea un Player NUEVO con initPlayer (que resetea todo el struct),
+// así que las vidas y el puntaje se perderían al pasar de nivel. Para que se
+// mantengan a lo largo de toda la partida, guardamos acá el estado "meta" por
+// joystick (slot 0 = JOY_1 / P1, slot 1 = JOY_2 / P2). initPlayer arranca con
+// estos valores; playerPersistSave() los actualiza al ganar un nivel;
+// playerPersistReset() los vuelve al default (partida nueva — lo llama
+// scenes.c en la selección de personajes). La VIDA (barra) NO persiste: cada
+// nivel arranca con la barra llena.
+// ---------------------------------------------------------------------------
+static u8  s_persistLives[2] = { PLAYER_START_LIVES, PLAYER_START_LIVES };
+static u16 s_persistScore[2] = { 0, 0 };
+
+static u8 persistSlot(u16 joyId) {
+    return (joyId == JOY_2) ? 1 : 0;
+}
+
 // ---------------------------------------------------------------------------
 // FUNCIÓN DE INICIALIZACIÓN
 // ---------------------------------------------------------------------------
@@ -50,9 +69,12 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->koTimer       = 0;
     p->blinkTimer    = 0;
     p->gameOver      = FALSE;
-    p->health        = PLAYER_MAX_HEALTH;   // barra de vida llena
-    p->lives         = PLAYER_START_LIVES;
-    p->score         = 0;
+    p->health        = PLAYER_MAX_HEALTH;   // barra de vida llena (se recarga por nivel)
+    // Vidas y puntaje vienen del estado persistente entre niveles (no se
+    // reinician al cambiar de nivel). El slot depende del joystick: JOY_1 ->
+    // P1, JOY_2 -> P2.
+    p->lives         = s_persistLives[persistSlot(joyId)];
+    p->score         = s_persistScore[persistSlot(joyId)];
     p->numAnims      = (u8)spriteDef->numAnimation;   // habilita anims nuevas si la sheet las tiene
     p->grabTimer     = 0;
     p->idleTimer     = 0;
@@ -753,6 +775,22 @@ void addPlayerScore(Player* p, u16 points) {
     p->score += points;
 }
 
+// ---------------------------------------------------------------------------
+// PERSISTENCIA ENTRE NIVELES
+// ---------------------------------------------------------------------------
+void playerPersistSave(const Player* p) {
+    u8 slot = persistSlot(p->joyId);
+    s_persistLives[slot] = p->lives;
+    s_persistScore[slot] = p->score;
+}
+
+void playerPersistReset(void) {
+    for (u8 i = 0; i < 2; i++) {
+        s_persistLives[i] = PLAYER_START_LIVES;
+        s_persistScore[i] = 0;
+    }
+}
+
 bool isPlayerGameOver(const Player* p) {
     // TRUE recién cuando terminó la pose de knockeado sin vidas restantes
     // (se activa al final del STATE_KO), no en el instante del golpe: así el
@@ -793,4 +831,14 @@ bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
     SPR_setAnim(p->sprite, arrived ? ANIM_IDLE : ANIM_WALK_FRONT);
     playerRenderAt(p);
     return arrived;
+}
+
+// Congela a la tortuga en un frame de "caminar hacia arriba" (ANIM_WALK_BACK):
+// con la auto-anim apagada se queda fija en ese frame, como observando la
+// cutscene de victoria (Shredder raptando a April). No lee input.
+void playerCutsceneWatch(Player* p) {
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_WALK_BACK, 1);
+    playerRenderAt(p);
 }

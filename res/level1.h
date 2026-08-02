@@ -10,6 +10,7 @@ extern const SpriteDefinition hud_2p;
 extern const TileSet hp_bar;
 extern const TileSet title_font;
 extern const Palette title_font_pal;
+extern const TileSet hud_font;
 extern const SpriteDefinition attack_bubble;
 extern const SpriteDefinition iron_ball;
 extern const SpriteDefinition sparks;

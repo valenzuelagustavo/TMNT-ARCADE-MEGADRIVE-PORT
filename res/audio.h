@@ -8,6 +8,7 @@ extern const u8 scream_april[9216];
 extern const u8 iron_ball_sfx[2816];
 extern const u8 attack_turtles[10240];
 extern const u8 hit_turtles[4352];
+extern const u8 boss_hit[2304];
 extern const u8 foot_soldier_explode[14080];
 extern const u8 drill_sfx[30464];
 extern const u8 electric_shock_sfx[15104];

@@ -717,3 +717,57 @@ naranja — y el ritmo de estados del arcade (ciclo por timer de 24 frames).
   `smoke_tiles` NONE NONE); el makefile lo toma solo (glob de `res/*.res`).
 - **Build verde:** `make` completo, `out/rom.bin` = 786432 bytes (solo los
   warnings conocidos).
+
+## 2 de agosto de 2026 - Cutscene de victoria del nivel 2: Shredder rapta a April
+
+- **Disparo de la cutscene:** al morir Rocksteady (`ROCKSTEADY_GONE`, la anim
+  [4] libera el sprite solo) la variable `cutScene` pasa a 1. Las tortugas vivas
+  dejan de leer input y se congelan en el frame de "caminar hacia arriba"
+  (`playerCutsceneWatch()`, nueva en `player.c`: auto-anim OFF + `ANIM_WALK_BACK`
+  frame 1); las caídas (game over) se quedan tiradas como estaban. El chequeo de
+  game over se bloquea durante la cutscene (`cutScene == 0`) para que un jugador
+  caído antes de matar al jefe no la interrumpa.
+- **Máquina de estados** (4d en `showLevel2`, ~250 líneas): 1 = Shredder
+  aparece en la puerta de la cápsula (sprite `shredder_lvl1`, 72x80, paleta
+  PROPIA cargada en PAL3 con PAL3[1] blanco para el HUD; Idle [0] con
+  `SPR_setHFlip(TRUE)` porque el arte mira a la derecha). 2 = camina (Walk [1],
+  auto-anim a ~10 fps) por el lane de April (148) hacia la izquierda hasta
+  `SHREDDER_GRAB_X` (mundo 216, pantalla 96). 3 = Rapto [2] frames 0-1 (April
+  INCLUIDA en el sprite → se libera el sprite propio de April y suena
+  `scream_april`), 12 ticks cada uno. 4 = frame 2 (pose de salto) CONGELADO con
+  auto-anim OFF mientras vuela en arco. 5 = salió → `win` → fade → `SCENE_ENDING`.
+- **OJO auto-animación:** `SPR_setAnimAndFrame` NO apaga la auto-anim; si no se
+  hace `SPR_setAutoAnimation(FALSE)` antes de los frames manuales del Rapto, el
+  motor los avanza solo cada 6 ticks y pisa el timing manual y el frame 2
+  congelado. Se apaga en 1/3/4 y se vuelve a encender solo para el walk (case 2).
+- **Corrección de coordenadas:** la nota anterior decía "x 216→268 (cámara 120 →
+  pantalla 336..388)" — eso era mundo+CÁMARA (mal). El código usa
+  pantalla = mundo − cámara (como `APRIL_WORLD_X - cameraX`), así que 216..268
+  mundo = pantalla 96..148 (no llega ni a la ventana ni al borde). El salto se
+  corrigió a mundo 216→456 (pantalla 96→336: FUERA por la derecha, cruzando el
+  hueco abierto de abajo, mundo 56..440 y 128..186, que es el "cielo" del fondo)
+  con Y de ancla 68→70 (pies 148→150, en la banda del cielo) y ápice del arco
+  +24 px (sube a ~25). Verificable/ajustable en emulador (`SHREDDER_JUMP_*`).
+- **Sonido `boss_hit`:** `audio.res` nuevo WAV `boss_hit`; se reproduce
+  (`XGM2_playPCMEx`, canal 3) en cada golpe al jefe junto a `rocksteadyDamage`,
+  antes del hit del jump-kick y del score de muerte (scenes.c 6-boss).
+- **Prioridad del humo (fix, iniciado en la sesión anterior):** en `smokeInit`
+  el humo se escribía por bloques con `VDP_fillTileMapRectInc` (8 columnas de
+  PRIORIDAD BAJA). Ahora se escribe columna a columna con `TILE_ATTR_FULL`:
+  `front = TRUE` solo en las columnas 35..49 del plano (la zona de la cápsula
+  del taladro con la cámara bloqueada en 120) y FALSE en el resto. Así el humo
+  TAPA la cápsula (que es un sprite y no puede quedar detrás de un BG normal)
+  en su banda, pero sigue detrás de los sprites fuera de ella. La cápsula queda
+  visible solo en el resto de la pantalla y su base la tapa la banda de fuego.
+- **VRAM de sprites:** no hubo problema de presupuesto: el motor de sprites de
+  SGDK hace STREAMING por frame (`maxNumTile` = tiles únicos del frame más caro,
+  no la unión de la hoja; el sprite se re-uploada al cambiar de frame). Medido:
+  Shredder = 51 tiles máx (fila Rapto frame 1, con April incluida), Rocksteady
+  ≈ 59, cápsula ≈ 156 — el pool de 820 sobra en la cutscene.
+- **Recursos:** `level2.res`: `SPRITE shredder_lvl1 "sprites/shredder_lvl1.png"
+  9 10 FAST 6` (grilla 6x3 de celdas 72x80; [0] Idle 1f, [1] Walk 6f, [2] Rapto
+  3f; 15 colores, sin índice 1). `audio.res`: `WAV boss_hit "audio/boss_hit.wav"
+  XGM2`. `april.png` retocado para que su cabeza coincida con el Rapto.
+- **Build verde:** `make` completo, `out/rom.bin` = 1048576 bytes (los .h
+  borrados del refactor pendiente — level2/resources/menus/sprites — se
+  regeneraron; solo los warnings conocidos de `showCharSelect`).
