@@ -30,3 +30,8 @@ WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
 WAV attack_turtles "audio/attack_turtles.wav" XGM2
 WAV hit_turtles "audio/hit_turtles.wav" XGM2
 WAV foot_soldier_explode "audio/foot_soldier_explode.wav" XGM2
+WAV drill_sfx "audio/drill.wav" XGM2
+WAV electric_shock_sfx "audio/electric_shock.wav" XGM2
+WAV capsule_door_sfx "audio/capsule_door.wav" XGM2
+WAV say_your_p_sfx "audio/say_your_p.wav" XGM2
+WAV shredder_laugh_sfx "audio/shredder_laugh.wav" XGM2

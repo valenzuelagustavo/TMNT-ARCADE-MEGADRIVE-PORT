@@ -26,22 +26,24 @@ TILESET smoke_tiles "/sprites/smoke_lvl1.png" NONE NONE
 // =============================================================================
 // Jefe Rocksteady (pasillo en llamas)
 // =============================================================================
-// Taladro que emerge por la pared (STRIP HORIZONTAL: 6 frames de 80x56 lado a
-// lado). NONE NONE es critico: sin comprimir para indexar tiles desde ROM y sin
-// deduplicar para que el orden de tiles sea el del PNG (fila por fila).
-// Los tiles de cada frame NO son contiguos (el strip es horizontal): el tilemap
-// se arma en codigo calculando r*60 + frame*10 + c (ver scenes.c taladroDraw).
-TILESET taladro_emergin "/sprites/taladro_emergin.png" NONE NONE
-
-// Puerta del taladro (STRIP VERTICAL: 2 frames de 80x144 apilados; frame 0 =
-// cerrada, frame 1 = abierta). En el strip vertical los tiles de cada frame SI
-// son contiguos (180 tiles/frame), igual que fire_strip/smoke_lvl1.
-TILESET taladro_out "/sprites/taladro_out.png" NONE NONE
+// Capsula del taladro como SPRITE (672x208 = grilla 7x2 de celdas 96x104 =
+// 12x13 tiles). Indice [0] = 7 frames de emergencia (la capsula sube desde el
+// piso con la puerta cerrada, mientras tiembla la pantalla); indice [1] = 1
+// frame de puerta abierta, congelado por el resto del nivel (Rocksteady sale
+// por esa puerta). Las 6 celdas sobrantes de la fila 1 estan 100% transparentes
+// y rescomp las recorta.
+// time = 0: la animacion se controla MANUAL desde scenes.c (SPR_setAnimAndFrame)
+// sincronizada con el temblor de pantalla, y el frame final queda congelado.
+// El PNG esta cuantizado con la paleta del fondo: se dibuja con TILE_ATTR(PAL0,
+// FALSE, ...) (prioridad baja -> la banda de fuego, prioridad alta, tapa su base
+// y la hace "salir del piso").
+SPRITE taladro_capsula "sprites/taladro_capsula.png" 12 13 NONE 0
 
 // April (rehén atada al fondo de la sala). Usa la paleta de las tortugas
 // (PAL1): el PNG esta cuantizado sobre esa misma paleta indexada (4bpp).
-// 64x64 = 8x8 tiles, un solo frame.
-SPRITE april "sprites/april.png" 8 8 NONE 0
+// 64x64 = DOS frames de 32x64 lado a lado (2 cols de celdas 4x8 tiles).
+// time = 12: animacion automatica (~5 fps, balanceo).
+SPRITE april "sprites/april.png" 4 8 NONE 12
 
 // Rocksteady (jefe): 832x1144 = grilla 8x11 de celdas de 104x104 (13x13 tiles).
 // 11 anims: [0]Idle [1]Caminar [2]Estampida [3]Patada [4]Recibe golpes/cae

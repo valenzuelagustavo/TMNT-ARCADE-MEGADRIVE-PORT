@@ -1,4 +1,5 @@
 #include "robot.h"
+#include "audio.h"   // electric_shock_sfx (electrocución del látigo)
 
 // ===========================================================================
 // ROBOT DEL LÁTIGO — implementación (sheet nuevo: 13 anims, frame 184x80)
@@ -321,6 +322,9 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
                 SPR_setAutoAnimation(r->sprite, FALSE);
                 r->grabFrame = robotElectroFrame(r);
                 SPR_setFrame(r->sprite, r->grabFrame);
+                // Empieza la electrocución: zumbido en loop hasta que zafe.
+                XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx),
+                               SOUND_PCM_CH2, 15, FALSE, TRUE);
             }
             if (r->anim != ROBOT_ANIM_CAUGHT) {
                 r->electroTgl++;
@@ -339,6 +343,7 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
             if (++r->drainTimer >= fps) { r->drainTimer = 0; playerElectroDrain(tgt); }
             // Zafó (mashing) o cayó KO -> soltar y seguir.
             if (!playerIsGrabbed(tgt)) {
+                XGM2_stopPCM(SOUND_PCM_CH2);   // cortar el zumbido de la electrocución
                 robotStartWalk(r);
                 r->attackCooldown = ROBOT_ATTACK_COOLDOWN;
             }

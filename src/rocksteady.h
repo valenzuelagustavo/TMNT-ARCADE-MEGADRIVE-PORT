@@ -9,8 +9,9 @@
 // ROCKSTEADY — jefe final del nivel 2 (pasillo en llamas)
 // ===========================================================================
 // Enemigo único con máquina de estados propia, patrón de robot.c. Aparece
-// saliendo del taladro que perfora la pared del fondo de la sala; patrulla el
-// arena (cámara bloqueada en LEVEL2_CAM_MAX_X) y ataca según la fase:
+// saliendo de la CÁPSULA del taladro que emerge del piso del fondo de la sala
+// (sprite en scenes.c); patrulla el arena (cámara bloqueada en
+// LEVEL2_CAM_MAX_X) y ataca según la fase:
 //
 //   FASE 1 (sin arma):  estampida [2] contra el jugador y patada [3] en melee.
 //                       Cada ROCKSTEADY_KD_INTERVAL golpes CAE (knock-down, anim
@@ -59,16 +60,21 @@
 // --- Movimiento / patrulla ---
 // Arena: cámara bloqueada en LEVEL2_CAM_MAX_X (120) → mundo visible 120..440.
 #define ROCKSTEADY_SPEED         2   // px/frame al caminar/alinear lane
-#define ROCKSTEADY_CHARGE_SPEED  5   // px/frame de la estampida
+#define ROCKSTEADY_CHARGE_SPEED  6   // px/frame de la estampida
 #define ROCKSTEADY_LANE_TOP    142
 #define ROCKSTEADY_LANE_BOTTOM 196
 #define ROCKSTEADY_PATROL_LEFT 150   // centro del cuerpo, extremo izquierdo
 #define ROCKSTEADY_PATROL_RIGHT 330  // centro del cuerpo, extremo derecho
-#define ROCKSTEADY_TALADRO_X   340   // X de mundo del taladro (por donde emerge)
+#define ROCKSTEADY_TALADRO_X   340   // X de mundo de la cápsula del taladro (por donde emerge)
+#define ROCKSTEADY_SPAWN_X     (ROCKSTEADY_TALADRO_X - 64)   // Aparece 8 tiles (64px) a la izquierda de la cápsula
+#define ROCKSTEADY_HIT_INSET    10   // Punto de impacto hundido en el cuerpo (hitbox más chica)
+
+// --- Introducción del jefe (cápsula del taladro) ---
+#define ROCKSTEADY_EMERGE_STAND 170  // Frames quieto en la puerta (≈ duración de say_your_p) antes de bajar al arena
 
 // --- Ataques (decisión por distancia centro↔centro) ---
 #define ROCKSTEADY_CHARGE_MIN   90   // distX para elegir estampida (fase 1)
-#define ROCKSTEADY_MELEE_RANGE  70   // distX para elegir patada
+#define ROCKSTEADY_MELEE_RANGE  32
 #define ROCKSTEADY_SHOOT_RANGE 130   // distX para abrir el disparo (fase 2)
 #define ROCKSTEADY_HIT_TOL_Y    25   // |dy| máx (pies) para conectar ataques
 #define ROCKSTEADY_ATTACK_COOLDOWN 40
@@ -76,7 +82,8 @@
 #define ROCKSTEADY_KD_INTERVAL  10   // Golpes recibidos entre knock-downs (fase 1)
 #define ROCKSTEADY_KD_HOLD      60   // Frames que queda tirado en el knock-down
 #define ROCKSTEADY_IDLE_MIN     30   // Quieto mínimo antes de atacar
-#define ROCKSTEADY_CHARGE_MAX   60   // Tope de frames de la estampida
+#define ROCKSTEADY_CHARGE_MAX   80   // Tope de frames de la estampida
+#define ROCKSTEADY_CHARGE_OVER  18   // Frames que sigue la estampida tras impactar (overshoot)
 
 // --- Balas del disparo (fase 2) ---
 #define MAX_ROCKSTEADY_BULLETS   6   // Proyectiles simultáneos
@@ -91,8 +98,9 @@
 
 typedef enum {
     ROCKSTEADY_INACTIVE,    // Todavía no apareció
-    ROCKSTEADY_EMERGE,      // Camina saliendo del taladro (golpeable)
+    ROCKSTEADY_EMERGE,      // Quieto en la puerta de la cápsula (IDLE), luego BAJA al arena caminando (WALK [1])
     ROCKSTEADY_IDLE,        // Quieto, decide el próximo ataque
+    ROCKSTEADY_APPROACH,    // Camina hacia el jugador (fase 1, sin arma)
     ROCKSTEADY_CHARGE,      // Estampida: carga contra el jugador (fase 1)
     ROCKSTEADY_KICK,        // Patada melee (fase 1)
     ROCKSTEADY_HURT,        // Flinch al recibir golpe (fase 1)
@@ -120,6 +128,8 @@ typedef struct {
     u8          attackCooldown;
     u8          hitsTaken;   // Golpes recibidos desde el último knock-down
     u8          knockdowns;  // Total de caídas en fase 1
+    u8          moveToggle;  // Alterna estampida / acercarse caminando cuando está lejos (fase 1)
+    u8          chargeHit;   // 1 = la estampida ya impactó en esta carga (overshoot sin re-dañar)
     // Ráfaga de disparos (control manual de frames de la anim [9])
     u8          shotFrame;   // Frame actual de SHOOT
     u8          shotsFired;  // Balas disparadas en esta ráfaga
@@ -128,7 +138,7 @@ typedef struct {
 
 // --- API pública ---
 void rocksteadyInit(Rocksteady* r);
-void rocksteadySpawn(Rocksteady* r);   // Aparece en el taladro (PAL3 ya cargada)
+void rocksteadySpawn(Rocksteady* r);   // Aparece en la cápsula del taladro (PAL3 ya cargada)
 void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers);
 bool rocksteadyIsActive(const Rocksteady* r);
 bool rocksteadyCanBeHit(const Rocksteady* r);

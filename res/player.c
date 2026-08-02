@@ -39,6 +39,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->jumpZ         = 0;
     p->isJumpKicking = FALSE;
     p->apexHang      = 0;
+    p->kickCarry     = 0;
     p->joyId         = joyId;
     p->prevJoy       = 0;
     p->dir           = 1;
@@ -321,7 +322,13 @@ void updatePlayer(Player* p) {
             // comprometida: sin control manual en ese caso. Sin patada
             // (o con la débil), control aéreo normal en ambos ejes.
             if (p->isJumpKicking == JUMPKICK_STRONG) {
-                p->x = clampS16(p->x + p->dir * PLAYER_JUMPKICK_SPEED, p->boundLeft, effRight);
+                // Desplazamiento con ímpetu + el extra fraccional del
+                // kickCarry (~+16px sobre el vuelo completo).
+                p->kickCarry += PLAYER_JUMPKICK_EXTRA_Q;
+                s16 extra = (s16)(p->kickCarry >> 4);
+                p->kickCarry &= 0xF;
+                p->x = clampS16(p->x + p->dir * (PLAYER_JUMPKICK_SPEED + extra),
+                                p->boundLeft, effRight);
             } else {
                 if (joy & BUTTON_RIGHT) { p->x = clampS16(p->x + PLAYER_SPEED, p->boundLeft, effRight); SPR_setHFlip(p->sprite, FALSE); p->dir = 1; }
                 if (joy & BUTTON_LEFT)  { p->x = clampS16(p->x - PLAYER_SPEED, p->boundLeft, effRight); SPR_setHFlip(p->sprite, TRUE);  p->dir = -1; }

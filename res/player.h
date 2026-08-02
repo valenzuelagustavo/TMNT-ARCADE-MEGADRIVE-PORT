@@ -73,6 +73,10 @@ typedef enum {
 #define JUMPKICK_SOFT       1   // Botón de golpe solo
 #define JUMPKICK_STRONG     2   // Golpe + dirección: más ímpetu
 #define PLAYER_JUMPKICK_SPEED 4 // px/frame del vuelo con ímpetu (normal: 2)
+// Extra de la patada FUERTE: 16px (~2 tiles) más de desplazamiento en el eje X
+// sobre el vuelo completo, repartido en fracciones por frame (Q16, 16 = 1px).
+// Con el salto completo (~28 frames) 9/16 ≈ 0.56 px/frame ≈ los 16px buscados.
+#define PLAYER_JUMPKICK_EXTRA_Q 9
 
 // --- Especial ---
 // El arte del especial es un "saltito" en el lugar: mientras dura la anim,
@@ -221,6 +225,7 @@ typedef struct {
     u8          apexHang;       // Contador de frames de float en el ápex
     u8          airFrame;       // Frame actual del loop de ápice (1..n-2)
     u8          airTimer;       // Ticks hasta el próximo paso del loop
+    u16         kickCarry;      // Fracción de px extra de la patada fuerte (Q16, 16=1px)
 
     // Ataque especial (botón A o B+C): mata foot soldiers de un golpe.
     // TODO: cuando exista HP, usarlo debe restar vida al jugador.

@@ -5,8 +5,7 @@
 
 extern const Image bg_test;
 extern const TileSet smoke_tiles;
-extern const TileSet taladro_emergin;
-extern const TileSet taladro_out;
+extern const SpriteDefinition taladro_capsula;
 extern const SpriteDefinition april;
 extern const SpriteDefinition rocksteady_boss;
 extern const SpriteDefinition boss_bullet;
