@@ -1703,7 +1703,7 @@ SceneId showLevel1() {
 
     // --- Sparks 2: efecto decorativo fijo en el mundo ---
     #define SPARKS2_WORLD_X  330
-    #define SPARKS2_WORLD_Y  160
+    #define SPARKS2_WORLD_Y  154
     Sprite* sparks2Spr = SPR_addSprite(&sparks_2,
                                        SPARKS2_WORLD_X, SPARKS2_WORLD_Y,
                                        TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
@@ -2003,7 +2003,7 @@ SceneId showLevel1() {
                 bool nearScr = (sx > -DOOR_VIS_MARGIN) &&
                                (sx < SCREEN_PIXEL_WIDTH + DOOR_VIS_MARGIN);
                 if (nearScr) {
-                    SPR_setPosition(elevSparkSpr[ev], sx - ELEV_SPARK_HALF_W, ELEV_SPARK_TOP_Y);
+                    SPR_setPosition(elevSparkSpr[ev], sx - ELEV_SPARK_HALF_W, ELEV_SPARK_TOP_Y - 8);
                 } else {
                     SPR_releaseSprite(elevSparkSpr[ev]);
                     elevSparkSpr[ev] = NULL;
@@ -2590,12 +2590,12 @@ static s16 capsuleShake(u8 tick) {
 //     (de frente al saltar). NO se aplica SPR_setHFlip en ningún momento.
 //   - April está parada en mundo (205, 148); su contenido ocupa 205..269 con
 //     centro 237. El centro del cuerpo de Shredder en el frame está en ~+33 de
-//     su ancla, así que el ancla de agarre (216) lo centra sobre April; el
+//     su ancla, así que el ancla de agarre (158) lo centra sobre April; el
 //     frame 1 de Rapto muestra la cabeza de April en ~+21 del ancla → queda
 //     exactamente sobre la posición que tenía el sprite de April (205+32=237).
-//   - El salto es de MUNDO 216→456 (pantalla 96→336, cámara 120): cruza todo el
+//   - El salto es de MUNDO 158→356 (pantalla 96→336, cámara 120): cruza todo el
 //     hueco abierto de la derecha (bg_test: cielo abierto en mundo 56..440,
-//     y 128..186) y termina FUERA de pantalla a la derecha. Y de ancla 68→70
+//     y 128..186) y termina en el hueco de la ventana. Y de ancla 68→70
 //     (pies 148→150, dentro de la banda del cielo); el ápice del arco sube a
 //     ~25 (pies ~105). OJO: pantalla = mundo − cámara (no al revés).
 #define SHREDDER_FRAME_W       72    // 9 tiles
@@ -2605,11 +2605,11 @@ static s16 capsuleShake(u8 tick) {
 // (72px) quede sobre la puerta/cápsula (centro mundo 340, pantalla 220) el
 // ancla debe ir 36px (media anchura) a la izquierda del centro.
 #define SHREDDER_SPAWN_X       (ROCKSTEADY_TALADRO_X - SHREDDER_FRAME_W / 2)  // 304
-#define SHREDDER_GRAB_X        (216) // Ancla detrás de April (ver comentario arriba)
+#define SHREDDER_GRAB_X        (158) // Ancla detrás de April (ver comentario arriba)
 #define SHREDDER_WALK_SPEED    3     // px/frame caminando hacia April
 #define SHREDDER_RAPTO_TICKS   12    // Ticks por cada frame 0 y 1 del Rapto
-#define SHREDDER_JUMP_FRAMES   64    // Duración del vuelo en arco (frames)
-#define SHREDDER_JUMP_X_END    456   // X de mundo al salir (pantalla 336: FUERA por la derecha)
+#define SHREDDER_JUMP_FRAMES   54    // Duración del vuelo en arco (frames)
+#define SHREDDER_JUMP_X_END    356   // X de mundo al salir (pantalla 336: FUERA por la derecha)
 #define SHREDDER_JUMP_Y_END    70    // Y de ancla al salir (pies ~150, en la banda del cielo)
 #define SHREDDER_ARC_HEIGHT    24    // Elevación extra del ápice del arco (px)
 // Fade a negro del final: arranca cuando el ancla de Shredder llega a 3 tiles
@@ -2709,7 +2709,7 @@ SceneId showLevel2() {
     // lane 148) y con DEPTH FIJA por detrás de toda la acción (SPR_setDepth
     // con valor MENOS negativo que el de los jugadores/el jefe, que usan -y):
     // así queda detrás aunque se agregue antes o después que ellos.
-    static const s16 APRIL_WORLD_X    = 205;
+    static const s16 APRIL_WORLD_X    = 160;
     static const s16 APRIL_LANE_Y     = 148;
     static const s16 APRIL_FOOT_OFFSET = 58;
     Sprite* aprilSpr = SPR_addSprite(&april, APRIL_WORLD_X /*cámara en 0 al inicio*/,
