@@ -9,5 +9,7 @@ extern const SpriteDefinition selector_turtle;
 extern const SpriteDefinition character_selector;
 extern const SpriteDefinition sega_logo_sprite;
 extern const SpriteDefinition faces_hud;
+extern const SpriteDefinition sansenpai_logo;
+extern const SpriteDefinition skeleton_music;
 
 #endif // _RES_MENUS_H_

@@ -16,3 +16,11 @@ SPRITE selector_turtle "/images/title_scene/selector_turtle.png" 8 8 FAST 0
 SPRITE character_selector "/images/title_scene/character_selector.png" 8 16 FAST
 SPRITE sega_logo_sprite "/images/title_scene/sega_logo.png" 17 10 FAST 8
 SPRITE faces_hud "/images/title_scene/sprite_sheet_faces.png" 4 4 FAST 4
+
+// --- Creditos: reconocimiento al adaptador musical ---
+// sansenpai35_logo.png es el nombre del artista (200x32, 1 frame) y
+// skeleton_music.png es el esqueleto animado (3 frames de 80x80, auto-anim
+// cada 6 ticks). OJO: los PNG deben ser indexados (colorType 3) y con alto
+// multiplo de 8; el logo original de 200x25 se paddeo a 200x32.
+SPRITE sansenpai_logo "/sprites/logos/sansenpai35_logo.png" 25 4 FAST 0
+SPRITE skeleton_music "/sprites/logos/skeleton_music.png" 10 10 FAST 6

@@ -85,8 +85,9 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->heldHit       = 0;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
-    // Las 4 tortugas comparten la misma paleta unificada; cargarla en 'palette'.
-    PAL_setPalette(palette, spriteDef->palette->data, DMA);
+    // Las 4 tortugas comparten la misma paleta unificada (PAL1); la carga el
+    // fade-in de nivel (levelFadeIn) al final del setup para no revelar los
+    // sprites durante la carga. Ya está en CRAM cuando revive el jugador.
     SPR_setAnim(p->sprite, ANIM_IDLE);
 }
 

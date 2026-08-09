@@ -39,6 +39,14 @@ TILESET fire_tiles "/sprites/fire_strip.png" NONE NONE
 SPRITE hud_1p "/images/hud/hud_1p.png" 9 4 NONE 0
 SPRITE hud_2p "/images/hud/hud_2p.png" 9 4 NONE 0
 
+// --- Retrato de la tortuga elegida (32x32, 4 filas en ORDEN DE PERSONAJE) ---
+// frames_hud.png (32x128): fila 0=Leo 1=Mike 2=Don 3=Raph. time 0 -> sin
+// auto-animacion: scenes.c elige la fila con SPR_setAnim(sprite, personaje).
+// Vive en el espacio del borde que queda libre al correr los marcos del HUD
+// hacia adentro. Comparte la paleta de las tortugas (PAL1): el PNG es 4bpp
+// indexado sobre esa misma paleta -> NO lleva PALETTE propia.
+SPRITE turtle_portrait "/images/hud/frames_hud.png" 4 4 NONE 0
+
 // --- Barra de vida (11 frames de 32x8 apilados en vertical) ---
 // hp_bar.png (32x88): frame[0] = 10 barras (vida llena), frame[10] = 0 barras.
 // Cada frame son 4x1 = 4 tiles; se anima por STREAMING igual que el fuego:

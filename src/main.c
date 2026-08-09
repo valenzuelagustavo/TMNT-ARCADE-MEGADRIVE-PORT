@@ -7,10 +7,11 @@ int main()
     // Inicializar motor de sprites con presupuesto de VRAM ampliado.
     // El default de SPR_init() son 420 tiles: queda corto para el nivel 1
     // (2 tortugas + 4 foot soldiers de 104x104 ≈ 540 tiles en el peor caso).
-    // 720 deja margen para los marcos del HUD como sprites (2x 72x32, hasta
-    // 72 tiles en 2 jugadores) y la bola de hierro, sin chocar con el área de
-    // usuario (fondo ~495 + fuego 64).
-    SPR_initEx(720);
+    // 752 deja margen para los marcos del HUD como sprites (2x 72x32, hasta
+    // 72 tiles en 2 jugadores), los retratos de tortuga (32x32, 16 tiles) y
+    // la bola de hierro, sin chocar con el área de usuario (fondo ~495 +
+    // fuego 64).
+    SPR_initEx(752);
 
     SceneId currentScene = SCENE_SEGA; // Empezamos por Sega
 
@@ -26,6 +27,9 @@ int main()
             break;
         case SCENE_SGDK:
             currentScene = showSGDKIntro();
+            break;
+        case SCENE_CREDITS:
+            currentScene = showCredits();
             break;
         case SCENE_INTRO_ARCADE:
             currentScene = showArcadeIntro();

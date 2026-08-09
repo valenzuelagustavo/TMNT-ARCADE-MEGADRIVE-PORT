@@ -9,6 +9,7 @@ typedef enum {
     SCENE_SEGA,
     SCENE_KONAMI,
     SCENE_SGDK,
+    SCENE_CREDITS,      // Creditos: reconocimiento al adaptador musical
     SCENE_INTRO_ARCADE,
     SCENE_PLAYER_SELECT,
     SCENE_CHAR_SELECT,
@@ -24,6 +25,7 @@ typedef enum {
 SceneId showSegaIntro();
 SceneId showKonamiIntro();
 SceneId showSGDKIntro();
+SceneId showCredits();
 SceneId showArcadeIntro();
 SceneId showPlayerSelect();
 SceneId showCharSelect();

@@ -3,6 +3,7 @@
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
+#include "intro_tmnt.h"  // Intro arcade: fondo_1/fondo_a/fondo_b/fondo_2 (IMAGE) y nube_chica/nube_grande (SPRITE)
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
@@ -127,7 +128,7 @@ static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
 // ---------------------------------------------------------------------------
 #define VOL_MUSIC_INTRO    100
 #define VOL_MUSIC_SELECT   100
-#define VOL_MUSIC_LEVEL1    40   // la música del nivel saturaba: bajada al 50%
+#define VOL_MUSIC_LEVEL1    80   // la música del nivel saturaba: bajada al 50%
 #define VOL_SFX            100
 
 // ---------------------------------------------------------------------------
@@ -136,6 +137,10 @@ static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
 u8 personajeSeleccionado  = 0;  // P1: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
 u8 personaje2Seleccionado = 3;  // P2: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
 u8 cantidadJugadores      = 1;  // 1 o 2 jugadores
+
+// Continues disponibles en la partida (compartidos entre ambos jugadores).
+// Se consumen al continuar; se reinician en la selección de personajes.
+static u8 continuesLeft = 3;
 
 // ---------------------------------------------------------------------------
 // clearScene — limpieza completa entre escenas
@@ -147,6 +152,13 @@ void clearScene() {
     }
     XGM2_stop();
     SPR_reset();
+    // Vaciar YA la tabla de sprites del VDP: SPR_reset() limpia el estado
+    // interno del motor (y los tiles del region de sprites) pero NO pisa la
+    // SAT en VRAM hasta el proximo SPR_update. Sin este flush, los sprites de
+    // la escena anterior seguian visibles durante el setup de la siguiente
+    // (p.ej. el esqueleto de los creditos asomando en la seleccion de players).
+    // SPR_update() con 0 sprites escribe una SAT vacia (todo oculto).
+    SPR_update();
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
     // Resetear el scroll de ambos planos. El nivel deja BG_B scrolleado en
@@ -222,11 +234,36 @@ static void bgDrawColumn(u16 srcCol) {
     }
 }
 
-// Inicializa el fondo del nivel: paleta, tileset a VRAM y primeras columnas
+// ---------------------------------------------------------------------------
+// Fade-in de nivel desde negro. Todos los helpers de setup evitan cargar
+// paletas a CRAM (que queda negra tras clearScene), asi el setup completo de
+// tiles/tilemaps/sprites transcurre invisible; aca se componen las 4 paletas
+// en RAM y la escena se revela con un fundido (misma tecnica que el ending).
+// Antes de fundir se fuerza CRAM a negro por si algun helper intermedio cargo
+// paleta por DMA (p.ej. initEnemySpawn recarga PAL2 en cada spawn): sin esto,
+// esa carga se veria un frame a color pleno durante el setup.
+// ---------------------------------------------------------------------------
+#define LEVEL_FADE_FRAMES 20
+static void levelFadeIn(const u16* pal0, const u16* pal1,
+                        const u16* pal2, const u16* pal3) {
+    u16 target[64];
+    for (u16 i = 0; i < 16; i++) {
+        target[i]      = pal0[i];
+        target[16 + i] = pal1[i];
+        target[32 + i] = pal2[i];
+        target[48 + i] = pal3[i];
+    }
+    static const u16 black[64] = { 0 };
+    PAL_setColors(0, black, 64, DMA);
+    PAL_fadeInAll(target, LEVEL_FADE_FRAMES, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+}
+
+// Inicializa el fondo del nivel: tileset a VRAM y primeras columnas
+// (la paleta PAL0 la carga levelFadeIn al final del setup).
 static void bgInit() {
     VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);   // plano circular 64x32 (default seguro)
 
-    PAL_setPalette(PAL0, bg_level1.palette->data, DMA);
     VDP_loadTileSet(bg_level1.tileset, TILE_USER_INDEX, DMA);
 
     bgMapData  = bg_level1.tilemap->tilemap;
@@ -307,10 +344,8 @@ static void fireInit(u16 vramInd) {
     fireFrame   = 0;
     fireTimer   = 0;
 
-    // El fuego comparte paleta con el foot soldier. Se carga acá porque el
-    // primer spawn de enemigos puede tardar varios segundos en dispararse.
-    PAL_setPalette(PAL2, foot_soldier.palette->data, DMA);
-
+    // La paleta PAL2 (fuego + foot soldiers) la carga levelFadeIn al final
+    // del setup; acá solo se preparan tiles y tilemap.
     // Frame 0 a VRAM (64 tiles)
     VDP_loadTileData(fire_tiles.tiles, vramInd, FIRE_CELL_TILES, DMA);
 
@@ -522,26 +557,43 @@ static void ironBallEnd() {
 // Los CONTENIDOS (vidas, puntos, barra de vida) se dibujan aparte como tiles
 // de BG_A (ver seccion siguiente).
 // ---------------------------------------------------------------------------
-#define HUD_TILE_W     9                                              // Ancho del marco en tiles (72px)
-#define HUD_P1_X       0                                              // P1 pegado al borde izquierdo
-#define HUD_P2_X       (SCREEN_PIXEL_WIDTH - (HUD_TILE_W * 8))        // P2 pegado al borde derecho
+#define HUD_TILE_W         9                       // Ancho del marco en tiles (72px)
+#define HUD_P1_X           40                      // P1 corrido hacia adentro (libera 40px del borde izq)
+#define HUD_P2_X           (SCREEN_PIXEL_WIDTH - (HUD_TILE_W * 8) - 40)  // 208: P2 corrido hacia adentro
+#define HUD_P1_BASECOL     (HUD_P1_X / 8)          // 5: columna de tile donde arranca el marco P1
+#define HUD_P2_BASECOL     (HUD_P2_X / 8)          // 26: idem P2
+#define PORTRAIT_P1_X      0                       // Retrato P1 en el borde izquierdo liberado
+#define PORTRAIT_P2_X      (SCREEN_PIXEL_WIDTH - 32)  // 288: retrato P2 en el borde derecho liberado
+#define PORTRAIT_Y         0
 
-static Sprite* hudSprite1 = NULL;
-static Sprite* hudSprite2 = NULL;
+static Sprite* hudSprite1    = NULL;
+static Sprite* hudSprite2    = NULL;
+static Sprite* portraitSpr1  = NULL;
+static Sprite* portraitSpr2  = NULL;
 
-// Crea los marcos del HUD como sprites de alto nivel. En 1 jugador solo se
-// crea el de P1. No consume VRAM de planos (los tiles viven en el area de
-// sprites del motor, SPR_initEx). Los sprites se liberan solos en clearScene
-// (SPR_reset) al terminar la escena.
+// Crea los marcos del HUD y los retratos de tortuga como sprites de alto
+// nivel. En 1 jugador solo se crean los de P1. No consume VRAM de planos
+// (los tiles viven en el area de sprites del motor, SPR_initEx). Los sprites
+// se liberan solos en clearScene (SPR_reset) al terminar la escena.
 static void hudInit(void) {
     hudSprite1 = SPR_addSprite(&hud_1p, HUD_P1_X, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     if (hudSprite1)
         SPR_setAnim(hudSprite1, personajeSeleccionado);
 
+    portraitSpr1 = SPR_addSprite(&turtle_portrait, PORTRAIT_P1_X, PORTRAIT_Y,
+                                 TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (portraitSpr1)
+        SPR_setAnim(portraitSpr1, personajeSeleccionado);
+
     if (cantidadJugadores == 2) {
         hudSprite2 = SPR_addSprite(&hud_2p, HUD_P2_X, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
         if (hudSprite2)
             SPR_setAnim(hudSprite2, personaje2Seleccionado);
+
+        portraitSpr2 = SPR_addSprite(&turtle_portrait, PORTRAIT_P2_X, PORTRAIT_Y,
+                                     TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+        if (portraitSpr2)
+            SPR_setAnim(portraitSpr2, personaje2Seleccionado);
     }
 }
 
@@ -669,6 +721,141 @@ static void hudPlayerUpdate(HudPlayer* h) {
     }
 }
 
+// ===========================================================================
+// SISTEMA DE CONTINUES — "CONTINUE?" con cuenta regresiva en el HUD
+// ===========================================================================
+// Cuando un jugador se queda sin vidas, su marco de HUD muestra "CONTINUE?"
+// con una cuenta de 9 a 0 (~1s por dígito). El nivel SIGUE corriendo (estilo
+// arcade): el compañero vivo puede seguir jugando. Si el muerto presiona
+// START (de SU joystick) con continues disponibles, entra a la selección de
+// tortuga: el retrato del borde cambia con los direccionales (saltando la
+// tortuga del otro jugador) y START confirma -> revive donde cayó con vidas
+// y barra completas. Si la cuenta llega a 0 sin continuar, el jugador queda
+// fuera; en 2P el compañero vivo sigue solo.
+// ---------------------------------------------------------------------------
+#define CONT_START_SECONDS  9   // Cuenta inicial
+// El texto del continue se dibuja CENTRADO en el hueco entre los dos marcos
+// del HUD (pantalla de 40 columnas; los marcos ocupan 5..13 y 26..34, el
+// centro queda ~20): "CONTINUE?" (9 chars) + el dígito de la cuenta van
+// juntos desde la columna 15, en la fila 1 (HUD_SCORE_ROW). Ambos jugadores
+// usan la misma posición central.
+#define CONT_MSG_COL        15  // Columna inicial del mensaje centrado
+#define CONT_MSG_TOTAL_W    10  // "CONTINUE?" (9) + dígito (1)
+
+typedef enum { CONT_NONE, CONT_COUNTING, CONT_SELECTING } ContState;
+
+typedef struct {
+    ContState state;
+    u8  seconds;     // 9..0 (CONT_COUNTING)
+    u16 tick;        // Frames hasta el próximo segundo
+    u8  sel;         // Selección actual (CONT_SELECTING)
+    u16 prevJoy;     // Estado previo del joystick del muerto
+} ContPlayer;
+
+// Dibuja/limpia el texto "CONTINUE?" + cuenta, centrado entre los HUD.
+// seconds >= 0 dibuja etiqueta + dígito; seconds < 0 solo limpia todo el
+// mensaje (no redibuja la etiqueta: era el bug de las letras fantasma que
+// quedaban al continuar).
+static void contDrawText(HudPlayer* h, s8 seconds) {
+    (void)h;
+    VDP_clearText(CONT_MSG_COL, HUD_SCORE_ROW, CONT_MSG_TOTAL_W);
+    if (seconds < 0) return;
+    VDP_drawText("CONTINUE?", CONT_MSG_COL, HUD_SCORE_ROW);
+    char buf[2];
+    buf[0] = (char)('0' + seconds);
+    buf[1] = 0;
+    VDP_drawText(buf, CONT_MSG_COL + 9, HUD_SCORE_ROW);
+}
+
+// Revive al jugador con una tortuga nueva (continue): libera el sprite KO,
+// re-inicializa con el personaje elegido en el lugar donde cayó y restaura
+// vidas/barra completas con i-frames para no morir al instante.
+static void revivePlayer(Player* p, u8 ch, u16 joyId) {
+    if (p->sprite) SPR_releaseSprite(p->sprite);
+    initPlayer(p, ch, joyId, PAL1, p->x, p->y);
+    p->lives      = PLAYER_START_LIVES;
+    p->health     = PLAYER_MAX_HEALTH;
+    p->gameOver   = FALSE;
+    p->invincible = PLAYER_RESPAWN_INVINCIBLE;
+    p->blinkTimer = PLAYER_RESPAWN_INVINCIBLE;
+}
+
+// Procesa un frame del continue de un jugador. Devuelve TRUE si el jugador
+// quedó fuera permanentemente (no continuó a tiempo). 'charSel' es un puntero
+// al global del personaje de este jugador (se actualiza al confirmar);
+// 'otherChar' es el personaje del OTRO jugador (se saltea al seleccionar; en
+// 1P pasar 0xFF para no saltar ninguno). 'fps' da el ritmo de la cuenta.
+static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSpr,
+                         Sprite* portrait, u16 joyId, u8* charSel, u8 otherChar, u16 fps) {
+    // Vivo: nada que hacer (y limpiar si quedó texto de un continue previo).
+    if (!isPlayerGameOver(p)) {
+        if (c->state != CONT_NONE) {
+            contDrawText(h, -1);
+            c->state = CONT_NONE;
+        }
+        return FALSE;
+    }
+
+    u16 joy = JOY_readJoypad(joyId);
+
+    // Arranca la cuenta cuando el jugador acaba de caer.
+    if (c->state == CONT_NONE) {
+        c->state   = CONT_COUNTING;
+        c->seconds = CONT_START_SECONDS;
+        c->tick    = 0;
+        c->prevJoy = 0;
+        contDrawText(h, (s8)c->seconds);
+        return FALSE;
+    }
+
+    if (c->state == CONT_COUNTING) {
+        // START del joystick del muerto + continues disponibles -> selección.
+        if (continuesLeft > 0 && justPressedJoy(joy, c->prevJoy, BUTTON_START)) {
+            continuesLeft--;
+            c->state   = CONT_SELECTING;
+            c->sel     = *charSel;
+            c->prevJoy = joy;
+            contDrawText(h, -1);
+            return FALSE;
+        }
+        c->tick++;
+        if (c->tick >= fps) {
+            c->tick = 0;
+            if (c->seconds > 0) {
+                c->seconds--;
+                contDrawText(h, (s8)c->seconds);
+            } else {
+                // Se mostró el 0 un segundo completo: quedó fuera.
+                contDrawText(h, -1);
+                return TRUE;
+            }
+        }
+        c->prevJoy = joy;
+        return FALSE;
+    }
+
+    // CONT_SELECTING: direccionales cambian el retrato (sin pisar al otro).
+    if (justPressedJoy(joy, c->prevJoy, BUTTON_RIGHT))
+        c->sel = (u8)charMove((s8)c->sel, (s8)otherChar, +1);
+    if (justPressedJoy(joy, c->prevJoy, BUTTON_LEFT))
+        c->sel = (u8)charMove((s8)c->sel, (s8)otherChar, -1);
+    if (portrait) SPR_setAnim(portrait, c->sel);
+
+    if (justPressedJoy(joy, c->prevJoy, BUTTON_START)) {
+        *charSel = c->sel;
+        if (frameSpr) SPR_setAnim(frameSpr, c->sel);
+        revivePlayer(p, c->sel, joyId);
+        // Forzar el redibujo del HUD (vidas/barra cambiaron) y limpiar texto.
+        hudPlayerInit(h, h->pl, h->baseCol, h->barVram);
+        contDrawText(h, -1);
+        c->state = CONT_NONE;
+        return FALSE;
+    }
+
+    c->prevJoy = joy;
+    return FALSE;
+}
+
 // ---------------------------------------------------------------------------
 // 1. Intro SEGA — Rocksteady choca el logo
 // ---------------------------------------------------------------------------
@@ -725,7 +912,240 @@ SceneId showSegaIntro() {
 // abajo (necesita drawTextTypewriter, definida junto al título del nivel).
 // ---------------------------------------------------------------------------
 SceneId showKonamiIntro()  { return SCENE_SGDK; }
-SceneId showArcadeIntro()  { return SCENE_PLAYER_SELECT; }
+
+// ---------------------------------------------------------------------------
+// Intro arcade (TMNT) — secuencia de título estilo arcade
+// ---------------------------------------------------------------------------
+// Cinco fases (todas las constantes son ajustables):
+//   P1  fondo_1 (streets) estático con dos nubes que derivan en sprites.
+//   P2  fondo_a BARRE sobre fondo_1: fondo_1 queda estático en BG_B y fondo_a
+//       se desliza hacia abajo desde arriba (BG_A encima de BG_B). La mitad
+//       superior de fondo_a es transparente (índice 0 de PAL1), así que al
+//       arrancar el wipe se sigue viendo fondo_1 y el arte opaco de fondo_a
+//       (filas 198..511) va cubriendo la pantalla de arriba hacia abajo. El
+//       wipe se PAUSA a los 3/4 (INTRO_WIPE_MID), dejando fondo_1 visible
+//       en la franja inferior.
+//   P3  Rayas: fondo_b (tira de 38x8 tiles) repetida en todo el plano BG_A
+//       para que scrollee con wrap sin costura, con aceleración. En negro se
+//       reubica fondo_a al plano BG_B (evictando fondo_1 de VRAM).
+//   P4  fondo_a completa el descenso hasta llenar la pantalla (filas 198..421
+//       = todo su arte opaco).
+//   P5  fondo_2 panea sobre fondo_a: los DOS planos bajan juntos — fondo_a
+//       (BG_B) sale por abajo mientras fondo_2 (BG_A, casi opaco) se revela
+//       de arriba hacia abajo. Se sostiene ~2 s y se vuelve a la selección.
+//
+// START adelanta la fase; al final se espera a que se suelte para que el mismo
+// press no saltee también la selección de jugadores.
+//
+// VRAM: la intro usa SPR_initEx(420) (libera 752-420=332 tiles de la región
+// de sprites) y plano 64x64 (512x512 px, tilemaps de 8KB → maps_addr=0xA800,
+// userTileMaxIndex≈828). Con eso los fondos entran de a pares (conteo real de
+// rescomp, dedup ALL):
+//   P1/P2: fondo_1 (267) + fondo_a (372) = 639   |  P3: 404  |  P4/P5: 800.
+// Las nubes (36 + 92 tiles) viven en la región de sprites (420 tiles).
+// Al salir restaura SPR_initEx(752) y el plano 32x32 por defecto.
+// ---------------------------------------------------------------------------
+#define INTRO_FONDA_X_TILE     1     // fondo_a/b/2: 304px (38 tiles) → columna 1 (margen 8px izq/der)
+#define INTRO_CLOUD_CHICA_Y   16     // Y de pantalla de las nubes (fase 1)
+#define INTRO_CLOUD_GRANDE_Y  48
+#define INTRO_CLOUD_SPEED      1     // px/frame de deriva de las nubes
+#define INTRO_P1_FRAMES        ((IS_PAL_SYSTEM ? 50 : 60) * 2)   // ~2 s
+#define INTRO_WIPE_SPEED       2     // px/frame de descenso de fondo_a
+#define INTRO_WIPE_MID        340    // pausa del wipe a los 3/4 (fondo_1 visible abajo)
+#define INTRO_WIPE_END        198    // fin del wipe: fondo_a filas 198..421 llenan la pantalla
+#define INTRO_P3_SPEED_START   4     // px/frame iniciales de las rayas
+#define INTRO_P3_ACCEL_EVERY   6     // cada N frames se acelera
+#define INTRO_P3_ACCEL_STEP    2     // px/frame que suma cada aceleración
+#define INTRO_P3_SPEED_MAX    16     // tope de velocidad de las rayas
+#define INTRO_P3_FRAMES        ((IS_PAL_SYSTEM ? 50 : 60))        // ~1 s
+#define INTRO_P5_SPEED         3     // px/frame del paneo a fondo_2
+#define INTRO_P5_HOLD_FRAMES   ((IS_PAL_SYSTEM ? 50 : 60) * 2)    // ~2 s
+
+SceneId showArcadeIntro() {
+    clearScene();
+
+    // La intro necesita más tiles de usuario que el juego (fondos de hasta 811
+    // tiles). SPR_initEx(420) libera la región de sprites y el plano 64x64
+    // (tilemaps de 8KB) deja userTileMaxIndex≈828. SPR_initEx hace SPR_end()
+    // primero, así que es seguro re-llamarlo.
+    SPR_initEx(420);
+    VDP_setPlaneSize(64, 64, TRUE);
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
+    VDP_setBackgroundColor(0);
+
+    // Bases de VRAM relativas a TILE_USER_INDEX. P1/P2 conviven fondo_1 y
+    // fondo_a; en P3 se evicta fondo_1 y todo se apoya sobre fondo_a.
+    const u16 baseFondo1 = TILE_USER_INDEX;
+    const u16 baseFondoA = TILE_USER_INDEX + fondo_1.tileset->numTile;
+
+    bool skipped = FALSE;
+    u16 timer;
+    s16 scrollA, scrollB, scroll2, nxChica, nxGrande;
+    u16 scrollStripes, speed, accelTimer;
+
+    // ===================== FASE 1: fondo_1 + nubes =====================
+    // clearScene dejó las paletas en negro: se dibuja y recién después se
+    // enciende PAL0 (fondo_1 y las nubes comparten esa paleta).
+    VDP_drawImageEx(BG_B, &fondo_1,
+                    TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, baseFondo1),
+                    0, 0, FALSE, TRUE);
+    Sprite *nubeChica  = SPR_addSprite(&nube_chica, -88, INTRO_CLOUD_CHICA_Y,
+                                       TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+    Sprite *nubeGrande = SPR_addSprite(&nube_grande, 320, INTRO_CLOUD_GRANDE_Y,
+                                       TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+    PAL_fadeIn(0, 15, fondo_1.palette->data, 20, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    nxChica = -88;   // nube chica entra desde la izquierda
+    nxGrande = 320;  // nube grande entra desde la derecha
+    timer = INTRO_P1_FRAMES;
+    while (timer-- > 0) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
+        nxChica += INTRO_CLOUD_SPEED;
+        if (nxChica > SCREEN_PIXEL_WIDTH) nxChica = -88;
+        nxGrande -= INTRO_CLOUD_SPEED;
+        if (nxGrande < -208) nxGrande = 320;
+        if (nubeChica)  SPR_setPosition(nubeChica,  nxChica,  INTRO_CLOUD_CHICA_Y);
+        if (nubeGrande) SPR_setPosition(nubeGrande, nxGrande, INTRO_CLOUD_GRANDE_Y);
+        SPR_update();
+        SYS_doVBlankProcess();
+    }
+    if (skipped) goto fin;
+
+    // ================== FASE 2: fondo_a barre sobre fondo_1 ==================
+    // Se liberan las nubes y se prepara el wipe. Al arranque fondo_a es
+    // invisible (su mitad superior es transparente), así que se puede encender
+    // PAL1 antes de mover nada sin que se vea. scrollA = fila de fondo_a que
+    // queda en el tope de la pantalla (512 == 0 mod el plano de 512px).
+    if (nubeChica)  SPR_releaseSprite(nubeChica);
+    if (nubeGrande) SPR_releaseSprite(nubeGrande);
+    SPR_update();
+
+    VDP_drawImageEx(BG_A, &fondo_a,
+                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondoA),
+                    INTRO_FONDA_X_TILE, 0, FALSE, TRUE);
+    VDP_setVerticalScroll(BG_B, 0);   // fondo_1 queda estático detrás
+    PAL_fadeIn(16, 31, fondo_a.palette->data, 20, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    scrollA = 512;
+    while (scrollA > INTRO_WIPE_MID) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
+        scrollA -= INTRO_WIPE_SPEED;
+        VDP_setVerticalScroll(BG_A, scrollA);
+        SYS_doVBlankProcess();
+    }
+    if (skipped) goto fin;
+
+    // ===================== FASE 3: rayas (fondo_b) =====================
+    // Funde a negro, reubica fondo_a en BG_B (evicta fondo_1 de VRAM) y llena
+    // BG_A con la tira de rayas repetida (fondo_b: 38x8 tiles, 8 copias = las
+    // 64 filas del plano → el scroll vertical con wrap queda sin costura).
+    PAL_fadeOutAll(10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
+
+    VDP_drawImageEx(BG_B, &fondo_a,
+                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondo1),
+                    INTRO_FONDA_X_TILE, 0, FALSE, TRUE);
+    const u16 baseFondoB = TILE_USER_INDEX + fondo_a.tileset->numTile;
+    for (u16 row = 0; row < 64; row += 8) {
+        VDP_drawImageEx(BG_A, &fondo_b,
+                        TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondoB),
+                        INTRO_FONDA_X_TILE, row, FALSE, TRUE);
+    }
+    VDP_setVerticalScroll(BG_B, INTRO_WIPE_MID);  // fondo_a quieto detrás (tapado por las rayas)
+    VDP_setVerticalScroll(BG_A, 0);
+    PAL_fadeIn(16, 31, fondo_a.palette->data, 15, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    scrollStripes = 0;
+    speed         = INTRO_P3_SPEED_START;
+    accelTimer    = INTRO_P3_ACCEL_EVERY;
+    timer         = INTRO_P3_FRAMES;
+    while (timer-- > 0) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
+        scrollStripes += speed;
+        VDP_setVerticalScroll(BG_A, scrollStripes);
+        if (--accelTimer == 0) {
+            accelTimer = INTRO_P3_ACCEL_EVERY;
+            speed += INTRO_P3_ACCEL_STEP;
+            if (speed > INTRO_P3_SPEED_MAX) speed = INTRO_P3_SPEED_MAX;
+        }
+        SYS_doVBlankProcess();
+    }
+    if (skipped) goto fin;
+
+    // ============ FASE 4: fondo_a baja hasta llenar la pantalla ============
+    PAL_fadeOutAll(10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_clearPlane(BG_A, TRUE);                    // fuera las rayas
+    VDP_setVerticalScroll(BG_B, INTRO_WIPE_MID);   // fondo_a retoma desde donde quedó el wipe
+    PAL_fadeIn(16, 31, fondo_a.palette->data, 15, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    scrollB = INTRO_WIPE_MID;
+    while (scrollB > INTRO_WIPE_END) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
+        scrollB -= INTRO_WIPE_SPEED;
+        VDP_setVerticalScroll(BG_B, scrollB);
+        SYS_doVBlankProcess();
+    }
+    if (skipped) goto fin;
+
+    // ============ FASE 5: fondo_2 panea reemplazando a fondo_a ============
+    // Se carga fondo_2 en BG_A (base = fin de fondo_a). Ambos planos bajan
+    // juntos: fondo_a (BG_B) sale por abajo mientras fondo_2 (opaco) se revela
+    // de arriba hacia abajo. fondo_2 es de 512px: arranca mostrando sus filas
+    // 288..511 (las 224 de abajo) y baja hasta mostrar 0..223 (las de arriba).
+    PAL_fadeOutAll(10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    const u16 baseFondo2 = TILE_USER_INDEX + fondo_a.tileset->numTile;
+    VDP_drawImageEx(BG_A, &fondo_2,
+                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondo2),
+                    INTRO_FONDA_X_TILE, 0, FALSE, TRUE);
+    scroll2 = (s16)((fondo_2.tilemap->h * 8) - 224);   // 512-224 = 288
+    scrollB = INTRO_WIPE_END;
+    VDP_setVerticalScroll(BG_B, scrollB);
+    VDP_setVerticalScroll(BG_A, scroll2);
+    PAL_fadeIn(16, 31, fondo_a.palette->data, 20, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    while (scroll2 > 0) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
+        scroll2 -= INTRO_P5_SPEED;
+        scrollB -= INTRO_P5_SPEED;
+        VDP_setVerticalScroll(BG_A, scroll2);
+        VDP_setVerticalScroll(BG_B, scrollB);
+        SYS_doVBlankProcess();
+    }
+    if (skipped) goto fin;
+
+    // Título final quieto ~2 s (START adelanta)
+    timer = INTRO_P5_HOLD_FRAMES;
+    while (timer-- > 0) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
+        SYS_doVBlankProcess();
+    }
+
+fin:
+    // Esperar a que suelte START: el mismo press no debe saltarse también la
+    // selección de jugadores (showPlayerSelect corta con START).
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    // Restaurar el estado que esperan las escenas siguientes: fade a negro,
+    // plano por defecto 32x32 y presupuesto de sprites del juego (752).
+    PAL_fadeOutAll(10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_setPlaneSize(32, 32, TRUE);
+    SPR_initEx(752);
+    clearScene();
+    return SCENE_PLAYER_SELECT;
+}
 
 // ---------------------------------------------------------------------------
 // 5. Selección de número de jugadores
@@ -842,8 +1262,10 @@ SceneId showCharSelect() {
         SPR_update();
         SYS_doVBlankProcess();
 
-        // Nueva partida: reiniciar vidas/puntaje persistentes antes del nivel 1.
+        // Nueva partida: reiniciar vidas/puntaje persistentes y continues
+        // antes del nivel 1.
         playerPersistReset();
+        continuesLeft = 3;
         return SCENE_LEVEL1_TITLE;
     }
 
@@ -918,8 +1340,10 @@ SceneId showCharSelect() {
     SPR_update();
     SYS_doVBlankProcess();
 
-    // Nueva partida: reiniciar vidas/puntaje persistentes antes del nivel 1.
+    // Nueva partida: reiniciar vidas/puntaje persistentes y continues
+    // antes del nivel 1.
     playerPersistReset();
+    continuesLeft = 3;
     return SCENE_LEVEL1_TITLE;
 }
 
@@ -1018,6 +1442,70 @@ SceneId showSGDKIntro() {
     VDP_loadFont(&font_default, DMA);
 
     clearScene();
+    return SCENE_CREDITS;
+}
+
+// ---------------------------------------------------------------------------
+// Creditos — reconocimiento al adaptador musical
+// ---------------------------------------------------------------------------
+// Nombre del artista (logo de 200px) centrado con el esqueleto animado al
+// lado (bloque de 280px centrado: logo x=20..220, esqueleto x=220..300).
+// Texto con la fuente arcade (title_font, ASCII 32..126, sin acentos).
+// ---------------------------------------------------------------------------
+#define CREDITS_LOGO_X  20
+#define CREDITS_LOGO_Y  128
+#define CREDITS_SKEL_X  220
+#define CREDITS_SKEL_Y  100
+#define CREDITS_HOLD_SECS  4
+
+SceneId showCredits() {
+    clearScene();
+
+    // Fuente arcade + su paleta (blanco con sombreado azul, fondo negro)
+    VDP_loadFont(&title_font, DMA);
+    PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPalette(PAL0);
+    VDP_setBackgroundColor(0);
+
+    // Nombre del artista (logo) y esqueleto animado: paletas propias en
+    // PAL1/PAL2 (PAL0 queda para el texto).
+    Sprite* logo = SPR_addSprite(&sansenpai_logo, CREDITS_LOGO_X, CREDITS_LOGO_Y, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+    Sprite* skel = SPR_addSprite(&skeleton_music, CREDITS_SKEL_X, CREDITS_SKEL_Y, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    if (logo) PAL_setPalette(PAL1, sansenpai_logo.palette->data, DMA);
+    if (skel) {
+        PAL_setPalette(PAL2, skeleton_music.palette->data, DMA);
+        SPR_setAnim(skel, 0);
+    }
+
+    // Líneas centradas en las 40 columnas: x = (40 - len) / 2
+    const char* line1 = "ORIGINAL SOUNDTRACK ADAPTATION";   // 28 chars → x=6
+    const char* line2 = "& ARRANGEMENTS BY:";                // 18 chars → x=11
+
+    bool skipped;
+    skipped = drawTextTypewriter(line1, 6, 5, TITLE_CHAR_DELAY);
+    if (!skipped) skipped = drawTextTypewriter(line2, 11, 7, TITLE_CHAR_DELAY);
+
+    if (skipped) {
+        VDP_drawText(line1, 6, 5);
+        VDP_drawText(line2, 11, 7);
+    }
+
+    // Si salteó con START, esperar a que lo suelte para que el mismo press
+    // no corte también la pausa final
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    // Mantener en pantalla (el esqueleto se anima vía SPR_update; START corta)
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * CREDITS_HOLD_SECS;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SPR_update();
+        SYS_doVBlankProcess();
+    }
+
+    VDP_loadFont(&font_default, DMA);
+    clearScene();
     return SCENE_INTRO_ARCADE;
 }
 
@@ -1102,11 +1590,11 @@ SceneId showLevel1() {
     // Shurikens: resetear el sistema de proyectiles del foot soldier naranja.
     shurikenInit();
 
-    // Cargar la paleta del foot soldier naranja en PAL3 (sus sprites usan PAL3).
-    PAL_setPalette(PAL3, foot_soldier_orange.palette->data, DMA);
+    // La paleta PAL3 (foot soldier naranja + texto del HUD) la carga
+    // levelFadeIn al final del setup.
 
-    // --- Música del nivel (DESACTIVADA; los SFX por PCM siguen activos) ---
-    // playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
+    // --- Música del nivel (los SFX por PCM siguen activos) ---
+    playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
 
     // --- Inicializar jugador(es) ---
     // Las 4 tortugas comparten la paleta unificada, así que P1 y P2 usan PAL1.
@@ -1141,10 +1629,14 @@ SceneId showLevel1() {
     VDP_setTextPalette(PAL1);
 
     HudPlayer hud1;
-    hudPlayerInit(&hud1, &p1, 0, hudVramFree);
+    hudPlayerInit(&hud1, &p1, HUD_P1_BASECOL, hudVramFree);
     HudPlayer hud2;
     if (dosJugadores)
-        hudPlayerInit(&hud2, &p2, 40 - HUD_TILE_W, hudVramFree + HPBAR_FRAME_TILES);
+        hudPlayerInit(&hud2, &p2, HUD_P2_BASECOL, hudVramFree + HPBAR_FRAME_TILES);
+
+    // --- Estado de continues por jugador (cuenta regresiva + selección) ---
+    ContPlayer cont1 = { CONT_NONE, 0, 0, 0, 0 };
+    ContPlayer cont2 = { CONT_NONE, 0, 0, 0, 0 };
 
     // --- Definición de spawns por OLEADAS (trigger-based) ---
     // DESACTIVADOS por ahora (a pedido): el nivel sólo tiene el foot soldier de
@@ -1230,6 +1722,14 @@ SceneId showLevel1() {
 
     s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
     bgUpdate(0);       // Scroll inicial
+
+    // --- Fade-in desde negro: todo el setup (fondo, fuego, HUD, jugadores) se
+    // cargó con la CRAM negra, así que quedó invisible. Acá se revela la escena.
+    // PAL1 = paleta unificada de las tortugas (la misma que cargaba initPlayer).
+    levelFadeIn(bg_level1.palette->data,
+                leo_player.palette->data,
+                foot_soldier.palette->data,
+                foot_soldier_orange.palette->data);
 
     // --- Intro scriptada: se dispara YA, apenas arranca el nivel ---
     // Globo + voice over + primer foot soldier, sin esperar nada. El globo va en
@@ -1781,10 +2281,20 @@ SceneId showLevel1() {
         hudPlayerUpdate(&hud1);
         if (dosJugadores) hudPlayerUpdate(&hud2);
 
-        // 6d. Game over: sin vidas ni barra. En 2P, cuando ambos cayeron.
-        //     Por ahora vuelve a la pantalla inicial (todavía sin pantalla de
-        //     Game Over ni animación de muerte).
-        if (isPlayerGameOver(&p1) && (!dosJugadores || isPlayerGameOver(&p2)))
+        // 6d. Continues: si un jugador cayó sin vidas, su marco muestra
+        //     "CONTINUE?" con cuenta regresiva (START = seguir con tortuga
+        //     nueva). Queda fuera solo cuando la cuenta llega a 0; en 2P el
+        //     compañero vivo sigue jugando mientras tanto. El nivel termina
+        //     cuando TODOS los jugadores quedaron fuera.
+        bool out1 = continuePoll(&cont1, &p1, &hud1, hudSprite1, portraitSpr1,
+                                 JOY_1, &personajeSeleccionado,
+                                 dosJugadores ? personaje2Seleccionado : 0xFF, fps);
+        bool out2 = FALSE;
+        if (dosJugadores)
+            out2 = continuePoll(&cont2, &p2, &hud2, hudSprite2, portraitSpr2,
+                                JOY_2, &personaje2Seleccionado,
+                                personajeSeleccionado, fps);
+        if (out1 && (!dosJugadores || out2))
             break;
 
         // 6e. Victoria: robot destruido y sin enemigos en pantalla -> arranca la
@@ -1947,7 +2457,7 @@ static s16 smokeScrollTbl[SMOKE_CELL_TILES_H];  // H-scroll de las 8 filas del h
 static void bgInit2(void) {
     VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);   // plano circular 64x32
 
-    PAL_setPalette(PAL0, bg_test.palette->data, DMA);
+    // La paleta PAL0 la carga levelFadeIn al final del setup.
     VDP_loadTileSet(bg_test.tileset, TILE_USER_INDEX, DMA);
 
     u16 attrBase = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX);
@@ -2141,14 +2651,17 @@ static s16 capsuleShake(u8 tick) {
 SceneId showLevel2() {
     clearScene();
 
-    // --- Motor de sprites con presupuesto máximo para el nivel 2 ---
-    // Los tiles de usuario (fondo ~467 + humo 64 + fuego 64 + HUD 8) terminan
-    // en el tile 618 → el máximo de VRAM de sprites es SPR_initEx(820), región
-    // [620..1439]. Se necesita holgura porque la cápsula del taladro del jefe
-    // aporta ~308 tiles únicos (pico: 442 previo + cápsula 308 = 750 ≤ 820).
-    // La puerta/taladro VIEJOS (ventanas VRAM [700..850]) ya no existen: la
-    // cápsula es un sprite. Se restaura a 720 al salir de la escena.
-    SPR_initEx(820);
+    // --- Motor de sprites con presupuesto seguro para el nivel 2 ---
+    // Los tiles de usuario (fondo 467 + humo 64 + fuego 64 + barra HUD 8, en
+    // ese orden desde TILE_USER_INDEX=64) terminan en el tile 666. El área de
+    // sprites arranca en TILE_FONT_INDEX(1440) - size: para NO pisar los tiles
+    // de usuario (la animación del humo/fuego los reescribe cada 8 frames) el
+    // presupuesto debe ser <= 773 (1440 - 667). Con SPR_initEx(768) la región
+    // es [672..1439]. Pico real de sprites (maxNumTile por frame, el motor hace
+    // streaming): HUD 35 + retrato 16 (x2 jugadores) + tortugas 64 (x2) +
+    // soldados ~56 c/u + April 28 + cápsula 106 + Rocksteady 68 ≈ 700 <= 768.
+    // Se restaura a 752 al salir de la escena.
+    SPR_initEx(768);
 
     // --- Fondo (sala de 440px): dibujo completo + scroll (sin streaming) ---
     // Mapa de paletas (igual que el nivel 1):
@@ -2172,11 +2685,11 @@ SceneId showLevel2() {
     resetEnemyAI(cantidadJugadores);
     shurikenInit();
 
-    // --- PAL3: foot soldier naranja (sus sprites usan PAL3) ---
-    PAL_setPalette(PAL3, foot_soldier_orange.palette->data, DMA);
+    // --- La paleta PAL3 (foot soldier naranja + texto del HUD) la carga
+    //     levelFadeIn al final del setup ---
 
-    // --- Música (DESACTIVADA; los SFX por PCM siguen activos) ---
-    // playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
+    // --- Música del nivel (los SFX por PCM siguen activos) ---
+    playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
 
     // --- Inicializar jugador(es) ---
     bool dosJugadores = (cantidadJugadores == 2);
@@ -2214,10 +2727,14 @@ SceneId showLevel2() {
     VDP_setTextPalette(PAL1);
 
     HudPlayer hud1;
-    hudPlayerInit(&hud1, &p1, 0, hudVramFree);
+    hudPlayerInit(&hud1, &p1, HUD_P1_BASECOL, hudVramFree);
     HudPlayer hud2;
     if (dosJugadores)
-        hudPlayerInit(&hud2, &p2, 40 - HUD_TILE_W, hudVramFree + HPBAR_FRAME_TILES);
+        hudPlayerInit(&hud2, &p2, HUD_P2_BASECOL, hudVramFree + HPBAR_FRAME_TILES);
+
+    // --- Estado de continues por jugador (cuenta regresiva + selección) ---
+    ContPlayer cont1 = { CONT_NONE, 0, 0, 0, 0 };
+    ContPlayer cont2 = { CONT_NONE, 0, 0, 0, 0 };
 
     // --- Pool de enemigos ---
     Enemy enemies[MAX_ENEMIES];
@@ -2228,6 +2745,9 @@ SceneId showLevel2() {
 
     s16 cameraX = 0;   // Borde izquierdo de la cámara en coordenadas de mundo
     bgUpdate2(0);      // Scroll inicial
+
+    // Ritmo de frames (lo usa la cuenta regresiva del continue).
+    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
 
     // --- Jefe Rocksteady + secuencia de la cápsula del taladro (fase 2) ---
     // bossStage: 0=pausa dramática · 1=la cápsula emerge del piso (índice [0],
@@ -2290,6 +2810,14 @@ SceneId showLevel2() {
             }
         }
     }
+
+    // --- Fade-in desde negro: todo el setup (fondo, fuego, humo, HUD,
+    // jugadores, oleada A) se cargó con la CRAM negra, así que quedó
+    // invisible. Acá se revela la escena. ---
+    levelFadeIn(bg_test.palette->data,
+                leo_player.palette->data,
+                foot_soldier.palette->data,
+                foot_soldier_orange.palette->data);
 
     // --- Fases del nivel ---
     u8   phase       = 0;    // 0=oleada A · 1=sala libre · 2=oleada B · 3=victoria
@@ -2809,18 +3337,26 @@ SceneId showLevel2() {
                                 APRIL_LANE_Y - APRIL_FOOT_OFFSET + bob - 2);
         }
 
-        // 6e. Game over: sin vidas ni barra. En 2P, cuando ambos cayeron.
-        //     Durante la cutscene de victoria no aplica: la tortuga está
-        //     congelada observando y no puede morir (y un jugador caído antes
-        //     de matar al jefe no debe impedir que se vea la cutscene).
-        //     Tampoco aplica si el jefe ya está muriendo o murió (DEAD/GONE):
-        //     un KO simultáneo del jugador en la misma frame en que muere el
-        //     jefe no debe convertir la victoria en un game over.
+        // 6e. Continues: igual que en el nivel 1 (marco con "CONTINUE?" y
+        //     cuenta regresiva). NO aplica durante la cutscene de victoria
+        //     (la tortuga está congelada observando y no puede morir) ni
+        //     mientras el jefe ya está muriendo/murió (un KO simultáneo del
+        //     jugador en la misma frame en que muere el jefe no debe
+        //     convertir la victoria en un game over).
         bool bossDown = (boss.state == ROCKSTEADY_DEAD ||
                          boss.state == ROCKSTEADY_GONE);
-        if (cutScene == 0 && !bossDown && isPlayerGameOver(&p1) &&
-            (!dosJugadores || isPlayerGameOver(&p2)))
-            break;
+        if (cutScene == 0 && !bossDown) {
+            bool out1 = continuePoll(&cont1, &p1, &hud1, hudSprite1, portraitSpr1,
+                                     JOY_1, &personajeSeleccionado,
+                                     dosJugadores ? personaje2Seleccionado : 0xFF, fps);
+            bool out2 = FALSE;
+            if (dosJugadores)
+                out2 = continuePoll(&cont2, &p2, &hud2, hudSprite2, portraitSpr2,
+                                    JOY_2, &personaje2Seleccionado,
+                                    personajeSeleccionado, fps);
+            if (out1 && (!dosJugadores || out2))
+                break;
+        }
 
         // 7. Scroll del fondo. Durante la emergencia de la cápsula (stage 1) se
         //    suma un temblor horizontal al scroll y a la X de la cápsula (es un
@@ -2849,10 +3385,10 @@ SceneId showLevel2() {
     rocksteadyBulletReleaseAll();
     shurikenReleaseAll();
 
-    // Restaurar el motor de sprites al presupuesto global de 720 tiles (este
-    // nivel lo subió a 820 para la cápsula del taladro del jefe). SPR_initEx
+    // Restaurar el motor de sprites al presupuesto global de 752 tiles (este
+    // nivel lo subió a 852 para la cápsula del taladro del jefe). SPR_initEx
     // libera los sprites que quedaran vivos.
-    SPR_initEx(720);
+    SPR_initEx(752);
 
     // Restaurar atributos de texto por defecto para el resto de las escenas
     // (el HUD los dejó en prioridad alta / PAL3).

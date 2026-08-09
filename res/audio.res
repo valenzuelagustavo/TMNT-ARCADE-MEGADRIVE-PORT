@@ -12,7 +12,7 @@
 // --- Música ---
 XGM2 music_sega    "musica_intro.vgm"
 XGM2 select_music  "/music/turtles2-selectcharacter_wip2.vgm"
-XGM2 music_level1  "music/fire_v3.vgm"
+XGM2 music_level1  "music/Fire!_(Stage 1-1).vgm"
 
 // --- Efectos de Sonido ---
 XGM2 golpe         "golpe.vgm"

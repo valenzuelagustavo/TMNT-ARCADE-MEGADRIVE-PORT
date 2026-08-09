@@ -3,3 +3,9 @@ out/
 *AGENTS.md
 
 *DEVLOG.md
+
+# Audio con derechos de terceros: musica (VGM) y voice overs (WAV).
+# No se distribuyen con el repo; el duenio del material decidio compartirlos
+# solo localmente.
+*.vgm
+*.wav

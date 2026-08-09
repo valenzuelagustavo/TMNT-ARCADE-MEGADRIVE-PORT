@@ -771,3 +771,46 @@ naranja — y el ritmo de estados del arcade (ciclo por timer de 24 frames).
 - **Build verde:** `make` completo, `out/rom.bin` = 1048576 bytes (los .h
   borrados del refactor pendiente — level2/resources/menus/sprites — se
   regeneraron; solo los warnings conocidos de `showCharSelect`).
+
+## 9 de agosto de 2026 - Intro arcade de TMNT (SCENE_INTRO_ARCADE implementada)
+
+Reemplazo del stub `showArcadeIntro()` en `scenes.c` por la secuencia de
+título completa, sin tocar `main.c` ni `scenes.h` (el enganche
+`SCENE_INTRO_ARCADE` → `SCENE_PLAYER_SELECT` ya existía).
+
+- **Recursos** (`intro_tmnt.res` nuevo, 4 IMAGE + 2 SPRITE): `fondo_1`
+  (streets, 320x384, 267 tiles), `fondo_a` (304x512, 372), `fondo_b`
+  (tira de rayas 304x64, 32), `fondo_2` (304x512, 428), `nube_chica`
+  (88x32, 36) y `nube_grande` (208x40, 92). IMAGE con `BEST ALL`
+  (compresión BEST + dedup ALL: son imágenes de uso único); los SPRITE con
+  `NONE` (frames únicos, sin anim).
+- **Cinco fases** (constantes `INTRO_*` ajustables): **P1** `fondo_1`
+  estático en BG_B con dos nubes (sprites) derivando en bucle ~2 s. **P2**
+  `fondo_a` BARRE sobre `fondo_1`: scroll vertical de BG_A de 512→340 px
+  (pausa a los 3/4, `INTRO_WIPE_MID`, con fondo_1 visible abajo). **P3**
+  rayas (`fondo_b` repetido 8 veces para las 64 filas del plano → scroll
+  con wrap sin costura) que caen acelerando (4→16 px/frame); de paso se
+  reubica `fondo_a` en BG_B EVICTANDO `fondo_1` de VRAM. **P4** `fondo_a`
+  retoma el descenso 340→198 (`INTRO_WIPE_END`, llena la pantalla). **P5**
+  paneo a `fondo_2`: los DOS planos bajan juntos (scroll2 288→0, scrollB
+  198→-90) — `fondo_a` sale por abajo mientras `fondo_2` se revela de
+  arriba abajo — y título quieto ~2 s.
+- **Presupuesto VRAM verificado con rescomp real:** la intro necesita más
+  tiles de usuario que el juego, así que al entrar hace `SPR_initEx(420)`
+  (libera 332 tiles de sprites) + `VDP_setPlaneSize(64,64,TRUE)` (tilemaps
+  de 8KB → `maps_addr=0xA800`, userTileMaxIndex≈828). Los fondos entran de
+  a pares: 639 (P1/P2), 404 (P3), **800 (P4/P5)**. Las nubes (36+92=128)
+  viven en la región de sprites (420). Al salir restaura
+  `SPR_initEx(752)` y el plano 32x32 por defecto.
+- **Transparencia y paletas:** el índice 0 de PAL1 es transparente en
+  `fondo_a` (18.3% transm, arte opaco en filas 198..511) y `fondo_2`
+  (1.8%, franja inferior), `fondo_1` y `fondo_b` son opacos → el orden
+  BG_A sobre BG_B produce el efecto "barre sobre". Fades en negro
+  (`PAL_fadeOutAll`/`PAL_fadeIn` con índices 0-15 PAL0 y 16-31 PAL1) entre
+  fases. **Sin música** (decisión del usuario): silencio + fade de paleta.
+- **START adelanta cualquier fase** (flag `skipped`); al final se espera a
+  que se SUELTE el botón para que el mismo press no saltee también la
+  selección de jugadores.
+- **Build verde:** `make` completo, `out/rom.bin` = 1048576 bytes (solo los
+  warnings conocidos de `showCharSelect`). Pendiente: validación visual en
+  emulador y ajuste fino de velocidades/pausas si hace falta.
