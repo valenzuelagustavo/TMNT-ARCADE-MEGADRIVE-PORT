@@ -914,233 +914,194 @@ SceneId showSegaIntro() {
 SceneId showKonamiIntro()  { return SCENE_SGDK; }
 
 // ---------------------------------------------------------------------------
-// Intro arcade (TMNT) — secuencia de título estilo arcade
+// Intro arcade (TMNT) — 5 chunks verticales con overlap
 // ---------------------------------------------------------------------------
-// Cinco fases (todas las constantes son ajustables):
-//   P1  fondo_1 (streets) estático con dos nubes que derivan en sprites.
-//   P2  fondo_a BARRE sobre fondo_1: fondo_1 queda estático en BG_B y fondo_a
-//       se desliza hacia abajo desde arriba (BG_A encima de BG_B). La mitad
-//       superior de fondo_a es transparente (índice 0 de PAL1), así que al
-//       arrancar el wipe se sigue viendo fondo_1 y el arte opaco de fondo_a
-//       (filas 198..511) va cubriendo la pantalla de arriba hacia abajo. El
-//       wipe se PAUSA a los 3/4 (INTRO_WIPE_MID), dejando fondo_1 visible
-//       en la franja inferior.
-//   P3  Rayas: fondo_b (tira de 38x8 tiles) repetida en todo el plano BG_A
-//       para que scrollee con wrap sin costura, con aceleración. En negro se
-//       reubica fondo_a al plano BG_B (evictando fondo_1 de VRAM).
-//   P4  fondo_a completa el descenso hasta llenar la pantalla (filas 198..421
-//       = todo su arte opaco).
-//   P5  fondo_2 panea sobre fondo_a: los DOS planos bajan juntos — fondo_a
-//       (BG_B) sale por abajo mientras fondo_2 (BG_A, casi opaco) se revela
-//       de arriba hacia abajo. Se sostiene ~2 s y se vuelve a la selección.
-//
-// START adelanta la fase; al final se espera a que se suelte para que el mismo
-// press no saltee también la selección de jugadores.
-//
-// VRAM: la intro usa SPR_initEx(420) (libera 752-420=332 tiles de la región
-// de sprites) y plano 64x64 (512x512 px, tilemaps de 8KB → maps_addr=0xA800,
-// userTileMaxIndex≈828). Con eso los fondos entran de a pares (conteo real de
-// rescomp, dedup ALL):
-//   P1/P2: fondo_1 (267) + fondo_a (372) = 639   |  P3: 404  |  P4/P5: 800.
-// Las nubes (36 + 92 tiles) viven en la región de sprites (420 tiles).
-// Al salir restaura SPR_initEx(752) y el plano 32x32 por defecto.
+// Imagen original: intro.png (304x1496)
+// Chunks cortados con overlap de 224 px para transiciones imperceptibles:
+//   - intro_a.png: y=0..511    (scroll 0..288)
+//   - intro_b.png: y=288..799  (scroll 0..288)
+//   - intro_c.png: y=576..1087 (scroll 0..288)
+//   - intro_d.png: y=864..1375 (scroll 0..288)
+//   - intro_e.png: y=1152..1495 (scroll 0..120)
+// START saltea la secuencia.
 // ---------------------------------------------------------------------------
-#define INTRO_FONDA_X_TILE     1     // fondo_a/b/2: 304px (38 tiles) → columna 1 (margen 8px izq/der)
-#define INTRO_CLOUD_CHICA_Y   16     // Y de pantalla de las nubes (fase 1)
-#define INTRO_CLOUD_GRANDE_Y  48
-#define INTRO_CLOUD_SPEED      1     // px/frame de deriva de las nubes
-#define INTRO_P1_FRAMES        ((IS_PAL_SYSTEM ? 50 : 60) * 2)   // ~2 s
-#define INTRO_WIPE_SPEED       2     // px/frame de descenso de fondo_a
-#define INTRO_WIPE_MID        340    // pausa del wipe a los 3/4 (fondo_1 visible abajo)
-#define INTRO_WIPE_END        198    // fin del wipe: fondo_a filas 198..421 llenan la pantalla
-#define INTRO_P3_SPEED_START   4     // px/frame iniciales de las rayas
-#define INTRO_P3_ACCEL_EVERY   6     // cada N frames se acelera
-#define INTRO_P3_ACCEL_STEP    2     // px/frame que suma cada aceleración
-#define INTRO_P3_SPEED_MAX    16     // tope de velocidad de las rayas
-#define INTRO_P3_FRAMES        ((IS_PAL_SYSTEM ? 50 : 60))        // ~1 s
-#define INTRO_P5_SPEED         3     // px/frame del paneo a fondo_2
-#define INTRO_P5_HOLD_FRAMES   ((IS_PAL_SYSTEM ? 50 : 60) * 2)    // ~2 s
+#define INTRO_SCREEN_H         224
+#define INTRO_IMG_X            1     // 304px centrado con margen de 8px
+#define INTRO_HOLD_SECS        2
+#define INTRO_NUBE_CHICA_SPEED 1
+#define INTRO_NUBE_GRANDE_SPEED 2
+#define INTRO_NUBE_CHICA_Y     40
+#define INTRO_NUBE_GRANDE_Y    80
+#define INTRO_NUBE_CHICA_H     32
+#define INTRO_NUBE_GRANDE_H    40
+#define INTRO_CHUNK_COUNT      5
+#define INTRO_MIN_SPEED        2
+#define INTRO_MAX_SPEED        8
+#define INTRO_END_PAUSE_SECS   2
+#define INTRO_WHITE_FLASH_FRAMES 1   // flash blanco en todos los cortes
+
+static const u16 introWhitePalette[16] = {
+    0x0000,
+    0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE,
+    0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE
+};
+
+static const Image* const introChunks[INTRO_CHUNK_COUNT] = {
+    &intro_a, &intro_b, &intro_c, &intro_d, &intro_e
+};
+
+// Scroll maximo dentro de cada chunk (alto - alto pantalla).
+static const s16 introChunkScrollMax[INTRO_CHUNK_COUNT] = {
+    512 - INTRO_SCREEN_H,   // 288
+    512 - INTRO_SCREEN_H,   // 288
+    512 - INTRO_SCREEN_H,   // 288
+    512 - INTRO_SCREEN_H,   // 288
+    344 - INTRO_SCREEN_H    // 120
+};
 
 SceneId showArcadeIntro() {
     clearScene();
 
-    // La intro necesita más tiles de usuario que el juego (fondos de hasta 811
-    // tiles). SPR_initEx(420) libera la región de sprites y el plano 64x64
-    // (tilemaps de 8KB) deja userTileMaxIndex≈828. SPR_initEx hace SPR_end()
-    // primero, así que es seguro re-llamarlo.
     SPR_initEx(420);
-    VDP_setPlaneSize(64, 64, TRUE);
+    VDP_setPlaneSize(BG_PLANE_W, 64, TRUE);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
     VDP_setBackgroundColor(0);
 
-    // Bases de VRAM relativas a TILE_USER_INDEX. P1/P2 conviven fondo_1 y
-    // fondo_a; en P3 se evicta fondo_1 y todo se apoya sobre fondo_a.
-    const u16 baseFondo1 = TILE_USER_INDEX;
-    const u16 baseFondoA = TILE_USER_INDEX + fondo_1.tileset->numTile;
+    const u16 baseTiles = TILE_USER_INDEX;
+    const u16 baseAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, baseTiles);
 
+    // Cargar chunk inicial.
+    u16 chunkIndex = 0;
+    s16 chunkScroll = 0;
+    VDP_drawImageEx(BG_B, introChunks[chunkIndex], baseAttr, INTRO_IMG_X, 0, FALSE, TRUE);
+
+    // Nubes desactivadas para prueba.
+    // Sprite* nubeChica  = SPR_addSprite(&nube_chica, -88, INTRO_NUBE_CHICA_Y,
+    //                                    TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+    // Sprite* nubeGrande = SPR_addSprite(&nube_grande, 320, INTRO_NUBE_GRANDE_Y,
+    //                                    TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+
+    // Fade in desde negro.
+    PAL_fadeIn(0, 15, introChunks[chunkIndex]->palette->data, 20, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    s16 totalScrollY = 0;
+    // s16 nxChica = -88;
+    // s16 nxGrande = 320;
     bool skipped = FALSE;
-    u16 timer;
-    s16 scrollA, scrollB, scroll2, nxChica, nxGrande;
-    u16 scrollStripes, speed, accelTimer;
+    bool atEnd = FALSE;
+    bool fading = FALSE;
+    u8   fadePhase = 0;   // 0 = fade out, 1 = fade in
+    u16 endTimer = 0;
+    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
+    u16 holdTimer = fps * INTRO_HOLD_SECS;
 
-    // ===================== FASE 1: fondo_1 + nubes =====================
-    // clearScene dejó las paletas en negro: se dibuja y recién después se
-    // enciende PAL0 (fondo_1 y las nubes comparten esa paleta).
-    VDP_drawImageEx(BG_B, &fondo_1,
-                    TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, baseFondo1),
-                    0, 0, FALSE, TRUE);
-    Sprite *nubeChica  = SPR_addSprite(&nube_chica, -88, INTRO_CLOUD_CHICA_Y,
-                                       TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
-    Sprite *nubeGrande = SPR_addSprite(&nube_grande, 320, INTRO_CLOUD_GRANDE_Y,
-                                       TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
-    PAL_fadeIn(0, 15, fondo_1.palette->data, 20, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    // Recorrido total acumulado.
+    const s16 totalScrollMax = 288 + 288 + 288 + 288 + 120;
+    const s16 totalScrollMid = totalScrollMax / 2;
 
-    nxChica = -88;   // nube chica entra desde la izquierda
-    nxGrande = 320;  // nube grande entra desde la derecha
-    timer = INTRO_P1_FRAMES;
-    while (timer-- > 0) {
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
-        nxChica += INTRO_CLOUD_SPEED;
-        if (nxChica > SCREEN_PIXEL_WIDTH) nxChica = -88;
-        nxGrande -= INTRO_CLOUD_SPEED;
-        if (nxGrande < -208) nxGrande = 320;
-        if (nubeChica)  SPR_setPosition(nubeChica,  nxChica,  INTRO_CLOUD_CHICA_Y);
-        if (nubeGrande) SPR_setPosition(nubeGrande, nxGrande, INTRO_CLOUD_GRANDE_Y);
-        SPR_update();
-        SYS_doVBlankProcess();
-    }
-    if (skipped) goto fin;
+    while (1) {
+        u16 joy = JOY_readJoypad(JOY_1);
+        if (joy & BUTTON_START) { skipped = TRUE; break; }
 
-    // ================== FASE 2: fondo_a barre sobre fondo_1 ==================
-    // Se liberan las nubes y se prepara el wipe. Al arranque fondo_a es
-    // invisible (su mitad superior es transparente), así que se puede encender
-    // PAL1 antes de mover nada sin que se vea. scrollA = fila de fondo_a que
-    // queda en el tope de la pantalla (512 == 0 mod el plano de 512px).
-    if (nubeChica)  SPR_releaseSprite(nubeChica);
-    if (nubeGrande) SPR_releaseSprite(nubeGrande);
-    SPR_update();
+        if (fading) {
+            // Esperar a que termine el fade in desde blanco.
+            if (!PAL_isDoingFade()) {
+                fading = FALSE;
+                fadePhase = 0;
+            }
+        } else if (atEnd) {
+            // Pausa de 2 segundos al final antes de salir.
+            if (endTimer > 0) {
+                endTimer--;
+            } else {
+                break;
+            }
+        } else if (holdTimer > 0) {
+            // Primeros 2 segundos: fondo quieto.
+            holdTimer--;
+        } else {
+            // Camara baja con curva ease-in-out sobre el recorrido total.
+            s16 speed;
+            if (totalScrollY < totalScrollMid)
+                speed = INTRO_MIN_SPEED + ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * totalScrollY) / totalScrollMid;
+            else
+                speed = INTRO_MAX_SPEED - ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * (totalScrollY - totalScrollMid)) / totalScrollMid;
 
-    VDP_drawImageEx(BG_A, &fondo_a,
-                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondoA),
-                    INTRO_FONDA_X_TILE, 0, FALSE, TRUE);
-    VDP_setVerticalScroll(BG_B, 0);   // fondo_1 queda estático detrás
-    PAL_fadeIn(16, 31, fondo_a.palette->data, 20, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
-
-    scrollA = 512;
-    while (scrollA > INTRO_WIPE_MID) {
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
-        scrollA -= INTRO_WIPE_SPEED;
-        VDP_setVerticalScroll(BG_A, scrollA);
-        SYS_doVBlankProcess();
-    }
-    if (skipped) goto fin;
-
-    // ===================== FASE 3: rayas (fondo_b) =====================
-    // Funde a negro, reubica fondo_a en BG_B (evicta fondo_1 de VRAM) y llena
-    // BG_A con la tira de rayas repetida (fondo_b: 38x8 tiles, 8 copias = las
-    // 64 filas del plano → el scroll vertical con wrap queda sin costura).
-    PAL_fadeOutAll(10, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
-    VDP_clearPlane(BG_A, TRUE);
-    VDP_clearPlane(BG_B, TRUE);
-
-    VDP_drawImageEx(BG_B, &fondo_a,
-                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondo1),
-                    INTRO_FONDA_X_TILE, 0, FALSE, TRUE);
-    const u16 baseFondoB = TILE_USER_INDEX + fondo_a.tileset->numTile;
-    for (u16 row = 0; row < 64; row += 8) {
-        VDP_drawImageEx(BG_A, &fondo_b,
-                        TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondoB),
-                        INTRO_FONDA_X_TILE, row, FALSE, TRUE);
-    }
-    VDP_setVerticalScroll(BG_B, INTRO_WIPE_MID);  // fondo_a quieto detrás (tapado por las rayas)
-    VDP_setVerticalScroll(BG_A, 0);
-    PAL_fadeIn(16, 31, fondo_a.palette->data, 15, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
-
-    scrollStripes = 0;
-    speed         = INTRO_P3_SPEED_START;
-    accelTimer    = INTRO_P3_ACCEL_EVERY;
-    timer         = INTRO_P3_FRAMES;
-    while (timer-- > 0) {
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
-        scrollStripes += speed;
-        VDP_setVerticalScroll(BG_A, scrollStripes);
-        if (--accelTimer == 0) {
-            accelTimer = INTRO_P3_ACCEL_EVERY;
-            speed += INTRO_P3_ACCEL_STEP;
-            if (speed > INTRO_P3_SPEED_MAX) speed = INTRO_P3_SPEED_MAX;
+            totalScrollY += speed;
+            chunkScroll += speed;
+            if (totalScrollY > totalScrollMax) totalScrollY = totalScrollMax;
         }
-        SYS_doVBlankProcess();
-    }
-    if (skipped) goto fin;
 
-    // ============ FASE 4: fondo_a baja hasta llenar la pantalla ============
-    PAL_fadeOutAll(10, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
-    VDP_clearPlane(BG_A, TRUE);                    // fuera las rayas
-    VDP_setVerticalScroll(BG_B, INTRO_WIPE_MID);   // fondo_a retoma desde donde quedó el wipe
-    PAL_fadeIn(16, 31, fondo_a.palette->data, 15, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+        // Nubes desactivadas para prueba.
+        // if (nubeChica) {
+        //     nxChica += INTRO_NUBE_CHICA_SPEED;
+        //     s16 nyChica = INTRO_NUBE_CHICA_Y - totalScrollY;
+        //     if (nxChica > SCREEN_PIXEL_WIDTH || nyChica < -INTRO_NUBE_CHICA_H) {
+        //         SPR_releaseSprite(nubeChica);
+        //         nubeChica = NULL;
+        //     } else {
+        //         SPR_setPosition(nubeChica, nxChica, nyChica);
+        //     }
+        // }
+        // if (nubeGrande) {
+        //     nxGrande -= INTRO_NUBE_GRANDE_SPEED;
+        //     s16 nyGrande = INTRO_NUBE_GRANDE_Y - totalScrollY;
+        //     if (nxGrande < -208 || nyGrande < -INTRO_NUBE_GRANDE_H) {
+        //         SPR_releaseSprite(nubeGrande);
+        //         nubeGrande = NULL;
+        //     } else {
+        //         SPR_setPosition(nubeGrande, nxGrande, nyGrande);
+        //     }
+        // }
 
-    scrollB = INTRO_WIPE_MID;
-    while (scrollB > INTRO_WIPE_END) {
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
-        scrollB -= INTRO_WIPE_SPEED;
-        VDP_setVerticalScroll(BG_B, scrollB);
-        SYS_doVBlankProcess();
-    }
-    if (skipped) goto fin;
+        if (!fading && !atEnd) {
+            if (chunkScroll >= introChunkScrollMax[chunkIndex]) {
+                // Pasar al siguiente chunk.
+                chunkIndex++;
+                if (chunkIndex >= INTRO_CHUNK_COUNT) {
+                    chunkScroll = introChunkScrollMax[INTRO_CHUNK_COUNT - 1];
+                    VDP_setVerticalScroll(BG_B, chunkScroll);
+                    atEnd = TRUE;
+                    endTimer = fps * INTRO_END_PAUSE_SECS;
+                } else {
+                    // Todos los cortes: flash blanco de 1 frame.
+                    PAL_setColors(0, introWhitePalette, 16, DMA);
+                    VDP_drawImageEx(BG_B, introChunks[chunkIndex], baseAttr, INTRO_IMG_X, 0, FALSE, TRUE);
+                    chunkScroll = 0;
+                    VDP_setVerticalScroll(BG_B, 0);
+                    PAL_fadeIn(0, 15, introChunks[chunkIndex]->palette->data,
+                               INTRO_WHITE_FLASH_FRAMES, TRUE);
+                    fading = TRUE;
+                    fadePhase = 1;
+                }
+            } else {
+                VDP_setVerticalScroll(BG_B, chunkScroll);
+            }
+        }
 
-    // ============ FASE 5: fondo_2 panea reemplazando a fondo_a ============
-    // Se carga fondo_2 en BG_A (base = fin de fondo_a). Ambos planos bajan
-    // juntos: fondo_a (BG_B) sale por abajo mientras fondo_2 (opaco) se revela
-    // de arriba hacia abajo. fondo_2 es de 512px: arranca mostrando sus filas
-    // 288..511 (las 224 de abajo) y baja hasta mostrar 0..223 (las de arriba).
-    PAL_fadeOutAll(10, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
-
-    const u16 baseFondo2 = TILE_USER_INDEX + fondo_a.tileset->numTile;
-    VDP_drawImageEx(BG_A, &fondo_2,
-                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, baseFondo2),
-                    INTRO_FONDA_X_TILE, 0, FALSE, TRUE);
-    scroll2 = (s16)((fondo_2.tilemap->h * 8) - 224);   // 512-224 = 288
-    scrollB = INTRO_WIPE_END;
-    VDP_setVerticalScroll(BG_B, scrollB);
-    VDP_setVerticalScroll(BG_A, scroll2);
-    PAL_fadeIn(16, 31, fondo_a.palette->data, 20, FALSE);
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
-
-    while (scroll2 > 0) {
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
-        scroll2 -= INTRO_P5_SPEED;
-        scrollB -= INTRO_P5_SPEED;
-        VDP_setVerticalScroll(BG_A, scroll2);
-        VDP_setVerticalScroll(BG_B, scrollB);
-        SYS_doVBlankProcess();
-    }
-    if (skipped) goto fin;
-
-    // Título final quieto ~2 s (START adelanta)
-    timer = INTRO_P5_HOLD_FRAMES;
-    while (timer-- > 0) {
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) { skipped = TRUE; break; }
+        SPR_update();
         SYS_doVBlankProcess();
     }
 
 fin:
-    // Esperar a que suelte START: el mismo press no debe saltarse también la
-    // selección de jugadores (showPlayerSelect corta con START).
     while (JOY_readJoypad(JOY_1) & BUTTON_START)
         SYS_doVBlankProcess();
 
-    // Restaurar el estado que esperan las escenas siguientes: fade a negro,
-    // plano por defecto 32x32 y presupuesto de sprites del juego (752).
+    // Nubes desactivadas para prueba.
+    // if (nubeChica)  SPR_releaseSprite(nubeChica);
+    // if (nubeGrande) SPR_releaseSprite(nubeGrande);
+
+    // Restaurar el estado que esperan las escenas siguientes.
     PAL_fadeOutAll(10, FALSE);
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
+    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setHorizontalScroll(BG_B, 0);
+    VDP_setVerticalScroll(BG_A, 0);
+    VDP_setVerticalScroll(BG_B, 0);
+    SYS_doVBlankProcess();
     VDP_setPlaneSize(32, 32, TRUE);
     SPR_initEx(752);
     clearScene();
@@ -1152,10 +1113,24 @@ fin:
 // ---------------------------------------------------------------------------
 SceneId showPlayerSelect() {
     clearScene();
+    // El fondo es ahora 320x224 px (40x28 tiles), así que necesitamos un plano
+    // de 64 tiles de ancho para que quepa completo.
+    VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);
+    // Limpiar ambos planos con el tamaño ya establecido y forzar scroll a 0
+    // para evitar cualquier residuo de la intro (plano 64x64 + scroll vertical).
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
+    SYS_doVBlankProcess();
+    VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
+    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setHorizontalScroll(BG_B, 0);
+    VDP_setVerticalScroll(BG_A, 0);
+    VDP_setVerticalScroll(BG_B, 0);
 
-    VDP_setBackgroundColor(0x0040);
+    VDP_setBackgroundColor(0);
     PAL_setPalette(PAL0, logo.palette->data, DMA);
-    VDP_drawImageEx(BG_B, &logo, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 3, 0, FALSE, TRUE);
+    // logo_tmnt.png: 320x224 px a pantalla completa en BG_B, esquina superior izquierda.
+    VDP_drawImageEx(BG_B, &logo, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 0, 0, FALSE, TRUE);
 
     // Misma fuente arcade que el título del nivel (title_font). El logo ocupa
     // PAL0 y el cursor PAL1, así que la paleta de la fuente va en PAL2.
@@ -1163,10 +1138,10 @@ SceneId showPlayerSelect() {
     PAL_setColors(PAL2 * 16, title_font_pal.data, title_font_pal.length, DMA);
     VDP_setTextPalette(PAL2);
 
-    VDP_drawText("1 TORTUGA",  14, 18);
-    VDP_drawText("2 TORTUGAS", 14, 20);
+    VDP_drawText("1 TORTUGA",  14, 22);
+    VDP_drawText("2 TORTUGAS", 14, 24);
 
-    Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 14 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 18 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
 
     u8 selectedOption = 0;
@@ -1177,7 +1152,7 @@ SceneId showPlayerSelect() {
         if (value & BUTTON_UP)   selectedOption = 0;
         if (value & BUTTON_DOWN) selectedOption = 1;
 
-        SPR_setPosition(cursor, 8 * 8, (14 + selectedOption * 2) * 8);
+        SPR_setPosition(cursor, 8 * 8, (18 + selectedOption * 2) * 8);
 
         if (value & BUTTON_START) break;
 
@@ -1200,6 +1175,11 @@ SceneId showPlayerSelect() {
 // ---------------------------------------------------------------------------
 SceneId showCharSelect() {
     clearScene();
+    // El fondo también es ahora 320x224 px (40x28 tiles), así que usamos el
+    // mismo plano 64x32 que la selección de players.
+    VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
 
     PAL_setPalette(PAL0, characters_greyscale.palette->data, DMA);
     VDP_drawImageEx(BG_B, &characters_greyscale, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 0, 0, FALSE, TRUE);
@@ -1216,14 +1196,28 @@ SceneId showCharSelect() {
     const s16 faceXoff   = 16;   // centra la cara de 32px sobre la columna de 64px
     const s16 faceY      = 26;   // se apoya en la parte superior del retrato elegido
 
-    PAL_setPalette(PAL1, character_selector.palette->data, DMA);
+    // HUD en la parte superior, igual que en los niveles. El spritesheet de los
+    // marcos tiene los frames en orden de personaje (0=Leo, 1=Mike, 2=Don, 3=Raph),
+    // pero en esta pantalla el cursor recorre: 0=Leo, 1=Mike, 2=Don, 3=Raph.
+    // Mapeo de índice de cursor → frame del HUD.
+    const u8 hudAnimForChar[] = {0, 3, 2, 1};
+
+    // Paletas: el HUD comparte la de las tortugas en PAL1. El selector de
+    // personaje va en PAL3 para no pisar los colores del HUD.
+    PAL_setPalette(PAL1, hud_1p.palette->data, DMA);
     PAL_setPalette(PAL2, faces_hud.palette->data, DMA);
+    PAL_setPalette(PAL3, character_selector.palette->data, DMA);
+
+    // Cargar marcos + retratos del HUD. Inicialmente muestran los personajes
+    // que haya en las variables persistentes; luego se fuerza el frame según
+    // la selección actual del cursor.
+    hudInit();
 
     // -----------------------------------------------------------------------
     // MODO 1 JUGADOR
     // -----------------------------------------------------------------------
     if (cantidadJugadores == 1) {
-        Sprite* cursor          = SPR_addSprite(&character_selector, charPosX[0], charPosY, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+        Sprite* cursor          = SPR_addSprite(&character_selector, charPosX[0], charPosY, TILE_ATTR(PAL3, TRUE, FALSE, FALSE));
         Sprite* turtle_face_hud = SPR_addSprite(&faces_hud,          charPosX[0] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
         SPR_setDepth(cursor, 1);            // cursor/retrato coloreado detrás
         SPR_setDepth(turtle_face_hud, 0);   // la cara va adelante
@@ -1232,6 +1226,8 @@ SceneId showCharSelect() {
         u16  prev       = 0;
         SPR_setAnim(cursor,          sel);
         SPR_setAnim(turtle_face_hud, faceRow[sel]);
+        if (hudSprite1)     SPR_setAnim(hudSprite1,     hudAnimForChar[sel]);
+        if (portraitSpr1)   SPR_setAnim(portraitSpr1,   sel);
 
         while (1) {
             u16 v = JOY_readJoypad(JOY_1);
@@ -1241,6 +1237,8 @@ SceneId showCharSelect() {
 
             SPR_setAnim(cursor,          sel);
             SPR_setAnim(turtle_face_hud, faceRow[sel]);
+            if (hudSprite1)     SPR_setAnim(hudSprite1,     hudAnimForChar[sel]);
+            if (portraitSpr1)   SPR_setAnim(portraitSpr1,   sel);
             SPR_setPosition(cursor, charPosX[sel], charPosY);
             SPR_setPosition(turtle_face_hud, charPosX[sel] + faceXoff, faceY);
 
@@ -1266,6 +1264,7 @@ SceneId showCharSelect() {
         // antes del nivel 1.
         playerPersistReset();
         continuesLeft = 3;
+        clearScene();
         return SCENE_LEVEL1_TITLE;
     }
 
@@ -1277,8 +1276,8 @@ SceneId showCharSelect() {
     bool ready1 = FALSE, ready2 = FALSE;
     u16  prev1 = 0, prev2 = 0;
 
-    Sprite* cur1  = SPR_addSprite(&character_selector, charPosX[sel1], charPosY, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    Sprite* cur2  = SPR_addSprite(&character_selector, charPosX[sel2], charPosY, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+    Sprite* cur1  = SPR_addSprite(&character_selector, charPosX[sel1], charPosY, TILE_ATTR(PAL3, TRUE, FALSE, FALSE));
+    Sprite* cur2  = SPR_addSprite(&character_selector, charPosX[sel2], charPosY, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
     Sprite* face1 = SPR_addSprite(&faces_hud, charPosX[sel1] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
     Sprite* face2 = SPR_addSprite(&faces_hud, charPosX[sel2] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
 
@@ -1288,6 +1287,10 @@ SceneId showCharSelect() {
 
     SPR_setAnim(cur1, sel1);  SPR_setAnim(face1, faceRow[sel1]);
     SPR_setAnim(cur2, sel2);  SPR_setAnim(face2, faceRow[sel2]);
+    if (hudSprite1)   SPR_setAnim(hudSprite1,   hudAnimForChar[sel1]);
+    if (hudSprite2)   SPR_setAnim(hudSprite2,   hudAnimForChar[sel2]);
+    if (portraitSpr1) SPR_setAnim(portraitSpr1, sel1);
+    if (portraitSpr2) SPR_setAnim(portraitSpr2, sel2);
 
     while (1) {
         u16 v1 = JOY_readJoypad(JOY_1);
@@ -1299,6 +1302,8 @@ SceneId showCharSelect() {
             if (justPressedJoy(v1, prev1, BUTTON_LEFT))  sel1 = charMove(sel1, sel2, -1);
             SPR_setAnim(cur1, sel1);
             SPR_setAnim(face1, faceRow[sel1]);
+            if (hudSprite1)   SPR_setAnim(hudSprite1,   hudAnimForChar[sel1]);
+            if (portraitSpr1) SPR_setAnim(portraitSpr1, sel1);
             SPR_setPosition(cur1, charPosX[sel1], charPosY);
             SPR_setPosition(face1, charPosX[sel1] + faceXoff, faceY);
             if (justPressedJoy(v1, prev1, BUTTON_START)) ready1 = TRUE;
@@ -1310,6 +1315,8 @@ SceneId showCharSelect() {
             if (justPressedJoy(v2, prev2, BUTTON_LEFT))  sel2 = charMove(sel2, sel1, -1);
             SPR_setAnim(cur2, sel2);
             SPR_setAnim(face2, faceRow[sel2]);
+            if (hudSprite2)   SPR_setAnim(hudSprite2,   hudAnimForChar[sel2]);
+            if (portraitSpr2) SPR_setAnim(portraitSpr2, sel2);
             SPR_setPosition(cur2, charPosX[sel2], charPosY);
             SPR_setPosition(face2, charPosX[sel2] + faceXoff, faceY);
             if (justPressedJoy(v2, prev2, BUTTON_START)) ready2 = TRUE;
@@ -1571,6 +1578,11 @@ SceneId showLevel1() {
     // Mapa de paletas del nivel:
     //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers + fuego | PAL3 → foot soldier naranja
     bgInit();
+    // clearScene deja BG_A en el plano 32x32 anterior; al agrandarlo a 64x32
+    // las columnas 32..63 pueden contener basura de escenas anteriores (por
+    // ejemplo el HUD de una intro) que se ve como una franja vertical en el
+    // centro del nivel. Limpiamos todo BG_A antes de dibujar el fuego.
+    VDP_clearPlane(BG_A, TRUE);
 
     // --- Fuego en primer plano (BG_A, prioridad alta) ---
     // Los tiles del fuego van a VRAM justo después del tileset del fondo.
@@ -1767,6 +1779,15 @@ SceneId showLevel1() {
 
     bool win = FALSE;     // TRUE al matar al robot y limpiar enemigos (fin del nivel)
 
+    // --- "HURRY UP!": aparece si la camara no avanza durante N segundos ---
+    #define HURRY_CAM_STILL_SECS  6
+    #define HURRY_X               256
+    #define HURRY_Y               40
+    Sprite* hurrySpr = NULL;
+    u16     hurryTimer = 0;
+    s16     hurryLastCamX = -1;
+    const u16 hurryStillFrames = fps * HURRY_CAM_STILL_SECS;
+
     // --- Zonas de combate ---
     s16  cameraLockX = -1;    // -1 = sin bloqueo; >=0 = cameraX no puede superar este valor
     u8   combatZone = 0;      // Zona actual (0-9)
@@ -1804,6 +1825,23 @@ SceneId showLevel1() {
             if (newCam - cameraX > CAM_MAX_SPEED) newCam = cameraX + CAM_MAX_SPEED;
             if (newCam > cameraX) cameraX = newCam;   // nunca retrocede
         }
+
+        // 2b. "HURRY UP!": si la camara NO se movio durante 6 segundos,
+        //     mostrar el aviso en la esquina superior derecha (debajo del HUD).
+        //     Desaparece en cuanto la camara vuelve a avanzar.
+        if (cameraX != hurryLastCamX) {
+            hurryTimer = 0;
+            if (hurrySpr) { SPR_releaseSprite(hurrySpr); hurrySpr = NULL; }
+        } else {
+            if (++hurryTimer >= hurryStillFrames) {
+                if (!hurrySpr) {
+                    hurrySpr = SPR_addSprite(&hurry_sheet, HURRY_X, HURRY_Y,
+                                             TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+                    if (hurrySpr) SPR_setDepth(hurrySpr, SPR_MIN_DEPTH);
+                }
+            }
+        }
+        hurryLastCamX = cameraX;
 
         // 3. Notificar a cada jugador la cámara y los bordes de movimiento.
         //    - Izquierdo: nadie sale de pantalla por la izquierda (= cameraX).
@@ -2348,6 +2386,7 @@ SceneId showLevel1() {
         if (elevSparkSpr[ev]) { SPR_releaseSprite(elevSparkSpr[ev]); elevSparkSpr[ev] = NULL; }
     }
     if (sparks2Spr) { SPR_releaseSprite(sparks2Spr); sparks2Spr = NULL; }
+    if (hurrySpr)   { SPR_releaseSprite(hurrySpr);   hurrySpr   = NULL; }
 
     // Restaurar atributos de texto por defecto para el resto de las escenas
     // (el HUD los dejó en prioridad alta / PAL3).

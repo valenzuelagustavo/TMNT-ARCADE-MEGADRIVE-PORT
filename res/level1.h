@@ -13,6 +13,7 @@ extern const TileSet title_font;
 extern const Palette title_font_pal;
 extern const TileSet hud_font;
 extern const SpriteDefinition attack_bubble;
+extern const SpriteDefinition hurry_sheet;
 extern const SpriteDefinition iron_ball;
 extern const SpriteDefinition sparks;
 extern const SpriteDefinition door_lvl_1;

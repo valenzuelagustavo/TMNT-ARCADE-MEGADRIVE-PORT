@@ -1,29 +1,21 @@
 // =============================================================================
-// intro_tmnt.res — Intro arcade (secuencia de titulo estilo TMNT arcade)
+// intro_tmnt.res — Intro arcade (5 chunks verticales con overlap)
 // =============================================================================
-// Cinco fases en scenes.c (showArcadeIntro):
-//   P1  fondo_1 estatico + nubes (sprites)
-//   P2  fondo_a barre sobre fondo_1 (wipe vertical, BG_A sobre BG_B)
-//   P3  rayas fondo_b (scroll vertical rapido con wrap y aceleracion)
-//   P4  fondo_a baja hasta llenar la pantalla
-//   P5  fondo_2 panea reemplazando fondo_a -> SCENE_PLAYER_SELECT
-//
-// Presupuesto de VRAM (plano 64x64 = 512x512 px, SPR_initEx(420)):
-//   P1/P2: fondo_1 (271) + fondo_a (372) = 643 tiles
-//   P3:    fondo_a (372) + fondo_b (32)  = 404 tiles
-//   P4/P5: fondo_a (372) + fondo_2 (439) = 811 tiles <= 813 disponibles
-// Las nubes (44 + 130 tiles) viven en la region de sprites (420 tiles).
-//
-// Compresion BEST: son imagenes de un solo uso (no se streamean ni se indexan
-// desde ROM), como bg_a_final/bg_b_final en level1.res.
-// map_opt ALL (default): dedup de tiles -> fondos de pocos cientos de tiles.
+// Imagen original: intro.png (304x1560)
+// Chunks cortados con overlap de 224 px para transiciones imperceptibles:
+//   - intro_a.png: y=0..511
+//   - intro_b.png: y=288..799
+//   - intro_c.png: y=576..1087
+//   - intro_d.png: y=864..1375
+//   - intro_e.png: y=1152..1559
 // =============================================================================
 
-IMAGE fondo_1 "images/intro_tmnt/fondo_1.png" BEST ALL
-IMAGE fondo_a "images/intro_tmnt/fondo_a.png" BEST ALL
-IMAGE fondo_b "images/intro_tmnt/fondo_b.png" BEST ALL
-IMAGE fondo_2 "images/intro_tmnt/fondo_2.png" BEST ALL
+IMAGE intro_a "images/intro_tmnt/intro_a.png" BEST ALL
+IMAGE intro_b "images/intro_tmnt/intro_b.png" BEST ALL
+IMAGE intro_c "images/intro_tmnt/intro_c.png" BEST ALL
+IMAGE intro_d "images/intro_tmnt/intro_d.png" BEST ALL
+IMAGE intro_e "images/intro_tmnt/intro_e.png" BEST ALL
 
-// --- Nubes de la fase 1 (sprites de pantalla, comparten PAL0 con fondo_1) ---
+// --- Nubes de la intro (sprites de pantalla, comparten PAL0 con los chunks) ---
 SPRITE nube_chica  "images/intro_tmnt/nube_chica.png" 11 4 NONE 0
 SPRITE nube_grande "images/intro_tmnt/nube_grande.png" 26 5 NONE 0

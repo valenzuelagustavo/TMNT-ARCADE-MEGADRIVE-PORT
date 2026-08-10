@@ -91,6 +91,11 @@ TILESET hud_font "/images/font/font_tmnt_arcade_2.png" NONE NONE
 // tortugas, PAL2 enemigos+fuego, PAL3 flash/HUD. Mismo truco que hp_bar/hud.
 SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 
+// --- "HURRY UP!" (aviso de desplazamiento de camara) ---
+// 160x32px = spritesheet de 5 frames de 32x32 (4x4 tiles). time 6 -> anima
+// ciclicamente los 5 frames. Comparte la paleta de las tortugas (PAL1).
+SPRITE hurry_sheet "/sprites/hurry_sheet.png" 4 4 NONE 6
+
 // --- Bola de hierro (obstaculo que cae rebotando por las escaleras) ---
 // 64x32px = spritesheet de 2 frames de 32x32 (4x4 tiles) -> giro de la esfera.
 // time 6 -> alterna los 2 frames cada 6 ticks (~10fps). NO lleva PALETTE propia:
