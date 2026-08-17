@@ -34,8 +34,14 @@ int main()
         case SCENE_INTRO_ARCADE:
             currentScene = showArcadeIntro();
             break;
+        case SCENE_VRAM_CLEAR:
+            currentScene = showVramClear();
+            break;
         case SCENE_PLAYER_SELECT:
             currentScene = showPlayerSelect();
+            break;
+        case SCENE_OPTIONS:
+            currentScene = showOptions();
             break;
         case SCENE_CHAR_SELECT:
             currentScene = showCharSelect(); // Esta debe retornar SCENE_LEVEL1_TITLE

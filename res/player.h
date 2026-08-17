@@ -190,7 +190,12 @@ typedef enum {
 // Al agotarse la barra se pierde una vida y la barra se recarga; al llegar a
 // 0 vidas -> game over (lo maneja scenes.c volviendo a la pantalla inicial).
 #define PLAYER_MAX_HEALTH   10  // Barras de vida al maximo (frame 0 del sprite)
-#define PLAYER_START_LIVES   3  // Vidas iniciales
+#define PLAYER_START_LIVES   3  // Vidas iniciales por defecto
+
+// Vidas iniciales CONFIGURABLES (pantalla OPCIONES: 3 / 5 / 7). Arranca en
+// PLAYER_START_LIVES. La usan playerPersistReset() (partida nueva) y el
+// revive por continue (scenes.c). La modifica showOptions().
+extern u8 vidasIniciales;
 
 // ---------------------------------------------------------------------------
 // INSTANCIA DE JUGADOR

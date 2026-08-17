@@ -11,7 +11,9 @@ typedef enum {
     SCENE_SGDK,
     SCENE_CREDITS,      // Creditos: reconocimiento al adaptador musical
     SCENE_INTRO_ARCADE,
+    SCENE_VRAM_CLEAR,   // Buffer: borrado total de VRAM entre la intro y los menus
     SCENE_PLAYER_SELECT,
+    SCENE_OPTIONS,      // Opciones: VIDAS (3/5/7), SOUNDTEST y SALIR
     SCENE_CHAR_SELECT,
     SCENE_CINEMATIC_FIRE,
     SCENE_LEVEL1_TITLE,
@@ -27,7 +29,9 @@ SceneId showKonamiIntro();
 SceneId showSGDKIntro();
 SceneId showCredits();
 SceneId showArcadeIntro();
+SceneId showVramClear();
 SceneId showPlayerSelect();
+SceneId showOptions();
 SceneId showCharSelect();
 SceneId showFireCinematic();
 SceneId showLevel1Title();

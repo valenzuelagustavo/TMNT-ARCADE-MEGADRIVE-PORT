@@ -1,5 +1,8 @@
 out/
 
+# Emuladores (Gens, Fusion) usados para testing local.
+Emuladores/
+
 *AGENTS.md
 
 *DEVLOG.md

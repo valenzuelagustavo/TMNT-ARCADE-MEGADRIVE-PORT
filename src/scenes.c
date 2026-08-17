@@ -773,7 +773,7 @@ static void contDrawText(HudPlayer* h, s8 seconds) {
 static void revivePlayer(Player* p, u8 ch, u16 joyId) {
     if (p->sprite) SPR_releaseSprite(p->sprite);
     initPlayer(p, ch, joyId, PAL1, p->x, p->y);
-    p->lives      = PLAYER_START_LIVES;
+    p->lives      = vidasIniciales;
     p->health     = PLAYER_MAX_HEALTH;
     p->gameOver   = FALSE;
     p->invincible = PLAYER_RESPAWN_INVINCIBLE;
@@ -1105,6 +1105,62 @@ fin:
     VDP_setPlaneSize(32, 32, TRUE);
     SPR_initEx(752);
     clearScene();
+    return SCENE_VRAM_CLEAR;
+}
+
+// ---------------------------------------------------------------------------
+// 5a. Escena BUFFER: borrado total de VRAM entre la intro y los menús
+// ---------------------------------------------------------------------------
+// En hardware real la VRAM conserva todo lo que escribieron las escenas
+// previas (los emuladores arrancan con la VRAM en 0 y lo enmascaran). Además
+// la tabla de sprites (SAT) cambia de dirección según el tamaño de plano
+// (0xAC00 en la intro 64x64 -> 0xF400 en los menús 64x32) y queda leyendo
+// datos viejos hasta el primer SPR_update. Eso corrompía el menú de players
+// en hardware real (el fondo aparecía un instante y desaparecía). Esta escena
+// no dibuja nada: pone a CERO los 64KB de VRAM (tiles, tilemaps, SAT y tabla
+// HSCROLL) y la CRAM, y deja el VDP en el estado default que esperan los menús.
+// ---------------------------------------------------------------------------
+static const u16 vramClearBlackPal[64] = { 0 };   // CRAM entera a negro
+
+SceneId showVramClear() {
+    clearScene();
+
+    // Soltar el motor de sprites y asegurarse de que NO quede ningún DMA
+    // encolado que aterrice DESPUÉS del borrado (lo re-ensuciaría).
+    SPR_end();
+    SYS_doVBlankProcess();
+    DMA_clearQueue();
+
+    // Display apagado: el fill corre a máxima velocidad y no se ve nada raro.
+    VDP_setEnable(FALSE);
+
+    // Layout de plano que usan los menús (SAT en 0xF400, HSCROLL en 0xF000).
+    VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);
+
+    // Borrado TOTAL de la VRAM: len = 0 es el valor especial del DMA fill
+    // para 0x10000 bytes (64KB) — es lo mismo que hace VDP_resetScreen() de
+    // SGDK al arrancar. Una SAT en cero = lista terminada = sin sprites.
+    DMA_doVRamFill(0, 0, 0, 1);
+    VDP_waitDMACompletion();
+
+    // CRAM a negro (las 4 paletas completas), escritura directa sin fade.
+    PAL_setColors(0, vramClearBlackPal, 64, CPU);
+
+    // Scroll y modo normalizados.
+    VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
+    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setHorizontalScroll(BG_B, 0);
+    VDP_setVerticalScroll(BG_A, 0);
+    VDP_setVerticalScroll(BG_B, 0);
+    VDP_setBackgroundColor(0);
+
+    // Motor de sprites en el estado default del juego (los menús lo ajustan).
+    SPR_initEx(752);
+
+    VDP_setEnable(TRUE);
+    SYS_doVBlankProcess();
+    SYS_doVBlankProcess();
+
     return SCENE_PLAYER_SELECT;
 }
 
@@ -1113,61 +1169,257 @@ fin:
 // ---------------------------------------------------------------------------
 SceneId showPlayerSelect() {
     clearScene();
-    // El fondo es ahora 320x224 px (40x28 tiles), así que necesitamos un plano
-    // de 64 tiles de ancho para que quepa completo.
+    // El fondo 320x224 necesita muchos tiles de usuario. Reducimos el
+    // presupuesto de sprites para que los tiles del logo no se superpongan.
+    SPR_end();
+    SPR_initEx(420);
+    // Plano de 64 tiles de ancho para que quepa el fondo completo.
     VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);
-    // Limpiar ambos planos con el tamaño ya establecido y forzar scroll a 0
-    // para evitar cualquier residuo de la intro (plano 64x64 + scroll vertical).
-    VDP_clearPlane(BG_A, TRUE);
-    VDP_clearPlane(BG_B, TRUE);
-    SYS_doVBlankProcess();
+
     VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
     VDP_setHorizontalScroll(BG_A, 0);
     VDP_setHorizontalScroll(BG_B, 0);
     VDP_setVerticalScroll(BG_A, 0);
     VDP_setVerticalScroll(BG_B, 0);
 
-    VDP_setBackgroundColor(0);
-    PAL_setPalette(PAL0, logo.palette->data, DMA);
-    // logo_tmnt.png: 320x224 px a pantalla completa en BG_B, esquina superior izquierda.
-    VDP_drawImageEx(BG_B, &logo, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 0, 0, FALSE, TRUE);
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
 
-    // Misma fuente arcade que el título del nivel (title_font). El logo ocupa
-    // PAL0 y el cursor PAL1, así que la paleta de la fuente va en PAL2.
-    VDP_loadFont(&title_font, DMA);
-    PAL_setColors(PAL2 * 16, title_font_pal.data, title_font_pal.length, DMA);
+    // Estabilización: dar tiempo a que queden libres DMA y comandos CPU.
+    SYS_doVBlankProcess();
+    SYS_doVBlankProcess();
+
+    VDP_setBackgroundColor(0);
+    PAL_setPalette(PAL0, logo.palette->data, CPU);
+
+    // Fondo: 320x224 px en BG_B. CPU para evitar condiciones de carrera.
+    VDP_loadTileSet(logo.tileset, TILE_USER_INDEX, CPU);
+    VDP_setTileMapEx(BG_B, logo.tilemap,
+                     TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
+                     0, 0, 0, 0, logo.tilemap->w, logo.tilemap->h, CPU);
+
+    // Fuente arcade en PAL2. OJO: title_font_pal tiene 64 entradas
+    // (rescomp exporta la paleta completa del PNG). Si copiamos las 64 con
+    // PAL_setColors a partir de PAL2 (índice 32), la escritura envuelve en
+    // CRAM (que es de 64 colores) y pisa PAL0/PAL1 → el fondo desaparece.
+    // Usamos PAL_setPalette que escribe exactamente 16 colores (una línea).
+    VDP_loadFont(&title_font, CPU);
+    PAL_setPalette(PAL2, title_font_pal.data, CPU);
     VDP_setTextPalette(PAL2);
 
     VDP_drawText("1 TORTUGA",  14, 22);
     VDP_drawText("2 TORTUGAS", 14, 24);
+    VDP_drawText("OPCIONES",   14, 26);
 
     Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 18 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
+    PAL_setPalette(PAL1, selector_turtle.palette->data, CPU);
 
-    u8 selectedOption = 0;
+    u8  selectedOption = 0;
+    u16 prev = 0;
+
+    // Esperar a que se suelte START para no confirmar al instante.
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
 
     while (1) {
         u16 value = JOY_readJoypad(JOY_1);
 
-        if (value & BUTTON_UP)   selectedOption = 0;
-        if (value & BUTTON_DOWN) selectedOption = 1;
+        if (justPressedJoy(value, prev, BUTTON_UP))   selectedOption = (selectedOption + 2) % 3;
+        if (justPressedJoy(value, prev, BUTTON_DOWN)) selectedOption = (selectedOption + 1) % 3;
 
         SPR_setPosition(cursor, 8 * 8, (18 + selectedOption * 2) * 8);
 
         if (value & BUTTON_START) break;
 
+        prev = value;
         SPR_update();
         SYS_doVBlankProcess();
     }
 
-    // selectedOption 0 → 1 jugador | 1 → 2 jugadores
-    cantidadJugadores = selectedOption + 1;
+    // selectedOption 0 → 1 jugador | 1 → 2 jugadores | 2 → OPCIONES
+    // (OPCIONES no toca cantidadJugadores: vuelve acá al salir).
+    if (selectedOption < 2)
+        cantidadJugadores = selectedOption + 1;
 
-    // Restaurar la fuente por defecto de SGDK (la selección de personaje la
-    // vuelve a cargar igual, pero así el estado queda consistente).
+    // Restaurar fuente default.
     VDP_loadFont(&font_default, DMA);
 
-    return SCENE_CHAR_SELECT;
+    SPR_end();
+    SPR_initEx(752);
+
+    return (selectedOption == 2) ? SCENE_OPTIONS : SCENE_CHAR_SELECT;
+}
+
+// ---------------------------------------------------------------------------
+// 5b. OPCIONES — VIDAS (3/5/7), SOUNDTEST y SALIR
+// ---------------------------------------------------------------------------
+// Mismo look que la selección de players (logo de fondo + fuente arcade).
+// VIDAS configura el global vidasIniciales (lo usan playerPersistReset y
+// revivePlayer: aplica a partida nueva y a continues). SOUNDTEST reproduce
+// los VGM de los niveles: A o C = play/stop, LEFT/RIGHT cambia de pista
+// (por ahora solo FIRE! del nivel 1). SALIR (START sobre la fila, o B en
+// cualquier fila) vuelve a la selección de cantidad de players.
+// ---------------------------------------------------------------------------
+#define OPT_ROW_VIDAS      0
+#define OPT_ROW_SOUNDTEST  1
+#define OPT_ROW_SALIR      2
+#define OPT_ROW_COUNT      3
+
+#define OPT_LABEL_COL      12   // columna de los labels
+#define OPT_VALUE_COL      24   // columna de los valores < ... >
+#define OPT_STATUS_COL     34   // columna del indicador ON/OFF del soundtest
+#define OPT_ROW_Y          20   // fila de texto de VIDAS; las demás van +2
+// El cursor (selector_turtle, 64x64) se dibuja 4 tiles arriba de la fila de
+// texto, igual que en showPlayerSelect (fila de texto 22 -> cursor fila 18).
+#define OPT_CURSOR_Y       (OPT_ROW_Y - 4)
+
+// Pistas del sound test: nombre en pantalla (ASCII puro) + recurso XGM2.
+typedef struct { const char* name; const u8* track; } SoundTrack;
+static const SoundTrack soundTracks[] = {
+    { "FIRE!", music_level1 },   // música del nivel 1
+};
+#define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
+
+// Redibuja el valor de la fila VIDAS ("< 3 >" — ancho fijo, pisa solo).
+static void optDrawLives(u8 lives) {
+    char buf[6];
+    buf[0] = '<'; buf[1] = ' ';
+    buf[2] = (char)('0' + lives);
+    buf[3] = ' '; buf[4] = '>'; buf[5] = 0;
+    VDP_drawText(buf, OPT_VALUE_COL, OPT_ROW_Y);
+}
+
+// Redibuja la fila SOUNDTEST: nombre de la pista + indicador ON/OFF.
+static void optDrawSound(u8 trackIdx, bool playing) {
+    char buf[16];
+    u8 i = 0;
+    const char* name = soundTracks[trackIdx].name;
+    buf[i++] = '<'; buf[i++] = ' ';
+    while (*name && i < 12) buf[i++] = *name++;
+    buf[i++] = ' '; buf[i++] = '>'; buf[i] = 0;
+    VDP_clearText(OPT_VALUE_COL, OPT_ROW_Y + 2, 10);
+    VDP_drawText(buf, OPT_VALUE_COL, OPT_ROW_Y + 2);
+    VDP_clearText(OPT_STATUS_COL, OPT_ROW_Y + 2, 3);
+    VDP_drawText(playing ? "ON" : "OFF", OPT_STATUS_COL, OPT_ROW_Y + 2);
+}
+
+SceneId showOptions() {
+    clearScene();
+    // Mismo criterio de VRAM que showPlayerSelect: presupuesto de sprites
+    // reducido para dar aire al fondo 320x224.
+    SPR_end();
+    SPR_initEx(420);
+    VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);
+
+    // En hardware real, el DMA puede quedar desincronizado entre escenas.
+    // Usamos CPU para las operaciones críticas de setup para garantizar
+    // sincronización, igual que en showPlayerSelect.
+    VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
+    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setHorizontalScroll(BG_B, 0);
+    VDP_setVerticalScroll(BG_A, 0);
+    VDP_setVerticalScroll(BG_B, 0);
+
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
+
+    // Frame de estabilización.
+    SYS_doVBlankProcess();
+    SYS_doVBlankProcess();
+
+    VDP_setBackgroundColor(0);
+    PAL_setPalette(PAL0, logo.palette->data, CPU);
+
+    // Cargar logo con CPU para evitar condiciones de carrera con DMA.
+    VDP_loadTileSet(logo.tileset, TILE_USER_INDEX, CPU);
+    VDP_setTileMapEx(BG_B, logo.tilemap,
+                     TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
+                     0, 0, 0, 0, logo.tilemap->w, logo.tilemap->h, CPU);
+
+    VDP_loadFont(&title_font, CPU);
+    // OJO: title_font_pal tiene 64 entradas. Copiar las 64 a partir de PAL2
+    // envuelve en CRAM y pisa PAL0/PAL1 (igual que el bug de showPlayerSelect).
+    PAL_setPalette(PAL2, title_font_pal.data, CPU);
+    VDP_setTextPalette(PAL2);
+
+    VDP_drawText("VIDAS",     OPT_LABEL_COL, OPT_ROW_Y);
+    VDP_drawText("SOUNDTEST", OPT_LABEL_COL, OPT_ROW_Y + 2);
+    VDP_drawText("SALIR",     OPT_LABEL_COL, OPT_ROW_Y + 4);
+
+    Sprite *cursor = SPR_addSprite(&selector_turtle, 4 * 8, OPT_CURSOR_Y * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
+
+    // VIDAS arranca reflejando el valor actual del global.
+    static const u8 livesValues[] = {3, 5, 7};
+    u8 livesIdx = (vidasIniciales >= 7) ? 2 : (vidasIniciales >= 5) ? 1 : 0;
+    u8 trackIdx = 0;
+    // Estado del soundtest. Se lleva LOCAL: XGM2_isPlaying() lee el status del
+    // Z80 y tarda ~1 frame en reflejar un play/stop (el indicador mentiría).
+    bool sndPlaying = FALSE;
+
+    optDrawLives(livesValues[livesIdx]);
+    optDrawSound(trackIdx, FALSE);
+
+    u8  sel  = 0;
+    u16 prev = 0;
+
+    // START/B pueden venir presionados del menú de players: esperar release.
+    while (JOY_readJoypad(JOY_1) & (BUTTON_START | BUTTON_B))
+        SYS_doVBlankProcess();
+
+    while (1) {
+        u16 value = JOY_readJoypad(JOY_1);
+
+        if (justPressedJoy(value, prev, BUTTON_UP))   sel = (sel + OPT_ROW_COUNT - 1) % OPT_ROW_COUNT;
+        if (justPressedJoy(value, prev, BUTTON_DOWN)) sel = (sel + 1) % OPT_ROW_COUNT;
+
+        if (sel == OPT_ROW_VIDAS) {
+            bool changed = FALSE;
+            if (justPressedJoy(value, prev, BUTTON_LEFT))  { livesIdx = (livesIdx + 2) % 3; changed = TRUE; }
+            if (justPressedJoy(value, prev, BUTTON_RIGHT)) { livesIdx = (livesIdx + 1) % 3; changed = TRUE; }
+            if (changed) {
+                vidasIniciales = livesValues[livesIdx];
+                optDrawLives(vidasIniciales);
+            }
+        } else if (sel == OPT_ROW_SOUNDTEST) {
+            bool trackChanged = FALSE;
+            if (justPressedJoy(value, prev, BUTTON_LEFT))  { trackIdx = (trackIdx + SOUND_TRACK_COUNT - 1) % SOUND_TRACK_COUNT; trackChanged = TRUE; }
+            if (justPressedJoy(value, prev, BUTTON_RIGHT)) { trackIdx = (trackIdx + 1) % SOUND_TRACK_COUNT; trackChanged = TRUE; }
+            if (trackChanged) {
+                // Si estaba sonando, arrancar la pista nueva.
+                if (sndPlaying) playMusicVol(soundTracks[trackIdx].track, 100);
+                optDrawSound(trackIdx, sndPlaying);
+            }
+            if (justPressedJoy(value, prev, BUTTON_A) || justPressedJoy(value, prev, BUTTON_C)) {
+                if (sndPlaying) { XGM2_stop(); sndPlaying = FALSE; }
+                else { playMusicVol(soundTracks[trackIdx].track, 100); sndPlaying = TRUE; }
+                optDrawSound(trackIdx, sndPlaying);
+            }
+        }
+
+        SPR_setPosition(cursor, 4 * 8, (OPT_CURSOR_Y + sel * 2) * 8);
+
+        // SALIR: START sobre la fila SALIR, o B en cualquier fila.
+        if (((value & BUTTON_START) && sel == OPT_ROW_SALIR) || (value & BUTTON_B))
+            break;
+
+        prev = value;
+        SPR_update();
+        SYS_doVBlankProcess();
+    }
+
+    // Cortar la música del soundtest y esperar release para que el mismo
+    // botón no atraviese la pantalla de players al volver.
+    XGM2_stop();
+    while (JOY_readJoypad(JOY_1) & (BUTTON_START | BUTTON_B))
+        SYS_doVBlankProcess();
+
+    // Restaurar la fuente default y el presupuesto de sprites del juego.
+    VDP_loadFont(&font_default, DMA);
+    SPR_end();
+    SPR_initEx(752);
+
+    return SCENE_PLAYER_SELECT;
 }
 
 // ---------------------------------------------------------------------------

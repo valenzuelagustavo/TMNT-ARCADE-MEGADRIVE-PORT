@@ -21,6 +21,9 @@
 // scenes.c en la selección de personajes). La VIDA (barra) NO persiste: cada
 // nivel arranca con la barra llena.
 // ---------------------------------------------------------------------------
+// Vidas iniciales configurables desde la pantalla OPCIONES (3/5/7).
+u8 vidasIniciales = PLAYER_START_LIVES;
+
 static u8  s_persistLives[2] = { PLAYER_START_LIVES, PLAYER_START_LIVES };
 static u16 s_persistScore[2] = { 0, 0 };
 
@@ -787,7 +790,7 @@ void playerPersistSave(const Player* p) {
 
 void playerPersistReset(void) {
     for (u8 i = 0; i < 2; i++) {
-        s_persistLives[i] = PLAYER_START_LIVES;
+        s_persistLives[i] = vidasIniciales;
         s_persistScore[i] = 0;
     }
 }
