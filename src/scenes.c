@@ -3,7 +3,7 @@
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
-#include "intro_tmnt.h"  // Intro arcade: fondo_1/fondo_a/fondo_b/fondo_2 (IMAGE) y nube_chica/nube_grande (SPRITE)
+#include "intro_tmnt.h"  // Intro arcade: intro_sky, intro_buildings, intro_speed, intro_street (IMAGE)
 #include "audio.h"   // music_sega, golpe, music_level1, select_music
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
@@ -914,186 +914,141 @@ SceneId showSegaIntro() {
 SceneId showKonamiIntro()  { return SCENE_SGDK; }
 
 // ---------------------------------------------------------------------------
-// Intro arcade (TMNT) — 5 chunks verticales con overlap
+// Intro arcade (TMNT) — 4 fases: cielo → edificios → líneas → calle
 // ---------------------------------------------------------------------------
-// Imagen original: intro.png (304x1496)
-// Chunks cortados con overlap de 224 px para transiciones imperceptibles:
-//   - intro_a.png: y=0..511    (scroll 0..288)
-//   - intro_b.png: y=288..799  (scroll 0..288)
-//   - intro_c.png: y=576..1087 (scroll 0..288)
-//   - intro_d.png: y=864..1375 (scroll 0..288)
-//   - intro_e.png: y=1152..1495 (scroll 0..120)
+// Fondo: cielo (BG_B, estático) + contenido dinámico (BG_A).
+// Edificios: scroll vertical de BG_A de 0→288 px (cámara desciende).
+// Líneas de velocidad: tiling a velocidad alta durante 3 s.
+// Calle: scroll de BG_A de 0→164 px hasta alinear fondo con borde inferior,
+//        pausa 2 s, fade a negro.
 // START saltea la secuencia.
 // ---------------------------------------------------------------------------
-#define INTRO_SCREEN_H         224
-#define INTRO_IMG_X            1     // 304px centrado con margen de 8px
-#define INTRO_HOLD_SECS        2
-#define INTRO_NUBE_CHICA_SPEED 1
-#define INTRO_NUBE_GRANDE_SPEED 2
-#define INTRO_NUBE_CHICA_Y     40
-#define INTRO_NUBE_GRANDE_Y    80
-#define INTRO_NUBE_CHICA_H     32
-#define INTRO_NUBE_GRANDE_H    40
-#define INTRO_CHUNK_COUNT      5
-#define INTRO_MIN_SPEED        2
-#define INTRO_MAX_SPEED        8
-#define INTRO_END_PAUSE_SECS   2
-#define INTRO_WHITE_FLASH_FRAMES 1   // flash blanco en todos los cortes
-
-static const u16 introWhitePalette[16] = {
-    0x0000,
-    0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE,
-    0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE
-};
-
-static const Image* const introChunks[INTRO_CHUNK_COUNT] = {
-    &intro_a, &intro_b, &intro_c, &intro_d, &intro_e
-};
-
-// Scroll maximo dentro de cada chunk (alto - alto pantalla).
-static const s16 introChunkScrollMax[INTRO_CHUNK_COUNT] = {
-    512 - INTRO_SCREEN_H,   // 288
-    512 - INTRO_SCREEN_H,   // 288
-    512 - INTRO_SCREEN_H,   // 288
-    512 - INTRO_SCREEN_H,   // 288
-    344 - INTRO_SCREEN_H    // 120
-};
+#define INTRO_SKY_X         0
+#define INTRO_SKY_X2        32
+#define INTRO_BUILDING_X    4
+#define INTRO_STREET_X      4
+#define INTRO_SPEED_COLS    32
+#define INTRO_SPEED_ROWS    8
+#define INTRO_HOLD_SECS     1
+#define INTRO_END_HOLD      2
+#define INTRO_SPEED_SECS    3
+#define INTRO_MIN_SPEED     2
+#define INTRO_MAX_SPEED     8
 
 SceneId showArcadeIntro() {
     clearScene();
-
     SPR_initEx(420);
     VDP_setPlaneSize(BG_PLANE_W, 64, TRUE);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
     VDP_setBackgroundColor(0);
 
+    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
     const u16 baseTiles = TILE_USER_INDEX;
-    const u16 baseAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, baseTiles);
+    const u16 skyTileCount = 34;   // intro_sky unique tiles (1088 / 32)
+    const u16 otherTileBase = baseTiles + skyTileCount;
 
-    // Cargar chunk inicial.
-    u16 chunkIndex = 0;
-    s16 chunkScroll = 0;
-    VDP_drawImageEx(BG_B, introChunks[chunkIndex], baseAttr, INTRO_IMG_X, 0, FALSE, TRUE);
-
-    // Nubes desactivadas para prueba.
-    // Sprite* nubeChica  = SPR_addSprite(&nube_chica, -88, INTRO_NUBE_CHICA_Y,
-    //                                    TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
-    // Sprite* nubeGrande = SPR_addSprite(&nube_grande, 320, INTRO_NUBE_GRANDE_Y,
-    //                                    TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
-
-    // Fade in desde negro.
-    PAL_fadeIn(0, 15, introChunks[chunkIndex]->palette->data, 20, FALSE);
+    // ---- Fase 0: Cielo (BG_B, estático) ----
+    u16 skyAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, baseTiles);
+    VDP_drawImageEx(BG_B, &intro_sky, skyAttr, INTRO_SKY_X,  0, FALSE, TRUE);
+    VDP_drawImageEx(BG_B, &intro_sky, skyAttr, INTRO_SKY_X2, 0, FALSE, TRUE);
+    PAL_setPalette(PAL0, intro_sky.palette->data, CPU);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 20, FALSE);
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
-    s16 totalScrollY = 0;
-    // s16 nxChica = -88;
-    // s16 nxGrande = 320;
-    bool skipped = FALSE;
-    bool atEnd = FALSE;
-    bool fading = FALSE;
-    u8   fadePhase = 0;   // 0 = fade out, 1 = fade in
-    u16 endTimer = 0;
-    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
     u16 holdTimer = fps * INTRO_HOLD_SECS;
-
-    // Recorrido total acumulado.
-    const s16 totalScrollMax = 288 + 288 + 288 + 288 + 120;
-    const s16 totalScrollMid = totalScrollMax / 2;
-
-    while (1) {
-        u16 joy = JOY_readJoypad(JOY_1);
-        if (joy & BUTTON_START) { skipped = TRUE; break; }
-
-        if (fading) {
-            // Esperar a que termine el fade in desde blanco.
-            if (!PAL_isDoingFade()) {
-                fading = FALSE;
-                fadePhase = 0;
-            }
-        } else if (atEnd) {
-            // Pausa de 2 segundos al final antes de salir.
-            if (endTimer > 0) {
-                endTimer--;
-            } else {
-                break;
-            }
-        } else if (holdTimer > 0) {
-            // Primeros 2 segundos: fondo quieto.
-            holdTimer--;
-        } else {
-            // Camara baja con curva ease-in-out sobre el recorrido total.
-            s16 speed;
-            if (totalScrollY < totalScrollMid)
-                speed = INTRO_MIN_SPEED + ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * totalScrollY) / totalScrollMid;
-            else
-                speed = INTRO_MAX_SPEED - ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * (totalScrollY - totalScrollMid)) / totalScrollMid;
-
-            totalScrollY += speed;
-            chunkScroll += speed;
-            if (totalScrollY > totalScrollMax) totalScrollY = totalScrollMax;
-        }
-
-        // Nubes desactivadas para prueba.
-        // if (nubeChica) {
-        //     nxChica += INTRO_NUBE_CHICA_SPEED;
-        //     s16 nyChica = INTRO_NUBE_CHICA_Y - totalScrollY;
-        //     if (nxChica > SCREEN_PIXEL_WIDTH || nyChica < -INTRO_NUBE_CHICA_H) {
-        //         SPR_releaseSprite(nubeChica);
-        //         nubeChica = NULL;
-        //     } else {
-        //         SPR_setPosition(nubeChica, nxChica, nyChica);
-        //     }
-        // }
-        // if (nubeGrande) {
-        //     nxGrande -= INTRO_NUBE_GRANDE_SPEED;
-        //     s16 nyGrande = INTRO_NUBE_GRANDE_Y - totalScrollY;
-        //     if (nxGrande < -208 || nyGrande < -INTRO_NUBE_GRANDE_H) {
-        //         SPR_releaseSprite(nubeGrande);
-        //         nubeGrande = NULL;
-        //     } else {
-        //         SPR_setPosition(nubeGrande, nxGrande, nyGrande);
-        //     }
-        // }
-
-        if (!fading && !atEnd) {
-            if (chunkScroll >= introChunkScrollMax[chunkIndex]) {
-                // Pasar al siguiente chunk.
-                chunkIndex++;
-                if (chunkIndex >= INTRO_CHUNK_COUNT) {
-                    chunkScroll = introChunkScrollMax[INTRO_CHUNK_COUNT - 1];
-                    VDP_setVerticalScroll(BG_B, chunkScroll);
-                    atEnd = TRUE;
-                    endTimer = fps * INTRO_END_PAUSE_SECS;
-                } else {
-                    // Todos los cortes: flash blanco de 1 frame.
-                    PAL_setColors(0, introWhitePalette, 16, DMA);
-                    VDP_drawImageEx(BG_B, introChunks[chunkIndex], baseAttr, INTRO_IMG_X, 0, FALSE, TRUE);
-                    chunkScroll = 0;
-                    VDP_setVerticalScroll(BG_B, 0);
-                    PAL_fadeIn(0, 15, introChunks[chunkIndex]->palette->data,
-                               INTRO_WHITE_FLASH_FRAMES, TRUE);
-                    fading = TRUE;
-                    fadePhase = 1;
-                }
-            } else {
-                VDP_setVerticalScroll(BG_B, chunkScroll);
-            }
-        }
-
-        SPR_update();
+    while (holdTimer > 0) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+        holdTimer--;
         SYS_doVBlankProcess();
+    }
+
+    // ---- Fase 1: Edificios (BG_A, scroll vertical) ----
+    VDP_clearPlane(BG_A, TRUE);
+    {
+        u16 buildAttr = TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, otherTileBase);
+        VDP_drawImageEx(BG_A, &intro_buildings, buildAttr, INTRO_BUILDING_X,    0, FALSE, TRUE);
+        VDP_drawImageEx(BG_A, &intro_buildings, buildAttr, INTRO_BUILDING_X + 32, 0, FALSE, TRUE);
+    }
+    PAL_setPalette(PAL0, intro_sky.palette->data,       DMA);
+    PAL_setPalette(PAL1, intro_buildings.palette->data, DMA);
+    VDP_setVerticalScroll(BG_A, 0);
+
+    {
+        s16 scrollY = 0;
+        const s16 scrollMax = 288;
+        const s16 scrollMid = scrollMax / 2;
+        while (scrollY < scrollMax) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            s16 speed;
+            if (scrollY < scrollMid)
+                speed = INTRO_MIN_SPEED + ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * scrollY) / scrollMid;
+            else
+                speed = INTRO_MAX_SPEED - ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * (scrollY - scrollMid)) / scrollMid;
+            scrollY += speed;
+            if (scrollY > scrollMax) scrollY = scrollMax;
+            VDP_setVerticalScroll(BG_A, scrollY);
+            SYS_doVBlankProcess();
+        }
+    }
+
+    // ---- Fase 2: Líneas de velocidad (BG_A, tiling + scroll rápido) ----
+    VDP_clearPlane(BG_A, TRUE);
+    {
+        u16 speedAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, otherTileBase);
+        for (u16 r = 0; r < 64; r += INTRO_SPEED_ROWS)
+            for (u16 c = 0; c < 64; c += INTRO_SPEED_COLS)
+                VDP_drawImageEx(BG_A, &intro_speed, speedAttr, c, r, FALSE, TRUE);
+    }
+    PAL_setPalette(PAL0, intro_sky.palette->data, DMA);
+    VDP_setVerticalScroll(BG_A, 0);
+
+    {
+        u16 speedTimer = fps * INTRO_SPEED_SECS;
+        s16 scrollY = 0;
+        while (speedTimer > 0) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            speedTimer--;
+            scrollY += 6;
+            VDP_setVerticalScroll(BG_A, scrollY);
+            SYS_doVBlankProcess();
+        }
+    }
+
+    // ---- Fase 3: Calle (BG_A, scroll hasta alinear fondo) ----
+
+    VDP_clearPlane(BG_A, TRUE);
+    {
+        u16 streetAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, otherTileBase);
+        VDP_drawImageEx(BG_A, &intro_street, streetAttr, INTRO_STREET_X,    0, FALSE, TRUE);
+        VDP_drawImageEx(BG_A, &intro_street, streetAttr, INTRO_STREET_X + 32, 0, FALSE, TRUE);
+    }
+    PAL_setPalette(PAL0, intro_sky.palette->data, DMA);
+    VDP_setVerticalScroll(BG_A, 0);
+
+    {
+        s16 scrollY = 0;
+        const s16 scrollMax = 168;  // 392 - 224
+        while (scrollY < scrollMax) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            scrollY += 3;
+            if (scrollY > scrollMax) scrollY = scrollMax;
+            VDP_setVerticalScroll(BG_A, scrollY);
+            SYS_doVBlankProcess();
+        }
+
+        holdTimer = fps * INTRO_END_HOLD;
+        while (holdTimer > 0) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            holdTimer--;
+            SYS_doVBlankProcess();
+        }
     }
 
 fin:
     while (JOY_readJoypad(JOY_1) & BUTTON_START)
         SYS_doVBlankProcess();
 
-    // Nubes desactivadas para prueba.
-    // if (nubeChica)  SPR_releaseSprite(nubeChica);
-    // if (nubeGrande) SPR_releaseSprite(nubeGrande);
-
-    // Restaurar el estado que esperan las escenas siguientes.
     PAL_fadeOutAll(10, FALSE);
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
     VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
