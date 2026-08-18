@@ -10,9 +10,12 @@
 // =============================================================================
 
 // --- Música ---
-XGM2 music_sega    "musica_intro.vgm"
-XGM2 select_music  "/music/turtles2-selectcharacter_wip2.vgm"
-XGM2 music_level1  "music/Fire!_(Stage 1-1).vgm"
+XGM2 music_sega      "musica_intro.vgm"
+XGM2 music_level1    "music/Fire!_(Stage 1-1).vgm"
+XGM2 music_level2    "/music/05 - April's Room (Stage 1-2).vgm"
+XGM2 music_charselect "/music/03 - Choose Your Turtle.vgm"
+XGM2 music_credits   "/music/00 - SanSenpai Credit.vgm"
+XGM2 music_ending    "/music/07 - April is Kidnapped (Cutscene).vgm"
 
 // --- Efectos de Sonido ---
 XGM2 golpe         "golpe.vgm"

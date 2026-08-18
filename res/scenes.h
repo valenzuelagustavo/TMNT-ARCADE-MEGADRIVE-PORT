@@ -40,7 +40,9 @@ SceneId showLevel2();
 SceneId showEnding();
 SceneId showGameOver();
 
-// Función auxiliar para limpiar la pantalla entre escenas
-void clearScene();
+// Función auxiliar para limpiar la pantalla entre escenas.
+// keepAudio = TRUE: no detiene la música (para transiciones con música continua).
+void clearSceneEx(bool keepAudio);
+#define clearScene() clearSceneEx(FALSE)
 
 #endif

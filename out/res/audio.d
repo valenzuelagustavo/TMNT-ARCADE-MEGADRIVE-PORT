@@ -10,8 +10,11 @@ G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/foot_soldier_explode.wav
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/electric_shock.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/attack_turtles.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/hit_turtles.wav \
+G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/05\ -\ April's\ Room\ (Stage\ 1-2).vgm \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/scream_april.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/iron_ball.wav \
+G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/03\ -\ Choose\ Your\ Turtle.vgm \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/golpe.vgm \
+G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/07\ -\ April\ is\ Kidnapped\ (Cutscene).vgm \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/capsule_door.wav \
-G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/turtles2-selectcharacter_wip2.vgm
+G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/00\ -\ SanSenpai\ Credit.vgm

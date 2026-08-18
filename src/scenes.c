@@ -4,7 +4,7 @@
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
 #include "intro_tmnt.h"  // Intro arcade: intro_sky, intro_buildings, intro_speed, intro_street (IMAGE)
-#include "audio.h"   // music_sega, golpe, music_level1, select_music
+#include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_charselect, music_credits, music_ending
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
 #include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
@@ -126,9 +126,12 @@ static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
 // Volumen de audio (0..100) — requiere el driver XGM2 (recursos XGM2 en
 // audio.res). El XGM clásico no tiene control de volumen.
 // ---------------------------------------------------------------------------
-#define VOL_MUSIC_INTRO    100
-#define VOL_MUSIC_SELECT   100
-#define VOL_MUSIC_LEVEL1    80   // la música del nivel saturaba: bajada al 50%
+#define VOL_MUSIC_INTRO    90
+#define VOL_MUSIC_SELECT   90
+#define VOL_MUSIC_LEVEL1    90   // la música del nivel saturaba: bajada al 50%
+#define VOL_MUSIC_LEVEL2    90
+#define VOL_MUSIC_CREDITS  90
+#define VOL_MUSIC_ENDING    80
 #define VOL_SFX            100
 
 // ---------------------------------------------------------------------------
@@ -144,13 +147,15 @@ static u8 continuesLeft = 3;
 
 // ---------------------------------------------------------------------------
 // clearScene — limpieza completa entre escenas
+// keepAudio = TRUE: no detiene la música (para transiciones con música continua,
+//                    p.ej. nivel 2 → ending).
 // ---------------------------------------------------------------------------
-void clearScene() {
+void clearSceneEx(bool keepAudio) {
     PAL_fadeOutAll(20, FALSE);
     while(PAL_isDoingFade()) {
         SYS_doVBlankProcess();
     }
-    XGM2_stop();
+    if (!keepAudio) XGM2_stop();
     SPR_reset();
     // Vaciar YA la tabla de sprites del VDP: SPR_reset() limpia el estado
     // interno del motor (y los tiles del region de sprites) pero NO pisa la
@@ -924,19 +929,19 @@ SceneId showKonamiIntro()  { return SCENE_SGDK; }
 // START saltea la secuencia.
 // ---------------------------------------------------------------------------
 #define INTRO_SKY_X         0
-#define INTRO_SKY_X2        32
-#define INTRO_BUILDING_X    4
-#define INTRO_STREET_X      4
+#define INTRO_BUILDING_X    0
+#define INTRO_STREET_X      0
 #define INTRO_SPEED_COLS    32
 #define INTRO_SPEED_ROWS    8
 #define INTRO_HOLD_SECS     1
 #define INTRO_END_HOLD      2
-#define INTRO_SPEED_SECS    3
+#define INTRO_SPEED_SECS    4
 #define INTRO_MIN_SPEED     2
 #define INTRO_MAX_SPEED     8
 
 SceneId showArcadeIntro() {
     clearScene();
+    VDP_setScreenWidth256();
     SPR_initEx(420);
     VDP_setPlaneSize(BG_PLANE_W, 64, TRUE);
     VDP_clearPlane(BG_A, TRUE);
@@ -945,13 +950,12 @@ SceneId showArcadeIntro() {
 
     const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
     const u16 baseTiles = TILE_USER_INDEX;
-    const u16 skyTileCount = 34;   // intro_sky unique tiles (1088 / 32)
+    const u16 skyTileCount = intro_sky.tileset->numTile;
     const u16 otherTileBase = baseTiles + skyTileCount;
 
     // ---- Fase 0: Cielo (BG_B, estático) ----
     u16 skyAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, baseTiles);
-    VDP_drawImageEx(BG_B, &intro_sky, skyAttr, INTRO_SKY_X,  0, FALSE, TRUE);
-    VDP_drawImageEx(BG_B, &intro_sky, skyAttr, INTRO_SKY_X2, 0, FALSE, TRUE);
+    VDP_drawImageEx(BG_B, &intro_sky, skyAttr, INTRO_SKY_X, 0, FALSE, TRUE);
     PAL_setPalette(PAL0, intro_sky.palette->data, CPU);
     PAL_fadeIn(0, 15, intro_sky.palette->data, 20, FALSE);
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
@@ -963,15 +967,20 @@ SceneId showArcadeIntro() {
         SYS_doVBlankProcess();
     }
 
+    PAL_fadeOutAll(8, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
     // ---- Fase 1: Edificios (BG_A, scroll vertical) ----
     VDP_clearPlane(BG_A, TRUE);
     {
         u16 buildAttr = TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, otherTileBase);
-        VDP_drawImageEx(BG_A, &intro_buildings, buildAttr, INTRO_BUILDING_X,    0, FALSE, TRUE);
-        VDP_drawImageEx(BG_A, &intro_buildings, buildAttr, INTRO_BUILDING_X + 32, 0, FALSE, TRUE);
+        VDP_drawImageEx(BG_A, &intro_buildings, buildAttr, INTRO_BUILDING_X, 0, FALSE, TRUE);
     }
     PAL_setPalette(PAL0, intro_sky.palette->data,       DMA);
     PAL_setPalette(PAL1, intro_buildings.palette->data, DMA);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 10, FALSE);
+    PAL_fadeIn(16, 31, intro_buildings.palette->data, 10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
     VDP_setVerticalScroll(BG_A, 0);
 
     {
@@ -992,6 +1001,9 @@ SceneId showArcadeIntro() {
         }
     }
 
+    PAL_fadeOutAll(8, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
     // ---- Fase 2: Líneas de velocidad (BG_A, tiling + scroll rápido) ----
     VDP_clearPlane(BG_A, TRUE);
     {
@@ -1001,6 +1013,8 @@ SceneId showArcadeIntro() {
                 VDP_drawImageEx(BG_A, &intro_speed, speedAttr, c, r, FALSE, TRUE);
     }
     PAL_setPalette(PAL0, intro_sky.palette->data, DMA);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
     VDP_setVerticalScroll(BG_A, 0);
 
     {
@@ -1009,21 +1023,25 @@ SceneId showArcadeIntro() {
         while (speedTimer > 0) {
             if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
             speedTimer--;
-            scrollY += 6;
+            scrollY += 10;
             VDP_setVerticalScroll(BG_A, scrollY);
             SYS_doVBlankProcess();
         }
     }
+
+    PAL_fadeOutAll(8, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
     // ---- Fase 3: Calle (BG_A, scroll hasta alinear fondo) ----
 
     VDP_clearPlane(BG_A, TRUE);
     {
         u16 streetAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, otherTileBase);
-        VDP_drawImageEx(BG_A, &intro_street, streetAttr, INTRO_STREET_X,    0, FALSE, TRUE);
-        VDP_drawImageEx(BG_A, &intro_street, streetAttr, INTRO_STREET_X + 32, 0, FALSE, TRUE);
+        VDP_drawImageEx(BG_A, &intro_street, streetAttr, INTRO_STREET_X, 0, FALSE, TRUE);
     }
     PAL_setPalette(PAL0, intro_sky.palette->data, DMA);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
     VDP_setVerticalScroll(BG_A, 0);
 
     {
@@ -1057,6 +1075,7 @@ fin:
     VDP_setVerticalScroll(BG_A, 0);
     VDP_setVerticalScroll(BG_B, 0);
     SYS_doVBlankProcess();
+    VDP_setScreenWidth320();
     VDP_setPlaneSize(32, 32, TRUE);
     SPR_initEx(752);
     clearScene();
@@ -1391,7 +1410,7 @@ SceneId showCharSelect() {
     PAL_setPalette(PAL0, characters_greyscale.palette->data, DMA);
     VDP_drawImageEx(BG_B, &characters_greyscale, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 0, 0, FALSE, TRUE);
 
-    playMusicVol(select_music, VOL_MUSIC_SELECT);
+    playMusicVol(music_charselect, VOL_MUSIC_SELECT);
 
     const s16 charPosX[] = {8, 88, 168, 248};
     const s16 charPosY   = 48;
@@ -1601,7 +1620,7 @@ static bool drawTextTypewriter(const char* text, u16 x, u16 y, u16 delay) {
 // 32..126, por eso los textos van SIN acentos ni signos especiales.
 // ---------------------------------------------------------------------------
 #define CREDITS_CHAR_DELAY  2   // Más rápido que el título (hay mucho texto)
-#define CREDITS_HOLD_SECS   4   // Segundos con el texto completo en pantalla
+#define SGDK_HOLD_SECS   4   // Segundos con el texto completo en pantalla
 
 SceneId showSGDKIntro() {
     clearScene();
@@ -1645,7 +1664,7 @@ SceneId showSGDKIntro() {
         SYS_doVBlankProcess();
 
     // Mantener el texto completo en pantalla (START corta)
-    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * CREDITS_HOLD_SECS;
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * SGDK_HOLD_SECS;
     while (timer > 0) {
         timer--;
         if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
@@ -1670,7 +1689,7 @@ SceneId showSGDKIntro() {
 #define CREDITS_LOGO_Y  128
 #define CREDITS_SKEL_X  220
 #define CREDITS_SKEL_Y  100
-#define CREDITS_HOLD_SECS  4
+#define CREDITS_HOLD_SECS  2
 
 SceneId showCredits() {
     clearScene();
@@ -1709,6 +1728,11 @@ SceneId showCredits() {
     while (JOY_readJoypad(JOY_1) & BUTTON_START)
         SYS_doVBlankProcess();
 
+    // Música: arranca UNA vez antes de la pausa final (se reproduce una sola
+    // vez durante los CREDITS_HOLD_SECS segundos).
+    XGM2_setLoopNumber(0);
+    playMusicVol(music_credits, VOL_MUSIC_CREDITS);
+
     // Mantener en pantalla (el esqueleto se anima vía SPR_update; START corta)
     u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * CREDITS_HOLD_SECS;
     while (timer > 0) {
@@ -1718,6 +1742,7 @@ SceneId showCredits() {
         SYS_doVBlankProcess();
     }
 
+    XGM2_setLoopNumber(-1);   // restaurar loop infinito para la siguiente música
     VDP_loadFont(&font_default, DMA);
     clearScene();
     return SCENE_INTRO_ARCADE;
@@ -2935,7 +2960,7 @@ SceneId showLevel2() {
     //     levelFadeIn al final del setup ---
 
     // --- Música del nivel (los SFX por PCM siguen activos) ---
-    playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
+    playMusicVol(music_level2, VOL_MUSIC_LEVEL2);
 
     // --- Inicializar jugador(es) ---
     bool dosJugadores = (cantidadJugadores == 2);
@@ -3296,6 +3321,8 @@ SceneId showLevel2() {
                         shredderSpr = SPR_addSprite(&shredder_lvl1,
                                                     shredderX - cameraX, shredderY,
                                                     TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+                        playMusicVol(music_ending, VOL_MUSIC_ENDING);
+                        XGM2_setLoopNumber(0);
                         if (shredderSpr) {
                             // Detrás de April (depth -APRIL_LANE_Y+20 = -128):
                             // menor valor = delante, así que con -108 Shredder
@@ -3351,8 +3378,10 @@ SceneId showLevel2() {
                             // borde del nivel arranca el fade a negro (corre por
                             // VBlank mientras el sprite sigue volando); al
                             // completarse → victoria.
-                    if (cutTimer == 0 && shredderSpr)
-                        SPR_setAnimAndFrame(shredderSpr, 2, 2);
+                    if (cutTimer == 0) {
+                        if (shredderSpr)
+                            SPR_setAnimAndFrame(shredderSpr, 2, 2);
+                    }
                     if (cutTimer < SHREDDER_JUMP_FRAMES) {
                         u16 t = cutTimer;
                         s16 sx = SHREDDER_GRAB_X;
@@ -3656,7 +3685,7 @@ SceneId showLevel2() {
             while (PAL_isDoingFade()) SYS_doVBlankProcess();
         }
 
-        clearScene();
+        clearSceneEx(TRUE);
         return SCENE_ENDING;
     }
 
@@ -3673,7 +3702,7 @@ SceneId showLevel2() {
 // VRAM de sprites (SPR_end) mientras se muestran y se restaura antes de volver.
 // Permanece ~5 s y reinicia el juego (vuelve al logo de SEGA).
 SceneId showEnding() {
-    clearScene();
+    clearSceneEx(TRUE);               // limpiar sin cortar la música (viene de cutScene 4)
     SPR_end();                       // libera la VRAM de sprites (no se usan acá)
 
     VDP_setBackgroundColor(0);
@@ -3706,9 +3735,9 @@ SceneId showEnding() {
     // VBlank) antes de contar el retraso de la risa.
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
-    // Mantener ~5 segundos (START adelanta). La risa de Shredder NO suena al
+    // Mantener ~3 segundos (START adelanta). La risa de Shredder NO suena al
     // entrar a la escena: arranca ~1.5s después de verse la imagen.
-    u16 timer      = (IS_PAL_SYSTEM ? 50 : 60) * 5;
+    u16 timer      = (IS_PAL_SYSTEM ? 50 : 60) * 3;
     u16 laughDelay = 90;
     bool laughed   = FALSE;
     while (timer > 0) {
@@ -3725,6 +3754,7 @@ SceneId showEnding() {
         SYS_doVBlankProcess();
     }
 
+    XGM2_setLoopNumber(-1);   // restaurar loop infinito para la siguiente escena
     SPR_initEx(600);                 // restaurar el motor de sprites (lo usan las escenas siguientes)
     clearScene();
     return SCENE_SEGA;               // reinicia el juego

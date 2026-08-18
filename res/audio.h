@@ -16,8 +16,11 @@ extern const u8 capsule_door_sfx[14592];
 extern const u8 say_your_p_sfx[23552];
 extern const u8 shredder_laugh_sfx[31488];
 extern const u8 music_sega[1024];
-extern const u8 select_music[2048];
 extern const u8 music_level1[14592];
+extern const u8 music_level2[11008];
+extern const u8 music_charselect[4096];
+extern const u8 music_credits[1792];
+extern const u8 music_ending[4352];
 extern const u8 golpe[1024];
 
 #endif // _RES_AUDIO_H_
