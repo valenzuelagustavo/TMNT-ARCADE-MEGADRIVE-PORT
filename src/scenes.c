@@ -4,7 +4,7 @@
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
 #include "intro_tmnt.h"  // Intro arcade: intro_sky, intro_buildings, intro_speed, intro_street (IMAGE)
-#include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_charselect, music_credits, music_ending
+#include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_charselect, music_profiles, music_credits, music_ending
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
 #include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
@@ -1250,7 +1250,10 @@ SceneId showPlayerSelect() {
 // Pistas del sound test: nombre en pantalla (ASCII puro) + recurso XGM2.
 typedef struct { const char* name; const u8* track; } SoundTrack;
 static const SoundTrack soundTracks[] = {
-    { "FIRE!", music_level1 },   // música del nivel 1
+    { "FIRE!", music_level1 },
+    { "CHARACTER PROFILES", music_profiles },
+    { "APRIL'S ROOM", music_level2 },
+    { "CHOOSE YOUR TURTLE", music_charselect },
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 
@@ -2445,11 +2448,15 @@ SceneId showLevel1() {
             s16 ex = getEnemyCenterX(&enemies[i]);
             s16 ey = getEnemyCenterY(&enemies[i]);
 
+            // Golpe contra la HURTBOX del cuerpo del soldier (no contra el
+            // borde transparente del frame): playerAttackHitsBox solapa la
+            // caja del ataque con el cuerpo real segun el tipo.
+            s16     halfW    = enemyBodyHalfW(&enemies[i]);
             s16     dmg      = 0;
             Player* attacker = NULL;
-            if (playerAttackHits(&p1, ex, ey)) {
+            if (playerAttackHitsBox(&p1, ex, ey, halfW)) {
                 dmg = isPlayerSpecialAttack(&p1) ? ENEMY_HP : 1; attacker = &p1;
-            } else if (dosJugadores && playerAttackHits(&p2, ex, ey)) {
+            } else if (dosJugadores && playerAttackHitsBox(&p2, ex, ey, halfW)) {
                 dmg = isPlayerSpecialAttack(&p2) ? ENEMY_HP : 1; attacker = &p2;
             }
 
@@ -2503,11 +2510,13 @@ SceneId showLevel1() {
             if (e->state != ENEMY_STATE_ATTACK) continue;
 
             if (playerCanBeHit(&p1) &&
-                enemyTryHitPlayer(e, getPlayerWorldX(&p1), getPlayerY(&p1))) {
+                enemyTryHitPlayerBox(e, getPlayerWorldX(&p1), getPlayerY(&p1),
+                                     PLAYER_BODY_HALF_W)) {
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(&p1, getEnemyCenterX(e));
             } else if (dosJugadores && playerCanBeHit(&p2) &&
-                       enemyTryHitPlayer(e, getPlayerWorldX(&p2), getPlayerY(&p2))) {
+                       enemyTryHitPlayerBox(e, getPlayerWorldX(&p2), getPlayerY(&p2),
+                                            PLAYER_BODY_HALF_W)) {
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(&p2, getEnemyCenterX(e));
             }
@@ -2878,8 +2887,8 @@ static s16 capsuleShake(u8 tick) {
 #define SHREDDER_SPAWN_X       (ROCKSTEADY_TALADRO_X - SHREDDER_FRAME_W / 2)  // 304
 #define SHREDDER_GRAB_X        (158) // Ancla detrás de April (ver comentario arriba)
 #define SHREDDER_WALK_SPEED    3     // px/frame caminando hacia April
-#define SHREDDER_RAPTO_TICKS   12    // Ticks por cada frame 0 y 1 del Rapto
-#define SHREDDER_JUMP_FRAMES   54    // Duración del vuelo en arco (frames)
+#define SHREDDER_RAPTO_TICKS   6     // Ticks por cada frame 0 y 1 del Rapto — reducido ~0.4s
+#define SHREDDER_JUMP_FRAMES   36    // Duración del vuelo en arco (frames) — reducido ~1s
 #define SHREDDER_JUMP_X_END    356   // X de mundo al salir (pantalla 336: FUERA por la derecha)
 #define SHREDDER_JUMP_Y_END    70    // Y de ancla al salir (pies ~150, en la banda del cielo)
 #define SHREDDER_ARC_HEIGHT    24    // Elevación extra del ápice del arco (px)
@@ -3334,7 +3343,7 @@ SceneId showLevel2() {
                         }
                     }
                     // Pausa dramática corta mirando la escena, luego camina.
-                    if (++cutTimer >= 20) { cutScene = 2; cutTimer = 0; }
+                    if (++cutTimer >= 2) { cutScene = 2; cutTimer = 0; }
                     break;
                 }
                 case 2: {   // Camina (Walk [1]) por el lane de April. El spawn está a la
@@ -3481,11 +3490,13 @@ SceneId showLevel2() {
             s16 ex = getEnemyCenterX(&enemies[i]);
             s16 ey = getEnemyCenterY(&enemies[i]);
 
+            // Hurtbox del cuerpo (ver el mismo bloque del nivel 1).
+            s16     halfW    = enemyBodyHalfW(&enemies[i]);
             s16     dmg      = 0;
             Player* attacker = NULL;
-            if (playerAttackHits(&p1, ex, ey)) {
+            if (playerAttackHitsBox(&p1, ex, ey, halfW)) {
                 dmg = isPlayerSpecialAttack(&p1) ? ENEMY_HP : 1; attacker = &p1;
-            } else if (dosJugadores && playerAttackHits(&p2, ex, ey)) {
+            } else if (dosJugadores && playerAttackHitsBox(&p2, ex, ey, halfW)) {
                 dmg = isPlayerSpecialAttack(&p2) ? ENEMY_HP : 1; attacker = &p2;
             }
 
@@ -3503,25 +3514,24 @@ SceneId showLevel2() {
         // 6-boss. Colisiones: ataque del jugador → Rocksteady.
         // Normal −1 barra, especial −ROCKSTEADY_SPECIAL_DMG. Golpear con la
         // patada voladora suena el "pum" (igual que contra los foot soldiers).
-        // Hitbox más chica: el punto de impacto se hunde ROCKSTEADY_HIT_INSET
-        // px dentro del cuerpo (alejado del jugador), hay que llegar más cerca.
+        // MISMA geometría box-vs-box que contra los soldiers: la caja del
+        // ataque se SOLAPA con la hurtbox del cuerpo del jefe
+        // (ROCKSTEADY_BODY_HALF_W). Sin casos por facing: antes un punto de
+        // impacto "hundido" según hacia dónde miraba el jefe hacía que por
+        // la espalda ningún golpe conectara y de frente se pegara desde más
+        // lejos del contacto real (y asimétrico según el lado de ataque).
         if (rocksteadyCanBeHit(&boss)) {
-            s16     bcx = rocksteadyGetCenterX(&boss);
-            s16     by  = rocksteadyGetCenterY(&boss);
-            s16     p1cx = p1.x + PLAYER_SPRITE_W / 2;
-            s16     bx1  = bcx + ((bcx >= p1cx) ? ROCKSTEADY_HIT_INSET : -ROCKSTEADY_HIT_INSET);
+            s16     bcx   = rocksteadyGetCenterX(&boss);
+            s16     by    = rocksteadyGetCenterY(&boss);
             s16     bdmg = 0;
             Player* batt = NULL;
-            if (playerAttackHits(&p1, bx1, by)) {
+            if (playerAttackHitsBox(&p1, bcx, by, ROCKSTEADY_BODY_HALF_W)) {
                 bdmg = isPlayerSpecialAttack(&p1) ? ROCKSTEADY_SPECIAL_DMG : 1;
                 batt = &p1;
-            } else if (dosJugadores) {
-                s16 p2cx = p2.x + PLAYER_SPRITE_W / 2;
-                s16 bx2  = bcx + ((bcx >= p2cx) ? ROCKSTEADY_HIT_INSET : -ROCKSTEADY_HIT_INSET);
-                if (playerAttackHits(&p2, bx2, by)) {
-                    bdmg = isPlayerSpecialAttack(&p2) ? ROCKSTEADY_SPECIAL_DMG : 1;
-                    batt = &p2;
-                }
+            } else if (dosJugadores &&
+                       playerAttackHitsBox(&p2, bcx, by, ROCKSTEADY_BODY_HALF_W)) {
+                bdmg = isPlayerSpecialAttack(&p2) ? ROCKSTEADY_SPECIAL_DMG : 1;
+                batt = &p2;
             }
             if (bdmg > 0) {
                 rocksteadyDamage(&boss, bdmg);
@@ -3541,11 +3551,13 @@ SceneId showLevel2() {
             if (e->state != ENEMY_STATE_ATTACK) continue;
 
             if (playerCanBeHit(&p1) &&
-                enemyTryHitPlayer(e, getPlayerWorldX(&p1), getPlayerY(&p1))) {
+                enemyTryHitPlayerBox(e, getPlayerWorldX(&p1), getPlayerY(&p1),
+                                     PLAYER_BODY_HALF_W)) {
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(&p1, getEnemyCenterX(e));
             } else if (dosJugadores && playerCanBeHit(&p2) &&
-                       enemyTryHitPlayer(e, getPlayerWorldX(&p2), getPlayerY(&p2))) {
+                       enemyTryHitPlayerBox(e, getPlayerWorldX(&p2), getPlayerY(&p2),
+                                            PLAYER_BODY_HALF_W)) {
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(&p2, getEnemyCenterX(e));
             }
@@ -3574,16 +3586,7 @@ SceneId showLevel2() {
             }
         }
 
-        // 6c-bis. Balas del jefe → el ataque del jugador las rompe (antes de
-        //         chequear impacto contra el jugador) y → los jugadores.
-        {
-            if (rocksteadyBulletBreakByPlayerAttack(&p1)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-            }
-            if (dosJugadores && rocksteadyBulletBreakByPlayerAttack(&p2)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-            }
-        }
+        // 6c-bis. Balas del jefe → impacto contra los jugadores.
         {
             s16 hitX = 0;
             if (playerCanBeHit(&p1) &&
@@ -3738,7 +3741,7 @@ SceneId showEnding() {
     // Mantener ~3 segundos (START adelanta). La risa de Shredder NO suena al
     // entrar a la escena: arranca ~1.5s después de verse la imagen.
     u16 timer      = (IS_PAL_SYSTEM ? 50 : 60) * 3;
-    u16 laughDelay = 90;
+    u16 laughDelay = 30;   // ~0.5s después de verse la imagen (reducido 1s)
     bool laughed   = FALSE;
     while (timer > 0) {
         timer--;

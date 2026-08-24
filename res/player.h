@@ -49,6 +49,8 @@ typedef enum {
     STATE_JUMPING,
     STATE_HURT,
     STATE_KO,        // Sin vida: tortuga knockeada (último frame de HIT_BEHIND_2)
+    STATE_KNOCKED_DOWN,  // Derribada por un golpe fuerte (patada del jefe):
+                         // cae de espaldas, queda tirada y se levanta
     STATE_GRABBED
 } PlayerState;
 
@@ -149,6 +151,15 @@ typedef enum {
 #define PLAYER_JUMPKICK_REACH  28  // Alcance de la patada en salto (medido desde centro del sprite)
 
 // ---------------------------------------------------------------------------
+// Hurtbox del CUERPO de la tortuga (media anchura, en px desde el centro).
+// El frame mide 104px pero el cuerpo visible ocupa ~44px: los golpes de los
+// enemigos conectan contra esta caja, no contra el borde transparente del
+// frame (patrón colbox del manual SGDK). Así un puño que pega en el borde
+// del sprite pero no toca el cuerpo ya no conecta.
+// ---------------------------------------------------------------------------
+#define PLAYER_BODY_HALF_W  22
+
+// ---------------------------------------------------------------------------
 // Daño recibido (golpes de los foot soldiers)
 // ---------------------------------------------------------------------------
 #define PLAYER_HURT_INVINCIBLE   45  // I-frames tras un golpe normal (~0.75s, SIN parpadeo)
@@ -156,8 +167,13 @@ typedef enum {
 #define PLAYER_HURT_KNOCK_SPEED   2  // px/frame del knockback (10x2 = 20px)
 
 // Knockout (barra agotada) y respawn
-#define PLAYER_KO_FRAMES         70  // Cuánto dura la pose de tortuga knockeada (~1.2s)
+#define PLAYER_KO_FRAMES         70  // Cuánto dura la pose de knockeada (~1.2s)
 #define PLAYER_RESPAWN_INVINCIBLE 90 // I-frames al revivir (~1.5s) — ESTOS sí parpadean
+
+// Derribo (patada de Rocksteady): la tortuga cae de espaldas (HIT_BEHIND_1 →
+// HIT_BEHIND_2), queda TIRADA en el piso un momento y se levanta (GET_UP_2).
+#define PLAYER_KD_HOLD_FRAMES   35   // Frames tirada en el piso antes de levantarse
+#define PLAYER_KD_INVINCIBLE   110   // I-frames de TODA la secuencia (sin parpadeo)
 // Frame EXACTO de ANIM_HIT_BEHIND_2 con la tortuga tirada de espaldas (la
 // "12a" de la fila, índice 11). Se salta directo a este frame y se congela:
 // no queremos ver la caída (los frames anteriores), sólo la pose knockeada.
@@ -252,6 +268,9 @@ typedef struct {
 
     // Knockout / respawn
     u8          koTimer;        // Frames restantes de la pose de knockeado (0 = no está KO)
+    // Derribo (STATE_KNOCKED_DOWN): secuencia manual caída → piso → levantarse
+    u8          kdPhase;        // 0=cae (BEHIND_1→BEHIND_2) 1=piso 2=tirada 3=get-up
+    u8          kdTimer;        // Frames restantes tirada en el piso (fase 2)
     u8          blinkTimer;     // Frames restantes de PARPADEO (solo al revivir, no al ser golpeado)
     bool        gameOver;       // TRUE cuando cae sin vidas restantes (lo lee scenes.c)
 
@@ -314,6 +333,13 @@ bool isPlayerAttackActive(const Player* p);
 // incluso en el aire (ahora la profundidad es siempre 'y': ver jumpZ).
 bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY);
 
+// Igual que playerAttackHits pero contra un objetivo con CUERPO de media
+// anchura 'targetHalfW' (hurtbox): conecta cuando el intervalo del ataque
+// [-ATK_BACK, +reach] se SOLAPA con la caja del cuerpo [dx-halfW, dx+halfW],
+// no sólo cuando el centro entra en alcance. Con halfW = 0 es idéntica a
+// playerAttackHits (objetos puntuales: shurikens, balas del jefe).
+bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY, s16 targetHalfW);
+
 // TRUE si el ataque en curso es el ESPECIAL (mata foot soldiers de un
 // golpe). Consultar junto con playerAttackHits para decidir el daño.
 bool isPlayerSpecialAttack(const Player* p);
@@ -321,6 +347,9 @@ bool isPlayerSpecialAttack(const Player* p);
 // TRUE si la tortuga está ejecutando la patada con salto (en el aire). Se usa
 // para reproducir el SFX de impacto sólo cuando conecta la patada aérea.
 bool isPlayerJumpKicking(const Player* p);
+
+// TRUE si el jugador está en el aire saltando (con o sin patada voladora).
+bool isPlayerJumping(const Player* p);
 
 // Devuelve la dirección de la mirada (-1 izquierda, +1 derecha)
 s8   getPlayerDir(const Player* p);
@@ -346,6 +375,12 @@ void damagePlayer(Player* p, s16 attackerX);
 
 // Golpe que resta VARIAS barras de una (p.ej. el láser del robot = 4).
 void playerHitBars(Player* p, s16 attackerX, u8 bars);
+
+// Golpe FUERTE que DERRIBA: la tortuga cae de espaldas, queda tirada un
+// momento y se levanta (la usa la patada de Rocksteady). Misma regla de vida
+// que playerHitBars: si la barra llega a 0 → knockout normal. Si está
+// agarrada, degrada a un golpe normal (no rompe el agarre).
+void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars);
 
 // --- Agarre del látigo del robot (lo maneja robot.c) ---
 

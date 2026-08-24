@@ -70,6 +70,8 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->hurtDir       = 0;
     p->hurtToggle    = 0;
     p->koTimer       = 0;
+    p->kdPhase       = 0;
+    p->kdTimer       = 0;
     p->blinkTimer    = 0;
     p->gameOver      = FALSE;
     p->health        = PLAYER_MAX_HEALTH;   // barra de vida llena (se recarga por nivel)
@@ -461,6 +463,54 @@ void updatePlayer(Player* p) {
             break;
         }
 
+        case STATE_KNOCKED_DOWN: {
+            // Derribo (patada del jefe): pequeño deslizamiento inicial y la
+            // secuencia de anims a mano — HIT_BEHIND_1 (retroceso) →
+            // HIT_BEHIND_2 (cae de espaldas) → tirada en el piso un momento →
+            // GET_UP_2 (se levanta) → IDLE.
+            if (p->hurtTimer > 0) {
+                p->hurtTimer--;
+                p->x = clampS16(p->x + p->hurtDir * PLAYER_HURT_KNOCK_SPEED,
+                                p->boundLeft, effRight);
+            }
+            switch (p->kdPhase) {
+                case 0:   // retroceso terminado → caída de espaldas
+                    if (SPR_isAnimationDone(p->sprite)) {
+                        SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_2, 0);
+                        p->kdPhase = 1;
+                    }
+                    break;
+                case 1:   // cayó (último frame = tirada) → esperar en el piso
+                    if (SPR_isAnimationDone(p->sprite)) {
+                        p->kdPhase = 2;
+                        p->kdTimer = PLAYER_KD_HOLD_FRAMES;
+                    }
+                    break;
+                case 2:   // tirada; al terminar, se levanta
+                    if (p->kdTimer > 0) {
+                        p->kdTimer--;
+                    } else {
+                        p->kdPhase = 3;
+                        // Sheets viejas sin GET_UP_2: se levanta directo.
+                        if (p->numAnims > ANIM_GET_UP_2)
+                            SPR_setAnimAndFrame(p->sprite, ANIM_GET_UP_2, 0);
+                        else
+                            p->kdPhase = 4;
+                    }
+                    break;
+                case 3:   // levantándose
+                    if (SPR_isAnimationDone(p->sprite))
+                        p->kdPhase = 4;
+                    break;
+                default:  // 4 = listo → volver a jugable
+                    p->state = STATE_IDLE;
+                    SPR_setAnimationLoop(p->sprite, TRUE);
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                    break;
+            }
+            break;
+        }
+
         case STATE_GRABBED: {
             // Agarrado por el látigo del robot o por la espalda (foot soldier).
             // Se ZAFA masheando A/B/C (el metro grabTimer baja con cada press);
@@ -539,6 +589,10 @@ bool isPlayerAttackActive(const Player* p) {
 }
 
 bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY) {
+    return playerAttackHitsBox(p, targetCX, targetFeetY, 0);
+}
+
+bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY, s16 targetHalfW) {
     if (!isPlayerAttackActive(p))
         return FALSE;
 
@@ -549,7 +603,13 @@ bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY) {
     s16 pcx = p->x + PLAYER_SPRITE_W / 2;
     s16 dx  = (p->dir >= 0) ? (targetCX - pcx) : (pcx - targetCX);
     s16 reach = p->isJumpKicking ? PLAYER_JUMPKICK_REACH : p->atkReach;
-    if (dx < -PLAYER_ATK_BACK || dx > reach)
+    // Solape horizontal entre la caja del ataque [-ATK_BACK, +reach] y la
+    // hurtbox del objetivo [dx-halfW, dx+halfW]: el golpe conecta si toca el
+    // CUERPO, no sólo si el centro entra en alcance (objetivo puntual con
+    // halfW = 0: shurikens, balas del jefe).
+    if (dx - targetHalfW > reach)
+        return FALSE;
+    if (dx + targetHalfW < -PLAYER_ATK_BACK)
         return FALSE;
 
     // Profundidad: tolerancia SIMÉTRICA alrededor del lane del jugador.
@@ -572,6 +632,12 @@ bool isPlayerJumpKicking(const Player* p) {
     return (p->state == STATE_JUMPING && p->isJumpKicking != JUMPKICK_NONE);
 }
 
+// En el aire saltando (con o sin patada voladora). La usa Rocksteady para
+// apuntar sus balas: jugador en el piso → tiro recto, saltando → hacia arriba.
+bool isPlayerJumping(const Player* p) {
+    return (p->state == STATE_JUMPING);
+}
+
 s8 getPlayerDir(const Player* p) {
     return p->dir;
 }
@@ -591,7 +657,7 @@ bool playerCanBeHit(const Player* p) {
     // HELD sin soltar el agarre). El doble agarre se bloquea aparte con
     // playerIsGrabbed (ver playerWhipGrab y el grab de enemy.c).
     if (p->state == STATE_HURT || p->state == STATE_JUMPING ||
-        p->state == STATE_KO)
+        p->state == STATE_KO || p->state == STATE_KNOCKED_DOWN)
         return FALSE;
     return TRUE;
 }
@@ -679,6 +745,40 @@ void damagePlayer(Player* p, s16 attackerX) {
 void playerHitBars(Player* p, s16 attackerX, u8 bars) {
     if (!playerCanBeHit(p)) return;
     playerTakeHit(p, attackerX, bars);
+}
+
+// Golpe fuerte que DERRIBA (patada de Rocksteady): cae de espaldas, queda
+// tirada PLAYER_KD_HOLD_FRAMES y se levanta. Con la barra en 0 → KO normal.
+// Agarrada: degrada a golpe normal para no romper la lógica del agarre.
+void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
+    if (!playerCanBeHit(p)) return;
+    if (p->state == STATE_GRABBED) {
+        playerTakeHit(p, attackerX, bars);
+        return;
+    }
+
+    s16 centerX = p->x + PLAYER_SPRITE_W / 2;
+    p->hurtDir  = (attackerX >= centerX) ? -1 : 1;
+
+    // Un golpe corta cualquier combo o especial en curso
+    p->comboStep       = 0;
+    p->comboBuffered   = 0;
+    p->comboLinger     = 0;
+    p->attackIsSpecial = 0;
+
+    if (p->health > (s16)bars) p->health -= (s16)bars;
+    else                       p->health = 0;
+    if (p->health == 0) { playerEnterKO(p); return; }
+
+    // Secuencia de derribo, animaciones a MANO con auto-anim encendida y sin
+    // loop (mismo patrón que STATE_HURT: isAnimationDone marca el paso).
+    p->state      = STATE_KNOCKED_DOWN;
+    p->kdPhase    = 0;
+    p->kdTimer    = 0;
+    p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
+    p->invincible = PLAYER_KD_INVINCIBLE;       // intocable toda la secuencia
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_1, 0);
 }
 
 // ---------------------------------------------------------------------------

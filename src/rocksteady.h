@@ -46,7 +46,10 @@
 #define ROCKSTEADY_ANIM_HURT_ARMS  10   // Recibe golpes con el arma (fase 2)
 
 // --- Geometría del frame (104x104, igual que las tortugas) ---
-// r->x es el CENTRO del cuerpo (mundo); r->y son los PIES (lane).
+// OJO: r->x ancla el BORDE IZQUIERDO del frame en pantalla (SPR_setPosition
+// esquina superior izquierda, sin la compensación de robot.c); el CENTRO
+// visual del cuerpo es r->x + FRAME_W/2 (lo devuelve rocksteadyGetCenterX).
+// r->y son los PIES (lane).
 #define ROCKSTEADY_FRAME_W      104
 #define ROCKSTEADY_FRAME_H      104
 #define ROCKSTEADY_FOOT_OFFSET   96   // Pies ~96px por debajo del tope del frame
@@ -67,15 +70,32 @@
 #define ROCKSTEADY_PATROL_RIGHT 330  // centro del cuerpo, extremo derecho
 #define ROCKSTEADY_TALADRO_X   340   // X de mundo de la cápsula del taladro (por donde emerge)
 #define ROCKSTEADY_SPAWN_X     (ROCKSTEADY_TALADRO_X - 64)   // Aparece 8 tiles (64px) a la izquierda de la cápsula
-#define ROCKSTEADY_HIT_INSET    10   // Punto de impacto hundido en el cuerpo (hitbox más chica)
+// Hurtbox del CUERPO del jefe (media anchura desde el centro): los golpes de
+// la tortuga conectan por SOLAPE de cajas (playerAttackHitsBox), igual que
+// contra los foot soldiers, SIN depender del facing del jefe — de frente hay
+// que llegar al contacto real de los sprites y por la espalda se pega igual.
+// 20px ≈ la hurtbox del foot soldier naranja: puño/nunchaku/sai piden contacto,
+// katana/bō llegan ~20px antes (el largo del arma).
+#define ROCKSTEADY_BODY_HALF_W  20
 
 // --- Introducción del jefe (cápsula del taladro) ---
 #define ROCKSTEADY_EMERGE_STAND 170  // Frames quieto en la puerta (≈ duración de say_your_p) antes de bajar al arena
 
-// --- Ataques (decisión por distancia centro↔centro) ---
-#define ROCKSTEADY_CHARGE_MIN   90   // distX para elegir estampida (fase 1)
-#define ROCKSTEADY_MELEE_RANGE  32
-#define ROCKSTEADY_SHOOT_RANGE 130   // distX para abrir el disparo (fase 2)
+// --- Ataques (distancias medidas desde el CENTRO VISUAL del cuerpo,
+//     r->x + FRAME_W/2) ---
+// Rango de CONTACTO centro-a-centro: hasta acá camina y se planta el jefe, y
+// es el umbral "en alcance" del timer anti-camping. La distancia real de
+// combos es 55-80px (alcance del arma + hurtbox del jefe).
+#define ROCKSTEADY_KICK_RANGE       64
+#define ROCKSTEADY_CHARGE_HIT_RANGE 56  // ventana de impacto de la estampida
+// La PATADA ya NO es una decisión espontánea: SOLO sale como contraataque
+// cuando recibe ROCKSTEADY_COUNTER_HITS golpes seguidos.
+#define ROCKSTEADY_COUNTER_HITS      2
+// Anti-camping: jugador fuera de alcance durante estos frames (~2 s) seguidos
+// mientras el jefe está neutral → EMBESTIDA.
+#define ROCKSTEADY_FAR_FRAMES      120
+#define ROCKSTEADY_SHOOT_RANGE    130   // distX para abrir el disparo (fase 2)
+#define ROCKSTEADY_SHOOT_ALIGN_Y    6   // |dy| máx con el jugador para disparar
 #define ROCKSTEADY_HIT_TOL_Y    25   // |dy| máx (pies) para conectar ataques
 #define ROCKSTEADY_ATTACK_COOLDOWN 40
 #define ROCKSTEADY_HURT_FRAMES  14   // Flinch tras un golpe normal
@@ -86,15 +106,28 @@
 #define ROCKSTEADY_CHARGE_OVER  18   // Frames que sigue la estampida tras impactar (overshoot)
 
 // --- Balas del disparo (fase 2) ---
-#define MAX_ROCKSTEADY_BULLETS   6   // Proyectiles simultáneos
-#define ROCKSTEADY_BULLET_SPEED  3   // px/frame
+#define MAX_ROCKSTEADY_BULLETS   9   // Proyectiles simultáneos (Y-pattern + barrages)
+#define ROCKSTEADY_BULLET_SPEED  3   // px/frame horizontal
 #define ROCKSTEADY_BULLET_DMG    1   // Barras de vida al impactar
-#define ROCKSTEADY_SHOT_COUNT    3   // Balas por ráfaga
+#define ROCKSTEADY_SHOT_COUNT    3   // Balas por ráfaga (fase 2 normal)
 #define ROCKSTEADY_SHOT_TICKS    5   // Ticks entre frames de la anim de disparo
 // Frames de la anim [9] en los que sale cada bala (dispara/retrocede 3 veces)
 #define ROCKSTEADY_SHOT_FRAME_A  3
 #define ROCKSTEADY_SHOT_FRAME_B  5
 #define ROCKSTEADY_SHOT_FRAME_C  7
+// Ráfagas de la retirada (3-4 barrages)
+#define ROCKSTEADY_BARRAGE_COUNT    4   // Número de ráfagas en la retirada
+#define ROCKSTEADY_BARRAGE_INTERVAL 60  // Frames entre cada ráfaga
+#define ROCKSTEADY_BARRAGE_SHOTS    3   // Balas por ráfaga en la retirada
+// Disparo hacia arriba (fallo intencional según la guía del arcade)
+#define ROCKSTEADY_UPSHOT_DY (-2)   // Velocidad vertical del tiro hacia arriba
+// Anger: el jefe se mueve más rápido tras recibir golpes en fase 2
+#define ROCKSTEADY_ANGER_THRESHOLD 3   // Golpes en fase 2 para activar anger
+#define ROCKSTEADY_ANGER_SPEED_MULT 2  // +1 px/frame (2→3 caminar, 6→7 charge)
+// Corner charge: se va a la esquina, guarda arma, carga varias veces
+#define ROCKSTEADY_CORNER_X     155   // X de mundo de la esquina izquierda
+#define ROCKSTEADY_CORNER_CHARGES 3   // Cargas consecutivas desde la esquina
+#define ROCKSTEADY_CORNER_CHARGE_INTERVAL 20  // Frames entre cada carga
 
 typedef enum {
     ROCKSTEADY_INACTIVE,    // Todavía no apareció
@@ -110,6 +143,8 @@ typedef enum {
     ROCKSTEADY_SHOOT,       // Ráfaga de balas (fase 2)
     ROCKSTEADY_KICK_ARMS,   // Patada con el arma (fase 2)
     ROCKSTEADY_HURT_ARMS,   // Flinch al recibir golpe (fase 2)
+    ROCKSTEADY_RETREAT,     // Se retira al fondo y dispara 3-4 ráfagas (fase 2)
+    ROCKSTEADY_CORNER_CHARGE, // En la esquina: guarda arma y carga varias veces
     ROCKSTEADY_DEAD,        // Cayendo (anim [4] hasta el final)
     ROCKSTEADY_GONE         // Muerto y removido
 } RocksteadyState;
@@ -118,7 +153,8 @@ typedef struct {
     Sprite*     sprite;
     RocksteadyState state;
     u8          phase;       // 1 = sin arma · 2 = con arma
-    s16         x;           // X de MUNDO del CENTRO del cuerpo
+    s16         x;           // X de MUNDO del BORDE IZQUIERDO del frame
+                              // (centro visual = x + FRAME_W/2, ver GetCenterX)
     s16         y;           // Y = PIES (lane)
     s16         cameraOffsetX;
     s8          dir;         // -1 mira izquierda / +1 mira derecha
@@ -128,12 +164,30 @@ typedef struct {
     u8          attackCooldown;
     u8          hitsTaken;   // Golpes recibidos desde el último knock-down
     u8          knockdowns;  // Total de caídas en fase 1
-    u8          moveToggle;  // Alterna estampida / acercarse caminando cuando está lejos (fase 1)
+    u8          comboHits;     // Golpes seguidos sin poder responder (contraataque)
+    u8          counterPending; // 1 = al próximo flinch suelta la patada counter
+    u16         farTimer;      // Frames seguidos con el jugador fuera de alcance (anti-camping)
+    u8          moveToggle;  // Alterna retirada / esquina cuando está enojo (fase 2)
     u8          chargeHit;   // 1 = la estampida ya impactó en esta carga (overshoot sin re-dañar)
-    // Ráfaga de disparos (control manual de frames de la anim [9])
+    // Ráfaga de disparos (control manual de frames de la anim [9]).
+    // Dirección de CADA bala: recta si el jugador está en el piso, diagonal
+    // arriba si está saltando (isPlayerJumping).
     u8          shotFrame;   // Frame actual de SHOOT
     u8          shotsFired;  // Balas disparadas en esta ráfaga
     u8          shotTimer;   // Ticks hasta el próximo paso de frame
+    // Anger system (fase 2: se mueve más rápido tras recibir golpes)
+    u8          angerHits;   // Golpes recibidos en fase 2
+    u8          angerActive; // 1 = velocidad aumentada
+    // Retirada (fase 2: se retira al fondo y dispara ráfagas)
+    u8          barrageCount;  // Ráfagas disparadas en la retirada
+    u16         barrageTimer;  // Timer para la próxima ráfaga
+    u8          barrageShots;  // Balas disparadas en la ráfaga actual
+    u16         barrageShotTimer; // Ticks entre balas de la ráfaga
+    s16         retreatTargetX;   // X objetivo de la retirada
+    s16         retreatBaseY;     // Y base para el movimiento vertical entre ráfagas
+    // Corner charge (esquina: guarda arma y carga varias veces)
+    u8          cornerChargesLeft;  // Cargas restantes
+    u16         cornerChargeTimer;  // Timer entre cargas
 } Rocksteady;
 
 // --- API pública ---
@@ -153,8 +207,5 @@ void rocksteadyBulletReleaseAll(void);
 // Chequea colisión de todas las balas activas contra un jugador en (px, py)
 // (centro del frame). Devuelve TRUE si alguna impactó (una vez por bala).
 bool rocksteadyBulletCheckHitPlayer(s16 px, s16 py, s16* hitX);
-// Rompe las balas alcanzadas por la hitbox del ataque del jugador (se llama
-// ANTES de rocksteadyBulletCheckHitPlayer).
-bool rocksteadyBulletBreakByPlayerAttack(const Player* p);
 
 #endif

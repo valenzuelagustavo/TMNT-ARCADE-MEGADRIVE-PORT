@@ -331,7 +331,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->state       = ENEMY_STATE_PATROL;
     e->dir         = -1;
     e->timer       = 0;
-    e->hp          = ENEMY_HP;
+    e->hp          = (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_HP_ORANGE
+                                                              : ENEMY_HP_PURPLE;
     e->invincible  = 0;
     e->palette     = palette;
     e->type        = type;
@@ -493,6 +494,11 @@ s16 getEnemyCenterX(const Enemy* e) {
 
 s16 getEnemyCenterY(const Enemy* e) {
     return e->y;
+}
+
+s16 enemyBodyHalfW(const Enemy* e) {
+    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_BODY_HALF_W_ORANGE
+                                                       : ENEMY_BODY_HALF_W_PURPLE;
 }
 
 // ---------------------------------------------------------------------------
@@ -972,6 +978,10 @@ void separateEnemies(Enemy* list, u16 count) {
 // HITBOX DE ATAQUE — enemigo → jugador
 // ---------------------------------------------------------------------------
 bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py) {
+    return enemyTryHitPlayerBox(e, px, py, 0);
+}
+
+bool enemyTryHitPlayerBox(Enemy* e, s16 px, s16 py, s16 targetHalfW) {
     if (e->state != ENEMY_STATE_ATTACK || e->attackHit || !e->sprite)
         return FALSE;
 
@@ -1002,7 +1012,11 @@ bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py) {
     s16 ex  = getEnemyCenterX(e);
     s16 pcx = px + PLAYER_SPRITE_W / 2;
     s16 dx  = (e->dir >= 0) ? (pcx - ex) : (ex - pcx);
-    if (dx < -ENEMY_HIT_BACK_X || dx > reach)
+    // Solape horizontal: ataque [-BACK_X, +reach] vs cuerpo del jugador
+    // [dx-halfW, dx+halfW]. Con halfW = 0 es el chequeo puntual de siempre.
+    if (dx - targetHalfW > reach)
+        return FALSE;
+    if (dx + targetHalfW < -ENEMY_HIT_BACK_X)
         return FALSE;
 
     if (absS16(py - e->y) > ENEMY_HIT_TOL_Y)

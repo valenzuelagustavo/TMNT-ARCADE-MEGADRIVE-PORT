@@ -38,7 +38,23 @@
 #define ENEMY_SPRITE_W_ORANGE  104   // Ancho del frame naranja (px)
 #define ENEMY_SPRITE_H_ORANGE  104   // Alto del frame naranja (px)
 #define ENEMY_FOOT_OFFSET_ORANGE 96  // Pies ~96px bajo el borde superior (naranja)
-#define ENEMY_HP            4    // Golpes necesarios para eliminar al foot soldier
+#define ENEMY_HP            4    // Daño que mata a CUALQUIER foot soldier de un
+                                 // golpe (especial de la tortuga, bola de hierro)
+// ---------------------------------------------------------------------------
+// Hurtbox del CUERPO por tipo (media anchura en px desde el centro del frame).
+// Patrón colbox del manual SGDK: el golpe conecta contra el cuerpo visible,
+// no contra el borde transparente del frame. El morado es esbelto (frame 64px,
+// cuerpo ~32px); el naranja es corpulento pero su frame de 104px tiene mucho
+// aire (cuerpo ~40px).
+// ---------------------------------------------------------------------------
+#define ENEMY_BODY_HALF_W_PURPLE   16
+#define ENEMY_BODY_HALF_W_ORANGE   20
+
+// Vida maxima POR TIPO (max_health de la tabla de tipos del manual SGDK):
+// initEnemySpawn la asigna al spawnear. Hoy ambas mueren con los mismos
+// golpes (4), pero cada tipo puede ajustarse sin tocar el resto del codigo.
+#define ENEMY_HP_PURPLE    4    // Golpes para eliminar al morado
+#define ENEMY_HP_ORANGE    4    // Golpes para eliminar al naranja
 #define MAX_ACTIVE_ENEMIES  4    // Foot soldiers vivos al mismo tiempo (tope de spawn)
 #define ENEMY_INVINCIBLE    20
 
@@ -337,12 +353,23 @@ bool enemyCanBeHit(const Enemy* e);
 s16  getEnemyCenterX(const Enemy* e);
 s16  getEnemyCenterY(const Enemy* e);
 
+// Media anchura del CUERPO del enemigo (hurtbox) segun su tipo. Pasarla a
+// playerAttackHitsBox para que los golpes de la tortuga conecten contra el
+// cuerpo y no contra el borde transparente del frame.
+s16  enemyBodyHalfW(const Enemy* e);
+
 // Intenta conectar el ataque en curso contra un jugador en (px, py) — coords
 // de mundo, px = borde izquierdo del frame (misma grilla de 104px), py = pies.
 // Devuelve TRUE una sola vez por swing (marca attackHit); el llamador aplica
 // damagePlayer. Chequear playerCanBeHit ANTES de llamar, para no "gastar" el
 // golpe contra un jugador invulnerable.
 bool enemyTryHitPlayer(Enemy* e, s16 px, s16 py);
+
+// Igual que enemyTryHitPlayer pero contra la hurtbox del cuerpo del jugador:
+// el golpe conecta si el intervalo del ataque se SOLAPA con el cuerpo real
+// (media anchura 'targetHalfW' = PLAYER_BODY_HALF_W), no sólo si toca el
+// punto central. Con halfW = 0 es idéntica a enemyTryHitPlayer.
+bool enemyTryHitPlayerBox(Enemy* e, s16 px, s16 py, s16 targetHalfW);
 
 // ---------------------------------------------------------------------------
 // Sistema de shurikens (proyectiles del foot soldier naranja)

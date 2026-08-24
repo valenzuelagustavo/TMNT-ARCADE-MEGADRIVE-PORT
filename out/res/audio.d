@@ -11,6 +11,7 @@ G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/electric_shock.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/attack_turtles.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/hit_turtles.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/05\ -\ April's\ Room\ (Stage\ 1-2).vgm \
+G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/02\ -\ Character\ Profiles.vgm \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/scream_april.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/audio/iron_ball.wav \
 G:/TMNT\ MEGADRIVE/Claude/TMNT_MEGADRIVE_PORT/res/music/03\ -\ Choose\ Your\ Turtle.vgm \

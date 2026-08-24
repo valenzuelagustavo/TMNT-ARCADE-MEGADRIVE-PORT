@@ -19,6 +19,7 @@ extern const u8 music_sega[1024];
 extern const u8 music_level1[14592];
 extern const u8 music_level2[11008];
 extern const u8 music_charselect[4096];
+extern const u8 music_profiles[2304];
 extern const u8 music_credits[1792];
 extern const u8 music_ending[4352];
 extern const u8 golpe[1024];
