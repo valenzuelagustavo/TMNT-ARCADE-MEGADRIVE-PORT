@@ -3,6 +3,7 @@
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
+#include "intro_tmnt.h"  // Intro arcade: intro_sky, intro_buildings, intro_speed, intro_street (IMAGE)
 #include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_charselect, music_profiles, music_credits, music_ending
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
@@ -184,9 +185,7 @@ void clearSceneEx(bool keepAudio) {
 // ---------------------------------------------------------------------------
 // Helper — reproducir un track XGM2 con volumen (FM + PSG en 0..100)
 // ---------------------------------------------------------------------------
-// Compartida con las escenas que viven en sus propios modulos (declarada en
-// scenes.h). Antes era static; dejo de serlo cuando scene_profiles.c la necesito.
-void playMusicVol(const u8* track, u16 vol) {
+static void playMusicVol(const u8* track, u16 vol) {
     XGM2_setFMVolume(vol);
     XGM2_setPSGVolume(vol);
     XGM2_play(track);
@@ -920,13 +919,168 @@ SceneId showSegaIntro() {
 SceneId showKonamiIntro()  { return SCENE_SGDK; }
 
 // ---------------------------------------------------------------------------
-// Intro arcade (TMNT) -> src/intro_arcade.c
+// Intro arcade (TMNT) — 4 fases: cielo → edificios → líneas → calle
 // ---------------------------------------------------------------------------
-// showArcadeIntro() se mudo a su propio modulo (src/intro_arcade.c) cuando se
-// reescribio siguiendo el analisis frame a frame de la intro original: son 7
-// escenas con streaming vertical de la tira del dolly, sprites de las 4
-// tortugas y tres layouts distintos de VRAM. El prototipo sigue en scenes.h.
+// Fondo: cielo (BG_B, estático) + contenido dinámico (BG_A).
+// Edificios: scroll vertical de BG_A de 0→288 px (cámara desciende).
+// Líneas de velocidad: tiling a velocidad alta durante 3 s.
+// Calle: scroll de BG_A de 0→164 px hasta alinear fondo con borde inferior,
+//        pausa 2 s, fade a negro.
+// START saltea la secuencia.
 // ---------------------------------------------------------------------------
+#define INTRO_SKY_X         0
+#define INTRO_BUILDING_X    0
+#define INTRO_STREET_X      0
+#define INTRO_SPEED_COLS    32
+#define INTRO_SPEED_ROWS    8
+#define INTRO_HOLD_SECS     1
+#define INTRO_END_HOLD      2
+#define INTRO_SPEED_SECS    4
+#define INTRO_MIN_SPEED     2
+#define INTRO_MAX_SPEED     8
+
+SceneId showArcadeIntro() {
+    clearScene();
+    VDP_setScreenWidth256();
+    SPR_initEx(420);
+    VDP_setPlaneSize(BG_PLANE_W, 64, TRUE);
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
+    VDP_setBackgroundColor(0);
+
+    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
+    const u16 baseTiles = TILE_USER_INDEX;
+    const u16 skyTileCount = intro_sky.tileset->numTile;
+    const u16 otherTileBase = baseTiles + skyTileCount;
+
+    // ---- Fase 0: Cielo (BG_B, estático) ----
+    u16 skyAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, baseTiles);
+    VDP_drawImageEx(BG_B, &intro_sky, skyAttr, INTRO_SKY_X, 0, FALSE, TRUE);
+    PAL_setPalette(PAL0, intro_sky.palette->data, CPU);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 20, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    u16 holdTimer = fps * INTRO_HOLD_SECS;
+    while (holdTimer > 0) {
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+        holdTimer--;
+        SYS_doVBlankProcess();
+    }
+
+    PAL_fadeOutAll(8, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    // ---- Fase 1: Edificios (BG_A, scroll vertical) ----
+    VDP_clearPlane(BG_A, TRUE);
+    {
+        u16 buildAttr = TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, otherTileBase);
+        VDP_drawImageEx(BG_A, &intro_buildings, buildAttr, INTRO_BUILDING_X, 0, FALSE, TRUE);
+    }
+    PAL_setPalette(PAL0, intro_sky.palette->data,       DMA);
+    PAL_setPalette(PAL1, intro_buildings.palette->data, DMA);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 10, FALSE);
+    PAL_fadeIn(16, 31, intro_buildings.palette->data, 10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_setVerticalScroll(BG_A, 0);
+
+    {
+        s16 scrollY = 0;
+        const s16 scrollMax = 288;
+        const s16 scrollMid = scrollMax / 2;
+        while (scrollY < scrollMax) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            s16 speed;
+            if (scrollY < scrollMid)
+                speed = INTRO_MIN_SPEED + ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * scrollY) / scrollMid;
+            else
+                speed = INTRO_MAX_SPEED - ((INTRO_MAX_SPEED - INTRO_MIN_SPEED) * (scrollY - scrollMid)) / scrollMid;
+            scrollY += speed;
+            if (scrollY > scrollMax) scrollY = scrollMax;
+            VDP_setVerticalScroll(BG_A, scrollY);
+            SYS_doVBlankProcess();
+        }
+    }
+
+    PAL_fadeOutAll(8, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    // ---- Fase 2: Líneas de velocidad (BG_A, tiling + scroll rápido) ----
+    VDP_clearPlane(BG_A, TRUE);
+    {
+        u16 speedAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, otherTileBase);
+        for (u16 r = 0; r < 64; r += INTRO_SPEED_ROWS)
+            for (u16 c = 0; c < 64; c += INTRO_SPEED_COLS)
+                VDP_drawImageEx(BG_A, &intro_speed, speedAttr, c, r, FALSE, TRUE);
+    }
+    PAL_setPalette(PAL0, intro_sky.palette->data, DMA);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_setVerticalScroll(BG_A, 0);
+
+    {
+        u16 speedTimer = fps * INTRO_SPEED_SECS;
+        s16 scrollY = 0;
+        while (speedTimer > 0) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            speedTimer--;
+            scrollY += 10;
+            VDP_setVerticalScroll(BG_A, scrollY);
+            SYS_doVBlankProcess();
+        }
+    }
+
+    PAL_fadeOutAll(8, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    // ---- Fase 3: Calle (BG_A, scroll hasta alinear fondo) ----
+
+    VDP_clearPlane(BG_A, TRUE);
+    {
+        u16 streetAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, otherTileBase);
+        VDP_drawImageEx(BG_A, &intro_street, streetAttr, INTRO_STREET_X, 0, FALSE, TRUE);
+    }
+    PAL_setPalette(PAL0, intro_sky.palette->data, DMA);
+    PAL_fadeIn(0, 15, intro_sky.palette->data, 10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_setVerticalScroll(BG_A, 0);
+
+    {
+        s16 scrollY = 0;
+        const s16 scrollMax = 168;  // 392 - 224
+        while (scrollY < scrollMax) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            scrollY += 3;
+            if (scrollY > scrollMax) scrollY = scrollMax;
+            VDP_setVerticalScroll(BG_A, scrollY);
+            SYS_doVBlankProcess();
+        }
+
+        holdTimer = fps * INTRO_END_HOLD;
+        while (holdTimer > 0) {
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) goto fin;
+            holdTimer--;
+            SYS_doVBlankProcess();
+        }
+    }
+
+fin:
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    PAL_fadeOutAll(10, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
+    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setHorizontalScroll(BG_B, 0);
+    VDP_setVerticalScroll(BG_A, 0);
+    VDP_setVerticalScroll(BG_B, 0);
+    SYS_doVBlankProcess();
+    VDP_setScreenWidth320();
+    VDP_setPlaneSize(32, 32, TRUE);
+    SPR_initEx(752);
+    clearScene();
+    return SCENE_VRAM_CLEAR;
+}
 
 // ---------------------------------------------------------------------------
 // 5a. Escena BUFFER: borrado total de VRAM entre la intro y los menús
@@ -987,10 +1141,6 @@ SceneId showVramClear() {
 // ---------------------------------------------------------------------------
 // 5. Selección de número de jugadores
 // ---------------------------------------------------------------------------
-// Inactividad que dispara el modo atracto (perfiles de las tortugas).
-#define PLAYER_SELECT_IDLE_SECS   15
-#define PLAYER_SELECT_IDLE_TICKS  ((IS_PAL_SYSTEM ? 50 : 60) * PLAYER_SELECT_IDLE_SECS)
-
 SceneId showPlayerSelect() {
     clearScene();
     // El fondo 320x224 necesita muchos tiles de usuario. Reducimos el
@@ -1041,22 +1191,12 @@ SceneId showPlayerSelect() {
     u8  selectedOption = 0;
     u16 prev = 0;
 
-    // Modo ATRACTO: si nadie toca nada durante PLAYER_SELECT_IDLE_SECS, la
-    // pantalla se va sola a los perfiles de las tortugas (SCENE_PROFILES), que
-    // al volver reentra aca y reinicia la cuenta -> cada timeout muestra otra.
-    u16 idleTicks = 0;
-    bool goToProfiles = FALSE;
-
     // Esperar a que se suelte START para no confirmar al instante.
     while (JOY_readJoypad(JOY_1) & BUTTON_START)
         SYS_doVBlankProcess();
 
     while (1) {
         u16 value = JOY_readJoypad(JOY_1);
-
-        // Cualquier boton de cualquiera de los dos joysticks resetea la cuenta
-        if (value | JOY_readJoypad(JOY_2)) idleTicks = 0;
-        else if (++idleTicks >= PLAYER_SELECT_IDLE_TICKS) { goToProfiles = TRUE; break; }
 
         if (justPressedJoy(value, prev, BUTTON_UP))   selectedOption = (selectedOption + 2) % 3;
         if (justPressedJoy(value, prev, BUTTON_DOWN)) selectedOption = (selectedOption + 1) % 3;
@@ -1068,13 +1208,6 @@ SceneId showPlayerSelect() {
         prev = value;
         SPR_update();
         SYS_doVBlankProcess();
-    }
-
-    if (goToProfiles) {
-        VDP_loadFont(&font_default, DMA);
-        SPR_end();
-        SPR_initEx(752);
-        return SCENE_PROFILES;
     }
 
     // selectedOption 0 → 1 jugador | 1 → 2 jugadores | 2 → OPCIONES

@@ -814,3 +814,187 @@ título completa, sin tocar `main.c` ni `scenes.h` (el enganche
 - **Build verde:** `make` completo, `out/rom.bin` = 1048576 bytes (solo los
   warnings conocidos de `showCharSelect`). Pendiente: validación visual en
   emulador y ajuste fino de velocidades/pausas si hace falta.
+## 27 de agosto de 2026 - La intro arcade, reformulada desde el analisis frame a frame
+
+La intro que habia (cielo -> edificios -> lineas de velocidad -> calle, con
+`sky/buildings/speed_lines/street.png`) no se parecia a la del arcade: era un
+descenso generico. Se reescribio entera a partir de un analisis frame a frame
+de la intro original y de los assets nuevos de `res/images/intro_tmnt/assets/`.
+
+- **Modulo propio:** `showArcadeIntro()` salio de `scenes.c` (que ya venia con
+  189 KB) a **`src/intro_arcade.c`**. `main.c` y `scenes.h` no se tocaron; el
+  makefile de SGDK compila todo `src/` solo.
+
+- **El tiempo del arcade, 1 a 1.** El video fuente se extrajo a ~60.12 fps, a
+  0.3% de los 59.92 Hz de NTSC: cada frame del analisis vale un tick de la
+  consola. Las constantes `INTRO_T_*` son literalmente los tiempos del original.
+  Siete escenas, 940 ticks (~15.6 s): skyline 200, dolly 256, flash 5, salto de
+  las tortugas 87, cuadrantes 152, banner 122, logo 118.
+
+- **Streaming VERTICAL de la tira del dolly.** El hallazgo de la sesion fue que
+  `intro.png` (304x1496) ya era la toma completa del descenso: skyline, techos
+  cerrandose, lluvia y callejon con la alcantarilla, todo continuo. Recortado a
+  256 de ancho da 32x187 tiles = **1001 tiles unicos**, que no entran en ningun
+  plano (el maximo es 64x64). Se resolvio con la misma tecnica que el fondo del
+  nivel 1 pero girada 90 grados: los 1001 tiles van a VRAM una sola vez, BG_B es
+  una ventana circular de 32 filas (256 px) y se dibujan FILAS nuevas por el
+  borde inferior pisando las que ya salieron por arriba. Como la camara nunca
+  sube, solo hay que revelar hacia abajo. Quedan 4 filas de colchon (256-224) y
+  se escribe siempre 2 filas por debajo del borde visible. El movimiento es un
+  smoothstep sobre los 1272 px: arranca despacio, crucea a ~7 px/tick y frena
+  al llegar al pozo.
+
+- **Pantalla de 256 px.** Todo el arte esta hecho a esa medida: la tira mide 304
+  (se recorta a 256 centrado en el pozo), el logo `TURTLES` mide exactamente 256
+  de ancho y los 4 retratos son 124x110 -> 2x2 = 248x220 ~= 256x224. Con
+  `VDP_setScreenWidth256` el encuadre queda igual al arcade y de paso el plano
+  64x32 deja **userTileMaxIndex ~1612** (contra ~1228 con planos de 64x64), que
+  es lo que hace entrar los 1001 tiles.
+
+- **El haz de luz no gasta VRAM.** `luz.png` resulto ser una columna cuyas filas
+  0..24 son IDENTICAS (el cuerpo) y 25..27 son la base redondeada: **11 tiles
+  unicos**. Vive en BG_A con prioridad baja (arriba del fondo, debajo de los
+  sprites) y "crecer" es solo dibujar mas filas de cuerpo hacia arriba.
+
+- **Salto de las 4 tortugas con hoja reducida.** Las hojas del juego son de
+  104x104 = 169 tiles por frame; cuatro tortugas serian 676 tiles y no conviven
+  con la tira. `tools/gen_intro_assets.py` recorta la fila 6 (ANIM_JUMP) frames
+  1..9 de las cuatro hojas al bbox comun (72x80 = 9x10 tiles = **90 por frame**)
+  y arma `intro_turtles.png` de 4 filas (0=Leo 1=Mike 2=Don 3=Raph). Los frames
+  0..7 son el vuelo y el 8 la pose de aterrizaje. El arco es balistico calculado
+  en C (interpolacion lineal en X + parabola en Y), con arranques escalonados
+  para que salgan apiladas del pozo y se abran en el aire; Leo va al frente
+  (`SPR_setDepth`). Presupuesto: 4x90 + 32 de la tapa = 392 -> `SPR_initEx(416)`.
+
+- **Cuadrantes de la escena D sin escalado.** La MegaDrive no escala sprites: el
+  rectangulo de color que crece desde cada esquina se rellena con el tile SOLIDO
+  que la propia imagen ya tiene en esa esquina (se lee del tilemap en runtime) y
+  al completarse se vuelca el cuadro real encima.
+
+- **Paletas compartidas a proposito.** El generador fuerza UNA paleta de 16 por
+  bloque: A/B/C (tira + haz + tapa) entra justo en 16, los 4 retratos de la
+  escena D entran justo en 16, y banner + logo + copyright de E/F usan 14. Las
+  tortugas reusan la PAL1 unificada del juego. El celeste de E/F es el color de
+  *backdrop* del VDP, o sea que cuesta cero tiles.
+
+- **Bug del indice 0 (vale como regla de la casa).** La primera version del
+  generador reservaba el indice 0 para transparencia pero dejaba que el NEGRO
+  del arte cayera ahi tambien. Resultado: los contornos negros del logo, del
+  banner y de la tapa se volvian agujeros (mostraban el backdrop celeste). El
+  indice 0 es SIEMPRE transparencia en la MegaDrive: ningun pixel opaco puede
+  mapear ahi, aunque el color coincida. El generador ahora reserva la entrada 0
+  y manda el negro del arte a un indice >= 1.
+
+- **Herramientas nuevas** (`tools/`): `gen_intro_assets.py` (genera todos los PNG
+  de la intro con las paletas compartidas), `preview_intro.py` (renderiza la
+  intro completa offline con las MISMAS constantes que el C, a
+  `_tmp_intro/preview_intro.png` — sirve para validar encuadres y tiempos sin
+  compilar) y `count_tiles.py` (cuenta tiles unicos con dedup por flips, igual
+  que rescomp; sus numeros coinciden con los que reporto rescomp en su momento
+  para fondo_1/fondo_a/fondo_b/fondo_2).
+
+- **Sin musica** (decision de Gustavo): la intro corre en silencio, con fades de
+  paleta y el flash blanco como unicos golpes de efecto. START saltea todo y a
+  la salida se espera a que se SUELTE el boton para no saltear tambien la
+  seleccion de jugadores.
+
+- **Pendiente:** compilar y validar en emulador/hardware (esta sesion no tenia
+  acceso a SGDK, solo se verifico sintaxis con gcc y el render offline).
+
+### 27/08 (misma sesion) - Ajustes sobre la intro nueva
+
+- **Fondo de Raph**: Gustavo recoloreo `raph_image.png` (ahora rojo/naranja,
+  0x0027, antes compartia el magenta de Don). Regenerado: la paleta de la
+  escena D sigue entrando justa en 16 colores y los 4 cuadrantes ahora se leen
+  como 4 colores distintos.
+- **El banner CAE.** "TEENAGE MUTANT NINJA" ya no aparece de golpe: entra desde
+  arriba de la pantalla con caida acelerada (el desplazamiento va con el
+  cuadrado del tiempo) y un rebote corto de 5 px al tocar su lugar. Se dibuja en
+  BG_A y baja con el SCROLL VERTICAL del plano, que es pixel a pixel — redibujar
+  el tilemap solo permitiria saltos de 8 px. Al aterrizar se vuelca a BG_B en su
+  fila definitiva y BG_A queda limpio para el wipe del logo. La escena E se
+  reparte 15 (celeste) + 25 (caida, con 8 de rebote) + 82 (fijo) = los mismos
+  122 ticks de antes.
+- **Fundido final mas marcado**: `PAL_fadeOutAll(60)` (~1 s, antes 20) mas 24
+  ticks de negro pleno antes de la escena siguiente (`INTRO_T_FADE_OUT` /
+  `INTRO_T_BLACK_HOLD`).
+- **OJO - `logo_screen.png` quedo liso.** El archivo de `assets/` ahora es un
+  celeste uniforme: perdio el renglon "KONAMI (c) KONAMI 1989" que era la unica
+  fuente de ese recorte. `intro_konami.png` sale vacio (1 tile invisible) y la
+  escena F queda sin copyright. No rompe el build ni el codigo; en cuanto vuelva
+  el renglon a `logo_screen.png` (o llegue como PNG aparte), re-correr
+  `tools/gen_intro_assets.py` lo recupera solo. El generador ahora avisa por
+  consola cuando el recorte sale vacio.
+
+### 27/08 (cont.) - Banda de lluvia estirable sin perder velocidad
+
+Gustavo pidio alargar el tramo en el que "pasa" `fondo_b` (la lluvia) para
+estirar la transicion al callejon, pero sin perder la sensacion de velocidad.
+
+Bajar la velocidad de scroll estaba descartado por definicion. Midiendo la tira
+aparecio la solucion: entre las filas de tile **87 y 126** hay un bloque de 8
+filas (64 px) **perfectamente tileable** — es `fondo_b` horneado adentro de
+`intro.png`, repetido 4 veces y media. Verificado tile a tile: las filas 95..102,
+103..110 y 111..118 son IDENTICAS a las 87..94, la 86 y la 126 no.
+
+Entonces el tramo se alarga **repitiendo el bloque**, no frenando la camara:
+
+- `dollyMapRow()` traduce fila VIRTUAL -> fila REAL de la tira: antes del punto
+  de insercion son la misma, adentro del tramo insertado cicla el bloque de
+  lluvia, y despues descuenta lo insertado y sigue normal. La fila VIRTUAL manda
+  en la posicion dentro del plano circular (asi el scroll vertical sigue siendo
+  simplemente scrollY) y el CONTENIDO sale de la fila real.
+- El punto de insercion (fila 95) esta EN FASE con el bloque (87 mod 8), asi que
+  no hay costura visible.
+- `INTRO_T_DOLLY` se recalcula solo (`INTRO_DOLLY_END * 256 / 1272`) para
+  mantener exactamente los mismos px/tick que los 256 ticks originales sobre
+  1272 px. Medido: 4.98 px/tick promedio contra 4.97 de antes, mismo pico.
+- **Cero tiles extra en VRAM** (son los mismos 8 tiles de siempre, dibujados mas
+  veces) y una sola constante para regular el efecto: `RAIN_EXTRA_LOOPS`.
+
+Con `RAIN_EXTRA_LOOPS = 4` (el valor elegido): la lluvia pasa de 320 px / 0.72 s
+a 576 px / 1.29 s, el dolly de 256 a 307 ticks y la intro completa de 940 a ~991
+ticks (~16.5 s). Con `RAIN_EXTRA_LOOPS = 0` vuelve exactamente al timing del
+arcade.
+
+## 27 de agosto de 2026 (tarde) - Modo atracto: perfiles de las tortugas
+
+Escena nueva (`SCENE_PROFILES`, `src/scene_profiles.c`): si el jugador deja
+quieta la pantalla de seleccion de cantidad de jugadores 30 segundos, entra sola
+la pantalla de "character profiles" del arcade con una tortuga al azar.
+
+- **Enganche**: `showPlayerSelect` lleva un contador de inactividad que se
+  resetea con cualquier boton de CUALQUIERA de los dos joysticks
+  (`PLAYER_SELECT_IDLE_SECS` = 30). Al agotarse devuelve `SCENE_PROFILES`, que a
+  su vez vuelve a `SCENE_PLAYER_SELECT` -> cada timeout saca otra tortuga (nunca
+  la misma dos veces seguidas). Cualquier boton corta la escena en cualquier
+  momento.
+- **El retrato es un SPRITE, no un IMAGE**: entra deslizandose desde el borde
+  derecho, cruza el medio de la pantalla y frena a la izquierda con ease-out
+  cuadratica. Un sprite se mueve pixel a pixel sin tocar el tilemap; con un
+  IMAGE habria que scrollear un plano entero o redibujar de a 8 px.
+- **Paletas**: cada retrato (64x128, 103-114 tiles unicos) trae la suya, porque
+  los 4 no entran juntos en 16 colores. Como en pantalla hay uno solo por vez,
+  se carga la del sorteado en PAL0 y la fuente arcade en PAL2. El indice 0 esta
+  declarado transparente en los 4 PNG y el arte no lo usa -> sin agujeros.
+- **Los textos son TEXTO, no imagenes.** Gustavo paso los datos y las
+  descripciones como PNG (`res/images/profiles/*_data.png` y
+  `*_profile info.png`) pero pidio dibujarlos con la fuente del proyecto. Se
+  transcribieron con una herramienta nueva, `tools/ocr_arcade_font.py`, que
+  compara cada celda de 8x8 contra los 95 glifos de `title_font` y solo acepta
+  coincidencias del 100%. **Hizo falta**: la W y la M de esta fuente son casi
+  identicas a ojo y la primera lectura decia "MILD BOY OF THE BUNCH" y "RAM
+  ENERGY" en vez de "WILD" y "RAW". La comparacion pixel a pixel dio 100% con W
+  y 89% con M. De paso quedo confirmado que esos PNG estan escritos con la misma
+  `title_font`, glifo por glifo.
+- **Layout** (320x224): retrato en x=40, y=16 (cruza el medio y frena a la
+  izquierda); datos en la columna 14, filas 4/6/8/10/12; descripcion en la
+  columna 2, filas 20/22/24/26. La linea mas larga es la de Mike (36 chars) y
+  entra justa.
+- **Musica**: `music_profiles` ("02 - Character Profiles.vgm"), que ya estaba
+  importado en `audio.res` desde antes.
+- `playMusicVol()` dejo de ser `static` en `scenes.c` y se declaro en
+  `scenes.h`: es el primer helper compartido que necesita un modulo de escena
+  suelto.
+- **Herramienta nueva**: `tools/preview_profiles.py` renderiza la escena offline
+  con las mismas constantes y la misma fuente que el C.

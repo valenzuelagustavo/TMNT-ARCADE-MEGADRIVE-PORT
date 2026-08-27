@@ -56,7 +56,6 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->airFrame      = 1;
     p->airTimer      = 0;
     p->attackIsSpecial = 0;
-    p->atkReach        = PLAYER_ATK_REACH_LEO;   // default, se ajusta abajo
     p->jumpVel       = 0;
     p->jumpZ         = 0;
     p->isJumpKicking = FALSE;

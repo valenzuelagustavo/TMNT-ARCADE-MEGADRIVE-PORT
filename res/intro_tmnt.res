@@ -1,12 +1,42 @@
 // =============================================================================
-// intro_tmnt.res — Intro arcade (scroll vertical continuo)
+// intro_tmnt.res - Intro arcade de TMNT (SCENE_INTRO_ARCADE)
 // =============================================================================
-// Camara desciende por 4 capas: cielo (fijo), edificios (transparencia),
-// lineas de velocidad (tiling rapido), y calle (piso final).
-// Paletas: PAL0 = cielo + lineas + calle (comparten), PAL1 = edificios.
+// Reconstruida a partir del analisis frame a frame de la intro original
+// (7 escenas, 940 ticks NTSC). Todos los PNG los genera
+// tools/gen_intro_assets.py dentro de images/intro_tmnt/genesis/ a partir del
+// arte fuente de images/intro_tmnt/ y de images/intro_tmnt/assets/.
+//
+// PALETAS (el generador fuerza paletas COMPARTIDAS para no gastar lineas):
+//   Escenas A/B/C: intro_dolly + intro_luz + intro_tapa -> una sola PAL0 (15 col)
+//   Escena  C:     intro_turtles -> PAL1 (paleta unificada de las 4 tortugas)
+//   Escena  D:     intro_quad -> PAL0 (16 col, los 4 retratos juntos)
+//   Escenas E/F:   intro_banner + intro_logo + intro_konami -> PAL0 (13 col)
+//
+// COMPRESION: todo NONE. Los tilemaps se indexan/dibujan por partes desde ROM
+// (streaming de filas del dolly, crecimiento del haz, crecimiento de los
+// cuadrantes, wipe del logo) y eso exige mapa sin comprimir.
+// COMENTARIOS EN ASCII PURO (rescomp lee los .res con Cp1252).
 // =============================================================================
 
-IMAGE intro_sky       "images/intro_tmnt/sky.png"        BEST ALL
-IMAGE intro_buildings "images/intro_tmnt/buildings.png"   BEST ALL
-IMAGE intro_speed     "images/intro_tmnt/speed_lines.png" BEST ALL
-IMAGE intro_street    "images/intro_tmnt/street.png"      BEST ALL
+// --- Escenas A/B: tira vertical completa del dolly (256x1496 = 32x187 tiles,
+//     1001 tiles unicos). NO entra en un plano: se streamea por filas. ---
+IMAGE  intro_dolly   "images/intro_tmnt/genesis/intro_dolly.png"   NONE
+
+// --- Escena C: haz de luz (64x224, 11 tiles unicos) y tapa de alcantarilla ---
+IMAGE  intro_luz     "images/intro_tmnt/genesis/intro_luz.png"     NONE
+SPRITE intro_tapa    "images/intro_tmnt/genesis/intro_tapa.png"    8 4 NONE 0
+
+// --- Escena C: salto de las 4 tortugas. Hoja REDUCIDA: fila 6 (ANIM_JUMP)
+//     frames 1..9 de cada personaje, recortados a 72x80 (9x10 tiles):
+//     0..7 = vuelo, 8 = aterrizaje.
+//     Filas: 0=Leo 1=Mike 2=Don 3=Raph (mismo orden que personajeSeleccionado).
+//     time 0 = animacion manual desde el codigo. ---
+SPRITE intro_turtles "images/intro_tmnt/genesis/intro_turtles.png" 9 10 FAST 0
+
+// --- Escena D: los 4 retratos ya compuestos en sus cuadrantes (256x224) ---
+IMAGE  intro_quad    "images/intro_tmnt/genesis/intro_quad.png"    NONE
+
+// --- Escenas E/F: banner, logo TURTLES y copyright de Konami ---
+IMAGE  intro_banner  "images/intro_tmnt/genesis/intro_banner.png"  NONE
+IMAGE  intro_logo    "images/intro_tmnt/genesis/intro_logo.png"    NONE
+IMAGE  intro_konami  "images/intro_tmnt/genesis/intro_konami.png"  NONE

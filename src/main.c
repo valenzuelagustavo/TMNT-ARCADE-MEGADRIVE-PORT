@@ -40,6 +40,9 @@ int main()
         case SCENE_PLAYER_SELECT:
             currentScene = showPlayerSelect();
             break;
+        case SCENE_PROFILES:
+            currentScene = showProfiles();
+            break;
         case SCENE_OPTIONS:
             currentScene = showOptions();
             break;
