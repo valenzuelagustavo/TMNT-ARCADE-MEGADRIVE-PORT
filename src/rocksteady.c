@@ -8,17 +8,10 @@
 static s16 rabs(s16 v)                 { return (v < 0) ? -v : v; }
 static s16 rclamp(s16 v, s16 a, s16 b) { return (v < a) ? a : ((v > b) ? b : v); }
 
-// Velocidad de movimiento del jefe (aplica anger multiplier en fase 2).
-static s16 rocksteadyMoveSpeed(const Rocksteady* r) {
-    s16 spd = ROCKSTEADY_SPEED;
-    if (r->angerActive) spd += ROCKSTEADY_ANGER_SPEED_MULT;
-    return spd;
-}
-static s16 rocksteadyChargeSpeed(const Rocksteady* r) {
-    s16 spd = ROCKSTEADY_CHARGE_SPEED;
-    if (r->angerActive) spd += ROCKSTEADY_ANGER_SPEED_MULT;
-    return spd;
-}
+// Velocidades del jefe. (13/09) Se quito el "anger" que las subia tras N
+// golpes: colgaba de la fase 2, que ya no existe como progresion.
+static s16 rocksteadyMoveSpeed(const Rocksteady* r)   { (void)r; return ROCKSTEADY_SPEED; }
+static s16 rocksteadyChargeSpeed(const Rocksteady* r) { (void)r; return ROCKSTEADY_CHARGE_SPEED; }
 
 // Cambia de anim (con auto-animación ON: las animaciones se reproducen solas
 // al ritmo del 'time' del recurso, 6 frames por frame de animación).
@@ -48,15 +41,27 @@ static void rocksteadyRender(Rocksteady* r) {
     SPR_setDepth(r->sprite, -(r->y));
 }
 
+// (13/09) SE QUITO el flash BLANCO al recibir daño, a pedido de Gustavo.
+// Escribia 0x0EEE en los indices 2..15 de PAL3 durante 8 frames en CADA golpe
+// que conectaba; con ROCKSTEADY_HP en 124 eran ~124 destellos por pelea.
+// El parpadeo por HP BAJO no se toco: es otro efecto y vive en scenes.c
+// (bossPal/flashPal), donde alterna la paleta normal con una "quemada".
 // ---------------------------------------------------------------------------
 // BALAS — proyectil de vida independiente (sub-sprite boss_bullet, PAL3)
 // ---------------------------------------------------------------------------
+// La bala tiene TRES poses en una fila del sprite (sin auto-animacion, el
+// frame lo pone el codigo): [0] horizontal, [1] hacia arriba, [2] impacto.
+// Al pegar no se borra en el acto -- se queda quieta mostrando el [2] durante
+// ROCKSTEADY_BULLET_HIT_FRAMES y recien ahi se libera.
 static struct {
     bool    active;
     Sprite* sprite;
     s16     x, y;      // mundo; y = lane (pies) del lanzador
     s8      dir;
-    s8      dy;        // velocidad vertical (0=horizontal, neg=arriba, pos=abajo)
+    s8      dz;        // velocidad de SUBIDA (0 = tiro recto, >0 = sube)
+    s16     z;         // altura VISUAL sobre la lane (misma idea que el jumpZ
+                       // del jugador: 'y' es PROFUNDIDAD y no cambia en vuelo)
+    u8      hitTimer;  // >0 = ya impacto: congelada mostrando el frame [2]
     s16     cameraOffsetX;
 } bullets[MAX_ROCKSTEADY_BULLETS];
 
@@ -64,24 +69,37 @@ void rocksteadyBulletInit(void) {
     for (u16 i = 0; i < MAX_ROCKSTEADY_BULLETS; i++) {
         bullets[i].active = 0;
         bullets[i].sprite = NULL;
+        bullets[i].hitTimer = 0;
     }
 }
 
-static void rocksteadyBulletSpawn(s16 x, s16 y, s8 dir, s8 dy, u8 palette) {
+// (cx, z) = CENTRO de la boca del cañon: cx en X de mundo, z en altura sobre
+// los PIES del jefe. 'lane' es la profundidad (y del jefe), que la bala
+// conserva durante todo el vuelo. dz > 0 = tiro HACIA ARRIBA.
+static void rocksteadyBulletSpawn(s16 cx, s16 lane, s16 z, s8 dir, s8 dz,
+                                  u8 palette) {
     for (u16 i = 0; i < MAX_ROCKSTEADY_BULLETS; i++) {
         if (bullets[i].active) continue;
-        bullets[i].x = x;
-        bullets[i].y = y;
+        // x/y guardan la esquina superior izquierda del sprite de 16x16.
+        bullets[i].x = cx - 8;
+        bullets[i].y = lane;
         bullets[i].dir = dir;
-        bullets[i].dy = dy;
+        bullets[i].dz = dz;
+        bullets[i].z  = z;
+        bullets[i].hitTimer = 0;
         bullets[i].cameraOffsetX = 0;
         bullets[i].active = 1;
         bullets[i].sprite = SPR_addSprite(&boss_bullet,
-                                          x, y - ROCKSTEADY_FOOT_OFFSET + 40,
+                                          bullets[i].x, lane - z - 8,
                                           TILE_ATTR(palette, FALSE, FALSE, FALSE));
         if (bullets[i].sprite) {
-            SPR_setDepth(bullets[i].sprite, -(y) - 1);
+            SPR_setDepth(bullets[i].sprite, -(lane) - 1);
             SPR_setHFlip(bullets[i].sprite, (dir < 0));
+            // Pose segun para que se disparo: recta o hacia arriba. El sprite
+            // va con time 0 (sin auto-anim), asi que este frame queda fijo.
+            SPR_setAnimAndFrame(bullets[i].sprite, 0,
+                                (dz > 0) ? ROCKSTEADY_BULLET_FR_UP
+                                         : ROCKSTEADY_BULLET_FR_H);
         }
         return;   // slot encontrado
     }
@@ -91,12 +109,31 @@ void rocksteadyBulletUpdate(s16 camX) {
     for (u16 i = 0; i < MAX_ROCKSTEADY_BULLETS; i++) {
         if (!bullets[i].active) continue;
         bullets[i].cameraOffsetX = camX;
-        bullets[i].x += bullets[i].dir * ROCKSTEADY_BULLET_SPEED;
-        bullets[i].y += bullets[i].dy;
 
-        // Fuera de pantalla (con margen de 32px a cada lado, o fuera del lane)
+        // Ya impacto: queda clavada en el lugar mostrando el frame de impacto
+        // y se libera al agotarse la ventana. No se mueve ni vuelve a pegar.
+        if (bullets[i].hitTimer > 0) {
+            bullets[i].hitTimer--;
+            if (bullets[i].hitTimer == 0) {
+                if (bullets[i].sprite) SPR_releaseSprite(bullets[i].sprite);
+                bullets[i].sprite = NULL;
+                bullets[i].active = 0;
+                continue;
+            }
+            if (bullets[i].sprite)
+                SPR_setPosition(bullets[i].sprite,
+                                bullets[i].x - bullets[i].cameraOffsetX,
+                                bullets[i].y - bullets[i].z - 8);
+            continue;
+        }
+
+        bullets[i].x += bullets[i].dir * ROCKSTEADY_BULLET_SPEED;
+        bullets[i].z += bullets[i].dz;
+
+        // Fuera de pantalla: por los costados, o cuando el tiro hacia arriba
+        // ya subio por encima del area de juego.
         if (bullets[i].x < camX - 32 || bullets[i].x > camX + 320 + 32 ||
-            bullets[i].y < ROCKSTEADY_LANE_TOP - 32 || bullets[i].y > ROCKSTEADY_LANE_BOTTOM + 32) {
+            bullets[i].z > ROCKSTEADY_BULLET_MAX_Z || bullets[i].z < 0) {
             if (bullets[i].sprite) SPR_releaseSprite(bullets[i].sprite);
             bullets[i].sprite = NULL;
             bullets[i].active = 0;
@@ -105,7 +142,7 @@ void rocksteadyBulletUpdate(s16 camX) {
         if (bullets[i].sprite)
             SPR_setPosition(bullets[i].sprite,
                             bullets[i].x - bullets[i].cameraOffsetX,
-                            bullets[i].y - ROCKSTEADY_FOOT_OFFSET + 40);
+                            bullets[i].y - bullets[i].z - 8);
     }
 }
 
@@ -114,26 +151,40 @@ void rocksteadyBulletReleaseAll(void) {
         if (bullets[i].sprite) SPR_releaseSprite(bullets[i].sprite);
         bullets[i].sprite = NULL;
         bullets[i].active = 0;
+        bullets[i].hitTimer = 0;
     }
 }
 
-bool rocksteadyBulletCheckHitPlayer(s16 px, s16 py, s16* hitX) {
+bool rocksteadyBulletCheckHitPlayer(s16 px, s16 py, s16 pz, s16* hitX) {
     // px = borde izquierdo del frame del jugador (104px)
+    // py = lane (pies) · pz = altura visual del salto (jumpZ)
     s16 pcx = px + PLAYER_SPRITE_W / 2;   // centro del jugador
     s16 pcy = py;                         // pies del jugador
 
     for (u16 i = 0; i < MAX_ROCKSTEADY_BULLETS; i++) {
         if (!bullets[i].active) continue;
+        if (bullets[i].hitTimer > 0) continue;   // ya pego: no vuelve a contar
 
         s16 bcx = bullets[i].x + 8;   // centro de la bala (16px wide → +8)
         s16 bcy = bullets[i].y;
 
-        if (abs(pcx - bcx) < 16 && abs(pcy - bcy) < 16) {
-            // Impacto: destruir la bala
+        // X e Y(lane) como siempre, MAS la altura: la bala guarda su altura
+        // REAL sobre el piso (arranca en la boca del cañon) y se compara
+        // contra la del torso del jugador (jumpZ + TARGET_Z). Asi el tiro
+        // recto le pega al que esta parado y el de arriba al que salta.
+        s16 targetZ = pz + ROCKSTEADY_BULLET_TARGET_Z;
+        // El antiaereo (dz > 0) usa una ventana de altura mas ancha: llega al
+        // jugador ya muy arriba y con la del tiro recto no conectaba casi nunca.
+        s16 tolZ = (bullets[i].dz > 0) ? ROCKSTEADY_BULLET_HIT_Z_UP
+                                       : ROCKSTEADY_BULLET_HIT_Z;
+        if (abs(pcx - bcx) < 16 && abs(pcy - bcy) < 16 &&
+            abs(targetZ - bullets[i].z) < tolZ) {
+            // Impacto: la bala NO se borra en el acto -- pasa al frame [2] y
+            // se queda ahi un momento para que se vea el golpe.
             if (hitX) *hitX = bcx;
-            if (bullets[i].sprite) SPR_releaseSprite(bullets[i].sprite);
-            bullets[i].sprite = NULL;
-            bullets[i].active = 0;
+            bullets[i].hitTimer = ROCKSTEADY_BULLET_HIT_FRAMES;
+            if (bullets[i].sprite)
+                SPR_setAnimAndFrame(bullets[i].sprite, 0, ROCKSTEADY_BULLET_FR_HIT);
             return TRUE;
         }
     }
@@ -146,7 +197,7 @@ bool rocksteadyBulletCheckHitPlayer(s16 px, s16 py, s16* hitX) {
 void rocksteadyInit(Rocksteady* r) {
     r->sprite = NULL;
     r->state = ROCKSTEADY_INACTIVE;
-    r->phase = 1;
+    r->armed = 0;
     r->x = r->y = 0;
     r->cameraOffsetX = 0;
     r->dir = -1;
@@ -158,52 +209,47 @@ void rocksteadyInit(Rocksteady* r) {
     r->knockdowns = 0;
     r->comboHits = 0;
     r->counterPending = 0;
-    r->moveToggle = 0;
+    r->attacksDone = 0;
     r->chargeHit = 0;
+    r->chargeDir = -1;
+    r->unarmedStep = 0;
+    r->kickOnArrive = 0;
     r->shotFrame = 0;
     r->shotsFired = 0;
     r->shotTimer = 0;
+    r->shotUp = 0;
     r->farTimer = 0;
-    r->angerHits = 0;
-    r->angerActive = 0;
-    r->barrageCount = 0;
-    r->barrageTimer = 0;
-    r->barrageShots = 0;
-    r->barrageShotTimer = 0;
-    r->retreatTargetX = 0;
-    r->retreatBaseY = 0;
-    r->cornerChargesLeft = 0;
-    r->cornerChargeTimer = 0;
 }
 
 void rocksteadySpawn(Rocksteady* r) {
     r->x = ROCKSTEADY_SPAWN_X;   // 8 tiles a la izquierda de la cápsula (puerta abierta)
-    r->y = 148;   // Subido junto con la cápsula (4 tiles): pies alineados a la puerta
+    // 156 y no 148: al corregir ROCKSTEADY_FOOT_OFFSET (96 -> 104) el sprite se
+    // dibuja 8px mas arriba para la misma lane, asi que la lane de aparicion
+    // sube otros 8 para que los pies sigan cayendo en el umbral de la puerta.
+    r->y = 156;   // Subido junto con la cápsula (4 tiles): pies alineados a la puerta
     r->dir = -1;
-    r->phase = 1;
+    r->armed = 0;   // entra SIN arma: la primera tanda es de embestidas
     r->hp = ROCKSTEADY_HP;
     r->hitsTaken = 0;
     r->knockdowns = 0;
     r->comboHits = 0;
     r->counterPending = 0;
+    r->attacksDone = 0;
     r->attackCooldown = 0;
-    r->moveToggle = 0;
     r->chargeHit = 0;
+    r->chargeDir = -1;
+    r->unarmedStep = 0;
+    r->kickOnArrive = 0;
     r->farTimer = 0;
-    r->angerHits = 0;
-    r->angerActive = 0;
-    r->barrageCount = 0;
-    r->barrageTimer = 0;
-    r->barrageShots = 0;
-    r->barrageShotTimer = 0;
-    r->retreatTargetX = 0;
-    r->retreatBaseY = 0;
-    r->cornerChargesLeft = 0;
-    r->cornerChargeTimer = 0;
     r->state = ROCKSTEADY_EMERGE;
     r->timer = ROCKSTEADY_EMERGE_STAND;   // quieto en la puerta (taunt) antes de bajar
     r->anim = 0xFF;
-    r->sprite = SPR_addSprite(&rocksteady_boss, 0, 0,
+    // SPR_addSpriteSafe (no SPR_addSprite): mismo riesgo que la capsula del
+    // taladro (ver scenes.c) -- Rocksteady (sprite grande) se crea recien
+    // terminada la oleada A, con VRAM potencialmente fragmentada por el
+    // spawn/muerte de los foot soldiers. SPR_addSpriteSafe desfragmenta y
+    // reintenta si la asignacion falla la primera vez.
+    r->sprite = SPR_addSpriteSafe(&rocksteady_boss, 0, 0,
                               TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
     // PAL3 ya fue cargada con la paleta del boss (PAL3[1] = blanco, HUD).
     if (r->sprite) {
@@ -223,8 +269,7 @@ bool rocksteadyCanBeHit(const Rocksteady* r) {
     return (r->state == ROCKSTEADY_EMERGE || r->state == ROCKSTEADY_IDLE ||
             r->state == ROCKSTEADY_APPROACH || r->state == ROCKSTEADY_CHARGE ||
             r->state == ROCKSTEADY_KICK || r->state == ROCKSTEADY_AIM_WALK ||
-            r->state == ROCKSTEADY_SHOOT || r->state == ROCKSTEADY_KICK_ARMS ||
-            r->state == ROCKSTEADY_RETREAT || r->state == ROCKSTEADY_CORNER_CHARGE);
+            r->state == ROCKSTEADY_SHOOT || r->state == ROCKSTEADY_KICK_ARMS);
 }
 
 // Centro VISUAL del cuerpo: r->x ancla el BORDE IZQUIERDO del frame de 104px
@@ -237,9 +282,9 @@ s16 rocksteadyGetCenterX(const Rocksteady* r) { return r->x + ROCKSTEADY_FRAME_W
 // Y = pies (lane), igual que las tortugas y los foot soldiers.
 s16 rocksteadyGetCenterY(const Rocksteady* r) { return r->y; }
 
-// ¿Ya corresponde pasar a la fase 2? Mitad de HP O 4 knock-downs (lo primero).
-static bool rocksteadyGoPhase2(const Rocksteady* r) {
-    return (r->hp <= ROCKSTEADY_PHASE2_HP || r->knockdowns >= ROCKSTEADY_KD_MAX);
+// ¿Ya completó la tanda de ataques y toca cambiar de arma?
+static bool rocksteadySwapDue(const Rocksteady* r) {
+    return (r->attacksDone >= ROCKSTEADY_ATTACKS_PER_SWAP);
 }
 
 void rocksteadyDamage(Rocksteady* r, s16 dmg) {
@@ -250,6 +295,17 @@ void rocksteadyDamage(Rocksteady* r, s16 dmg) {
         r->hp = 0;
         r->state = ROCKSTEADY_DEAD;
         rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_HURT, FALSE);
+        // Grito de muerte (14/09, pedido de Gustavo), en el instante exacto del
+        // golpe fatal. Canal PCM 2 y prioridad 15: pisa el hit_turtles / boss_hit
+        // del mismo golpe, que es lo que se quiere -- el grito manda.
+        // ENTRA JUSTO: el wav dura 1,69s = 101 frames NTSC, y desde acá hasta
+        // que arranca music_ending (que reinicia el driver y cortaría el PCM)
+        // hay 42 frames de anim de muerte (7 frames a 6 ticks) + los 60 de
+        // CUT_SILENCE_FRAMES = 102. El XGM2_stop() del primer frame de la
+        // cutscene no molesta: sólo pone en NULL los streams FM/PSG, no toca
+        // los canales PCM (verificado en src/snd/xgm2.c de SGDK v2.11).
+        XGM2_playPCMEx(boss_scream_rocksteady_vo, sizeof(boss_scream_rocksteady_vo),
+                       SOUND_PCM_CH2, 15, FALSE, FALSE);
         return;
     }
 
@@ -262,13 +318,10 @@ void rocksteadyDamage(Rocksteady* r, s16 dmg) {
         r->comboHits = 0;
         r->counterPending = 1;
     }
-    // Anger: en fase 2, tras ROCKSTEADY_ANGER_THRESHOLD golpes se mueve más rápido.
-    if (r->phase == 2 && !r->angerActive) {
-        r->angerHits++;
-        if (r->angerHits >= ROCKSTEADY_ANGER_THRESHOLD) r->angerActive = 1;
-    }
-    // Fase 1: cada ROCKSTEADY_KD_INTERVAL golpes el jefe CAE (knock-down).
-    if (r->phase == 1 && r->hitsTaken >= ROCKSTEADY_KD_INTERVAL) {
+    // SIN ARMA, cada ROCKSTEADY_KD_INTERVAL golpes el jefe CAE (knock-down).
+    // Con el arma NO cae: la anim de caida [4] lo dibuja desarmado y el arma
+    // desapareceria de golpe.
+    if (!r->armed && r->hitsTaken >= ROCKSTEADY_KD_INTERVAL) {
         r->hitsTaken = 0;
         r->comboHits = 0;      // tirado: la cuenta de "seguidos" arranca de nuevo
         r->counterPending = 0; // desde el piso no hay contraataque
@@ -285,10 +338,10 @@ void rocksteadyDamage(Rocksteady* r, s16 dmg) {
     // contraataque antes de terminar (la anim dura ~48 ticks de juego, un hit
     // llega cada ~20) y el jefe quedaba en stagger eterno sin responder.
     if (r->state != ROCKSTEADY_KICK && r->state != ROCKSTEADY_KICK_ARMS) {
-        r->state = (r->phase == 1) ? ROCKSTEADY_HURT : ROCKSTEADY_HURT_ARMS;
+        r->state = r->armed ? ROCKSTEADY_HURT_ARMS : ROCKSTEADY_HURT;
         r->timer = ROCKSTEADY_HURT_FRAMES;
-        rocksteadyRestartAnim(r, (r->phase == 1)
-                                ? ROCKSTEADY_ANIM_HURT : ROCKSTEADY_ANIM_HURT_ARMS,
+        rocksteadyRestartAnim(r, r->armed ? ROCKSTEADY_ANIM_HURT_ARMS
+                                          : ROCKSTEADY_ANIM_HURT,
                               FALSE);
     }
 }
@@ -296,10 +349,19 @@ void rocksteadyDamage(Rocksteady* r, s16 dmg) {
 // ---------------------------------------------------------------------------
 // Inicio de los ataques
 // ---------------------------------------------------------------------------
-static void rocksteadyStartCharge(Rocksteady* r) {
+// El llamador ya fijo r->dir mirando al jugador: esa direccion queda LATCHEADA
+// para toda la embestida (14/09, pedido de Gustavo). Antes el caso CHARGE
+// re-apuntaba cada frame y el jefe podia frenar y volverse a mitad de la
+// corrida, que es justo lo que una embestida no tiene que poder hacer: una vez
+// que arranca, se esquiva.
+static void rocksteadyStartCharge(Rocksteady* r, s8 dir) {
     r->state = ROCKSTEADY_CHARGE;
     r->timer = ROCKSTEADY_CHARGE_MAX;
     r->chargeHit = 0;
+    r->dir       = dir;
+    r->chargeDir = dir;
+    r->kickOnArrive = 0;   // si la embestida corta un acercamiento a mitad,
+                           // la patada pendiente se cancela con el
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_CHARGE, TRUE);
 }
 
@@ -325,42 +387,33 @@ static void rocksteadyStartAimWalk(Rocksteady* r) {
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_AIM, TRUE);
 }
 
-static void rocksteadyStartShoot(Rocksteady* r) {
+// 'up' vale para TODA la rafaga: la pose del jefe y la bala tienen que contar
+// lo mismo. Antes la anim [9] se reproducia entera (o sea, pasaba por las dos
+// poses) y cada bala decidia su direccion por separado al salir, asi que muy
+// seguido se lo veia apuntando arriba mientras tiraba recto.
+static void rocksteadyStartShoot(Rocksteady* r, bool up) {
     r->state = ROCKSTEADY_SHOOT;
     r->shotFrame = 0;
     r->shotsFired = 0;
     r->shotTimer = 0;
-    // Frames a MANO para sincronizar la salida de cada bala con la anim.
+    r->shotUp = up ? 1 : 0;
+    // Frames a MANO: se arranca directamente en el primer frame del par que
+    // corresponde, no en el 0.
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_SHOOT, FALSE);
     SPR_setAutoAnimation(r->sprite, FALSE);
+    SPR_setFrame(r->sprite, r->shotUp ? ROCKSTEADY_SHOOT_FR_UP
+                                      : ROCKSTEADY_SHOOT_FR_H);
 }
 
-// Transición a la fase 2: el jefe saca el arma (anim [5]).
+// Cambio de modo: saca O guarda el arma. La sheet tiene UNA sola animacion de
+// manipular el arma (la [5], "draw"), asi que se usa para las dos direcciones:
+// a la escala del sprite se lee como "manotea el arma" en los dos sentidos.
+// El 'armed' se invierte al TERMINAR la anim (ver ROCKSTEADY_ARMS_INTRO), asi
+// el cambio coincide con el final del gesto.
 static void rocksteadyStartArmsIntro(Rocksteady* r) {
     r->state = ROCKSTEADY_ARMS_INTRO;
+    r->attacksDone = 0;
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_DRAW, FALSE);
-}
-
-// Retirada al fondo: se aleja y dispara 3-4 ráfagas con patrón Y.
-static void rocksteadyStartRetreat(Rocksteady* r, s16 playerX) {
-    r->state = ROCKSTEADY_RETREAT;
-    r->retreatTargetX = (playerX > rocksteadyGetCenterX(r)) ? ROCKSTEADY_PATROL_LEFT : ROCKSTEADY_PATROL_RIGHT;
-    r->retreatBaseY = r->y;
-    r->barrageCount = 0;
-    r->barrageTimer = 30;   // tiempo para llegar al fondo antes de disparar
-    r->barrageShots = 0;
-    r->barrageShotTimer = 0;
-    rocksteadySetAnim(r, ROCKSTEADY_ANIM_WALK_ARMS, TRUE);
-}
-
-// Carga desde la esquina: se va a la esquina, guarda arma, carga varias veces.
-static void rocksteadyStartCornerCharge(Rocksteady* r) {
-    r->state = ROCKSTEADY_CORNER_CHARGE;
-    r->retreatTargetX = ROCKSTEADY_CORNER_X;
-    if (r->cornerChargesLeft == 0)
-        r->cornerChargesLeft = ROCKSTEADY_CORNER_CHARGES;   // inicio de secuencia
-    r->cornerChargeTimer = 0;
-    rocksteadySetAnim(r, ROCKSTEADY_ANIM_WALK_ARMS, TRUE);
 }
 
 // Vuelve a IDLE tras un flinch / cooldown.
@@ -370,8 +423,8 @@ static void rocksteadyToIdle(Rocksteady* r) {
     if (r->attackCooldown < ROCKSTEADY_ATTACK_COOLDOWN)
         r->attackCooldown = ROCKSTEADY_ATTACK_COOLDOWN;
     // Anim de reposo según la fase.
-    rocksteadySetAnim(r, (r->phase == 1)
-                         ? ROCKSTEADY_ANIM_IDLE : ROCKSTEADY_ANIM_WALK_ARMS,
+    rocksteadySetAnim(r, r->armed ? ROCKSTEADY_ANIM_WALK_ARMS
+                                  : ROCKSTEADY_ANIM_IDLE,
                       TRUE);
 }
 
@@ -380,7 +433,7 @@ static void rocksteadyToIdle(Rocksteady* r) {
 // "bajar al arena" en vez de decidir ataques desde arriba (las patadas no
 // conectarían por la tolerancia de Y). Si ya está en la lane, a IDLE normal.
 static void rocksteadyResumeFromHit(Rocksteady* r) {
-    if (r->phase == 1 && r->y < ROCKSTEADY_LANE_BOTTOM) {
+    if (!r->armed && r->y < ROCKSTEADY_LANE_BOTTOM) {
         r->state = ROCKSTEADY_EMERGE;
         r->timer = 0;
     } else {
@@ -391,20 +444,28 @@ static void rocksteadyResumeFromHit(Rocksteady* r) {
 // ---------------------------------------------------------------------------
 // UPDATE PRINCIPAL
 // ---------------------------------------------------------------------------
+// (14/09) Envoltorio de 1-2 jugadores sobre la version de N.
 void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
                       bool twoPlayers) {
+    Player* ps[2] = { p1, (twoPlayers && p2) ? p2 : p1 };
+    rocksteadyUpdateN(r, cameraX, ps, (twoPlayers && p2) ? 2 : 1);
+}
+
+void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
     if (r->state == ROCKSTEADY_INACTIVE || r->state == ROCKSTEADY_GONE ||
         !r->sprite) return;
     r->cameraOffsetX = cameraX;
 
     if (r->attackCooldown > 0) r->attackCooldown--;
 
-    // Jugador objetivo: el más cercano en X (centro del frame).
-    Player* tgt = p1;
-    if (twoPlayers && p2 &&
-        rabs(getPlayerWorldX(p2) + PLAYER_SPRITE_W / 2 - r->x) <
-        rabs(getPlayerWorldX(p1) + PLAYER_SPRITE_W / 2 - r->x))
-        tgt = p2;
+    // Jugador objetivo: el MAS CERCANO en X (centro del frame), entre los que
+    // haya (1..4). Se re-evalua cada frame, asi que el jefe "elige uno" y lo
+    // persigue mientras siga siendo el mas cercano.
+    Player* tgt = pls[0];
+    for (u8 k = 1; k < nPl; k++)
+        if (rabs(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2 - r->x) <
+            rabs(getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2 - r->x))
+            tgt = pls[k];
     s16 pcx  = getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2;
     s16 py   = getPlayerY(tgt);
     // Centro VISUAL del cuerpo (r->x ancla el borde izquierdo del frame):
@@ -420,8 +481,8 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
         (r->state == ROCKSTEADY_HURT || r->state == ROCKSTEADY_HURT_ARMS)) {
         r->counterPending = 0;
         r->dir = (pcx >= bcx) ? 1 : -1;
-        if (r->phase == 1) rocksteadyStartKick(r);
-        else               rocksteadyStartKickArms(r);
+        if (r->armed) rocksteadyStartKickArms(r);
+        else          rocksteadyStartKick(r);
     }
 
     // ANTI-CAMPING: si el objetivo se mantiene FUERA de alcance mientras el
@@ -434,7 +495,7 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
         if (r->farTimer < ROCKSTEADY_FAR_FRAMES) r->farTimer++;
         if (r->farTimer >= ROCKSTEADY_FAR_FRAMES) {
             r->farTimer = 0;
-            rocksteadyStartCharge(r);
+            rocksteadyStartCharge(r, (pcx >= bcx) ? 1 : -1);
         }
     } else {
         r->farTimer = 0;
@@ -454,44 +515,81 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
             r->dir = (pcx >= bcx) ? 1 : -1;
             r->x += r->dir * rocksteadyMoveSpeed(r);
             if (r->y < ROCKSTEADY_LANE_BOTTOM) r->y = rclamp(r->y + rocksteadyMoveSpeed(r), 148, ROCKSTEADY_LANE_BOTTOM);
-            if (r->y >= ROCKSTEADY_LANE_BOTTOM) rocksteadyToIdle(r);
+            if (r->y >= ROCKSTEADY_LANE_BOTTOM) {
+                // Garantiza el primer golpe del combate (informe, sección 1):
+                // en vez de arrancar pasivo en IDLE, dispara una embestida
+                // scripteada hacia el jugador apenas termina de bajar, sin
+                // importar la distancia (igual que en el arcade original).
+                rocksteadyStartCharge(r, (pcx >= bcx) ? 1 : -1);
+            }
             break;
         }
 
         case ROCKSTEADY_IDLE: {
+            // Aunque esté "quieto" SIGUE alineando la lane: el pedido es que
+            // busque SIEMPRE el eje Y del jugador, no sólo mientras camina.
+            //
+            // Y si se está moviendo, tiene que VERSE caminando. Antes se
+            // quedaba con la pose de IDLE (o la de andar con el arma) mientras
+            // se deslizaba en Y, que era lo que reportó Gustavo: "cuando se
+            // mueve en el eje Y varias veces no activa la imagen de caminar".
+            bool moved = FALSE;
+            if (py > r->y + 2)      { r->y += 1; moved = TRUE; }
+            else if (py < r->y - 2) { r->y -= 1; moved = TRUE; }
+            r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
+            r->dir = (pcx >= bcx) ? 1 : -1;
+            if (moved) {
+                rocksteadySetAnim(r, r->armed ? ROCKSTEADY_ANIM_WALK_ARMS
+                                              : ROCKSTEADY_ANIM_WALK, TRUE);
+            } else {
+                rocksteadySetAnim(r, r->armed ? ROCKSTEADY_ANIM_WALK_ARMS
+                                              : ROCKSTEADY_ANIM_IDLE, TRUE);
+            }
+
             // Sin cooldown ni timer de decisión → elegir ataque.
             if (r->attackCooldown > 0 || r->timer > 0) {
                 if (r->timer > 0) r->timer--;
                 break;
             }
-            // ¿Ya le tocó pasar de fase (aunque esté quieto)?
-            if (r->phase == 1 && rocksteadyGoPhase2(r)) {
+            // ¿Completó la tanda? Guarda o saca el arma y arranca la otra.
+            if (rocksteadySwapDue(r)) {
                 rocksteadyStartArmsIntro(r);
                 break;
             }
-            if (r->phase == 1) {
-                // Fase 1 sin arma: SOLO acercarse. La patada ya no sale por
-                // decisión propia (es exclusivamente el contraataque tras
-                // ROCKSTEADY_COUNTER_HITS golpes seguidos); si el jugador se
-                // mantiene lejos, el timer anti-camping dispara la embestida.
-                if (distX > ROCKSTEADY_KICK_RANGE) rocksteadyStartApproach(r);
+            if (r->armed) {
+                // CON ARMA: acercarse apuntando y alineando lane. El disparo
+                // lo decide AIM_WALK cuando está en rango (recto si el
+                // jugador está alineado, hacia arriba si está saltando).
+                rocksteadyStartAimWalk(r);
             } else {
-                // Fase 2 CON ARMA: DISPARAR (alineando primero el eje Y del
-                // jugador) o EMBESTIR si se mantiene lejos (anti-camping de
-                // arriba). La patada con arma también es SOLO contraataque.
-                // El enojo conserva la retirada al fondo y la carga de esquina.
-                if (r->cornerChargesLeft > 0) {
-                    rocksteadyStartCornerCharge(r);
-                } else if (r->angerActive && (r->moveToggle & 3) == 3) {
-                    // Con anger: cada 4to turno se retira al fondo y dispara.
-                    rocksteadyStartRetreat(r, pcx);
-                } else if (r->angerActive && (r->moveToggle & 7) == 7) {
-                    // Cada 8vo turno (solo con anger): se va a la esquina y carga.
-                    rocksteadyStartCornerCharge(r);
-                } else {
-                    rocksteadyStartAimWalk(r);
+                // SIN ARMA: ROTA entre esperar / embestir / acercarse a patear
+                // (14/09, pedido de Gustavo). Ver el bloque
+                // ROCKSTEADY_UNARMED_* de rocksteady.h: antes, con el jugador
+                // pegado, ninguna de las dos ramas viejas aplicaba y el jefe se
+                // quedaba plantado para siempre.
+                // El paso elegido puede CEDER el turno al siguiente si la
+                // distancia no le sirve (no hay pista para embestir), pero como
+                // mucho se prueban los tres: nunca se cuelga.
+                for (u8 attempt = 0; attempt < ROCKSTEADY_UNARMED_STEPS; attempt++) {
+                    u8 step = r->unarmedStep;
+                    r->unarmedStep = (u8)((r->unarmedStep + 1) % ROCKSTEADY_UNARMED_STEPS);
+                    if (step == 0) {
+                        // ESPERAR en el lugar. No cuenta como ataque completado
+                        // (no toca attacksDone): el arma se alterna por ataques,
+                        // no por tiempo.
+                        r->timer = (u16)(ROCKSTEADY_WAIT_FRAMES + (random() & 31));
+                        break;
+                    }
+                    if (step == 1) {
+                        if (distX < ROCKSTEADY_CHARGE_MIN_DIST) continue;  // sin pista
+                        rocksteadyStartCharge(r, (pcx >= bcx) ? 1 : -1);
+                        break;
+                    }
+                    // step == 2: acercarse y PATEAR de verdad (no como contra).
+                    if (distX <= ROCKSTEADY_KICK_RANGE) rocksteadyStartKick(r);
+                    else { r->kickOnArrive = 1; rocksteadyStartApproach(r); }
+                    break;
                 }
-                r->moveToggle++;
             }
             break;
         }
@@ -500,6 +598,9 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
             // Camina hacia el jugador (fase 1, sin arma) alineando lane; al
             // llegar a contacto se PLANTA y espera: la patada es SOLO el
             // contraataque por golpes seguidos, no un ataque espontáneo.
+            // Si mientras camina el jugador se aleja más de lo esperado,
+            // escala a EMBESTIDA en vez de perseguir caminando para siempre.
+            if (distX > ROCKSTEADY_CHARGE_TRIGGER_DIST) { rocksteadyStartCharge(r, (pcx >= bcx) ? 1 : -1); break; }
             r->dir = (pcx >= bcx) ? 1 : -1;
             s16 spd = rocksteadyMoveSpeed(r);
             r->x += r->dir * spd;
@@ -507,16 +608,23 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
             else if (py < r->y - 2) r->y -= spd;
             r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
             r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
-            if (distX <= ROCKSTEADY_KICK_RANGE) rocksteadyToIdle(r);
+            if (distX <= ROCKSTEADY_KICK_RANGE) {
+                // Llego: si venia a patear, patea; si no, se planta (IDLE).
+                if (r->kickOnArrive) { r->kickOnArrive = 0; rocksteadyStartKick(r); }
+                else                  rocksteadyToIdle(r);
+            }
             break;
         }
 
         case ROCKSTEADY_CHARGE: {
-            // Estampida: corre hacia el centro del jugador re-aimando cada
-            // frame (cubre los cambios de lane). Al impactar NO frena en seco:
-            // sigue un tramo más (overshoot, ROCKSTEADY_CHARGE_OVER) para que
-            // la carga recorra más eje X, dañando una sola vez (chargeHit).
-            r->dir = (pcx >= bcx) ? 1 : -1;
+            // Estampida: la DIRECCIÓN quedó latcheada al arrancar
+            // (r->chargeDir) y no se re-apunta más — una vez lanzada, se
+            // esquiva. Sigue corrigiendo la lane, que es lo que la hace
+            // peligrosa sin volverla teledirigida. Al impactar NO frena en
+            // seco: sigue un tramo más (overshoot, ROCKSTEADY_CHARGE_OVER)
+            // para que la carga recorra más eje X, dañando una sola vez
+            // (chargeHit).
+            r->dir = r->chargeDir;
             s16 chgSpd = rocksteadyChargeSpeed(r);
             r->x += r->dir * chgSpd;
             s16 ms = rocksteadyMoveSpeed(r);
@@ -524,11 +632,15 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
             else if (py < r->y - 2) r->y -= ms;
             r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
 
+            // "La embestida golpea al player si lo toca": el impacto se mide
+            // por SOLAPE REAL de los dos cuerpos (media anchura del jefe +
+            // media anchura del jugador), no por un radio fijo de 56px que
+            // pegaba bastante antes del contacto visual.
             if (!r->chargeHit &&
-                rabs(pcx - bcx) < ROCKSTEADY_CHARGE_HIT_RANGE &&
+                rabs(pcx - bcx) < (ROCKSTEADY_BODY_HALF_W + PLAYER_BODY_HALF_W) &&
                 rabs(py - r->y) < ROCKSTEADY_HIT_TOL_Y &&
                 playerCanBeHit(tgt)) {
-                playerHitBars(tgt, r->x, ROCKSTEADY_BULLET_DMG);
+                playerHitBars(tgt, r->x, ROCKSTEADY_CHARGE_DMG);   // 4 barras (30/08, a pedido de Gustavo)
                 r->chargeHit = 1;
                 r->timer = ROCKSTEADY_CHARGE_OVER;   // sigue embistiendo un tramo
             }
@@ -536,6 +648,7 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
                 r->x >= ROCKSTEADY_PATROL_RIGHT) {
                 r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
                 r->chargeHit = 0;
+                r->attacksDone++;          // embestida COMPLETADA
                 rocksteadyToIdle(r);
             }
             break;
@@ -557,44 +670,46 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);
             }
-            if (SPR_isAnimationDone(r->sprite)) rocksteadyToIdle(r);
+            if (SPR_isAnimationDone(r->sprite)) {
+                r->attacksDone++;          // patada COMPLETADA
+                rocksteadyToIdle(r);
+            }
             break;
         }
 
         case ROCKSTEADY_HURT:
         case ROCKSTEADY_HURT_ARMS: {
             if (r->timer > 0) r->timer--;
-            if (r->timer == 0) {
-                // Fase 1: si ya perdió la mitad aunque nunca haya caído → arma.
-                if (r->phase == 1 && rocksteadyGoPhase2(r)) {
-                    rocksteadyStartArmsIntro(r);
-                } else {
-                    rocksteadyResumeFromHit(r);
-                }
-            }
+            if (r->timer == 0) rocksteadyResumeFromHit(r);
             break;
         }
 
         case ROCKSTEADY_KNOCKDOWN: {
             if (r->timer > 0) { r->timer--; break; }
-            // Se levanta: con el arma (fase 2) o a seguir peleando.
-            if (rocksteadyGoPhase2(r)) rocksteadyStartArmsIntro(r);
-            else rocksteadyResumeFromHit(r);
+            rocksteadyResumeFromHit(r);   // se levanta y sigue peleando
             break;
         }
 
         case ROCKSTEADY_ARMS_INTRO: {
+            // Termino el gesto de manipular el arma -> cambia de modo. Va acá
+            // y no al empezar para que el cambio coincida con el final de la
+            // animacion y no se vea el sprite disparando "sin sacar" el arma.
             if (SPR_isAnimationDone(r->sprite)) {
-                r->phase = 2;
+                r->armed ^= 1;
+                r->attacksDone = 0;
+                r->hitsTaken   = 0;   // la cuenta de caidas arranca por modo
                 rocksteadyToIdle(r);
             }
             break;
         }
 
         case ROCKSTEADY_AIM_WALK: {
-            // Se acerca apuntando hasta quedar en rango de disparo Y
-            // ALINEADO con el eje Y del jugador (para que el tiro recto vaya
-            // a su altura). Recién entonces abre fuego.
+            // Se acerca apuntando y SIEMPRE alineando la lane del jugador.
+            // Abre fuego cuando esta en rango y:
+            //   - el jugador esta SALTANDO -> tiro hacia arriba (no hace falta
+            //     estar alineado: en el aire la lane del jugador no cambia,
+            //     pero visualmente esta por encima), o
+            //   - el jugador esta alineado en Y -> tiro horizontal.
             r->dir = (pcx >= bcx) ? 1 : -1;
             s16 spd = rocksteadyMoveSpeed(r);
             r->x += r->dir * spd;
@@ -603,8 +718,9 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
             r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
             r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
             if (distX <= ROCKSTEADY_SHOOT_RANGE &&
-                rabs(py - r->y) <= ROCKSTEADY_SHOOT_ALIGN_Y)
-                rocksteadyStartShoot(r);
+                (isPlayerJumping(tgt) ||
+                 rabs(py - r->y) <= ROCKSTEADY_SHOOT_ALIGN_Y))
+                rocksteadyStartShoot(r, isPlayerJumping(tgt));
             break;
         }
 
@@ -613,103 +729,42 @@ void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2,
             // anim y en los frames 3/5/7 sale una bala del cañón. Dirección de
             // CADA bala según el estado VIVO del jugador: en el piso → recta;
             // saltando → diagonal hacia arriba (anti-aéreo).
+            // Dos frames por bala dentro del par que corresponde a la
+            // direccion de la rafaga: el PAR (fogonazo, ahi sale la bala) y el
+            // IMPAR. shotFrame cuenta pasos, no frames del sheet.
             if (++r->shotTimer >= ROCKSTEADY_SHOT_TICKS) {
                 r->shotTimer = 0;
-                r->shotFrame++;
-                u8 nf = (u8)r->sprite->animation->numFrame;
-                if (r->shotFrame >= nf) {
+                if (r->shotFrame >= ROCKSTEADY_SHOT_COUNT * 2) {
+                    r->attacksDone++;      // rafaga COMPLETADA
                     rocksteadyToIdle(r);
                     break;
                 }
-                SPR_setFrame(r->sprite, r->shotFrame);
-                if (r->shotsFired < ROCKSTEADY_SHOT_COUNT &&
-                    (r->shotFrame == ROCKSTEADY_SHOT_FRAME_A ||
-                     r->shotFrame == ROCKSTEADY_SHOT_FRAME_B ||
-                     r->shotFrame == ROCKSTEADY_SHOT_FRAME_C)) {
-                    s16 gx = bcx + r->dir * 22;
-                    s8 dy = isPlayerJumping(tgt) ? ROCKSTEADY_UPSHOT_DY : 0;
-                    rocksteadyBulletSpawn(gx, r->y, r->dir, dy, PAL3);
+                // (14/09) La direccion se RE-DECIDE al empezar cada par, no una
+                // sola vez por rafaga: si el jugador salta en medio de la
+                // rafaga, las balas que faltan salen hacia arriba. Lo que NO se
+                // puede hacer es decidirla por bala DENTRO del par (era el bug
+                // viejo: se lo veia apuntando arriba y tirando recto), asi que
+                // se fija en el frame PAR y el IMPAR del par la respeta.
+                if ((r->shotFrame & 1) == 0)
+                    r->shotUp = isPlayerJumping(tgt) ? 1 : 0;
+                u8 base = r->shotUp ? ROCKSTEADY_SHOOT_FR_UP
+                                    : ROCKSTEADY_SHOOT_FR_H;
+                SPR_setFrame(r->sprite, base + (r->shotFrame & 1));
+                if ((r->shotFrame & 1) == 0) {
+                    // Sale de la BOCA DEL CAÑON de la pose que se esta
+                    // dibujando, medida sobre el fogonazo del sheet. El offset
+                    // en X acompaña al flip (el arte mira a la derecha).
+                    s16 mx = r->shotUp ? ROCKSTEADY_MUZZLE_UP_X
+                                       : ROCKSTEADY_MUZZLE_H_X;
+                    s16 mz = r->shotUp ? ROCKSTEADY_MUZZLE_UP_Z
+                                       : ROCKSTEADY_MUZZLE_H_Z;
+                    rocksteadyBulletSpawn(bcx + r->dir * mx, r->y, mz, r->dir,
+                                          r->shotUp ? ROCKSTEADY_UPSHOT_DZ : 0,
+                                          PAL3);
                     r->shotsFired++;
                 }
+                r->shotFrame++;
             }
-            break;
-        }
-
-        case ROCKSTEADY_RETREAT: {
-            // Se retira al extremo opuesto del jugador y dispara 3-4 ráfagas.
-            // Cada ráfaga: 3 balas en la MISMA dirección (alterna horizontal /
-            // diagonal arriba entre ráfagas). Entre ráfagas: reposiciona Y.
-            if (r->barrageCount >= ROCKSTEADY_BARRAGE_COUNT) {
-                rocksteadyToIdle(r);
-                break;
-            }
-            // Fase de aproximación al fondo: aún no llegó.
-            if (r->barrageTimer > 0 && r->barrageCount == 0 && r->barrageShots == 0) {
-                r->dir = (r->retreatTargetX >= r->x) ? 1 : -1;
-                s16 spd = rocksteadyMoveSpeed(r);
-                r->x += r->dir * spd;
-                r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
-                if (rabs(r->retreatTargetX - r->x) < spd + 2) {
-                    r->x = r->retreatTargetX;
-                    r->barrageTimer = 20;   // pausa antes de la 1ra ráfaga
-                }
-                break;
-            }
-            // Espera entre ráfagas.
-            if (r->barrageTimer > 0) { r->barrageTimer--; break; }
-            // Disparar la ráfaga actual: 3 balas en secuencia rápida, todas
-            // en la misma dirección (alterna por ráfaga).
-            if (r->barrageShots < ROCKSTEADY_BARRAGE_SHOTS) {
-                if (r->barrageShotTimer > 0) { r->barrageShotTimer--; break; }
-                s16 gx = bcx + r->dir * 22;
-                s8 dy = (r->barrageCount & 1) ? ROCKSTEADY_UPSHOT_DY : 0;
-                rocksteadyBulletSpawn(gx, r->y, r->dir, dy, PAL3);
-                r->barrageShots++;
-                r->barrageShotTimer = 8;
-                break;
-            }
-            // Ráfaga completa: siguiente ráfaga, reposiciona verticalmente.
-            r->barrageCount++;
-            r->barrageShots = 0;
-            r->barrageShotTimer = 0;
-            if (r->barrageCount < ROCKSTEADY_BARRAGE_COUNT) {
-                r->barrageTimer = ROCKSTEADY_BARRAGE_INTERVAL;
-                // Reposiciona verticalmente: alterna entre 3 posiciones.
-                if (r->barrageCount % 2 == 0) r->y = r->retreatBaseY;
-                else if (r->barrageCount % 3 == 0) r->y = ROCKSTEADY_LANE_TOP + 10;
-                else r->y = ROCKSTEADY_LANE_BOTTOM - 10;
-                r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
-            }
-            break;
-        }
-
-        case ROCKSTEADY_CORNER_CHARGE: {
-            // Se va a la esquina, guarda arma (camina sin arma), y carga varias veces.
-            if (r->cornerChargesLeft == 0) {
-                rocksteadyToIdle(r);
-                break;
-            }
-            // Fase de aproximación a la esquina: camina con arma hacia el fondo.
-            if (r->cornerChargeTimer == 0 && r->cornerChargesLeft == ROCKSTEADY_CORNER_CHARGES) {
-                r->dir = -1;   // siempre va hacia la izquierda (esquina)
-                s16 spd = rocksteadyMoveSpeed(r);
-                r->x += r->dir * spd;
-                r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
-                if (rabs(r->retreatTargetX - r->x) < spd + 2) {
-                    r->x = r->retreatTargetX;
-                    r->cornerChargeTimer = 30;   // pausa antes de la 1ra carga
-                    r->cornerChargesLeft--;       // 1ra carga ya contabilizada
-                }
-                break;
-            }
-            // Espera entre cargas.
-            if (r->cornerChargeTimer > 0) { r->cornerChargeTimer--; break; }
-            // Ejecutar carga: cambia a anim de charge sin arma.
-            rocksteadySetAnim(r, ROCKSTEADY_ANIM_CHARGE, TRUE);
-            r->dir = 1;   // siempre carga hacia la derecha (hacia el jugador)
-            r->chargeHit = 0;
-            r->timer = ROCKSTEADY_CHARGE_MAX;
-            r->state = ROCKSTEADY_CHARGE;
             break;
         }
 

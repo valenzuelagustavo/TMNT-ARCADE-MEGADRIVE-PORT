@@ -62,13 +62,25 @@ static void robotFireLaser(Robot* r) {
     }
 }
 
-static void robotUpdateLaser(Robot* r, Player* p1, Player* p2, bool twoP) {
+static void robotUpdateLaser(Robot* r, Player** ps, u8 n) {
     if (!r->laserActive) return;
     r->laserX += r->laserDir * ROBOT_LASER_SPEED;
-    if (r->laserX + WHIP_SPRITE_W < 0 || r->laserX > 1376) { robotKillLaser(r); return; }
 
-    Player* ps[2] = { p1, p2 };
-    u8 n = twoP ? 2 : 1;
+    // Se corta al salir de CAMARA, no del mundo (13/09). Antes el tope era el
+    // ancho del nivel (1376), asi que el laser seguia vivo cientos de px fuera
+    // de pantalla; como la X de sprite del VDP son 9 bits con el origen
+    // corrido 128, apenas la X de pantalla baja de -128 el valor ENVUELVE y el
+    // sprite reaparece por el otro borde -- que es lo que reporto Gustavo
+    // ("sale por un lado y sigue atravesandola por el otro"). El sprite es
+    // ancho (96px) asi que llegaba a esa zona enseguida.
+    // De paso arregla algo que no se veia: fuera de pantalla el laser seguia
+    // pudiendo golpear al jugador.
+    s16 sx = r->laserX - r->cameraOffsetX;
+    if (sx + WHIP_SPRITE_W < -16 || sx > ROBOT_SCREEN_W + 16) {
+        robotKillLaser(r);
+        return;
+    }
+
     for (u8 i = 0; i < n; i++) {
         Player* p = ps[i];
         if (!p) continue;
@@ -110,12 +122,29 @@ static s16 robotWhipReach(const Robot* r) {
 // escala al numFrame REAL de la anim de electro, que puede diferir del throw.
 // Antes se escalaba con throwFrames (frames del THROW) y se medía la distancia
 // con el borde del sprite -> frame mal seteado.
+// (14/09) Reescrito: ver el bloque ROBOT_WHIP_GRAB_* de robot.h. La variante
+// de largo ya se eligio al enganchar (r->grabFrame) midiendo la distancia real
+// contra los largos REALES del PNG; aca solo se la recorta por si la fila
+// tuviera menos frames de los esperados.
+static const s16 robotGrabReach[ROBOT_WHIP_GRAB_N] = {
+    ROBOT_WHIP_GRAB_R0, ROBOT_WHIP_GRAB_R1, ROBOT_WHIP_GRAB_R2, ROBOT_WHIP_GRAB_R3
+};
+
+// Variante de largo cuyo cable termina MAS CERCA de 'want' px del cuerpo.
+static u8 robotGrabIndex(s16 want) {
+    u8  best = 0;
+    s16 bestErr = rabs(robotGrabReach[0] - want);
+    for (u8 i = 1; i < ROBOT_WHIP_GRAB_N; i++) {
+        s16 err = rabs(robotGrabReach[i] - want);
+        if (err < bestErr) { bestErr = err; best = i; }
+    }
+    return best;
+}
+
 static u8 robotElectroFrame(const Robot* r) {
-    u8 n = (u8)r->sprite->animation->numFrame;   // frames de la anim electro actual
+    u8 n = (u8)r->sprite->animation->numFrame;   // frames de la anim actual
     if (n <= 1) return 0;
-    u8 tf = (r->throwFrames > 1) ? (u8)(r->throwFrames - 1) : 1;
-    u16 f = (u16)r->throwFrame * (n - 1) / tf;    // 0 = mínima ext. .. n-1 = máxima
-    return (f >= n) ? (u8)(n - 1) : (u8)f;
+    return (r->grabFrame >= n) ? (u8)(n - 1) : r->grabFrame;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,8 +154,10 @@ void robotInit(Robot* r) {
     r->sprite = NULL;
     r->state = ROBOT_INACTIVE;
     r->x = r->y = 0;
+    r->retreatY = 0;
     r->cameraOffsetX = 0;
     r->dir = -1;
+    r->hurtDir = 1;
     r->hp = ROBOT_HP;
     r->anim = 0xFF;
     r->flashTimer = 0;
@@ -146,9 +177,9 @@ void robotInit(Robot* r) {
     r->laserDir = 1;
 }
 
-void robotSpawn(Robot* r, s16 centerX) {
+void robotSpawn(Robot* r, s16 centerX, s16 spawnY) {
     r->x = centerX;
-    r->y = ROBOT_SPAWN_Y;
+    r->y = spawnY;
     r->dir = -1;
     r->hp = ROBOT_HP;
     r->state = ROBOT_APPEAR;
@@ -157,8 +188,24 @@ void robotSpawn(Robot* r, s16 centerX) {
     r->drainTimer = 0;
     r->sprite = SPR_addSprite(&robot_whip, 0, 0, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
     // Comparte PAL2 (paleta de los foot soldiers), ya cargada por el nivel.
+    // (16/09) Si el presupuesto de VRAM de sprites esta agotado (modo 4
+    // jugadores: 4 tortugas + 4 marcos de HUD + 4 robots), SPR_addSprite
+    // devuelve NULL. Un robot sin sprite NO ACTUA: robotUpdate sale en su
+    // primera linea, se queda en APPEAR para siempre y la condicion de
+    // victoria del nivel nunca se cumple -- el nivel quedaba intrabajable.
+    // Lo damos por terminado (ROBOT_GONE) en vez de dejarlo colgado.
+    if (!r->sprite) {
+        r->state = ROBOT_GONE;
+        return;
+    }
     robotRestartAnim(r, ROBOT_ANIM_APPEAR, FALSE);
     robotRender(r);
+    // Grito del robot al salir del suelo ("twip"). CH2, misma linea que usan
+    // las demas voces de entrada/anuncio del juego (say_your_p_sfx, etc.) --
+    // SOUND_PCM_CH4 NO existe de verdad en el driver XGM2 de SGDK (solo hay
+    // 3 canales PCM reales, PCM0..PCM2 = CH1..CH3); usarlo corrompia el
+    // comando del Z80 y dejaba un pitido constante (bug encontrado 29/08).
+    XGM2_playPCMEx(robot_twip_sfx, sizeof(robot_twip_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
 }
 
 bool robotIsActive(const Robot* r) {
@@ -170,13 +217,14 @@ bool robotCanBeHit(const Robot* r) {
     // golpe (i-frames) ni muerte.
     return (r->state == ROBOT_WALK || r->state == ROBOT_TURN ||
             r->state == ROBOT_WINDUP || r->state == ROBOT_THROW ||
-            r->state == ROBOT_RETRACT || r->state == ROBOT_LASER);
+            r->state == ROBOT_RETRACT || r->state == ROBOT_LASER ||
+            r->state == ROBOT_RETREAT);
 }
 
 s16 robotGetCenterX(const Robot* r) { return r->x; }
 s16 robotGetCenterY(const Robot* r) { return r->y; }
 
-void robotDamage(Robot* r, s16 dmg) {
+void robotDamage(Robot* r, s16 dmg, s16 attackerX) {
     if (!robotCanBeHit(r)) return;
     r->hp -= dmg;
 
@@ -185,7 +233,11 @@ void robotDamage(Robot* r, s16 dmg) {
         robotRestartAnim(r, ROBOT_ANIM_DESTROY, FALSE);
         return;
     }
-    // Golpeado no fatal: HURT.
+    // Golpeado no fatal: HURT + empuje bien grande en la dirección del golpe
+    // (lejos del atacante), para que cueste un poco más rematarlo pegado.
+    // Distancia a proposito exagerada (30/08) para poder verla clarito y
+    // ajustarla desde ROBOT_HURT_KNOCK_SPEED en robot.h.
+    r->hurtDir = (r->x >= attackerX) ? 1 : -1;
     r->state = ROBOT_HURT;
     r->timer = ROBOT_HURT_FRAMES;
     robotRestartAnim(r, ROBOT_ANIM_HURT, FALSE);
@@ -204,17 +256,23 @@ static void robotBeginThrow(Robot* r) {
     SPR_setAnimAndFrame(r->sprite, ROBOT_ANIM_WHIP_THROW, 0);
 }
 
+// (14/09) Envoltorio de 1-2 jugadores sobre la version de N.
 void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers, u16 fps) {
+    Player* ps[2] = { p1, (twoPlayers && p2) ? p2 : p1 };
+    robotUpdateN(r, cameraX, ps, (twoPlayers && p2) ? 2 : 1, fps);
+}
+
+void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
     if (r->state == ROBOT_INACTIVE || r->state == ROBOT_GONE || !r->sprite) return;
     r->cameraOffsetX = cameraX;
 
     if (r->attackCooldown > 0) r->attackCooldown--;
 
-    // Jugador objetivo: el más cercano en X.
-    Player* tgt = p1;
-    if (twoPlayers && p2 &&
-        rabs(getPlayerWorldX(p2) - r->x) < rabs(getPlayerWorldX(p1) - r->x))
-        tgt = p2;
+    // Jugador objetivo: el MAS CERCANO en X, entre los que haya (1..4).
+    Player* tgt = pls[0];
+    for (u8 k = 1; k < nPl; k++)
+        if (rabs(getPlayerWorldX(pls[k]) - r->x) < rabs(getPlayerWorldX(tgt) - r->x))
+            tgt = pls[k];
     s16 pcx  = getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2;
     s16 py   = getPlayerY(tgt);
     s16 ddx  = pcx - r->x;
@@ -279,12 +337,28 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
             s16 fwd = (r->dir >= 0) ? (pcx - r->x) : (r->x - pcx);
             if (fwd >= 0 && fwd <= reach && rabs(py - r->y) <= ROBOT_WHIP_TOL_Y &&
                 playerCanBeHit(tgt) && !playerIsGrabbed(tgt)) {
-                // ¡Enganchó!
-                playerWhipGrab(tgt);
+                // ¡Enganchó! (14/09) El cable tiene 4 largos dibujados y nada
+                // mas: se elige el que mejor cae a la distancia real y se le
+                // pega un TIRON al jugador para que la punta termine justo en
+                // su cuerpo, en la misma lane que el robot. Asi el cable no
+                // sobresale por detras ni queda corto.
+                // La punta tiene que caer INSET px antes del centro del torso:
+                //   punta = pcx - dir*INSET  ->  largo pedido = fwd - INSET
+                r->grabFrame = robotGrabIndex(fwd - ROBOT_WHIP_GRAB_INSET);
+                // …y el jugador se corre para que ese largo quede exacto.
+                s16 pcxNew = r->x + r->dir * (robotGrabReach[r->grabFrame]
+                                              + ROBOT_WHIP_GRAB_INSET);
+                playerWhipGrabAt(tgt, pcxNew - PLAYER_SPRITE_W / 2, r->y);
                 r->state = ROBOT_GRAB;
                 r->drainTimer = 0;
                 r->electroTgl = 0;
+                r->timer = ROBOT_CAUGHT_FRAMES;
+                // Pose de agarre CONGELADA en la variante elegida: la fila [6]
+                // NO es una animacion (son 4 largos del mismo cable), asi que
+                // reproducirla estiraba el cable delante del jugador.
                 robotRestartAnim(r, ROBOT_ANIM_CAUGHT, FALSE);
+                SPR_setAutoAnimation(r->sprite, FALSE);
+                SPR_setFrame(r->sprite, robotElectroFrame(r));
             } else if (++r->throwTick >= ROBOT_THROW_TICKS) {
                 r->throwTick = 0;
                 if (r->throwFrame + 1 >= r->throwFrames) {
@@ -314,10 +388,11 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
         case ROBOT_GRAB: {
             // Tras "atrapada" alterna las anims de electrocución (7/8). La
             // tortuga reproduce su anim 18 (la maneja playerWhipGrab).
-            if (r->anim == ROBOT_ANIM_CAUGHT && SPR_isAnimationDone(r->sprite)) {
-                // Congelar la electrocución en el frame cuya EXTENSIÓN del látigo
-                // coincide con la que tenía al enganchar (acorde a la distancia
-                // robot->player en ese momento).
+            // (14/09) La pose CAUGHT ahora está CONGELADA (ver el enganche en
+            // ROBOT_THROW), así que no se puede esperar a SPR_isAnimationDone:
+            // se cuentan ROBOT_CAUGHT_FRAMES a mano.
+            if (r->anim == ROBOT_ANIM_CAUGHT && r->timer > 0 && --r->timer == 0) {
+                // Electrocución con el MISMO largo de cable que el agarre.
                 robotSetAnim(r, ROBOT_ANIM_ELECTRO_A, FALSE);
                 SPR_setAutoAnimation(r->sprite, FALSE);
                 r->grabFrame = robotElectroFrame(r);
@@ -361,8 +436,59 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
         }
 
         case ROBOT_HURT: {
+            // Empuje: sólo durante los primeros ROBOT_HURT_KNOCK_FRAMES del
+            // HURT (r->timer cuenta hacia abajo desde ROBOT_HURT_FRAMES).
+            // OJO: clampeado contra ROBOT_HURT_KNOCK_MIN_X/MAX_X (mas ancho
+            // que el corral de patrulla ROBOT_PATROL_LEFT/RIGHT) -- clampear
+            // contra el corral de patrulla fue el bug reportado 30/08: el
+            // corral es angosto (150px) y el empuje quedaba comido apenas el
+            // robot estaba cerca de una punta.
+            if (r->timer > (ROBOT_HURT_FRAMES - ROBOT_HURT_KNOCK_FRAMES))
+                r->x = rclamp(r->x + r->hurtDir * ROBOT_HURT_KNOCK_SPEED,
+                              ROBOT_HURT_KNOCK_MIN_X, ROBOT_HURT_KNOCK_MAX_X);
+            if (r->timer > 0) { r->timer--; break; }
+
+            // Terminado el empuje, RETIRADA: el extremo de patrulla mas lejos
+            // DEL JUGADOR (no de si mismo) y la lane opuesta a la suya.
+            {
+                s16 dl = rabs(pcx - ROBOT_PATROL_LEFT);
+                s16 dr = rabs(pcx - ROBOT_PATROL_RIGHT);
+                r->patrolTarget = (dr >= dl) ? ROBOT_PATROL_RIGHT : ROBOT_PATROL_LEFT;
+                s16 midLane = (ROBOT_LANE_TOP + ROBOT_LANE_BOTTOM) / 2;
+                r->retreatY = (py >= midLane) ? ROBOT_LANE_TOP : ROBOT_LANE_BOTTOM;
+                r->state = ROBOT_RETREAT;
+                r->timer = ROBOT_RETREAT_MAX_FRAMES;
+                r->walkTimer = 0;
+                robotSetAnim(r, ROBOT_ANIM_WALK, TRUE);
+            }
+            break;
+        }
+
+        case ROBOT_RETREAT: {
+            // Se aleja en X y cruza de lane al mismo tiempo. Al llegar (o al
+            // agotarse el tope) sigue con el ciclo normal por el TURN, que es
+            // el que decide latigo o laser segun la distancia.
+            bool doneX = (rabs(r->x - r->patrolTarget) <= ROBOT_ARRIVE_MARGIN);
+            bool doneY = (rabs(r->y - r->retreatY) <= ROBOT_RETREAT_ARRIVE);
+            if (!doneX) {
+                s16 step = (r->patrolTarget > r->x) ? ROBOT_SPEED : -ROBOT_SPEED;
+                r->x += step;
+                r->dir = (step > 0) ? 1 : -1;
+            }
+            if (!doneY) {
+                r->y += (r->retreatY > r->y) ? ROBOT_SPEED : -ROBOT_SPEED;
+                r->y = rclamp(r->y, ROBOT_LANE_TOP, ROBOT_LANE_BOTTOM);
+            }
+            r->walkTimer++;
+            robotSetAnim(r, (r->walkTimer < ROBOT_WALK_START_TICKS)
+                            ? ROBOT_ANIM_WALK : ROBOT_ANIM_WALK_LONG, TRUE);
             if (r->timer > 0) r->timer--;
-            else              robotStartWalk(r);
+            if ((doneX && doneY) || r->timer == 0) {
+                r->x = rclamp(r->x, ROBOT_PATROL_LEFT, ROBOT_PATROL_RIGHT);
+                r->state = ROBOT_TURN;
+                r->timer = ROBOT_TURN_MAX;
+                robotRestartAnim(r, ROBOT_ANIM_TURN, FALSE);
+            }
             break;
         }
 
@@ -379,6 +505,6 @@ void robotUpdate(Robot* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
         default: break;
     }
 
-    robotUpdateLaser(r, p1, p2, twoPlayers);
+    robotUpdateLaser(r, pls, nPl);
     robotRender(r);
 }

@@ -3,23 +3,20 @@ out/
 # Emuladores (Gens, Fusion) usados para testing local.
 Emuladores/
 
-# Archivos de IA (instrucciones, skills y configs de agentes).
-*AGENTS.md
-CLAUDE.md
-GEMINI.md
-.claude/
-.cursor/
-.cursorrules
-.windsurf/
-.aider*
-.github/copilot-instructions.md
-.opencode/
-opencode.json
-
 *DEVLOG.md
 
 # Audio con derechos de terceros: musica (VGM) y voice overs (WAV).
 # No se distribuyen con el repo; el duenio del material decidio compartirlos
-# solo localmente.
+# solo local
+
 *.vgm
 *.wav
+# --- Salidas de build y material de trabajo (19/09) --------------------------
+# ROMs compiladas que quedan en la raiz (una por sesion de prueba).
+/*.bin
+
+# Scratch de la intro: tarballs, frames sueltos y backups.
+_tmp_intro/
+
+# Capturas de MAME para ingenieria inversa del jefe (varios GB).
+arcade_reverse_eng/Rocksteady/

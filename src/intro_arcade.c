@@ -28,14 +28,33 @@
 //   sprites: 4 tortugas x 90 + tapa 32 = 392  ->  SPR_initEx(416)
 //   total ~1444 de 1612. La escena D (378 tiles) y las E/F (293) recargan
 //   VRAM desde cero en cada corte duro, tapadas por el fade.
+//   Nubes de la escena A/B (44 + 44 = 88 tiles de sprite, dos instancias de
+//   intro_nube_chica; ya no se usa intro_nube_grande) casi no suman a ese
+//   pico: cada una se libera sola (SPR_releaseSprite) apenas sale de camara
+//   (ver nubesUpdateDrift/nubesUpdateScroll), con una red de seguridad al
+//   terminar el dolly por si alguna todavia no salio. Pueden convivir un
+//   rato con la tapa (32 tiles) durante el dolly -- 88+32=120 tiles, lejos
+//   del limite -- pero nunca con
+//   las tortugas (90 c/u), que recien aparecen despues de esa red.
 //
-// Sin musica (decision del usuario): la intro corre en silencio.
+// Musica: "01 - Opening Demo" (music_intro_arcade en audio.res). Arranca
+// INTRO_MUSIC_DELAY (1s) despues del setup de VRAM/paletas -- ese hueco
+// cuenta como START-skippable, igual que el resto de la escena A -- y NO
+// hace loop (XGM2_setLoopNumber(0) ANTES de playMusicVol -- el driver latchea
+// el loop en el instante del play, ver comentario en showArcadeIntro(); mismo
+// orden que music_credits en scenes.c): si el vgm termina antes de que el jugador corte, se queda en
+// silencio en vez de repetirse. Se restaura el loop infinito por defecto
+// (XGM2_setLoopNumber(-1)) antes de salir, para no afectar la musica de las
+// escenas siguientes. clearScene() al salir (skip por START o fin normal)
+// corta lo que quede sonando via XGM2_stop().
 // START saltea la intro completa en cualquier momento.
 // ===========================================================================
 
 #include "scenes.h"
 #include "intro_tmnt.h"   // intro_dolly, intro_luz, intro_tapa, intro_turtles,
-                          // intro_quad, intro_banner, intro_logo, intro_konami
+                          // intro_quad, intro_banner, intro_logo, intro_konami,
+                          // intro_nube_chica (dos instancias: izquierda y derecha)
+#include "audio.h"        // music_intro_arcade ("01 - Opening Demo.vgm")
 
 // ---------------------------------------------------------------------------
 // Geometria de pantalla y planos
@@ -46,12 +65,60 @@
 #define INTRO_PLANE_W        64   // Plano de 64 tiles de ancho (512 px)
 #define INTRO_PLANE_H        32   // ...y 32 filas (256 px) = ventana circular
 #define INTRO_SPR_TILES     416   // 4 tortugas (90 c/u) + tapa (32) + margen
+#define NUBE_CHICA_W         88   // 11 tiles
+#define NUBE_CHICA_H         32   // 4 tiles
+// Posicion HORIZONTAL de arranque de cada nube (antes las dos arrancaban
+// totalmente afuera de cuadro, -NUBE_CHICA_W / INTRO_SCREEN_W, y entraban
+// desde el borde). Ahora arrancan ya bien visibles:
+//   Izquierda: borde derecho de la nube tocando el borde izquierdo de la
+//   luna (bbox de la luna en x, ver mas abajo: 70..89) -> 70 - NUBE_CHICA_W.
+#define NUBE_START_X_IZQ     (70 - NUBE_CHICA_W)   // -18
+//   Derecha: centrada en pantalla en vez de afuera del borde derecho.
+#define NUBE_START_X_DER     ((INTRO_SCREEN_W - NUBE_CHICA_W) / 2)   // 84
+// Dos instancias de la MISMA nube chica (ya no se usa intro_nube_grande):
+// una entra por la izquierda y otra por la derecha, cada una a su propia
+// altura respecto de la luna. bbox real de la luna en intro_dolly.png es
+// x=70..89 y=19..43 (tools/gen_intro_assets.py la deja intacta, viene del
+// arte fuente; 24px de alto).
+// Izquierda: se mete unos px dentro de la mitad inferior de la luna (34..43,
+// ~9px de solape de los 24px de alto) para taparla parcialmente cuando su
+// deriva la cruza por delante.
+#define NUBE_Y_IZQ            42   // subida 1 tile (8px) a pedido de Gustavo, 30/08 -- antes 50
+// Derecha: casi pegada al borde inferior de la luna (43) pero sin solape,
+// bastante mas cerca que el hueco original de "un tile por debajo" (48).
+#define NUBE_Y_DER           30   // subida 1 tile (8px) a pedido de Gustavo, 30/08 -- antes 38
+// Velocidad de la deriva horizontal, SOLO durante la escena A (cielo quieto):
+// cada nube tiene su PROPIO acumulador fraccionario (estilo Bresenham, ver
+// nubesUpdateDrift), asi pueden ir a velocidades distintas. Ya no hace falta
+// que alcancen a cruzar toda la pantalla a tiempo (esa restriccion
+// desaparecio cuando se cambio el mecanismo de salida, ver nubesUpdateScroll
+// mas abajo), asi que se puede ir tan lento como se quiera.
+// Izquierda: 1/3 de px/tick.
+#define NUBE_SPEED_NUM_IZQ      1
+#define NUBE_SPEED_DEN_IZQ      3
+// Derecha: mas lenta todavia que la izquierda, 1/5 de px/tick.
+#define NUBE_SPEED_NUM_DER      1
+#define NUBE_SPEED_DEN_DER      5
+#define INTRO_MUSIC_VOL      90   // Mismo nivel que el resto de la musica (VOL_MUSIC_* en scenes.c)
+#define INTRO_MUSIC_DELAY    (IS_PAL_SYSTEM ? 50 : 60)   // 1s de espera antes de arrancar la musica
+// Duracion real hasta que "01 - Opening Demo.vgm" se repite, CONFIRMADA por
+// Gustavo en emulador (se escucha repetir justo cuando cae intro_banner.png,
+// tick ~706 de escena - 60 de delay = ~646 frames de musica). Coincide con el
+// campo "loop # samples" del header VGM (470400 @ 44100 Hz = 640 frames NTSC
+// exactos, 533 PAL) -- el primer calculo (basado en "total # samples", 905)
+// estaba mal: ese campo es la duracion de TODO el archivo doblado, no el
+// punto de loop. Un par de frames de margen para cortar ANTES de que se
+// note, no despues.
+// Corte de respaldo manual: no depende de que XGM2_setLoopNumber(0) se haya
+// aplicado bien en el punto de loop del propio driver (por ahora no se pudo
+// confirmar que lo haga) -- este corte manda si o si.
+#define INTRO_MUSIC_LEN      (IS_PAL_SYSTEM ? 528 : 633)
 
 // ---------------------------------------------------------------------------
 // Linea de tiempo (ticks NTSC = frames del analisis del arcade)
 // ---------------------------------------------------------------------------
 #define INTRO_T_FADE_IN      20   // Fundido de entrada (dentro de la escena A)
-#define INTRO_T_SKYLINE     200   // A: skyline quieto
+#define INTRO_T_SKYLINE      20   // A: skyline quieto (200->140->80->20, recortando de a 1s para comprimir la intro)
 // B: el descenso dura lo que haga falta para mantener SIEMPRE la misma
 // velocidad en px/tick que los 256 ticks originales sobre 1272 px, aunque se
 // alargue la banda de lluvia (ver RAIN_* mas abajo).
@@ -59,16 +126,21 @@
 #define INTRO_T_COVER_HOLD    2   // Tapa quieta antes del flash
 #define INTRO_T_FLASH         3   // Flash blanco
 #define INTRO_T_BEAM         10   // El haz de luz crece
-#define INTRO_T_JUMP         77   // C: salto de las 4 tortugas + pose
+// Corte antes de mostrar la caida/aterrizaje: en t=32 las 4 tortugas estan
+// entre 94% y 100% de su propia altura de pico (arrancan con delays
+// distintos, no pegan el pico exacto todas juntas), la mejor ventana comun
+// para cortar mientras siguen "arriba" y pasar derecho a la escena D.
+#define INTRO_T_JUMP         33   // C: solo el salto hasta cerca del pico, sin caida ni pose
 #define INTRO_T_QUAD_GROW    32   // D: crecen los 4 cuadrantes
 #define INTRO_T_QUAD_HOLD   120   // D: cuadro fijo
 #define INTRO_T_SKY_HOLD     15   // E: celeste liso antes del banner
-#define INTRO_T_BANNER_FALL  25   // E: el banner cae desde fuera de cuadro
-#define INTRO_T_BANNER       82   // E: banner fijo
+#define INTRO_T_BANNER_FALL  17   // E: el banner cae desde fuera de cuadro (mas rapido que antes)
+#define INTRO_T_BANNER       70   // E: banner fijo (recortado para que el logo aparezca antes, ver INTRO_MUSIC_LEN)
 #define INTRO_T_LOGO_WIPE    13   // F: entra "TURTLES"
 #define INTRO_T_LOGO_HOLD   105   // F: composicion final fija
-// Total: 940 ticks (~15.6 s) con RAIN_EXTRA_LOOPS = 0; cada vuelta extra de
-// lluvia suma ~13 ticks al dolly (con 4 vueltas: ~991 ticks, ~16.5 s).
+// Total: 880 ticks (~14.7 s) con RAIN_EXTRA_LOOPS = 0 (200->140 en la escena A
+// para el ajuste de sincro con la musica); cada vuelta extra de lluvia suma
+// ~13 ticks al dolly (con 4 vueltas: ~931 ticks, ~15.5 s).
 
 // Fundido final: mas largo y con un respiro en negro antes de la escena que
 // sigue, para que el corte no se sienta seco.
@@ -174,6 +246,13 @@ static u16        luzAttr;
 
 static Sprite    *tapaSpr;
 static Sprite    *turtleSpr[4];
+static Sprite    *nubeChicaSpr;
+static Sprite    *nubeChica2Spr;
+static s16        nubeChicaX;    // arranca en NUBE_START_X_IZQ, viaja a la derecha
+static s16        nubeChica2X;   // arranca en NUBE_START_X_DER, viaja a la izquierda
+static u8         nubeAccumIzq;   // acumulador fraccionario de NUBE_SPEED_NUM_IZQ/DEN_IZQ
+static u8         nubeAccumDer;   // acumulador fraccionario de NUBE_SPEED_NUM_DER/DEN_DER
+static bool       introMusicStopped;   // corte manual de respaldo, ver INTRO_MUSIC_LEN
 
 static const u16 introWhite[64] = {
     0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE,
@@ -189,6 +268,17 @@ static const u16 introBlack[64] = { 0 };
 
 // Un tick de intro. Devuelve TRUE si el jugador apreto START.
 static bool introTick(void) {
+    // Corte de respaldo: si la musica todavia estuviera sonando al llegar a
+    // la duracion real de una pasada (INTRO_MUSIC_LEN, calculada del propio
+    // header del vgm), se para a mano. No depende de que
+    // XGM2_setLoopNumber(0) se haya aplicado correctamente en el punto de
+    // loop del driver -- es una garantia adicional, no un reemplazo.
+    if (!introMusicStopped && XGM2_isPlaying() &&
+        (XGM2_getElapsed() >= INTRO_MUSIC_LEN)) {
+        XGM2_stop();
+        introMusicStopped = TRUE;
+    }
+
     SPR_update();
     SYS_doVBlankProcess();
     return (JOY_readJoypad(JOY_1) & BUTTON_START) ? TRUE : FALSE;
@@ -197,6 +287,86 @@ static bool introTick(void) {
 // Espera n ticks sin hacer nada mas. TRUE = salteado.
 static bool introWait(u16 ticks) {
     while (ticks--) if (introTick()) return TRUE;
+    return FALSE;
+}
+
+// Escena A (cielo quieto, scrollY siempre 0): deriva horizontal lenta con
+// acumulador fraccionario. Ademas de mover, chequea si alguna se fue por el
+// COSTADO de la pantalla -- en la practica no debería pasar nunca en lo que
+// dura la escena A (van demasiado lento y la escena es corta), es solo una
+// red de seguridad por si el dia de mañana se alarga la escena o se sube la
+// velocidad.
+static void nubesUpdateDrift(void) {
+    if (nubeChicaSpr) {
+        nubeAccumIzq += NUBE_SPEED_NUM_IZQ;
+        if (nubeAccumIzq >= NUBE_SPEED_DEN_IZQ) {
+            nubeAccumIzq -= NUBE_SPEED_DEN_IZQ;
+            nubeChicaX += 1;
+        }
+        if (nubeChicaX >= INTRO_SCREEN_W) {
+            SPR_releaseSprite(nubeChicaSpr);
+            nubeChicaSpr = NULL;
+        } else {
+            SPR_setPosition(nubeChicaSpr, nubeChicaX, NUBE_Y_IZQ);
+        }
+    }
+    if (nubeChica2Spr) {
+        nubeAccumDer += NUBE_SPEED_NUM_DER;
+        if (nubeAccumDer >= NUBE_SPEED_DEN_DER) {
+            nubeAccumDer -= NUBE_SPEED_DEN_DER;
+            nubeChica2X -= 1;
+        }
+        if (nubeChica2X <= -NUBE_CHICA_W) {
+            SPR_releaseSprite(nubeChica2Spr);
+            nubeChica2Spr = NULL;
+        } else {
+            SPR_setPosition(nubeChica2Spr, nubeChica2X, NUBE_Y_DER);
+        }
+    }
+}
+
+// Escena B (dolly): las nubes son parte del cielo, igual que la luna -- y la
+// luna, al ser parte de la misma tira que scrollea, se va de cuadro por
+// ARRIBA a medida que "la camara" baja por el callejon (ver dollyUpdate). En
+// vez de seguir moviendolas de costado (que las hacia ver como si "bajaran
+// con la camara" en vez de irse con el resto del cielo), ahora se les
+// congela la X que trajeron de la escena A y se les hace seguir el scroll
+// vertical EXACTAMENTE como a la tapa de la alcantarilla mas abajo
+// (tapaScreenY = mundo - scrollY): la Y en pantalla de cada nube es su altura
+// original (NUBE_Y_IZQ/DER, que es literalmente su Y de "mundo" porque a
+// scrollY=0 mundo y pantalla coinciden) menos scrollY. Se liberan solas
+// cuando ya salieron entera por arriba (y + alto <= 0), con los mismos ~40
+// ticks de margen que tarda el scroll en empezar a moverse de verdad -- muy
+// rapido, no llegan a "acompañar" el resto del dolly.
+static void nubesUpdateScroll(s16 scrollY) {
+    if (nubeChicaSpr) {
+        s16 y = NUBE_Y_IZQ - scrollY;
+        if (y + NUBE_CHICA_H <= 0) {
+            SPR_releaseSprite(nubeChicaSpr);
+            nubeChicaSpr = NULL;
+        } else {
+            SPR_setPosition(nubeChicaSpr, nubeChicaX, y);
+        }
+    }
+    if (nubeChica2Spr) {
+        s16 y = NUBE_Y_DER - scrollY;
+        if (y + NUBE_CHICA_H <= 0) {
+            SPR_releaseSprite(nubeChica2Spr);
+            nubeChica2Spr = NULL;
+        } else {
+            SPR_setPosition(nubeChica2Spr, nubeChica2X, y);
+        }
+    }
+}
+
+// Igual que introWait(), pero ademas hace avanzar (y eventualmente liberar)
+// las nubes con nubesUpdateDrift(). Se usa durante el delay de la musica y
+// el skyline quieto de la escena A.
+static bool introWaitClouds(u16 ticks) {
+    while (ticks--) {
+        nubesUpdateDrift();
+        if (introTick()) return TRUE;
+    }
     return FALSE;
 }
 
@@ -303,7 +473,47 @@ static bool introBlockDolly(void) {
     // se carga despues del flash, que es cuando entran en cuadro.
     PAL_setColors(0, introBlack, 64, DMA);
     PAL_fadeIn(0, 15, intro_dolly.palette->data, INTRO_T_FADE_IN, TRUE);
-    if (introWait(INTRO_T_SKYLINE)) return FALSE;
+
+    // ---- Nubes: cruzan el cielo por debajo de la luna durante toda la
+    // escena A (delay de musica + skyline quieto). Paleta PROPIA (PAL2): la
+    // PAL0 del dolly/haz/tapa ya esta al limite de 16 colores (ver
+    // tools/gen_intro_assets.py), no hay lugar para sumar las nubes ahi. Se
+    // liberan antes de arrancar la escena B (ver mas abajo), asi que no
+    // suman al pico de VRAM de sprites de tortugas+tapa.
+    PAL_setPalette(PAL2, intro_nube_chica.palette->data, DMA);
+    nubeChicaX  = NUBE_START_X_IZQ;
+    nubeChica2X = NUBE_START_X_DER;
+    nubeAccumIzq = 0;
+    nubeAccumDer = 0;
+    nubeChicaSpr  = SPR_addSprite(&intro_nube_chica, nubeChicaX, NUBE_Y_IZQ,
+                                  TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    nubeChica2Spr = SPR_addSprite(&intro_nube_chica, nubeChica2X, NUBE_Y_DER,
+                                  TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+
+    // La musica arranca INTRO_MUSIC_DELAY (1s) despues de que el cielo ya es
+    // visible (no antes): puesta antes del fade-in, la espera pasaba a
+    // oscuras y en silencio, y quedaba pegada al instante en que aparece el
+    // cielo -- indistinguible de "sin delay" para cualquiera mirando la
+    // pantalla. START durante esta espera saltea la intro, igual que el
+    // resto de la escena.
+    if (introWaitClouds(INTRO_MUSIC_DELAY)) return FALSE;
+
+    // OJO DE ORDEN: el comando "play" del driver XGM2 LATCHEA el numero de
+    // loop en el instante en que se dispara (lee XGM2_PLAY_ARG_LOOP y lo copia
+    // a su contador interno ahi mismo) -- si se llama DESPUES de
+    // playMusicVol/XGM2_play no tiene ningun efecto sobre esta reproduccion.
+    // setLoopNumber va SIEMPRE antes del play (igual que music_credits en
+    // scenes.c; music_ending lo tiene al reves y por eso probablemente
+    // tambien hace loop, aunque eso no se toco aca). Ademas es un no-op
+    // silencioso si el driver Z80 cargado no es XGM2 en ese momento -- se
+    // fuerza la carga a mano para no depender de que una escena previa ya
+    // lo haya dejado puesto.
+    Z80_loadDriver(Z80_DRIVER_XGM2, TRUE);
+    XGM2_setLoopNumber(0);   // no repetir en loop si el tema termina antes que la escena
+    introMusicStopped = FALSE;   // reset del corte manual de respaldo (ver introTick)
+    playMusicVol(music_intro_arcade, INTRO_MUSIC_VOL);
+
+    if (introWaitClouds(INTRO_T_SKYLINE)) return FALSE;
 
     // ---- Escena B: dolly hasta el callejon ----
     // Curva suave (smoothstep) sobre los 1272 px: la camara arranca despacio,
@@ -325,8 +535,16 @@ static bool introBlockDolly(void) {
             SPR_setVisibility(tapaSpr, VISIBLE);
             SPR_setPosition(tapaSpr, TAPA_REST_X, tapaScreenY);
         }
+        nubesUpdateScroll(scrollY);
         if (introTick()) return FALSE;
     }
+    // Red de seguridad: si alguna nube todavia no salio de cuadro sola para
+    // cuando termina el dolly, se la fuerza aca (no debe convivir con la
+    // tapa/tortugas que arrancan enseguida, por el presupuesto de VRAM). Con
+    // nubesUpdateScroll ya salen del todo a los ~40 ticks de arrancar el
+    // dolly (de 307 en total), asi que esto deberia ser un caso rarisimo.
+    if (nubeChicaSpr)  { SPR_releaseSprite(nubeChicaSpr);  nubeChicaSpr  = NULL; }
+    if (nubeChica2Spr) { SPR_releaseSprite(nubeChica2Spr); nubeChica2Spr = NULL; }
     dollyUpdate(INTRO_DOLLY_END);
     SPR_setPosition(tapaSpr, TAPA_REST_X, TAPA_REST_Y);
     SPR_setVisibility(tapaSpr, VISIBLE);
@@ -568,6 +786,8 @@ SceneId showArcadeIntro(void) {
             introBlockLogo();
 
     // ---- Salida: fundido a negro y vuelta al estado que esperan los menus ----
+    XGM2_setLoopNumber(-1);   // restaurar loop infinito para la musica de las siguientes escenas
+
     // Se espera a que SUELTEN START para que el mismo pulso no saltee tambien
     // la seleccion de jugadores.
     while (JOY_readJoypad(JOY_1) & BUTTON_START) SYS_doVBlankProcess();
@@ -585,6 +805,10 @@ SceneId showArcadeIntro(void) {
     for (u16 i = 0; i < 4; i++)
         if (turtleSpr[i]) { SPR_releaseSprite(turtleSpr[i]); turtleSpr[i] = NULL; }
     if (tapaSpr) { SPR_releaseSprite(tapaSpr); tapaSpr = NULL; }
+    // Por si START salteo la intro durante la escena A (las nubes normalmente
+    // ya se liberan solas al final de esa escena, ver introBlockDolly).
+    if (nubeChicaSpr)  { SPR_releaseSprite(nubeChicaSpr);  nubeChicaSpr  = NULL; }
+    if (nubeChica2Spr) { SPR_releaseSprite(nubeChica2Spr); nubeChica2Spr = NULL; }
     SPR_update();
     SYS_doVBlankProcess();
 

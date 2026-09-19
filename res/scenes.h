@@ -17,10 +17,15 @@ typedef enum {
     SCENE_OPTIONS,      // Opciones: VIDAS (3/5/7), SOUNDTEST y SALIR
     SCENE_CHAR_SELECT,
     SCENE_CINEMATIC_FIRE,
-    SCENE_LEVEL1_TITLE,
-    SCENE_LEVEL1,
-    SCENE_LEVEL2,       // Nivel 2: pasillo en llamas, 2da parte (sala cerrada)
-    SCENE_ENDING,       // Cutscene final: Shredder rapta a April (BG_A + BG_B)
+    // Nomenclatura del ARCADE, no del orden interno: la "Scene 1" del arcade
+    // son DOS niveles (1-1 la calle en llamas, 1-2 el pasillo/sala de April),
+    // y la "Scene 2" es la calle a la que se sale persiguiendo a Shredder.
+    SCENE_1_1_TITLE,    // "SCENE 1 / FIRE! WE GOTTA GET APRIL OUT!!"
+    SCENE_1_1,          // Nivel 1-1: la calle en llamas
+    SCENE_1_2,          // Nivel 1-2: pasillo en llamas, sala cerrada (Rocksteady)
+    SCENE_ENDING,       // Cutscene: Shredder rapta a April y sale por la ventana
+    SCENE_2_1_TITLE,    // "SCENE 2 / C'MON, AFTER THAT SHREDDER CREEP!!"
+    SCENE_2_1,          // Nivel 2-1: la calle (recorrido en L)
     SCENE_GAME_OVER
 } SceneId;
 
@@ -36,10 +41,12 @@ SceneId showProfiles();
 SceneId showOptions();
 SceneId showCharSelect();
 SceneId showFireCinematic();
-SceneId showLevel1Title();
-SceneId showLevel1();
-SceneId showLevel2();
+SceneId showScene11Title();
+SceneId showScene11();
+SceneId showScene12();
 SceneId showEnding();
+SceneId showScene21Title();
+SceneId showScene21();
 SceneId showGameOver();
 
 // Arranca una pista con el volumen dado (XGM2 permite regular volumen en vivo).

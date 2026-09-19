@@ -1,5 +1,10 @@
 #include "enemy.h"
 
+// Ancho visible de la MegaDrive en píxeles. Se redefine localmente (igual
+// que en scenes.c/intro_arcade.c) para no acoplar enemy.c a un header de
+// escena sólo por esta constante de hardware.
+#define ENEMY_SCREEN_W 320
+
 // ---------------------------------------------------------------------------
 // Cambio de animación con guarda: solo re-setea si la anim es distinta a la
 // actual (evita reiniciar el ciclo cada frame). 'loop' controla si la anim
@@ -29,35 +34,57 @@ static void enemyRestartAnim(Enemy* e, u8 anim, bool loop) {
 // correcto según el tipo de enemigo.
 // ---------------------------------------------------------------------------
 static u8 enemyAnimIdle(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_ANIM_IDLE
-                                                       : ENEMY_ANIM_IDLE;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_IDLE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_IDLE;
+        default:                             return ENEMY_ANIM_IDLE;
+    }
 }
 static u8 enemyAnimWalk(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_ANIM_WALK
-                                                       : ENEMY_ANIM_WALK;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK;
+        default:                             return ENEMY_ANIM_WALK;
+    }
 }
 static u8 enemyAnimWalkUp(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_ANIM_WALK_UP
-                                                       : ENEMY_ANIM_WALK_UP;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK_UP;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK_UP;
+        default:                             return ENEMY_ANIM_WALK_UP;
+    }
 }
 static u8 enemyAnimKick(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_ANIM_KICK
-                                                       : ENEMY_ANIM_KICK;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_KICK;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_JUMP;
+        default:                             return ENEMY_ANIM_KICK;
+    }
 }
 static u8 enemyAnimPunchFront(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_ANIM_PUNCH_FRONT
-                                                       : ENEMY_ANIM_PUNCH_FRONT;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_PUNCH_FRONT;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_SLASH_LONG;
+        default:                             return ENEMY_ANIM_PUNCH_FRONT;
+    }
 }
 static u8 enemyAnimUppercut(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_ANIM_UPPERCUT
-                                                       : ENEMY_ANIM_PUNCH;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_UPPERCUT;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_SLASH_MID;
+        default:                             return ENEMY_ANIM_PUNCH;
+    }
 }
 static u8 enemyAnimExplode(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_ANIM_EXPLODE
-                                                       : ENEMY_ANIM_EXPLODE;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_EXPLODE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_EXPLODE;
+        default:                             return ENEMY_ANIM_EXPLODE;
+    }
 }
 static u8 enemyAnimHit(Enemy* e) {
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return ORANGE_ANIM_HIT;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  return WHITE_ANIM_HIT;
     u8 hitAnim = (u8)(ENEMY_ANIM_HIT_1 + e->hitToggle);
     if (++e->hitToggle >= 3) e->hitToggle = 0;
     return hitAnim;
@@ -65,6 +92,14 @@ static u8 enemyAnimHit(Enemy* e) {
 
 // Devuelve la duración del ataque actual según el tipo de enemigo.
 static u16 enemyAttackTime(const Enemy* e) {
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+        // El salto NO se mide por timer: dura lo que dure el arco (ver el
+        // camino de ENEMY_ATTACK_JUMP en ENEMY_STATE_ATTACK). Se devuelve un
+        // tope de seguridad por si algo lo dejara colgado en el aire.
+        if (e->attackType == ENEMY_ATTACK_JUMP)
+            return (u16)(WHITE_JUMP_FORCE * 4 + 32);
+        return WHITE_SLASH_TIME;
+    }
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
         switch (e->attackType) {
             case ENEMY_ATTACK_KICK:    return ORANGE_KICK_TIME;
@@ -79,8 +114,11 @@ static u16 enemyAttackTime(const Enemy* e) {
 
 // Devuelve la duración de la explosión de muerte según el tipo.
 static u16 enemyExplodeTime(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ORANGE_EXPLODE_TIME
-                                                       : ENEMY_EXPLODE_TIME;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_EXPLODE_TIME;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_EXPLODE_TIME;
+        default:                             return ENEMY_EXPLODE_TIME;
+    }
 }
 
 // Devuelve el rango del hitbox del ataque actual según el tipo.
@@ -131,9 +169,36 @@ static const ComboStep purpleComboFront[] = {
     { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH, 0 }
 };
 
-// Devuelve la tabla del combo según el tipo de ataque (solo morado; el naranja
-// no usa combos → comboLen queda en 0 y usa el camino simple).
-static const ComboStep* comboStepsFor(u8 attackType) {
+// ---------------------------------------------------------------------------
+// COMBOS DEL FOOT SOLDIER BLANCO (espada larga)
+// ---------------------------------------------------------------------------
+// Mismo motor de pasos que el morado, pero con espada: no tiene punos ni
+// patadas, tiene tres cortes (anims 3/4/5) y un salto con espadazo al caer
+// (anims 6/7, que va por su propio camino porque necesita el arco vertical).
+//
+// FRONT = la ESTOCADA LARGA sola (anim 3). Es el ataque que define al enemigo:
+// llega a 50px, mas que cualquier cosa del morado, y por eso no encadena --
+// pega desde lejos y se recompone.
+static const ComboStep whiteComboFront[] = {
+    { WHITE_ANIM_SLASH_LONG, WHITE_SLASH_TIME,
+      WHITE_LONG_HIT_START, WHITE_LONG_HIT_END, WHITE_SLASH_LONG_REACH, 0 }
+};
+// PUNCH = pegado al jugador: los dos cortes medios encadenados (4 y despues 5),
+// que es como se ve en el arcade cuando te tiene encima.
+static const ComboStep whiteComboPunch[] = {
+    { WHITE_ANIM_SLASH_MID,  WHITE_SLASH_TIME,
+      WHITE_MID_HIT_START, WHITE_MID_HIT_END, WHITE_SLASH_MID_REACH,  0 },
+    { WHITE_ANIM_SLASH_MID2, WHITE_SLASH_TIME,
+      WHITE_MID_HIT_START, WHITE_MID_HIT_END, WHITE_SLASH_MID2_REACH, 0 }
+};
+
+// Devuelve la tabla del combo según el tipo de enemigo y de ataque. El naranja
+// no usa combos → comboLen queda en 0 y va por el camino simple.
+static const ComboStep* comboStepsFor(u8 type, u8 attackType) {
+    if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+        return (attackType == ENEMY_ATTACK_PUNCH) ? whiteComboPunch
+                                                  : whiteComboFront;
+    }
     switch (attackType) {
         case ENEMY_ATTACK_KICK:  return purpleComboKick;
         case ENEMY_ATTACK_PUNCH: return purpleComboPunch;
@@ -141,7 +206,14 @@ static const ComboStep* comboStepsFor(u8 attackType) {
     }
 }
 
-static u8 comboLengthFor(u8 attackType) {
+static u8 comboLengthFor(u8 type, u8 attackType) {
+    if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+        // El salto va por fuera del motor de combos (necesita el arco en Z).
+        if (attackType == ENEMY_ATTACK_JUMP) return 0;
+        return (attackType == ENEMY_ATTACK_PUNCH)
+               ? (u8)(sizeof(whiteComboPunch) / sizeof(ComboStep))
+               : (u8)(sizeof(whiteComboFront) / sizeof(ComboStep));
+    }
     switch (attackType) {
         case ENEMY_ATTACK_KICK:  return (u8)(sizeof(purpleComboKick)  / sizeof(ComboStep));
         case ENEMY_ATTACK_PUNCH: return (u8)(sizeof(purpleComboPunch) / sizeof(ComboStep));
@@ -167,10 +239,12 @@ static s16 distS16(s16 a, s16 b) {
 }
 
 static s16 enemyMaxX(const Enemy* e) {
-    s16 laneRange = ENEMY_LANE_BOTTOM - ENEMY_LANE_TOP;
-    s32 wallRange = ENEMY_END_WALL_X_BOTTOM - ENEMY_END_WALL_X_TOP;
-    s16 wallX     = ENEMY_END_WALL_X_TOP + (s16)(wallRange * (e->y - ENEMY_LANE_TOP) / laneRange);
-    s16 levelMax  = 1376 - e->w;
+    s16 levelMax = e->levelMaxX - e->w;
+    if (!e->wallXTop) return levelMax;        // nivel sin pared diagonal
+    s16 laneRange = e->laneBottom - e->laneTop;
+    if (laneRange <= 0) return levelMax;
+    s32 wallRange = e->wallXBottom - e->wallXTop;
+    s16 wallX     = e->wallXTop + (s16)(wallRange * (e->y - e->laneTop) / laneRange);
     s16 wallMax   = wallX - e->w;
     return (wallMax < levelMax) ? wallMax : levelMax;
 }
@@ -188,19 +262,48 @@ static s16 enemyMinX(const Enemy* e) {
 }
 
 // ---------------------------------------------------------------------------
+// Salto del foot soldier BLANCO — un paso de física
+// ---------------------------------------------------------------------------
+// SUBIDA (jumpVel > 0): gravedad entera todos los frames, igual que siempre.
+// El apex no se toca: sigue en los 107px clavados de las tortugas.
+// BAJADA (jumpVel <= 0): la gravedad se aplica solo 1 de cada
+// WHITE_FALL_GRAV_DIV frames (14/09, pedido de Gustavo). La caida pasa de 14
+// a ~21 frames y el espadazo aereo se ve planeado en vez de plomada.
+// El avance en X tambien baja a WHITE_FALL_SPEED_X mientras cae, para que el
+// vuelo total cubra la misma distancia horizontal de antes (~84px).
+static void whiteJumpStep(Enemy* e) {
+    e->jumpZ += e->jumpVel;
+    if (e->jumpVel > 0) {                     // subiendo
+        e->jumpVel -= WHITE_JUMP_GRAVITY;
+        e->gravTick = 0;
+    } else if (++e->gravTick >= WHITE_FALL_GRAV_DIV) {   // cayendo
+        e->gravTick = 0;
+        e->jumpVel -= WHITE_JUMP_GRAVITY;
+    }
+}
+
+// px/frame de avance horizontal segun la fase del salto (ver arriba).
+static s16 whiteJumpSpeedX(const Enemy* e) {
+    return (e->jumpVel > 0) ? WHITE_JUMP_SPEED : WHITE_FALL_SPEED_X;
+}
+
+// ---------------------------------------------------------------------------
 // IA DE GRUPO — atacantes simultáneos
 // ---------------------------------------------------------------------------
 static u8 enemiesAttacking = 0;
 
 // --- Reparto de targets en 2 jugadores ---
+// (14/09) Hasta 4 jugadores: el modo secreto de 4 tortugas reparte los
+// enemigos entre los cuatro igual que antes entre dos.
 static u8 enemyNumPlayers = 1;
-static u8 enemyTargetCount[2] = {0, 0};
+static u8 enemyTargetCount[ENEMY_MAX_TARGETS] = {0, 0, 0, 0};
 
 void resetEnemyAI(u8 numPlayers) {
     enemiesAttacking = 0;
-    enemyNumPlayers = (numPlayers >= 2) ? 2 : 1;
-    enemyTargetCount[0] = 0;
-    enemyTargetCount[1] = 0;
+    if (numPlayers < 1) numPlayers = 1;
+    if (numPlayers > ENEMY_MAX_TARGETS) numPlayers = ENEMY_MAX_TARGETS;
+    enemyNumPlayers = numPlayers;
+    for (u8 i = 0; i < ENEMY_MAX_TARGETS; i++) enemyTargetCount[i] = 0;
 }
 
 static void releaseTarget(u8 target) {
@@ -319,6 +422,155 @@ bool shurikenBreakByPlayerAttack(const Player* p) {
     return broke;
 }
 
+
+// ---------------------------------------------------------------------------
+// DINAMITA del foot soldier MORADO (18/09)
+// ---------------------------------------------------------------------------
+// Ataque GUIONADO: lo tira UNA vez el morado que se asoma por la escalera del
+// 1-1 y cae SIEMPRE en el mismo punto. Por eso no hay pool -- hay un cartucho
+// y una explosion -- y el vuelo no persigue a nadie: es una parabola fija
+// entre la mano del que tira y el punto de caida.
+//
+// Convencion de coordenadas, la misma que el salto del jugador:
+//   x  = X de mundo del CENTRO del cartucho
+//   y  = LANE (profundidad). Interpola de la lane del que tira a la del punto
+//        de caida, asi el sprite pasa por delante/detras segun corresponde.
+//   z  = altura VISUAL sobre el piso. Solo se resta al dibujar.
+//
+// La altura es una recta de z0 a 0 MAS una parabola de TNT_ARC_APEX px, que es
+// la misma cuenta del arco de la cinematica: 0 en las dos puntas y maxima en
+// el medio.
+// ---------------------------------------------------------------------------
+typedef enum { TNT_OFF, TNT_FLYING, TNT_BLAST } TntState;
+
+static struct {
+    TntState state;
+    Sprite*  sprite;
+    s16      x0, y0, z0;     // salida (mano del que tira)
+    s16      x1, y1;         // caida (punto fijo)
+    s16      x,  y,  z;      // posicion actual
+    u16      t;              // frames transcurridos
+    u8       palette;
+} tnt;
+
+void tntInit(void) {
+    tnt.state  = TNT_OFF;
+    tnt.sprite = NULL;
+    tnt.t      = 0;
+}
+
+void tntLaunch(s16 x, s16 y, s8 dir, s16 landX, s16 landY, u8 palette) {
+    // Ya hay uno en el aire o explotando: no se encima otro (no deberia pasar,
+    // el ataque es de una sola vez).
+    if (tnt.state != TNT_OFF) return;
+
+    // La mano esta en TNT_HAND_DX dentro del frame de 64px mirando a la
+    // derecha; espejada cuando mira a la izquierda.
+    s16 handDx = (dir >= 0) ? TNT_HAND_DX : (s16)(ENEMY_SPRITE_W_PURPLE - TNT_HAND_DX);
+
+    tnt.x0 = (s16)(x + handDx);
+    tnt.y0 = y;
+    tnt.z0 = TNT_HAND_Z;
+    tnt.x1 = landX;
+    tnt.y1 = landY;
+    tnt.x  = tnt.x0;
+    tnt.y  = tnt.y0;
+    tnt.z  = tnt.z0;
+    tnt.t  = 0;
+    tnt.palette = palette;
+
+    // PRIORIDAD ALTA: el fuego del primer plano del 1-1 es un plano de alta
+    // prioridad y se comia media explosion. El cartucho y el estallido van por
+    // encima de todo el fondo, como en el arcade.
+    tnt.sprite = SPR_addSprite(&tnt_sprite, 0, 0,
+                               TILE_ATTR(palette, TRUE, FALSE, FALSE));
+    // Sin sprite (VRAM llena) el cartucho igual VUELA y explota: el daño no
+    // depende del sprite. Se ve raro pero no rompe la escena, que es la regla
+    // que ya seguimos con los robots del final.
+    tnt.state = TNT_FLYING;
+}
+
+// Dibuja el cartucho o la explosion en pantalla segun camX.
+static void tntDraw(s16 camX) {
+    if (!tnt.sprite) return;
+    if (tnt.state == TNT_FLYING) {
+        SPR_setPosition(tnt.sprite,
+                        (s16)(tnt.x - TNT_W / 2 - camX),
+                        (s16)(tnt.y - tnt.z - TNT_W / 2));
+        // Profundidad por lane, igual que todo el resto de la escena.
+        SPR_setDepth(tnt.sprite, (s16)(-(tnt.y) - 1));
+    } else {
+        SPR_setPosition(tnt.sprite,
+                        (s16)(tnt.x1 - TNT_EXPLOSION_W / 2 - camX),
+                        (s16)(tnt.y1 - TNT_EXPLOSION_W / 2));
+        SPR_setDepth(tnt.sprite, (s16)(-(tnt.y1) - 1));
+    }
+}
+
+bool tntUpdate(s16 camX) {
+    if (tnt.state == TNT_OFF) return FALSE;
+
+    if (tnt.state == TNT_FLYING) {
+        tnt.t++;
+        u16 T = TNT_FLIGHT_FRAMES;
+        u16 t = (tnt.t > T) ? T : tnt.t;
+
+        tnt.x = (s16)(tnt.x0 + ((s32)(tnt.x1 - tnt.x0) * t) / T);
+        tnt.y = (s16)(tnt.y0 + ((s32)(tnt.y1 - tnt.y0) * t) / T);
+        // Recta de z0 a 0 + parabola de TNT_ARC_APEX (0 en las puntas)
+        s32 base = (s32)tnt.z0 - ((s32)tnt.z0 * t) / T;
+        s32 arc  = ((s32)TNT_ARC_APEX * 4 * t * (T - t)) / ((s32)T * T);
+        tnt.z = (s16)(base + arc);
+
+        if (tnt.t >= T) {
+            // Toco el piso: el cartucho se convierte en la explosion. Se
+            // reusa el MISMO slot de sprite: se libera el del tnt (9 tiles) y
+            // se pide el de la explosion (64), asi nunca conviven los dos.
+            if (tnt.sprite) SPR_releaseSprite(tnt.sprite);
+            tnt.sprite = SPR_addSprite(&explosion_sprite, 0, 0,
+                                       TILE_ATTR(tnt.palette, TRUE, FALSE, FALSE));
+            if (tnt.sprite) SPR_setAnimationLoop(tnt.sprite, FALSE);
+            tnt.state = TNT_BLAST;
+            tnt.t     = 0;
+            tntDraw(camX);
+            return TRUE;          // el frame del impacto (la escena toca el SFX)
+        }
+        tntDraw(camX);
+        return FALSE;
+    }
+
+    // --- Explosion ---
+    tnt.t++;
+    if (tnt.t >= TNT_EXPLOSION_FRAMES) {
+        if (tnt.sprite) SPR_releaseSprite(tnt.sprite);
+        tnt.sprite = NULL;
+        tnt.state  = TNT_OFF;
+        return FALSE;
+    }
+    tntDraw(camX);
+    return FALSE;
+}
+
+bool tntBlastActive(void) {
+    return (bool)(tnt.state == TNT_BLAST && tnt.t <= TNT_BLAST_DMG_FRAMES);
+}
+
+s16 tntBlastX(void) { return tnt.x1; }
+s16 tntBlastY(void) { return tnt.y1; }
+
+bool tntBlastHits(s16 px, s16 py, s16 halfW) {
+    if (!tntBlastActive()) return FALSE;
+    return (bool)(absS16(px - tnt.x1) <= (s16)(TNT_BLAST_RADIUS_X + halfW) &&
+                  absS16(py - tnt.y1) <= TNT_BLAST_RADIUS_Y);
+}
+
+void tntReleaseAll(void) {
+    if (tnt.sprite) SPR_releaseSprite(tnt.sprite);
+    tnt.sprite = NULL;
+    tnt.state  = TNT_OFF;
+    tnt.t      = 0;
+}
+
 // ---------------------------------------------------------------------------
 // SPAWN DE ENEMIGOS
 // ---------------------------------------------------------------------------
@@ -328,10 +580,18 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->patrolLeft  = spawnX - patrolRange;
     e->patrolRight = spawnX + patrolRange;
     e->cameraOffsetX = 0;
+    // Limites del nivel 1 por defecto; los otros niveles los pisan con
+    // setEnemyBounds() despues de initEnemySpawn().
+    e->laneTop     = ENEMY_LANE_TOP;
+    e->laneBottom  = ENEMY_LANE_BOTTOM;
+    e->wallXTop    = ENEMY_END_WALL_X_TOP;
+    e->wallXBottom = ENEMY_END_WALL_X_BOTTOM;
+    e->levelMaxX   = 1376;
     e->state       = ENEMY_STATE_PATROL;
     e->dir         = -1;
     e->timer       = 0;
     e->hp          = (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_HP_ORANGE
+                   : (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? ENEMY_HP_WHITE
                                                               : ENEMY_HP_PURPLE;
     e->invincible  = 0;
     e->palette     = palette;
@@ -345,6 +605,9 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->lastMoveDir = 0;
     e->turnTimer   = 0;
     e->somersault  = 0;
+    e->tntThrow    = 0;
+    e->tntLandX    = 0;
+    e->tntLandY    = 0;
     e->grabTarget  = 0;
     e->grabbed     = NULL;
     e->grabTimer   = 0;
@@ -352,6 +615,9 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->stanceToggle = 0;
     e->comboStep  = 0;
     e->comboLen   = 0;
+    e->jumpZ      = 0;
+    e->jumpVel    = 0;
+    e->gravTick = 0;
 
     // Dimensiones de frame según el tipo (sheet morada 64x80 con los pies en
     // el borde; la naranja mantiene la grilla vieja 104x104).
@@ -359,16 +625,26 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
         e->w          = ENEMY_SPRITE_W_ORANGE;
         e->h          = ENEMY_SPRITE_H_ORANGE;
         e->footOffset = ENEMY_FOOT_OFFSET_ORANGE;
+    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+        e->w          = ENEMY_SPRITE_W_WHITE;
+        e->h          = ENEMY_SPRITE_H_WHITE;
+        e->footOffset = ENEMY_FOOT_OFFSET_WHITE;
     } else {
         e->w          = ENEMY_SPRITE_W_PURPLE;
         e->h          = ENEMY_SPRITE_H_PURPLE;
         e->footOffset = ENEMY_FOOT_OFFSET_PURPLE;
     }
 
-    if (enemyNumPlayers == 2) {
-        if      (enemyTargetCount[0] < enemyTargetCount[1]) e->target = 0;
-        else if (enemyTargetCount[1] < enemyTargetCount[0]) e->target = 1;
-        else                                                e->target = (u8)(random() & 1);
+    // Se elige el jugador con MENOS enemigos encima; si hay empate, al azar
+    // entre los empatados (generalizado a 1..4 el 14/09).
+    if (enemyNumPlayers > 1) {
+        u8 best = 0;
+        for (u8 i = 1; i < enemyNumPlayers; i++)
+            if (enemyTargetCount[i] < enemyTargetCount[best]) best = i;
+        u8 tied[ENEMY_MAX_TARGETS]; u8 nTied = 0;
+        for (u8 i = 0; i < enemyNumPlayers; i++)
+            if (enemyTargetCount[i] == enemyTargetCount[best]) tied[nTied++] = i;
+        e->target = tied[(u8)(random() % nTied)];
     } else {
         e->target = 0;
     }
@@ -379,6 +655,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     const SpriteDefinition* sheetDef = &foot_soldier;
     if (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
         sheetDef = &foot_soldier_orange;
+    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+        sheetDef = &foot_soldier_white;
     }
     e->sprite = SPR_addSprite(sheetDef, e->x, e->y,
                               TILE_ATTR(palette, FALSE, FALSE, FALSE));
@@ -425,6 +703,27 @@ void initEnemyKickSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type
     SPR_setAnimationLoop(e->sprite, FALSE);
 }
 
+// Spawn SALTANDO del blanco (anims 6): entra desde fuera de pantalla con el
+// mismo arco vertical que su ataque aereo -- 107px de alto, igual que el salto
+// de las tortugas -- avanzando WHITE_JUMP_SPEED px/frame, y al tocar el piso
+// pasa a CHASE. SIN hitbox: es una entrada, no un golpe (por eso no muestra la
+// anim 7 de espadazo al caer, se queda girando como bolita hasta aterrizar).
+void initEnemyWhiteJumpSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette) {
+    initEnemySpawn(e, spawnX, y, 0, palette, ENEMY_TYPE_FOOT_SOLDIER_WHITE);
+    e->state   = ENEMY_STATE_SPAWNING;
+    e->dir     = dir;
+    e->jumpVel = WHITE_JUMP_FORCE;
+    e->gravTick = 0;
+    e->jumpZ   = WHITE_JUMP_BOOST;
+    // Tope de seguridad: el arco termina solo al aterrizar, esto es por si
+    // algo lo dejara colgado (un clamp de X en un borde, por ejemplo).
+    e->timer   = (u16)(WHITE_JUMP_FORCE * 4 + 32);
+
+    e->anim = WHITE_ANIM_JUMP;
+    SPR_setAnimAndFrame(e->sprite, WHITE_ANIM_JUMP, 0);
+    SPR_setAnimationLoop(e->sprite, FALSE);
+}
+
 // Spawn con VOLTERETA (anim 15): el morado entra desde fuera de pantalla
 // haciendo la voltereta (7 frames) mientras avanza ENEMY_SOMERSAULT_SPEED
 // px/frame (más rápido que el walk), y al terminar pasa a CHASE. Usada para
@@ -439,6 +738,37 @@ void initEnemySomersaultSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u
     e->anim = ENEMY_ANIM_VOLTERETA;
     SPR_setAnimAndFrame(e->sprite, ENEMY_ANIM_VOLTERETA, 0);
     SPR_setAnimationLoop(e->sprite, FALSE);
+}
+
+// Spawn GUIONADO de la ESCALERA (18/09, anim 16): el morado se asoma, se
+// planta, tira UN cartucho de dinamita al punto fijo (landX, landY) y al
+// terminar la animacion pasa a CHASE como cualquier otro. El cartucho sale
+// solo en el frame 11 (ver ENEMY_TNT_RELEASE_TIMER) y el flag se apaga ahi
+// mismo: no vuelve a tirar en toda la pelea.
+void initEnemyTntSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette,
+                       s16 landX, s16 landY) {
+    initEnemySpawn(e, spawnX, y, 0, palette, ENEMY_TYPE_FOOT_SOLDIER);
+    e->state    = ENEMY_STATE_SPAWNING;
+    e->timer    = ENEMY_TNT_TIME;
+    e->dir      = dir;
+    e->tntThrow = 1;
+    e->tntLandX = landX;
+    e->tntLandY = landY;
+
+    e->anim = ENEMY_ANIM_TNT;
+    SPR_setAnimAndFrame(e->sprite, ENEMY_ANIM_TNT, 0);
+    SPR_setAnimationLoop(e->sprite, FALSE);
+}
+
+void setEnemyBounds(Enemy* e, s16 laneTop, s16 laneBottom,
+                    s16 wallXTop, s16 wallXBottom, s16 levelW) {
+    e->laneTop     = laneTop;
+    e->laneBottom  = laneBottom;
+    e->wallXTop    = wallXTop;
+    e->wallXBottom = wallXBottom;
+    e->levelMaxX   = levelW;
+    if (e->y < laneTop)    e->y = laneTop;
+    if (e->y > laneBottom) e->y = laneBottom;
 }
 
 void setEnemyCamera(Enemy* e, s16 camX) {
@@ -462,6 +792,18 @@ bool damageEnemy(Enemy* e, s16 dmg) {
 
     leaveAttackState(e);
     e->attackCooldown = ENEMY_HURT_COOLDOWN;
+
+    // Si lo agarraron EN EL AIRE (el blanco entrando de un salto, o en pleno
+    // salto con espadazo), el golpe lo baja al piso de una. Sin esto el jumpZ
+    // quedaba congelado en el valor que tuviera -- hasta 107px -- y el sprite
+    // se dibujaba flotando a esa altura para SIEMPRE, porque el unico codigo
+    // que mueve el arco vive en SPAWNING y en el ataque de salto, y el golpe
+    // saca al enemigo de los dos. (Bug reportado por Gustavo el 13/09: "uno
+    // salta y queda desfasado, como si su piso estuviera a la altura de la
+    // cabeza de April".)
+    e->jumpZ   = 0;
+    e->jumpVel = 0;
+    e->gravTick = 0;
 
     e->hp -= dmg;
     if (e->hp <= 0) {
@@ -497,18 +839,53 @@ s16 getEnemyCenterY(const Enemy* e) {
 }
 
 s16 enemyBodyHalfW(const Enemy* e) {
-    return (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_BODY_HALF_W_ORANGE
-                                                       : ENEMY_BODY_HALF_W_PURPLE;
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_HALF_W_ORANGE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_HALF_W_WHITE;
+        default:                             return ENEMY_BODY_HALF_W_PURPLE;
+    }
+}
+
+s16 enemyBodyH(const Enemy* e) {
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_H_ORANGE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_H_WHITE;
+        default:                             return ENEMY_BODY_H_PURPLE;
+    }
 }
 
 // ---------------------------------------------------------------------------
 // UPDATE PRINCIPAL
 // ---------------------------------------------------------------------------
+// (14/09) El nucleo trabaja con un ARREGLO de jugadores (1..4). updateEnemy
+// queda como envoltorio de 1-2 jugadores para no tocar los llamadores viejos.
 void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
+    Player* pls[2] = { player1, twoPlayers ? player2 : player1 };
+    updateEnemyN(e, pls, twoPlayers ? 2 : 1);
+}
+
+void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
+    if (nPl < 1) nPl = 1;
+    if (nPl > ENEMY_MAX_TARGETS) nPl = ENEMY_MAX_TARGETS;
     if (e->state == ENEMY_STATE_INACTIVE || !e->sprite) return;
 
     if (e->invincible > 0) e->invincible--;
     if (e->attackCooldown > 0) e->attackCooldown--;
+
+    // RED DE SEGURIDAD del arco del blanco. jumpZ solo lo mueven dos lugares:
+    // la entrada saltando (SPAWNING) y el ataque de salto (ATTACK con
+    // attackType JUMP). Cualquier otra cosa que saque al enemigo de esos dos
+    // estados -- un golpe, la muerte, un cambio de estado desde la escena --
+    // dejaria el offset congelado y el sprite flotando a esa altura para
+    // siempre. Asi que fuera de esos dos casos el jumpZ se fuerza a 0: es
+    // imposible que un enemigo quede "desfasado del piso" por esta via.
+    if (e->jumpZ != 0 &&
+        !(e->state == ENEMY_STATE_SPAWNING) &&
+        !(e->state == ENEMY_STATE_ATTACK && e->attackType == ENEMY_ATTACK_JUMP)) {
+        e->jumpZ   = 0;
+        e->jumpVel = 0;
+        e->gravTick = 0;
+    }
 
     u16 explodeTime = enemyExplodeTime(e);
 
@@ -524,7 +901,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 return;
             }
         }
-        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset);
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ);
         return;
     }
 
@@ -539,6 +916,33 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
             }
         }
+        // Entrada SALTANDO del blanco: el arco manda sobre el timer, igual que
+        // en su ataque; al tocar el piso se corta el SPAWNING y pasa a CHASE.
+        if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE && e->jumpZ > 0) {
+            s16 spdX = whiteJumpSpeedX(e);
+            whiteJumpStep(e);
+            e->x += e->dir * spdX;
+            e->x  = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
+            if (e->jumpZ <= 0) {
+                e->jumpZ   = 0;
+                e->jumpVel = 0;
+                e->gravTick = 0;
+                e->timer   = 0;   // aterrizo: que el bloque de abajo lo pase a CHASE
+            }
+        }
+        // Tirada de DINAMITA: el sprite hace toda la animacion solo; lo unico
+        // que hay que hacer es soltar el cartucho en el frame justo.
+        if (e->tntThrow && e->timer == ENEMY_TNT_RELEASE_TIMER) {
+            tntLaunch(e->x, e->y, e->dir, e->tntLandX, e->tntLandY, e->palette);
+            e->tntThrow = 0;      // una sola vez, nunca mas
+        }
+        // ...y despues BAJA DE LA ESCALERA: el jumpZ con el que lo spawnea la
+        // escena (que es lo que lo dibuja sobre el escalon) se va a cero de a
+        // 1px por frame mientras se recompone, asi no pega el salto al pasar a
+        // CHASE.
+        if (e->anim == ENEMY_ANIM_TNT && e->jumpZ > 0 &&
+            e->timer < ENEMY_TNT_RELEASE_TIMER)
+            e->jumpZ--;
         // Voltereta de entrada: avanza en X durante TODO el SPAWNING (más rápido
         // que el walk; el sprite hace la voltereta sola con la anim 15).
         if (e->somersault) {
@@ -546,33 +950,39 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
         }
         if (e->timer > 0) e->timer--;
-        else              e->state = ENEMY_STATE_CHASE;
+        else            { e->state = ENEMY_STATE_CHASE; e->jumpZ = 0; }
         SPR_setHFlip(e->sprite, (e->dir < 0));
-        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset);
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ);
         SPR_setDepth(e->sprite, -(e->y));
         return;
     }
 
     // --- Target asignado ---
-    if (twoPlayers && enemyNumPlayers == 2) {
+    if (nPl > 1) {
+        if (e->target >= nPl) e->target = 0;
         if (e->retargetTimer > 0) {
             e->retargetTimer--;
         } else {
             e->retargetTimer = ENEMY_RETARGET_INTERVAL;
-            u8  other = e->target ^ 1;
-            s16 dCur  = distS16(e->x, getPlayerWorldX((e->target == 0) ? player1 : player2));
-            s16 dOth  = distS16(e->x, getPlayerWorldX((other == 0)     ? player1 : player2));
-            if (dOth + ENEMY_RETARGET_HYSTERESIS < dCur) {
+            // Se cambia al MAS CERCANO, con histeresis para no oscilar.
+            s16 dCur = distS16(e->x, getPlayerWorldX(pls[e->target]));
+            u8  best = e->target; s16 dBest = dCur;
+            for (u8 i = 0; i < nPl; i++) {
+                if (i == e->target) continue;
+                s16 d = distS16(e->x, getPlayerWorldX(pls[i]));
+                if (d < dBest) { dBest = d; best = i; }
+            }
+            if (best != e->target && dBest + ENEMY_RETARGET_HYSTERESIS < dCur) {
                 releaseTarget(e->target);
-                e->target = other;
-                enemyTargetCount[other]++;
+                e->target = best;
+                enemyTargetCount[best]++;
             }
         }
     } else {
         e->target = 0;
     }
 
-    Player* targetP = (e->target == 1) ? player2 : player1;
+    Player* targetP = pls[e->target];
     s16 targetX   = getPlayerWorldX(targetP);
     s16 targetY   = getPlayerY(targetP);
     s8  targetDir = getPlayerDir(targetP);
@@ -622,7 +1032,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             // no tapa el agarre del jugador). Con probabilidad ~1/4 por frame;
             // el resto de las veces pega el uppercut normal.
             if (e->type == ENEMY_TYPE_FOOT_SOLDIER) {
-                Player* gp = (e->target == 1) ? player2 : player1;
+                Player* gp = targetP;
                 bool flanking = (e->flankTimer < MORADO_FLANK_TIMEOUT);
                 bool onBack   = (((s32)(e->x - targetX)) * targetDir) < 0;
                 if (flanking && onBack && !playerIsGrabbed(gp) &&
@@ -643,6 +1053,14 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             }
 
             if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
+                // "onScreen": si no está visible, no puede lanzar shurikens —
+                // si pudiera, quedaría plantado fuera de cámara disparando
+                // dentro de ORANGE_SHURIKEN_RANGE_MAX del jugador pero
+                // inalcanzable para él (no pasa del borde de cámara) e
+                // inmatable. "dist" se mide contra el jugador, no contra la
+                // cámara, así que por sí sola no detecta este caso.
+                s16  screenX  = e->x - e->cameraOffsetX;
+                bool onScreen = (screenX > -(s16)e->w) && (screenX < ENEMY_SCREEN_W);
                 if (e->attackCooldown == 0 && absS16(dy) <= ENEMY_ATTACK_TOL_Y) {
                     if (dist <= ORANGE_KICK_RANGE && enemiesAttacking < ENEMY_MAX_ATTACKERS) {
                         // Jugador CERCANO → melee. A corta distancia alterna
@@ -655,9 +1073,33 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                         else
                             e->attackType = ENEMY_ATTACK_KICK;
                         wantAttack = TRUE;
-                    } else if (dist >= ORANGE_SHURIKEN_RANGE_MIN &&
+                    } else if (onScreen && dist >= ORANGE_SHURIKEN_RANGE_MIN &&
                                dist <= ORANGE_SHURIKEN_RANGE_MAX) {
                         e->attackType = ENEMY_ATTACK_SHURIKEN;   // a distancia
+                        wantAttack = TRUE;
+                    }
+                }
+            } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+                // --- Blanco: espadachin, pelea DE FRENTE ---
+                // No flanquea ni agarra como el morado: su ventaja es el
+                // alcance, asi que encara y busca la distancia de la estocada.
+                //   pegado            -> cortes medios encadenados (anims 4+5)
+                //   media distancia   -> ESTOCADA LARGA (anim 3), 50px
+                //   lejos             -> salta encima y baja con la espada
+                // El salto NO cuenta contra ENEMY_MAX_ATTACKERS mientras esta
+                // en el aire seria injusto, pero si ocupa cupo: es un ataque
+                // melee que termina pegado al jugador.
+                if (e->attackCooldown == 0 && enemiesAttacking < ENEMY_MAX_ATTACKERS) {
+                    if (dist < WHITE_ATTACK_RANGE && absS16(dy) <= ENEMY_ATTACK_TOL_Y) {
+                        e->attackType = (dist < WHITE_LONG_RANGE_MIN)
+                                        ? ENEMY_ATTACK_PUNCH   // cortes medios
+                                        : ENEMY_ATTACK_FRONT;  // estocada larga
+                        wantAttack = TRUE;
+                    } else if (dist >= WHITE_JUMP_RANGE_MIN &&
+                               dist <= WHITE_JUMP_RANGE_MAX &&
+                               absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
+                               (random() & 3) == 0) {
+                        e->attackType = ENEMY_ATTACK_JUMP;
                         wantAttack = TRUE;
                     }
                 }
@@ -688,8 +1130,9 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 // El morado ataca con COMBOS (cadenas de 2-3 golpes como el
                 // arcade ATTACK S0/S1/S2): comboLen > 0 activa la tabla de
                 // pasos; el naranja deja comboLen en 0 (ataque simple).
-                e->comboLen   = (e->type == ENEMY_TYPE_FOOT_SOLDIER)
-                                ? comboLengthFor(e->attackType) : 0;
+                e->comboLen   = (e->type == ENEMY_TYPE_FOOT_SOLDIER ||
+                                 e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)
+                                ? comboLengthFor(e->type, e->attackType) : 0;
                 e->comboStep  = 0;
                 e->timer      = enemyAttackTime(e);
                 break;
@@ -706,9 +1149,26 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 // quieto lanzando shurikens, y si el jugador se acerca ataca
                 // melee (selección de ataque de arriba). El clamp de
                 // enemyMinX (borde de cámara) queda como red de seguridad.
-                if (dist > ORANGE_SHURIKEN_RANGE_MAX)
+                // Si además quedó fuera de cámara (p.ej. lo empujó un golpe,
+                // o el jugador retrocedió) SIEMPRE se acerca, aunque "dist"
+                // ya esté dentro del rango del shuriken — si no, se quedaría
+                // fuera de pantalla inmatable (ver onScreen más arriba).
+                s16  screenX  = e->x - e->cameraOffsetX;
+                bool onScreen = (screenX > -(s16)e->w) && (screenX < ENEMY_SCREEN_W);
+                if (!onScreen || dist > ORANGE_SHURIKEN_RANGE_MAX)
                     moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;   // acercarse
-                // dentro del rango de lanzamiento → se queda en X
+                // dentro del rango de lanzamiento y en pantalla → se queda en X
+            } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+                // Blanco: va DERECHO al jugador y se planta a distancia de
+                // estocada. Nada de rodearlo por la espalda -- con 50px de
+                // alcance no lo necesita, y el arcade lo muestra encarando.
+                // Durante el cooldown retrocede un poco para recomponer la
+                // distancia en vez de quedar pegado y comerse los golpes.
+                if (e->attackCooldown > 0 && dist < WHITE_LONG_RANGE_MIN) {
+                    moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;
+                } else if (dist > WHITE_SLASH_LONG_REACH) {
+                    moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
+                }
             } else {
                 // Morado: apunta a un punto DETRÁS del jugador (espalda = lado
                 // opuesto a su mirada). Si ya agotó el flanqueo, va directo.
@@ -758,7 +1218,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
             if (dy > ENEMY_Y_ALIGN)       moveY =  ENEMY_SPEED;
             else if (dy < -ENEMY_Y_ALIGN) moveY = -ENEMY_SPEED;
             if (moveY != 0) {
-                e->y = clampS16(e->y + moveY, ENEMY_LANE_TOP, ENEMY_LANE_BOTTOM);
+                e->y = clampS16(e->y + moveY, e->laneTop, e->laneBottom);
             }
 
             // --- Animación ---
@@ -795,7 +1255,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                 // Cada paso corre su animación con su propio timer y ventana de
                 // hitbox; al expirar se avanza al siguiente (attackHit = 0 para
                 // que cada golpe conecte una vez) hasta terminar el combo.
-                const ComboStep* steps = comboStepsFor(e->attackType);
+                const ComboStep* steps = comboStepsFor(e->type, e->attackType);
                 const ComboStep* step  = &steps[e->comboStep];
                 if (e->timer > 0) {
                     e->timer--;
@@ -817,6 +1277,34 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
                             newState = ENEMY_STATE_CHASE;
                         }
                     }
+                }
+            } else if (e->attackType == ENEMY_ATTACK_JUMP) {
+                // --- Salto con espadazo del BLANCO ---
+                // El arco manda, no el timer: sube WHITE_JUMP_FORCE frames y
+                // baja otros tantos, y el ataque termina cuando toca el piso.
+                // (e->timer sigue corriendo solo como tope de seguridad.)
+                if (e->timer > 0) e->timer--;
+
+                s16 spdX = whiteJumpSpeedX(e);
+                whiteJumpStep(e);
+
+                // Avanza hacia el jugador mientras esta en el aire (mas
+                // despacio en la bajada, ver whiteJumpSpeedX).
+                e->x += e->dir * spdX;
+                e->x  = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
+
+                // Al empezar a CAER saca la espada: ahi se enciende el hitbox
+                // (ver enemyTryHitPlayerBox).
+                if (e->jumpVel < 0 && e->anim != WHITE_ANIM_AIR_SLASH)
+                    enemyRestartAnim(e, WHITE_ANIM_AIR_SLASH, FALSE);
+
+                if (e->jumpZ <= 0 || e->timer == 0) {
+                    e->jumpZ   = 0;
+                    e->jumpVel = 0;
+                    e->gravTick = 0;
+                    leaveAttackState(e);
+                    e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
+                    newState = ENEMY_STATE_CHASE;
                 }
             } else if (e->timer > 0) {
                 e->timer--;
@@ -919,10 +1407,19 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
         if (newState == ENEMY_STATE_ATTACK) {
             if (e->comboLen > 0) {
                 // Combo del morado: arranca en el paso 0 (su anim y timer).
-                const ComboStep* s = comboStepsFor(e->attackType);
+                const ComboStep* s = comboStepsFor(e->type, e->attackType);
                 e->comboStep = 0;
                 e->timer     = s->time;
                 enemyRestartAnim(e, s->anim, FALSE);
+            } else if (e->attackType == ENEMY_ATTACK_JUMP) {
+                // Salto del blanco: arranca el arco vertical. Mismo esquema
+                // que el salto de la tortuga (jumpZ es un offset VISUAL; la
+                // lane 'y' no cambia en el aire), asi que la profundidad y el
+                // orden de dibujo siguen siendo los del piso.
+                e->jumpVel = WHITE_JUMP_FORCE;
+                e->gravTick = 0;
+                e->jumpZ   = WHITE_JUMP_BOOST;
+                enemyRestartAnim(e, WHITE_ANIM_JUMP, FALSE);
             } else {
                 u8 atkAnim;
                 if (e->attackType == ENEMY_ATTACK_KICK)
@@ -939,7 +1436,7 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
     }
 
     SPR_setHFlip(e->sprite, (e->dir < 0));
-    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset);
+    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ);
     SPR_setDepth(e->sprite, -(e->y));
 }
 
@@ -967,8 +1464,8 @@ void separateEnemies(Enemy* list, u16 count) {
 
             if (dy != 0) {
                 s16 pushY = (dy > 0) ? 1 : -1;
-                list[i].y = clampS16(list[i].y - pushY, ENEMY_LANE_TOP, ENEMY_LANE_BOTTOM);
-                list[j].y = clampS16(list[j].y + pushY, ENEMY_LANE_TOP, ENEMY_LANE_BOTTOM);
+                list[i].y = clampS16(list[i].y - pushY, list[i].laneTop, list[i].laneBottom);
+                list[j].y = clampS16(list[j].y + pushY, list[j].laneTop, list[j].laneBottom);
             }
         }
     }
@@ -993,9 +1490,14 @@ bool enemyTryHitPlayerBox(Enemy* e, s16 px, s16 py, s16 targetHalfW) {
     s16  reach;
     if (e->comboLen > 0) {
         // Combo del morado: la ventana y el alcance los da el paso actual.
-        const ComboStep* step = &comboStepsFor(e->attackType)[e->comboStep];
+        const ComboStep* step = &comboStepsFor(e->type, e->attackType)[e->comboStep];
         active = (e->timer >= step->hitStart && e->timer <= step->hitEnd);
         reach  = step->reach;
+    } else if (e->attackType == ENEMY_ATTACK_JUMP) {
+        // El blanco solo pega en la BAJADA, con la espada ya sacada: subiendo
+        // es un ovillo que gira y no tiene filo.
+        active = (e->jumpVel < 0);
+        reach  = WHITE_AIR_SLASH_REACH;
     } else if (e->attackType == ENEMY_ATTACK_KICK) {
         u16 kickLunge = (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE)
                         ? ORANGE_KICK_LUNGE : ENEMY_KICK_LUNGE;

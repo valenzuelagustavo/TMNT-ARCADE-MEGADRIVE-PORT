@@ -1,7 +1,7 @@
 // =============================================================================
 // enemies.res  Sprites de enemigos
 // =============================================================================
-// Foot Soldier (morado): sheet de 448x1280 = grilla 7x16 de frames de 64x80px
+// Foot Soldier (morado): sheet de 832x1440 = grilla 13x18 de frames de 64x80px
 // (8x10 tiles). El arte mira a la DERECHA (enemy.c aplica HFlip cuando dir == -1).
 // Animaciones (filas, en orden de Aseprite):
 //
@@ -24,6 +24,11 @@
 //        se corren UNO: 14 pasa a ser la voltereta y 15 queda fuera de rango.
 //        Hoy tiene un punto placeholder de 4px hasta dibujar la pose).
 //   [15] voltereta (7f, avanza mas en X que el walk)
+//   [16] TIRAR DINAMITA (13f, 18/09). Se asoma por la escalera (f0-f2), se
+//        planta (f3-f8), tira el cartucho arriba y adelante (f9-f10) y se
+//        recompone (f11-f12). El TNT se spawnea en el frame 10.
+//   [17] salir por la ALCANTARILLA (6f, 18/09): levanta la tapa y sale.
+//        Declarada pero TODAVIA SIN USAR (falta la tapa voladora).
 //
 // IMPORTANTE: el ultimo parametro es el TIEMPO DE FRAME en 1/60s. Si se omite,
 // rescomp usa 0 = SIN animacion automatica (el sprite queda clavado en el
@@ -31,7 +36,22 @@
 // con ENEMY_KICK_TIME / ENEMY_PUNCH_TIME de enemy.h.
 // =============================================================================
 
-SPRITE foot_soldier "sprites/foot_soldier_16colors.png" 8 10 FAST 8
+// (19/09) SE DECLARA EL SHEET DE GUSTAVO, DIRECTO. Antes habia un PNG
+// intermedio (foot_soldier_purple_gen.png) que generaba tools/gen_foot_purple.py
+// y era lo que compilaba; el sheet de Gustavo no se tocaba. Salio mal: arreglo
+// un frame del walk, recompilo y seguia saliendo roto, porque el intermedio
+// habia quedado viejo. Se elimino el paso: ahora lo que el edita es lo que
+// compila.
+//
+// !! NO DEJAR LA FILA 14 (el agarre por la espalda) 100% TRANSPARENTE !!
+// rescomp BORRA las filas vacias, y si esa se va, las de abajo se corren una:
+// ENEMY_ANIM_VOLTERETA (15) terminaria reproduciendo la dinamita. Como todavia
+// no esta dibujada, el sheet lleva un punto de 2x2 px (indice 9) en x 20..21,
+// y 59..60 del frame 0 de esa fila. No se ve nunca: esa animacion no se
+// reproduce. El dia que se dibuje el agarre, el arte lo tapa y listo.
+// Para chequearlo: en out/symbol.txt tienen que estar foot_soldier_animation0
+// hasta foot_soldier_animation17, SIN huecos.
+SPRITE foot_soldier "sprites/foot_soldier_16colors_purple.png" 8 10 FAST 8
 
 // Foot Soldier Naranja: sheet de 416x936 = grilla 4x9 de frames de 104x104px.
 // Misma grilla que las tortugas/regular. Usa PAL3 (reemplaza al flash eliminado).
@@ -42,6 +62,45 @@ SPRITE foot_soldier "sprites/foot_soldier_16colors.png" 8 10 FAST 8
 // El shuriken se spawnea en el frame 1 de la anim [3] (timer == 16).
 SPRITE foot_soldier_orange "sprites/foot_soldier_orange.png" 13 13 FAST 8
 
+// Foot Soldier BLANCO (espada larga): sheet de 832x1040 = grilla 8x10 de
+// frames de 104x104px. Misma grilla que el naranja y las tortugas.
+// Comparte PAL3 con el naranja: los indices 1..15 de las dos paletas son
+// IDENTICOS (verificado pixel a pixel), solo difiere el indice 0, que es el
+// transparente y nunca se dibuja. Por eso NO lleva PALETTE propia -- no hay
+// una 5ta linea de paleta libre en el nivel.
+// Animaciones (filas):
+//   [0] Idle (1f) | [1] Walk (5f) | [2] Walk up (8f)
+//   [3] Espadazo LARGO (3f) | [4] Espadazo medio (3f) | [5] Espadazo medio, variante (3f)
+//   [6] Salto (5f: despegue + giro tipo bolita) | [7] Espadazo cayendo desde el aire (2f)
+//   [8] Golpe recibido (2f) | [9] Muerte: cae y explota (4f)
+// El arte mira a la DERECHA -> HFlip cuando dir == -1, igual que los otros dos.
+//
+// OJO: el PNG que se declara es foot_soldier_white_gen.png, GENERADO por
+// tools/gen_foot_white.py a partir de foot_soldier_white_sword.png (el rip
+// original de Gustavo, que NO se toca). El generador repinta el parche del
+// piso que traia el rip abajo de las botas: venia con el indice 2 (rojo
+// 219,36,0) y quedaba como un charco; pasa al indice 10 (146,109,146), lo mas
+// parecido al marron de la sombra del morado que hay en PAL3. Si Gustavo
+// actualiza el sheet, hay que volver a correr el generador.
+SPRITE foot_soldier_white "sprites/foot_soldier_white_gen.png" 13 13 FAST 8
+
 // Shuriken: proyectil del foot soldier naranja. 16x16px = 2x2 tiles.
 // Misma paleta que el naranja (PAL3). Se crea/destruye en runtime.
 SPRITE shuriken_sprite "sprites/shuriken.png" 2 2 FAST 0
+
+// --- Dinamita del foot soldier morado (18/09) --------------------------------
+// TNT: el cartucho que tira con la anim [16]. 192x24 = 8 frames de 24x24px
+// (3x3 tiles) girando sobre si mismo. Frame time 3 (1/20 s): a 8 frames da una
+// vuelta cada 24/60 s, que es lo que se ve en el arcade.
+//
+// EXPLOSION: 448x64 = 7 frames de 64x64px (8x8 tiles). La secuencia es la del
+// arcade: destello de 4 puntas -> bola chica -> anillo -> bola blanca grande ->
+// hongo de fuego (x2) -> restos que se dispersan. Frame time 6 (1/10 s) = 42
+// frames en total, 0,7 s.
+//
+// LAS DOS USAN LA PALETA DEL MORADO (PAL2): verificado indice por indice, las
+// tres paletas son identicas. Por eso no llevan PALETTE propia.
+// Se crean y se liberan en runtime (una sola vez por partida, en la escalera
+// del 1-1), asi que su VRAM no esta reservada todo el nivel.
+SPRITE tnt_sprite "sprites/tnt.png" 3 3 FAST 3
+SPRITE explosion_sprite "sprites/explosion.png" 8 8 FAST 6

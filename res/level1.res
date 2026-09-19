@@ -9,11 +9,26 @@
 // Compresion NONE: es obligatorio para poder leer el tilemap directamente
 // desde ROM (bg_level1.tilemap->tilemap[]) e ir copiando columna por columna.
 // Con BEST/APLIB el mapa queda comprimido y no se puede indexar al vuelo.
-// El tileset deduplicado es de ~495 tiles unicos -> entra holgado en VRAM.
+// TECHO DE TILES DEL FONDO: 529. NO es holgado -- leer antes de cambiar el PNG.
+// showScene11 reparte la VRAM de usuario de forma RELATIVA al tamano del
+// tileset del fondo, asi que cada tile que crece el fondo empuja todo lo demas:
+//
+//   TILE_USER_INDEX 16 + fondo 524 + fuego 64 + barras del HUD 8
+//                      + sparks 16 + spark ascensor 15 + sparks_2 40  = 683
+//   area de sprites (TILE_FONT_INDEX 1440 - SPR_initEx 752)           = 688
+//                                                             margen  = +5
+//
+// Pasado ese techo, el fuego -- que reescribe sus 64 tiles cada 8 frames por
+// DMA -- empieza a pisar el area de sprites y la pantalla se corrompe SIN
+// ningun error: no hay assert que avise. Si hace falta un fondo mas grande hay
+// que bajar el SPR_initEx(752) de showScene11, y eso se paga en cuantos
+// enemigos entran a la vez.
+//
+// 13/09: bg01_completa.png (487 tiles) -> bg01_final.png (524).
 // =============================================================================
 
 // --- Fondo principal (nivel completo) ---
-IMAGE bg_level1 "/images/lvl_1_scene/bg01_completa.png" NONE
+IMAGE bg_level1 "images/lvl_1_scene/bg01_final.png" NONE
 
 // --- Fuego de primer plano (tira VERTICAL: 8 frames de 64x64 apilados) ---
 // fire_strip.png (64x512) se genera a partir de fire_512x224.png tomando la
@@ -26,7 +41,7 @@ IMAGE bg_level1 "/images/lvl_1_scene/bg01_completa.png" NONE
 // deduplicar para que los 64 tiles de cada frame queden CONTIGUOS y en orden.
 // El fuego NO lleva PALETTE propia: comparte la paleta del foot_soldier
 // (PAL2), los PNGs estan cuantizados sobre la misma paleta indexada.
-TILESET fire_tiles "/sprites/fire_strip.png" NONE NONE
+TILESET fire_tiles "sprites/fire_strip.png" NONE NONE
 
 // --- HUD: marcos de vidas / puntos / barra de vida (72x32 cada uno) ---
 // Spritesheet de 4 animaciones de 1 frame (celda 72x32), UNA por tortuga en
@@ -36,8 +51,15 @@ TILESET fire_tiles "/sprites/fire_strip.png" NONE NONE
 // nivel en la franja superior de 32px (siempre por encima de los planos, sin
 // gastar VRAM de tiles de fondo). Comparten la paleta de las tortugas (PAL1):
 // NO llevan PALETTE propia.
-SPRITE hud_1p "/images/hud/hud_1p.png" 9 4 NONE 0
-SPRITE hud_2p "/images/hud/hud_2p.png" 9 4 NONE 0
+SPRITE hud_1p "images/hud/hud_1p.png" 9 4 NONE 0
+SPRITE hud_2p "images/hud/hud_2p.png" 9 4 NONE 0
+// (16/09) Marcos 3UP/4UP para el modo de 4 jugadores. Generados a partir de
+// hud_2p.png repintando SOLO la caja del digito (x 8..15, y 0..13 de cada
+// fila) con el fondo local del marco (filas 9-10 = borde claro, fila 11 =
+// sombra) y dibujando el glifo nuevo con el color de la tortuga + sombra.
+// Misma paleta y mismas 4 filas de color -> NO llevan PALETTE propia.
+SPRITE hud_3p "images/hud/hud_3p.png" 9 4 NONE 0
+SPRITE hud_4p "images/hud/hud_4p.png" 9 4 NONE 0
 
 // --- Retrato de la tortuga elegida (32x32, 4 filas en ORDEN DE PERSONAJE) ---
 // frames_hud.png (32x128): fila 0=Leo 1=Mike 2=Don 3=Raph. time 0 -> sin
@@ -45,18 +67,27 @@ SPRITE hud_2p "/images/hud/hud_2p.png" 9 4 NONE 0
 // Vive en el espacio del borde que queda libre al correr los marcos del HUD
 // hacia adentro. Comparte la paleta de las tortugas (PAL1): el PNG es 4bpp
 // indexado sobre esa misma paleta -> NO lleva PALETTE propia.
-SPRITE turtle_portrait "/images/hud/frames_hud.png" 4 4 NONE 0
+SPRITE turtle_portrait "images/hud/frames_hud.png" 4 4 NONE 0
 
-// --- Barra de vida (11 frames de 32x8 apilados en vertical) ---
-// hp_bar.png (32x88): frame[0] = 10 barras (vida llena), frame[10] = 0 barras.
-// Cada frame son 4x1 = 4 tiles; se anima por STREAMING igual que el fuego:
-// UN frame (4 tiles) vive en VRAM por jugador y, al recibir un golpe, scenes.c
+// --- Barra de vida (11 frames de 32x16 apilados en vertical) ---
+// (17/09) Paso de 32x8 a 32x16 -- el DOBLE de alto -- para parecerse a la del
+// arcade, que ocupa casi todo el interior del marco. La genera
+// tools/gen_hud_bar.py, no se dibuja a mano.
+// hp_bar.png (32x176): frame[0] = 10 barras (vida llena), frame[10] = 0.
+// Cada frame son 4x2 = 8 tiles; se anima por STREAMING igual que el fuego:
+// UN frame (8 tiles) vive en VRAM por jugador y, al recibir un golpe, scenes.c
 // lo pisa con el frame siguiente via DMA. NONE NONE es CRITICO: sin comprimir
 // para indexar los tiles de cada frame directo desde ROM (hp_bar.tiles) y sin
-// deduplicar para que los 4 tiles de cada frame queden CONTIGUOS y en orden
-// (frame N -> tiles [N*4 .. N*4+3]). Comparte la paleta de las tortugas
+// deduplicar para que los 8 tiles de cada frame queden CONTIGUOS y en orden
+// (frame N -> tiles [N*8 .. N*8+7]). Comparte la paleta de las tortugas
 // (PAL1): NO lleva PALETTE propia (los indices del PNG coinciden con esa paleta).
-TILESET hp_bar "/sprites/hp_bar.png" NONE NONE
+TILESET hp_bar "sprites/hp_bar.png" NONE NONE
+
+// --- Vidas: un digito grande en verde, como el arcade (10 de 8x16) ---
+// lives_digits.png (8x160), generado por tools/gen_hud_bar.py estirando el
+// glifo de hud_font. Mismo streaming que la barra: 2 tiles de VRAM por
+// jugador y un DMA cuando cambia el numero. digito N -> tiles [N*2 .. N*2+1].
+TILESET lives_digits "images/hud/lives_digits.png" NONE NONE
 
 // --- Fuente arcade para el titulo del nivel (solo ASCII en este bloque) ---
 // 95 tiles de 8x8 en orden ASCII (32..126) -> compatible con VDP_loadFont.
@@ -69,8 +100,8 @@ TILESET hp_bar "/sprites/hp_bar.png" NONE NONE
 // es 1:1 con el orden ASCII).
 // Sintaxis: TILESET name file [compression [opt]] -> NONE NONE = sin
 // comprimir y sin optimizar: cada tile conserva su posicion ASCII.
-TILESET title_font     "/images/font/font_tmnt_arcade.png" NONE NONE
-PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
+TILESET title_font     "images/font/font_tmnt_arcade.png" NONE NONE
+PALETTE title_font_pal "images/font/font_tmnt_arcade.png"
 
 // --- Fuente arcade del HUD (vidas/puntaje), MISMA regla que title_font ---
 // 95 tiles de 8x8 en orden ASCII (32..126), compatible con VDP_loadFont.
@@ -80,7 +111,7 @@ PALETTE title_font_pal "/images/font/font_tmnt_arcade.png"
 // el HUD se dibuja con VDP_setTextPalette(PAL1) sin gastar una linea de
 // paleta (PAL0-3 ya estan ocupadas en ambos niveles). Mismo truco que
 // attack_bubble/hp_bar/hud.
-TILESET hud_font "/images/font/font_tmnt_arcade_2.png" NONE NONE
+TILESET hud_font "images/font/font_tmnt_arcade_2.png" NONE NONE
 
 // --- Globo de dialogo "Attack!!" (intro del nivel) --
 // 64x32px = 8x4 tiles, UN solo frame (time 0 -> sin animacion automatica).
@@ -94,7 +125,7 @@ SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 // --- "HURRY UP!" (aviso de desplazamiento de camara) ---
 // 160x32px = spritesheet de 5 frames de 32x32 (4x4 tiles). time 6 -> anima
 // ciclicamente los 5 frames. Comparte la paleta de las tortugas (PAL1).
-SPRITE hurry_sheet "/sprites/hurry_sheet.png" 4 4 NONE 6
+SPRITE hurry_sheet "sprites/hurry_sheet.png" 4 4 NONE 6
 
 // --- Bola de hierro (obstaculo que cae rebotando por las escaleras) ---
 // 64x32px = spritesheet de 2 frames de 32x32 (4x4 tiles) -> giro de la esfera.
@@ -105,10 +136,23 @@ SPRITE hurry_sheet "/sprites/hurry_sheet.png" 4 4 NONE 6
 SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
 
 // --- Sparks: efecto de fuego detras de las puertas rompibles ---
-// 32x32px = 2x2 tiles, UN solo frame. Se ubica detras de cada puerta
-// (door_lvl_1) y usa la paleta de los foot soldiers (PAL2). La animacion
-// es puramente por rotacion de paleta (indices 5-8) en el game loop.
+// 32x32px = 4x4 tiles, UN solo frame. Se ubica detras de cada puerta
+// (door_lvl_1) y usa la paleta de los foot soldiers (PAL2).
+//
+// La animacion YA NO es por rotacion de paleta (indices 5-8 de PAL2): esos
+// mismos indices los usa fire_tiles (el fuego de primer plano, SIEMPRE
+// visible) para su propio dibujo, asi que rotar PAL2 tambien le temblaba el
+// color al fuego de fondo -- reportado por Gustavo, y no hay una 5ta linea
+// de paleta libre en el nivel para aislarlas (las 4 ya estan repartidas).
+// Fix: sparksStreamInit/Update en scenes.c streamean tiles REALES (mismo
+// truco que fire_tiles/smoke_tiles), tomados de sparks_strip.png (4 frames
+// apilados, generados por tools/gen_sparks_frames.py rotando los PIXELES
+// en vez de la paleta -- resultado visual identico, cero escrituras a CRAM).
+// Este recurso (sparks, un solo frame) se sigue usando SOLO como molde de
+// tamano para SPR_addSpriteEx (2x2... 4x4 tiles); sus propios tiles nunca
+// se suben a VRAM (auto-upload apagado).
 SPRITE sparks "sprites/sparks.png" 4 4 FAST 0
+TILESET sparks_frames "sprites/sparks_strip.png" NONE NONE
 
 // --- Puerta rompible (spawn point del nivel) ---
 // 40x80px = 5x10 tiles, UN solo frame (time 0). Se dibuja sobre cada hueco de
@@ -120,12 +164,16 @@ SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0
 
 // --- Spark ascensor: fuego en los huecos de ascensores ---
 // 40x24px (5x3 tiles), UN solo frame. Misma paleta que sparks (PAL2).
-// Se ubica detras de cada ascensor_door y queda fijo en el mundo.
+// Se ubica detras de cada ascensor_door y queda fijo en el mundo. Streameado
+// igual que sparks (ver comentario arriba) -- molde de tamano nada mas.
 SPRITE spark_ascensor "sprites/spark_ascensor.png" 5 3 FAST 0
+TILESET spark_ascensor_frames "sprites/spark_ascensor_strip.png" NONE NONE
 
 // --- Sparks 2: efecto decorativo fijo en X=330 ---
-// 64x36px (8x5 tiles), UN solo frame. Misma paleta que sparks (PAL2).
+// 64x36px... en rigor 64x40 (8x5 tiles), UN solo frame. Misma paleta que
+// sparks (PAL2). Streameado igual que sparks (ver comentario arriba).
 SPRITE sparks_2 "sprites/sparks_2.png" 8 5 FAST 0
+TILESET sparks_2_frames "sprites/sparks_2_strip.png" NONE NONE
 
 // --- Puertas de ascensor (spawn animado) ---
 // 192x80px = spritesheet de 4 frames de 48x80 (6x10 tiles) -> animacion de
@@ -155,5 +203,5 @@ SPRITE whip_waves "sprites/whip_waves.png" 12 2 NONE 8
 // indice 0 transparente, de modo que juntas forman una imagen de ~32 colores.
 // BEST = maxima compresion (son de un solo uso). La cutscene libera la VRAM de
 // sprites (SPR_end) mientras las muestra: entre las dos suman ~1000 tiles.
-IMAGE bg_b_final "/images/lvl_1_scene/BG_B_final_lvl1.png" BEST
-IMAGE bg_a_final "/images/lvl_1_scene/BG_A_final_lvl1.png" BEST
+IMAGE bg_b_final "images/lvl_1_scene/BG_B_final_lvl1.png" BEST
+IMAGE bg_a_final "images/lvl_1_scene/BG_A_final_lvl1.png" BEST

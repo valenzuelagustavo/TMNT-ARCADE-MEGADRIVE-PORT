@@ -10,8 +10,8 @@ const ROMHeader rom_header = {
     "SEGA MEGA DRIVE ",
 #endif
     "(C)SGDK 2022    ",
-    "SAMPLE PROGRAM                                  ",
-    "SAMPLE PROGRAM                                  ",
+    "TMNT: Arcade - MEGADRIVE                        ",
+    "TMNT: Arcade - MEGADRIVE                        ",
     "GM 00000000-00",
     0x000,
     "JD              ",

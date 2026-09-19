@@ -9,7 +9,7 @@
 // =============================================================================
 
 // --- Fondo del nivel 2 (sala cerrada de 440px) ---
-IMAGE bg_test "/images/lvl_1_scene/bg_test.png" NONE
+IMAGE bg_test "images/lvl_1_scene/bg_test.png" NONE
 
 // --- Humo del techo (tira VERTICAL: 8 frames de 64x64 apilados) ---
 // smoke_lvl1.png (64x512) se genera igual que fire_strip.png. Se anima por
@@ -21,7 +21,7 @@ IMAGE bg_test "/images/lvl_1_scene/bg_test.png" NONE
 // para que los 64 tiles de cada frame queden CONTIGUOS y en orden.
 // El humo NO lleva PALETTE propia: comparte la paleta de las tortugas (PAL1),
 // el PNG esta cuantizado sobre esa misma paleta indexada.
-TILESET smoke_tiles "/sprites/smoke_lvl1.png" NONE NONE
+TILESET smoke_tiles "sprites/smoke_lvl1.png" NONE NONE
 
 // =============================================================================
 // Jefe Rocksteady (pasillo en llamas)
@@ -66,9 +66,14 @@ SPRITE say_your_prayers "sprites/say_your_prayers.png" 12 4 NONE 0
 // el texto del HUD (VDP_setTextPalette(PAL3)) sin manchar el sprite.
 SPRITE rocksteady_boss "sprites/rocksteady_boss.png" 13 13 FAST 6
 
-// Bala del disparo de Rocksteady (fase 2): 16x16 = 2x2 tiles, un frame.
-// Paleta indexada con la del boss (indice 11 = nucleo blanco, 4 = halo oro).
-SPRITE boss_bullet "sprites/boss_bullet.png" 2 2 FAST 0
+// Bala del disparo de Rocksteady: 48x16 = TRES frames de 16x16 (2x2 tiles),
+// en una sola fila -> una animacion de 3 frames.
+//   [0] tiro HORIZONTAL   [1] tiro HACIA ARRIBA (diagonal)   [2] IMPACTO
+// time 0 -> SIN auto-animacion: el frame lo elige el codigo con SPR_setFrame
+// segun para que se disparo la bala, y se cambia al [2] cuando pega. Si tuviera
+// time > 0 las tres poses se alternarian solas, que no es lo que queremos.
+// Paleta indexada con la del boss (PAL3), sin PALETTE propia.
+SPRITE boss_bullet "sprites/boss_bullet-new.png" 2 2 FAST 0
 
 // Shredder (cutscene de victoria del nivel 2): 432x240 = grilla 6x3 de celdas
 // 72x80 (9x10 tiles). Indices de animacion: [0] Idle (1 frame, apenas sale de la

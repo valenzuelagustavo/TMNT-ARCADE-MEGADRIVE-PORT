@@ -3,10 +3,11 @@
 #include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
-#include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_charselect, music_profiles, music_credits, music_ending
+#include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_boss, music_charselect, music_profiles, music_credits, music_ending
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
 #include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
+#include "hud.h"     // HUD compartido (marcos, retratos, barra de vida, puntaje)
 #include "rocksteady.h"  // jefe final del nivel 2 (cápsula del taladro; rocksteady_boss, boss_bullet)
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
@@ -60,27 +61,119 @@
 #define DOOR_VIS_MARGIN      48    // Crea/suelta el sprite de la puerta según cercanía a la pantalla
 
 // ---------------------------------------------------------------------------
-// Sparks: efecto de fuego detrás de las puertas rompibles
+// Sparks: efecto de fuego detrás de las puertas rompibles, de los ascensores
+// y del decorado fijo del piso (sparks_2)
 // ---------------------------------------------------------------------------
-// Sprite de 32x32 (2x2 tiles) en PAL2, ubicado detrás de cada door_lvl_1.
-// La animación es puramente por rotación de paleta: 4 cuadros que rotan los
-// índices 5-8 de PAL2 (colores de fuego del foot soldier morado).
+// Sprite de 32x32 (4x4 tiles) en PAL2, ubicado detrás de cada door_lvl_1
+// (más las variantes spark_ascensor y sparks_2, ver más abajo). La animación
+// era originalmente por rotación de paleta: 4 cuadros que rotaban los
+// índices 5-8 de PAL2 (colores de fuego del foot soldier morado). SE SACÓ
+// (29/08): fire_tiles (el fuego de primer plano, SIEMPRE en pantalla) usa
+// esos MISMOS índices para dibujarse, así que la rotación también le
+// temblaba el color al fuego de fondo -- reportado por Gustavo. No hay una
+// 5ta línea de paleta libre en el nivel para aislarlas (PAL0 fondo, PAL1
+// tortugas, PAL2 foot soldiers+fuego+chispas+robot final, PAL3 foot soldier
+// naranja: las 4 ya están repartidas).
+//
+// Fix: streaming de tiles REALES (mismo truco que fire_tiles/smoke_tiles),
+// no rotación de CRAM. sparks_frames/sparks_2_frames/spark_ascensor_frames
+// (ver level1.res) son tiras de 4 frames generadas por
+// tools/gen_sparks_frames.py: en vez de rotar a qué color apunta cada
+// índice, el script rota qué índice tiene cada PÍXEL (pixel de índice i en
+// el frame f pasa a índice 5+((i-5+f)%4)) -- con la paleta fija en los
+// valores de siempre, el resultado es pixel a pixel IDÉNTICO al de la
+// rotación de CRAM, pero PAL2 nunca se toca en runtime.
+//
+// Las 3 variantes comparten el mismo timer/frame (van sincronizadas, como
+// antes) pero cada una vive en su propio bloque FIJO de VRAM (sparksVramInd
+// / elevSparkVramInd / sparks2VramInd, reservados en showScene11 después del
+// HUD) para que TODAS las instancias de una misma variante (hasta 3 puertas,
+// 2 ascensores) apunten al mismo streaming en vez de cada una cargar su
+// propia copia -- ver SPR_addSpriteEx con SPR_FLAG_AUTO_VRAM_ALLOC y
+// SPR_FLAG_AUTO_TILE_UPLOAD apagados. Los recursos SPRITE (sparks,
+// spark_ascensor, sparks_2) se siguen usando solo como molde de tamaño.
 #define SPARKS_SPRITE_TOP_Y  56    // Centrado verticalmente en la puerta (puerta va de 48 a 128)
 #define SPARKS_HALF_W        16    // 32px / 2
-#define SPARKS_PAL_FRAME_COUNT 4   // Cuadros de rotación de paleta
-#define SPARKS_PAL_SPEED      4    // Ticks entre cada rotación (~6fps a 25fps)
-#define SPARKS_PAL_IDX_START  5    // Primer índice de paleta a rotar
-#define SPARKS_PAL_IDX_COUNT  4    // Cantidad de índices a rotar (5,6,7,8)
+#define SPARKS_FRAME_COUNT    4    // Frames de sparks_frames/sparks_2_frames/spark_ascensor_frames
+#define SPARKS_FRAME_SPEED    4    // Ticks entre cada frame (~6fps a 25fps, igual que antes)
+#define SPARKS_TILES_W        4    // 32px / 8 -- tamaño de sparks/door
+#define SPARKS_TILES_H        4
+#define SPARKS_TILES         (SPARKS_TILES_W * SPARKS_TILES_H)          // 16
+#define ELEV_SPARK_TILES_W    5    // 40px / 8 -- tamaño de spark_ascensor
+#define ELEV_SPARK_TILES_H    3
+#define ELEV_SPARK_TILES      (ELEV_SPARK_TILES_W * ELEV_SPARK_TILES_H)  // 15
+#define SPARKS2_TILES_W        8    // 64px / 8 -- tamaño de sparks_2
+#define SPARKS2_TILES_H        5
+#define SPARKS2_TILES         (SPARKS2_TILES_W * SPARKS2_TILES_H)        // 40
 
-// Paleta del foot soldier morado (copia de PAL2 base, que rescomp genera).
-// Los 4 cuadros rotan los índices 5-8 para simular fuego. Solo se escriben
-// los 4 colores que cambian; el resto de PAL2 se deja intacto.
-static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
-    { 0x008E, 0x00AE, 0x00AE, 0x06CE },   // cuadro 0
-    { 0x06CE, 0x008E, 0x00AE, 0x00AE },   // cuadro 1
-    { 0x00AE, 0x06CE, 0x008E, 0x00AE },   // cuadro 2
-    { 0x00AE, 0x00AE, 0x06CE, 0x008E },   // cuadro 3
-};
+// (15/09) Con 4 jugadores se APAGAN los sparks de las PUERTAS y el del PISO
+// (sparks_2), a pedido de Gustavo, para darle aire a las cuatro tortugas. El
+// del ASCENSOR se mantiene: es el que acompaña la apertura de los ascensores,
+// que es un momento clave del nivel.
+// Se gana por dos lados:
+//   - Sus bloques de VRAM de fondo (16 + 40 = 56 tiles) no se reservan, y ese
+//     espacio se lo queda el motor de sprites (el presupuesto se calcula
+//     restando el final de los tiles de usuario, ver showScene11).
+//   - Son SPRITES DE HARDWARE menos por scanline, que es el otro cuello de
+//     botella cuando hay cuatro tortugas juntas.
+static bool sparksDoorFloorOn = TRUE;
+
+static u16 sparksVramInd;      // Bloque fijo de VRAM de sparks (puertas)
+static u16 elevSparkVramInd;   // Bloque fijo de VRAM de spark_ascensor
+static u16 sparks2VramInd;     // Bloque fijo de VRAM de sparks_2
+static u16 sparksFrame;        // Frame actual, compartido por las 3 (0..3)
+static u16 sparksTimer;        // Ticks hasta el próximo frame
+
+// Sube el frame 0 de las 3 tiras a sus bloques fijos de VRAM. Se llama una
+// vez al arrancar el nivel (junto con fireInit/hudInit); las instancias de
+// sprite se crean después apuntando a estos mismos índices (ver
+// SPR_addSpriteEx + SPR_setVRAMTileIndex más abajo).
+static void sparksStreamInit(u16 sparksInd, u16 elevInd, u16 sparks2Ind,
+                             bool doorFloorOn) {
+    sparksDoorFloorOn = doorFloorOn;
+    sparksVramInd    = sparksInd;
+    elevSparkVramInd = elevInd;
+    sparks2VramInd   = sparks2Ind;
+    sparksFrame = 0;
+    sparksTimer = 0;
+
+    if (!doorFloorOn) return;   // 4P: ningun bloque de spark esta reservado
+    VDP_loadTileData(spark_ascensor_frames.tiles,  elevSparkVramInd, ELEV_SPARK_TILES, DMA);
+    VDP_loadTileData(sparks_frames.tiles,         sparksVramInd,    SPARKS_TILES,     DMA);
+    VDP_loadTileData(sparks_2_frames.tiles,        sparks2VramInd,   SPARKS2_TILES,    DMA);
+}
+
+// Avanza el frame compartido de las 3 variantes. Sin SPR_addSprite de por
+// medio: son sprites en modo manual (auto-upload apagado), así que esto es
+// la ÚNICA fuente de sus tiles -- pisa los mismos bloques de VRAM con el
+// frame siguiente via DMA, igual que fireUpdate/smokeUpdate.
+static void sparksStreamUpdate(void) {
+    if (++sparksTimer < SPARKS_FRAME_SPEED) return;
+    sparksTimer = 0;
+
+    sparksFrame = (sparksFrame + 1) & (SPARKS_FRAME_COUNT - 1);
+
+    if (!sparksDoorFloorOn) return;
+    VDP_loadTileData(spark_ascensor_frames.tiles + ((u32)sparksFrame * ELEV_SPARK_TILES * 8),
+                      elevSparkVramInd, ELEV_SPARK_TILES, DMA_QUEUE);
+    VDP_loadTileData(sparks_frames.tiles + ((u32)sparksFrame * SPARKS_TILES * 8),
+                      sparksVramInd, SPARKS_TILES, DMA_QUEUE);
+    VDP_loadTileData(sparks_2_frames.tiles + ((u32)sparksFrame * SPARKS2_TILES * 8),
+                      sparks2VramInd, SPARKS2_TILES, DMA_QUEUE);
+}
+
+// Crea una instancia de sparks/spark_ascensor/sparks_2 en modo MANUAL: sin
+// auto-alloc de VRAM ni auto-upload de tiles, fija al bloque compartido
+// `vramInd` (streameado por sparksStreamUpdate). Varias instancias pueden
+// apuntar al mismo bloque a la vez (p.ej. 2 puertas visibles juntas) sin
+// costo extra de VRAM -- a diferencia de SPR_addSprite normal, que le
+// reservaría una copia propia a cada instancia.
+static Sprite* sparksAddSprite(const SpriteDefinition* sizeDef, u16 vramInd,
+                               s16 x, s16 y) {
+    return SPR_addSpriteEx(sizeDef, x, y,
+                           TILE_ATTR_FULL(PAL2, FALSE, FALSE, FALSE, vramInd),
+                           SPR_FLAG_AUTO_VISIBILITY);
+}
 
 // ---------------------------------------------------------------------------
 // Puertas de ASCENSOR (2 huecos anchos del fondo) — spawn animado
@@ -107,6 +200,41 @@ static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
 // borde derecho de la cámara (edgeX - SCREEN_PIXEL_WIDTH = cameraX).
 #define ZONE1_CAM_LOCK   150    // borde derecho = 470
 #define ZONE2_CAM_LOCK   300    // borde derecho = 620
+
+// --- Dinamita de la ESCALERA (18/09) ---------------------------------------
+// Ataque GUIONADO, una sola vez por partida, en la ZONA 2 -- que es justo
+// donde la camara queda clavada en 300 y la escalera del fondo (x de mundo
+// 505..620 sobre bg01_final.png) ocupa la mitad derecha de la pantalla, igual
+// que en el arcade.
+//
+// El morado se asoma EN la escalera, pegado a la columna azul, y tira UN
+// cartucho; despues pelea como cualquier otro. El cartucho cae SIEMPRE en el
+// mismo punto: media pantalla, en la lane del medio de la franja caminable
+// (142..200), que es donde se pelea.
+//
+// (18/09, 2da pasada) La posicion y la orientacion salen del montaje que armo
+// Gustavo. Localizando su sprite pegado dentro de la captura (con la camara
+// clavada en 300) da origen de frame en pantalla x=187 y pies en y=132, o sea
+// mundo x=487, y SIN espejar.
+//
+// OJO CON EL ESPEJADO: el resto de las animaciones del morado miran a la
+// DERECHA y se espejan con dir=-1, pero la de la dinamita esta dibujada
+// mirando a la IZQUIERDA (el guante dorado adelante, a la izquierda; el brazo
+// que tira sale hacia atras, arriba a la derecha). Asi que este spawn va con
+// dir=+1, SIN espejar. Estaba al reves y por eso el guante quedaba del otro
+// lado.
+//
+// La ALTURA la hace jumpZ, no la lane: la lane sigue siendo ENEMY_LANE_TOP
+// (142) para que la IA y las colisiones sean las de siempre, y el sprite se
+// dibuja TNT_THROWER_Z px mas arriba, que es lo que lo pone sobre el escalon.
+// Al soltar el cartucho el offset baja de a 1px por frame: se "baja" de la
+// escalera mientras se recompone.
+#define TNT_THROWER_X    487    // x de mundo del frame (pantalla 187 con la camara en 300)
+#define TNT_THROWER_Y    ENEMY_LANE_TOP
+#define TNT_THROWER_Z     10    // pies dibujados en 132 (142 - 10)
+#define TNT_LAND_X       420    // punto FIJO de caida (screen x 120 con la camara en 300)
+#define TNT_LAND_Y       165    // lane donde se pelea (142..200). Mas abajo, el
+                                // fuego del primer plano tapaba media explosion.
 #define ZONE3_CAM_LOCK   614    // borde derecho = 934
 #define ZONE4_ELEV_LOCK  880    // cameraX fijo donde frena la zona de ascensores
 #define ZONE5_ROBOT_LOCK 1056   // cameraX fijo donde frena la zona del robot (= CAM_MAX_X)
@@ -119,6 +247,12 @@ static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
 // se corta la escena para pasar a la cutscene final.
 #define OUTRO_STAND_SECS      1    // Segundos quieto antes de caminar
 #define OUTRO_DOOR_X       1243    // X de mundo destino (frente a la puerta del muro)
+// Escalonado entre jugadores en la caminata final. Con 4 jugadores el ultimo
+// queda a 3*OUTRO_FAN_X = 72px de la puerta y 3*OUTRO_FAN_Y = 18px mas al
+// frente: todos dentro de la pantalla (camara fija en 1056, visible hasta
+// 1376) y sin taparse entre si.
+#define OUTRO_FAN_X          24
+#define OUTRO_FAN_Y           6
 #define OUTRO_DOOR_Y        150    // Lane de pies al llegar a la puerta
 
 // ---------------------------------------------------------------------------
@@ -129,8 +263,39 @@ static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
 #define VOL_MUSIC_SELECT   90
 #define VOL_MUSIC_LEVEL1    90   // la música del nivel saturaba: bajada al 50%
 #define VOL_MUSIC_LEVEL2    90
+#define VOL_MUSIC_BOSS      90   // tema del jefe (Rocksteady)
+// --- Ducking del tema del jefe mientras Rocksteady habla --------------------
+// El voice over "SAY YOUR PRAYERS!" (say_your_p_sfx, PCM) arranca EXACTAMENTE
+// en el mismo tick que music_boss, y aunque el PCM va en CH2 con prioridad 15
+// (le gana al PCM de la musica), los canales FM del tema siguen sonando por
+// debajo y se lo comen. Dos arreglos, los dos hacen falta:
+//   1. res/audio/say_your_p.wav estaba grabado ~3x mas bajo que el resto de los
+//      voice overs (pico 41%, RMS 7,4% contra ~100% / 23% de hang_on_april y
+//      shredder_laugh). Se normalizo; el original quedo en say_your_p_orig.wav.
+//   2. El tema entra BAJO (VOL_MUSIC_BOSS_DUCK) y recien sube al volumen normal
+//      cuando el wav termino, con una rampa para que no sea un salto.
+// El wav dura 1,76s (23552 bytes al rate del driver XGM2) = ~106 frames NTSC:
+// por eso el duck aguanta 110 y la rampa arranca ahi. 110 + 40 = 150 < 170, que
+// es lo que dura el stage 3 completo, asi que la pelea empieza a volumen pleno.
+#define VOL_MUSIC_BOSS_DUCK 20   // volumen del tema mientras habla el jefe
+#define BOSS_TAUNT_DUCK_F  110   // frames que dura el ducking (largo del wav)
+#define BOSS_TAUNT_RAMP_F   40   // frames de rampa de vuelta a VOL_MUSIC_BOSS
+// Aire entre el tema del jefe y el de la cutscene de Shredder: 1 segundo justo
+// (NTSC/PAL). Sin esto, el play de music_ending pisaba a music_boss en seco.
+#define CUT_SILENCE_FRAMES  (IS_PAL_SYSTEM ? 50 : 60)
 #define VOL_MUSIC_CREDITS  90
 #define VOL_MUSIC_ENDING    80
+// Corte de respaldo manual para "07 - April is Kidnapped (Cutscene).vgm"
+// (music_ending), mismo problema y misma tecnica que music_intro_arcade en
+// intro_arcade.c (ver el comentario grande ahi -- XGM2_setLoopNumber(0) va
+// SIEMPRE antes del play, nunca despues: el driver latchea el loop en el
+// instante del play, y llamarlo despues es un no-op silencioso. Bug
+// encontrado 30/08: en showScene12 estaba al reves). Duracion medida del
+// propio header VGM (campo "total # samples": 357945 @ 44100Hz = 487
+// frames NTSC exactos, ~406 PAL) -- este es el punto real donde el archivo
+// terminaria y volveria a su punto de loop. Un par de frames de margen
+// para cortar ANTES de que se note.
+#define MUSIC_ENDING_LEN (IS_PAL_SYSTEM ? 404 : 485)
 #define VOL_SFX            100
 
 // ---------------------------------------------------------------------------
@@ -138,7 +303,90 @@ static const u16 sparksPalAnim[SPARKS_PAL_FRAME_COUNT][SPARKS_PAL_IDX_COUNT] = {
 // ---------------------------------------------------------------------------
 u8 personajeSeleccionado  = 0;  // P1: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
 u8 personaje2Seleccionado = 3;  // P2: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
-u8 cantidadJugadores      = 1;  // 1 o 2 jugadores
+// (14/09) Modo secreto de CUATRO tortugas: cantidadJugadores puede valer 1..4.
+// Con 4 no se pasa por la seleccion de personaje -- cada joystick tiene su
+// tortuga fija (P1 Leo, P2 Mike, P3 Don, P4 Raph, ver showPlayerSelect).
+u8 cantidadJugadores      = 1;  // 1..4 jugadores
+u8 personaje3Seleccionado = 2;  // P3: Don  (fijo, solo se usa en modo 4P)
+u8 personaje4Seleccionado = 3;  // P4: Raph (fijo, solo se usa en modo 4P)
+
+// ---------------------------------------------------------------------------
+// Joystick de cada jugador (indice 0..3)
+// ---------------------------------------------------------------------------
+// (15/09) ACA ESTABA EL BUG del modo de 4: el jugador 2 no se movia.
+// Con un MULTITAP, SGDK **NO** numera los mandos JOY_1..JOY_4. Su tabla de
+// traduccion (xlt_all en src/joy.c de SGDK v2.11, y la misma en
+// readEa4WayPlay) es:
+//
+//     multitap en el PUERTO 1 -> JOY_1, JOY_3, JOY_4, JOY_5
+//     multitap en el PUERTO 2 -> JOY_2, JOY_6, JOY_7, JOY_8
+//
+// JOY_2 queda RESERVADO para el mando directo del puerto 2. O sea que con el
+// tap en el puerto 1 y el mapeo ingenuo JOY_1..JOY_4 pasaba exactamente lo que
+// reporto Gustavo: el jugador 2 (JOY_2) no respondia NUNCA, y los jugadores 3 y
+// 4 en realidad estaban leyendo los pads 2 y 3 del tap -- el pad 4 (JOY_5) no
+// lo leia nadie. Tres se movian y uno no.
+//
+// Vale igual para el Sega Tap / TeamPlayer (PORT_TYPE_TEAMPLAYER) y para el EA
+// 4-Way Play (PORT_TYPE_EA4WAYPLAY): los dos usan la misma tabla.
+u16 playerJoy(u8 k) {
+    static const u16 tap1[MAX_PLAYERS] = { JOY_1, JOY_3, JOY_4, JOY_5 };
+    static const u16 tap2[MAX_PLAYERS] = { JOY_2, JOY_6, JOY_7, JOY_8 };
+    static const u16 pads[MAX_PLAYERS] = { JOY_1, JOY_2, JOY_7, JOY_8 };
+
+    if (k >= MAX_PLAYERS) k = MAX_PLAYERS - 1;
+
+    // (17/09) Ya no se elige UNA tabla y listo: se arma la lista de indices que
+    // PUEDEN tener mando y despues se descartan los que no lo tienen. Asi da
+    // igual si quedo un multitap enchufado de cuando se probo el modo de 4:
+    // los jugadores caen sobre los mandos que hay, en orden.
+    u16 cand[8];
+    u8  nc = 0;
+    u8  t1 = JOY_getPortType(PORT_1);
+    u8  t2 = JOY_getPortType(PORT_2);
+
+    if (t1 == PORT_TYPE_TEAMPLAYER || t1 == PORT_TYPE_EA4WAYPLAY)
+        for (u8 i = 0; i < MAX_PLAYERS; i++) cand[nc++] = tap1[i];
+    else
+        cand[nc++] = JOY_1;
+
+    // El EA 4-Way Play ocupa LOS DOS puertos: no hay un "puerto 2" aparte.
+    if (t1 != PORT_TYPE_EA4WAYPLAY) {
+        if (t2 == PORT_TYPE_TEAMPLAYER)
+            for (u8 i = 0; i < MAX_PLAYERS; i++) cand[nc++] = tap2[i];
+        else
+            cand[nc++] = JOY_2;
+    }
+
+    u16 vivos[8];
+    u8  n = 0;
+    for (u8 i = 0; i < nc; i++) {
+        u8 tp = JOY_getJoypadType(cand[i]);
+        if (tp == JOY_TYPE_PAD3 || tp == JOY_TYPE_PAD6) vivos[n++] = cand[i];
+    }
+
+    if (k < n)  return vivos[k];   // caso normal: mandos realmente enchufados
+    if (k < nc) return cand[k];    // red de seguridad, por si la deteccion falla
+    return pads[k];
+}
+
+// Personaje de cada jugador (indice 0..3).
+u8 playerChar(u8 k) {
+    switch (k) {
+        case 1:  return personaje2Seleccionado;
+        case 2:  return personaje3Seleccionado;
+        case 3:  return personaje4Seleccionado;
+        default: return personajeSeleccionado;
+    }
+}
+
+// Cantidad de jugadores CLAMPEADA al maximo soportado.
+u8 numJugadores(void) {
+    u8 n = cantidadJugadores;
+    if (n < 1) n = 1;
+    if (n > MAX_PLAYERS) n = MAX_PLAYERS;
+    return n;
+}
 
 // Continues disponibles en la partida (compartidos entre ambos jugadores).
 // Se consumen al continuar; se reinician en la selección de personajes.
@@ -402,9 +650,16 @@ static void fireUpdate(s16 cameraX) {
 // Una esfera de metal de 32x32 (2 frames girando, paleta de las tortugas PAL1)
 // aparece cada IRON_BALL_PERIOD frames en lo alto de la ESCALERA del nivel (X de
 // mundo fija) y BAJA rebotando en DIAGONAL hacia el frente-derecha, cruzando las
-// lanes hasta salir por abajo (como en el arcade). Si toca a
-// un jugador le resta 1 barra de vida (via damagePlayer, con sus i-frames -> un
-// solo golpe por pasada); si toca a un foot soldier, lo aplasta.
+// lanes hasta salir por abajo (como en el arcade). Si toca a un jugador le
+// resta 1 barra de vida (via damagePlayer, con sus i-frames -> un solo golpe
+// por pasada). NO daña a los foot soldiers (a pedido de Gustavo, 30/08: antes
+// los aplastaba; ver nota en ironBallUpdate).
+//
+// Dos bolas (30/08, a pedido de Gustavo): MISMO arco (misma físca, misma
+// escalera) pero cadencia distinta (IRON_BALL_PERIOD vs IRON_BALL_PERIOD2),
+// para que no caigan siempre sincronizadas. Antes había una sola instancia
+// como variable global; ahora las funciones toman un puntero a IronBall y
+// se llaman una vez por bola (mismo patrón que robot/robot2 en showScene11).
 //
 // Modelo de coordenadas (igual que enemigos/jugador):
 //   x = MUNDO, centro de la bola (pantalla = x - cameraX) -> queda anclada al
@@ -419,10 +674,14 @@ static void fireUpdate(s16 cameraX) {
 // ---------------------------------------------------------------------------
 #define IRON_BALL_SIZE        32   // px (4x4 tiles), lado del frame
 #define IRON_BALL_HALF        16
-#define IRON_BALL_PERIOD     180   // frames entre bolas (~6s a 60fps)
+#define IRON_BALL_PERIOD     180   // frames entre bolas de la 1ra (~6s a 60fps)
+#define IRON_BALL_PERIOD2    130   // cadencia de la 2da bola (~2.2s a 60fps) --
+                                   // distinta a propósito de IRON_BALL_PERIOD
+                                   // para que no caigan siempre juntas.
 // La bola SIEMPRE baja por la escalera del nivel (X de mundo FIJA, medida sobre
 // bg01_completa.png: la escalera ocupa ~508..620). Nace arriba de todo y rueda
-// en diagonal hacia el frente-derecha (ROLL>0), como en el arcade.
+// en diagonal hacia el frente-derecha (ROLL>0), como en el arcade. Las DOS
+// bolas comparten el mismo arco: misma escalera, misma física.
 #define IRON_BALL_STAIRS_X   535   // X de mundo del alto de la escalera (spawn)
 #define IRON_BALL_START_Y     44   // Y del primer escalon (parte alta de la escalera)
 #define IRON_BALL_EXIT_Y     236   // Y a la que ya salió por abajo -> se apaga
@@ -433,9 +692,8 @@ static void fireUpdate(s16 cameraX) {
 #define IRON_BALL_ONSCREEN_MARGIN 40  // solo cae si el alto de la escalera esta en pantalla
 #define IRON_BALL_HIT_X       26   // |dx| centro a centro (mundo) para golpear
 #define IRON_BALL_HIT_Y       22   // |dy| en profundidad (pies) para golpear
-#define IRON_BALL_ENEMY_DMG   ENEMY_HP   // aplasta al foot soldier de una
 
-static struct {
+typedef struct {
     Sprite* sprite;
     s16     x;       // mundo, centro
     s16     y;       // línea de contacto (lane/pies)
@@ -443,110 +701,106 @@ static struct {
     s16     vz;      // velocidad vertical del rebote (+ = subiendo)
     bool    active;
     u16     timer;   // frames hasta el próximo spawn
-} ironBall;
+    u16     period;  // cadencia de ESTA bola (IRON_BALL_PERIOD o _PERIOD2)
+} IronBall;
+
+static IronBall ironBall;
+static IronBall ironBall2;
 
 // Crea el sprite (oculto) UNA vez al iniciar el nivel. Usa PAL1 (tortugas), que
-// ya cargó initPlayer -> llamar DESPUÉS de initPlayer.
-static void ironBallInit() {
-    ironBall.sprite = SPR_addSprite(&iron_ball, -IRON_BALL_SIZE, -IRON_BALL_SIZE,
-                                    TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
-    if (ironBall.sprite) {
-        SPR_setAnim(ironBall.sprite, 0);            // 2 frames girando (auto-anim)
-        SPR_setVisibility(ironBall.sprite, HIDDEN);
+// ya cargó initPlayer -> llamar DESPUÉS de initPlayer, una vez por bola.
+static void ironBallInit(IronBall* b, u16 period) {
+    b->sprite = SPR_addSprite(&iron_ball, -IRON_BALL_SIZE, -IRON_BALL_SIZE,
+                              TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+    if (b->sprite) {
+        SPR_setAnim(b->sprite, 0);            // 2 frames girando (auto-anim)
+        SPR_setVisibility(b->sprite, HIDDEN);
     }
-    ironBall.active = FALSE;
-    ironBall.timer  = IRON_BALL_PERIOD;
+    b->active = FALSE;
+    b->period = period;
+    b->timer  = period;
 }
 
 // TRUE si la bola (activa) golpea un objetivo con centro X 'cx' (mundo) y pies
 // 'cfy'. Mide en profundidad + X; ignora la altura del rebote (z).
-static bool ironBallHits(s16 cx, s16 cfy) {
-    s16 dx = cx - ironBall.x;  if (dx < 0) dx = -dx;
-    s16 dy = cfy - ironBall.y; if (dy < 0) dy = -dy;
+static bool ironBallHits(const IronBall* b, s16 cx, s16 cfy) {
+    s16 dx = cx - b->x;  if (dx < 0) dx = -dx;
+    s16 dy = cfy - b->y; if (dy < 0) dy = -dy;
     return (dx <= IRON_BALL_HIT_X && dy <= IRON_BALL_HIT_Y);
 }
 
-// Física + colisiones + render de la bola. Llamar una vez por frame en el nivel.
-static void ironBallUpdate(s16 cameraX, Player* p1, Player* p2, bool twoPlayers,
-                           Enemy* list, u16 count) {
-    if (!ironBall.sprite) return;
+// Física + colisiones + render de UNA bola. Llamar una vez por frame por cada
+// instancia (ironBall, ironBall2) en el nivel.
+static void ironBallUpdate(IronBall* b, s16 cameraX, Player** pls, u8 nPl) {
+    if (!b->sprite) return;
 
-    // --- Spawn periódico desde la ESCALERA (una bola a la vez) ---
-    if (!ironBall.active) {
-        if (ironBall.timer > 0) ironBall.timer--;
-        if (ironBall.timer == 0) {
-            ironBall.timer = IRON_BALL_PERIOD;   // reengancha el próximo ciclo
+    // --- Spawn periódico desde la ESCALERA (una bola activa a la vez, POR
+    //     INSTANCIA -- las dos bolas son independientes entre sí) ---
+    if (!b->active) {
+        if (b->timer > 0) b->timer--;
+        if (b->timer == 0) {
+            b->timer = b->period;   // reengancha el próximo ciclo (cadencia propia)
             // Solo cae si el alto de la escalera esta a la vista: la bola baja
             // SIEMPRE por esa escalera (X de mundo fija), no en lugares random.
             s16 stairScreenX = IRON_BALL_STAIRS_X - cameraX;
             if (stairScreenX >= IRON_BALL_ONSCREEN_MARGIN &&
                 stairScreenX <= SCREEN_PIXEL_WIDTH - IRON_BALL_ONSCREEN_MARGIN) {
-                ironBall.x      = IRON_BALL_STAIRS_X;
-                ironBall.y      = IRON_BALL_START_Y;
-                ironBall.z      = 0;
-                ironBall.vz     = IRON_BALL_BOUNCE;   // arranca rebotando
-                ironBall.active = TRUE;
-                SPR_setVisibility(ironBall.sprite, VISIBLE);
+                b->x      = IRON_BALL_STAIRS_X;
+                b->y      = IRON_BALL_START_Y;
+                b->z      = 0;
+                b->vz     = IRON_BALL_BOUNCE;   // arranca rebotando
+                b->active = TRUE;
+                SPR_setVisibility(b->sprite, VISIBLE);
             }
         }
-        if (!ironBall.active) return;
+        if (!b->active) return;
     }
 
     // --- Rebote vertical (z) sobre un "escalón" en z=0 ---
-    ironBall.z  += ironBall.vz;
-    ironBall.vz -= IRON_BALL_GRAVITY;
-    if (ironBall.z <= 0) {
-        ironBall.z  = 0;
-        ironBall.vz = IRON_BALL_BOUNCE;
+    b->z  += b->vz;
+    b->vz -= IRON_BALL_GRAVITY;
+    if (b->z <= 0) {
+        b->z  = 0;
+        b->vz = IRON_BALL_BOUNCE;
         XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
     }
 
     // --- Descenso por la escalera + deriva horizontal ---
-    ironBall.y += IRON_BALL_FALL_SPEED;
-    ironBall.x += IRON_BALL_ROLL;
+    b->y += IRON_BALL_FALL_SPEED;
+    b->x += IRON_BALL_ROLL;
 
     // --- ¿Salió por abajo? -> apagar y esperar al próximo ciclo ---
-    if (ironBall.y >= IRON_BALL_EXIT_Y) {
-        ironBall.active = FALSE;
-        SPR_setVisibility(ironBall.sprite, HIDDEN);
+    if (b->y >= IRON_BALL_EXIT_Y) {
+        b->active = FALSE;
+        SPR_setVisibility(b->sprite, HIDDEN);
         return;
     }
 
     // --- Colisiones ---
     // Jugador: 1 barra por pasada (los i-frames de damagePlayer evitan el
     // multi-golpe). attackerX = centro de la bola -> knockback alejándose.
-    s16 p1cx = getPlayerWorldX(p1) + PLAYER_SPRITE_W / 2;
-    if (playerCanBeHit(p1) && ironBallHits(p1cx, getPlayerY(p1))) {
+    // NO daña a los foot soldiers (a pedido de Gustavo, 30/08 -- antes los
+    // aplastaba con damageEnemy/IRON_BALL_ENEMY_DMG; se sacó esa colisión
+    // por completo, la bola les pasa por encima sin efecto).
+    for (u8 k = 0; k < nPl; k++) {
+        s16 pcx = getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2;
+        if (!playerCanBeHit(pls[k])) continue;
+        if (!ironBallHits(b, pcx, getPlayerY(pls[k]))) continue;
         XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-        damagePlayer(p1, ironBall.x);
-    }
-    if (twoPlayers) {
-        s16 p2cx = getPlayerWorldX(p2) + PLAYER_SPRITE_W / 2;
-        if (playerCanBeHit(p2) && ironBallHits(p2cx, getPlayerY(p2))) {
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-            damagePlayer(p2, ironBall.x);
-        }
-    }
-    // Foot soldiers: la bola los aplasta (sin dar puntos a nadie).
-    for (u16 i = 0; i < count; i++) {
-        Enemy* e = &list[i];
-        if (enemyCanBeHit(e) && ironBallHits(getEnemyCenterX(e), getEnemyCenterY(e))) {
-            if (damageEnemy(e, IRON_BALL_ENEMY_DMG))
-                XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
-        }
+        damagePlayer(pls[k], b->x);
     }
 
     // --- Render: pantalla = mundo - cámara; el rebote (z) sube el dibujo ---
-    SPR_setPosition(ironBall.sprite,
-                    ironBall.x - cameraX - IRON_BALL_HALF,
-                    ironBall.y - ironBall.z - IRON_BALL_SIZE);
-    SPR_setDepth(ironBall.sprite, -(ironBall.y));   // Y-sorting por profundidad
+    SPR_setPosition(b->sprite,
+                    b->x - cameraX - IRON_BALL_HALF,
+                    b->y - b->z - IRON_BALL_SIZE);
+    SPR_setDepth(b->sprite, -(b->y));   // Y-sorting por profundidad
 }
 
 // Oculta la bola al terminar el nivel (que no quede congelada en la cutscene).
-static void ironBallEnd() {
-    ironBall.active = FALSE;
-    if (ironBall.sprite) SPR_setVisibility(ironBall.sprite, HIDDEN);
+static void ironBallEnd(IronBall* b) {
+    b->active = FALSE;
+    if (b->sprite) SPR_setVisibility(b->sprite, HIDDEN);
 }
 
 // ===========================================================================
@@ -563,44 +817,89 @@ static void ironBallEnd() {
 // Los CONTENIDOS (vidas, puntos, barra de vida) se dibujan aparte como tiles
 // de BG_A (ver seccion siguiente).
 // ---------------------------------------------------------------------------
-#define HUD_TILE_W         9                       // Ancho del marco en tiles (72px)
-#define HUD_P1_X           40                      // P1 corrido hacia adentro (libera 40px del borde izq)
-#define HUD_P2_X           (SCREEN_PIXEL_WIDTH - (HUD_TILE_W * 8) - 40)  // 208: P2 corrido hacia adentro
-#define HUD_P1_BASECOL     (HUD_P1_X / 8)          // 5: columna de tile donde arranca el marco P1
-#define HUD_P2_BASECOL     (HUD_P2_X / 8)          // 26: idem P2
-#define PORTRAIT_P1_X      0                       // Retrato P1 en el borde izquierdo liberado
-#define PORTRAIT_P2_X      (SCREEN_PIXEL_WIDTH - 32)  // 288: retrato P2 en el borde derecho liberado
-#define PORTRAIT_Y         0
+// (las medidas del marco y los retratos viven ahora en src/hud.h)
 
 static Sprite* hudSprite1    = NULL;
 static Sprite* hudSprite2    = NULL;
 static Sprite* portraitSpr1  = NULL;
 static Sprite* portraitSpr2  = NULL;
+// Modo 4 jugadores: cuatro marcos, sin retratos (ver hud.h).
+static Sprite* hud4Spr[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
+// El spritesheet de los marcos tiene las filas en orden Leo/Mike/Don/Raph del
+// ARTE (0=Leo 1=Mike(rojo) 2=Don(purpura) 3=Raph(dorado)) y el cursor del
+// juego usa 0=Leo 1=Mike 2=Don 3=Raph: esta tabla traduce.
+static const u8 hudAnimForChar[] = { 0, 3, 2, 1 };
 
 // Crea los marcos del HUD y los retratos de tortuga como sprites de alto
 // nivel. En 1 jugador solo se crean los de P1. No consume VRAM de planos
 // (los tiles viven en el area de sprites del motor, SPR_initEx). Los sprites
 // se liberan solos en clearScene (SPR_reset) al terminar la escena.
-static void hudInit(void) {
-    hudSprite1 = SPR_addSprite(&hud_1p, HUD_P1_X, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+// Columna de tile donde arranca el HUD del jugador k. Con 1-2 jugadores son
+// las de siempre (los marcos); con 3-4, cuatro bloques pelados de 10 columnas.
+u16 hudPlayerCol(u8 k) {
+    if (numJugadores() > 2) return (u16)(HUD4_BASECOL0 + k * HUD4_BLOCK_COLS);
+    return (k == 0) ? HUD_P1_BASECOL : HUD_P2_BASECOL;
+}
+
+void hudInit(void) {
+    // (17/09) Los marcos bajan HUD_FRAME_Y (4px) para que el interior caiga
+    // sobre la grilla de tiles -- ver la nota larga en hud.h -- y los RETRATOS
+    // ya no se crean: el HUD de partida va limpio, como el arcade. Vuelven a
+    // aparecer solo mientras alguien elige tortuga (continue o entrada del P2).
+    //
+    // MODO 4P (16/09): los cuatro marcos, pegados y centrados (x = 16/88/
+    // 160/232). La fila de color la elige el personaje (hudAnimForChar:
+    // 0=Leo 1=Mike 2=Don 3=Raph -> filas 0/3/2/1 del PNG).
+    if (numJugadores() > 2) {
+        static const u8 hudAnimForChar4[] = { 0, 3, 2, 1 };
+        const SpriteDefinition* const marco[MAX_PLAYERS] =
+            { &hud_1p, &hud_2p, &hud_3p, &hud_4p };
+        for (u8 k = 0; k < MAX_PLAYERS; k++) {
+            hud4Spr[k] = SPR_addSprite(marco[k], (s16)(HUD4_X0 + k * (HUD_TILE_W * 8)),
+                                       HUD_FRAME_Y, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+            if (hud4Spr[k])
+                SPR_setAnim(hud4Spr[k], hudAnimForChar4[playerChar(k) & 3]);
+        }
+        return;
+    }
+
+    hudSprite1 = SPR_addSprite(&hud_1p, HUD_P1_X, HUD_FRAME_Y,
+                               TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     if (hudSprite1)
         SPR_setAnim(hudSprite1, personajeSeleccionado);
 
-    portraitSpr1 = SPR_addSprite(&turtle_portrait, PORTRAIT_P1_X, PORTRAIT_Y,
-                                 TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    if (portraitSpr1)
-        SPR_setAnim(portraitSpr1, personajeSeleccionado);
+    // El marco del P2 se crea SIEMPRE (17/09): con dos jugadores es el suyo, y
+    // con uno queda vacio para invitarlo a entrar ("PULSE / START", ver
+    // p2JoinPoll). Son 36 tiles de sprite que en 1-2 jugadores sobran.
+    hudSprite2 = SPR_addSprite(&hud_2p, HUD_P2_X, HUD_FRAME_Y,
+                               TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (hudSprite2)
+        SPR_setAnim(hudSprite2, (cantidadJugadores == 2) ? personaje2Seleccionado : 0);
+}
 
-    if (cantidadJugadores == 2) {
-        hudSprite2 = SPR_addSprite(&hud_2p, HUD_P2_X, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-        if (hudSprite2)
-            SPR_setAnim(hudSprite2, personaje2Seleccionado);
+// Retratos a pedido (17/09). Se crean solo mientras un jugador esta ELIGIENDO
+// tortuga -- al continuar, o cuando el P2 se suma en plena partida -- y se
+// sueltan al confirmar. Cuestan 16 tiles de sprite cada uno, que asi no se
+// pagan durante toda la partida.
+static Sprite* hudPortraitShow(u8 k, u8 ch) {
+    Sprite** slot = (k == 0) ? &portraitSpr1 : &portraitSpr2;
+    if (!*slot)
+        *slot = SPR_addSprite(&turtle_portrait,
+                              (k == 0) ? PORTRAIT_P1_X : PORTRAIT_P2_X, PORTRAIT_Y,
+                              TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (*slot) SPR_setAnim(*slot, ch);
+    return *slot;
+}
+static void hudPortraitHide(u8 k) {
+    Sprite** slot = (k == 0) ? &portraitSpr1 : &portraitSpr2;
+    if (*slot) { SPR_releaseSprite(*slot); *slot = NULL; }
+}
 
-        portraitSpr2 = SPR_addSprite(&turtle_portrait, PORTRAIT_P2_X, PORTRAIT_Y,
-                                     TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-        if (portraitSpr2)
-            SPR_setAnim(portraitSpr2, personaje2Seleccionado);
-    }
+// La pantalla de SELECCION DE PERSONAJE si quiere los retratos fijos: son su
+// razon de ser. Se llama despues de hudInit().
+void hudInitPortraits(void) {
+    hudPortraitShow(0, personajeSeleccionado);
+    if (cantidadJugadores == 2) hudPortraitShow(1, personaje2Seleccionado);
 }
 
 // ===========================================================================
@@ -623,30 +922,15 @@ static void hudInit(void) {
 // VDP_drawText) sobre BG_A. Se dibujan en PAL1 (paleta de las tortugas): la
 // fuente está indexada sobre esa misma paleta (indices 11/13 -> lavanda/gris).
 // ---------------------------------------------------------------------------
-#define HPBAR_FRAME_TILES_W  4                                            // 32px
-#define HPBAR_FRAME_TILES_H  1                                            // 8px
-#define HPBAR_FRAME_TILES    (HPBAR_FRAME_TILES_W * HPBAR_FRAME_TILES_H)  // 4
-
 // Posiciones (en tiles) RELATIVAS a la columna donde arranca el marco.
 // El interior útil es cols 1..7 (col 0 y col 8 son borde del marco).
 #define HUD_SCORE_ROW   1   // fila superior; el puntaje se alinea a la derecha
 #define HUD_SCORE_LEFT  4   // primera col libre de la fila superior (tras "1UP")
 #define HUD_SCORE_RIGHT 8   // borde derecho (col 8); el puntaje termina en col 7
-#define HUD_LIVES_COL   1
-#define HUD_LIVES_ROW   2
+#define HUD_LIVES_COL   3   // (17/09) pegado a la barra, como el arcade
+#define HUD_LIVES_ROW   2   // el dígito es de 2 filas: ocupa 2 y 3
 #define HUD_BAR_COL     4
-#define HUD_BAR_ROW     2
-
-// Estado del HUD de un jugador: cachea lo último dibujado para redibujar solo
-// cuando cambia (evita reescribir VRAM cada frame).
-typedef struct {
-    Player* pl;
-    u16     baseCol;    // columna de tile donde arranca el marco (0 = P1)
-    u16     barVram;    // primer tile de VRAM del bloque de la barra (8 tiles)
-    s16     lastHealth;
-    s16     lastLives;
-    s32     lastScore;
-} HudPlayer;
+#define HUD_BAR_ROW     2   // la barra es de 2 filas: ocupa 2 y 3
 
 // Convierte un u16 a decimal sin ceros a la izquierda. Devuelve la longitud.
 static u16 uintToDec(u16 v, char* out) {
@@ -660,9 +944,10 @@ static u16 uintToDec(u16 v, char* out) {
 }
 
 // Carga en VRAM el frame 'frame' de la barra (0 = llena .. 10 = vacía),
-// pisando los 8 tiles del bloque. Los tiles de cada frame están contiguos y
-// sin deduplicar en ROM (NONE NONE): frame N arranca en tile N*8 -> N*8*8
-// longwords. DMA_QUEUE: la transferencia (256B) se hace en el próximo vblank.
+// pisando los HPBAR_FRAME_TILES tiles del bloque. Los tiles de cada frame
+// están contiguos y sin deduplicar en ROM (NONE NONE): frame N arranca en el
+// tile N*HPBAR_FRAME_TILES -> N*HPBAR_FRAME_TILES*8 longwords.
+// DMA_QUEUE: la transferencia se hace en el próximo vblank.
 static void hpBarSetFrame(u16 barVram, u8 frame) {
     VDP_loadTileData(hp_bar.tiles + (u32)frame * HPBAR_FRAME_TILES * 8,
                      barVram, HPBAR_FRAME_TILES, DMA_QUEUE);
@@ -673,27 +958,50 @@ static void hpBarSetFrame(u16 barVram, u8 frame) {
 static void hpBarInit(u16 barVram, u16 baseCol) {
     VDP_loadTileData(hp_bar.tiles, barVram, HPBAR_FRAME_TILES, DMA);
     // fillTileMapRectInc incrementa el índice tile a tile (fila por fila), el
-    // mismo orden en que quedan los 8 tiles del frame en el tileset.
+    // mismo orden en que quedan los tiles de cada frame en el tileset.
     VDP_fillTileMapRectInc(BG_A,
                            TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, barVram),
                            baseCol + HUD_BAR_COL, HUD_BAR_ROW,
                            HPBAR_FRAME_TILES_W, HPBAR_FRAME_TILES_H);
 }
 
+// Vidas: el dígito verde de 8x16, mismo streaming que la barra.
+static void hudLivesSetDigit(u16 vram, u8 d) {
+    if (d > 9) d = 9;
+    VDP_loadTileData(lives_digits.tiles + (u32)d * HUDLIVES_TILES * 8,
+                     vram, HUDLIVES_TILES, DMA_QUEUE);
+}
+static void hudLivesInit(u16 vram, u16 baseCol) {
+    VDP_loadTileData(lives_digits.tiles, vram, HUDLIVES_TILES, DMA);
+    VDP_fillTileMapRectInc(BG_A,
+                           TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, vram),
+                           baseCol + HUD_LIVES_COL, HUD_LIVES_ROW,
+                           HUDLIVES_TILES_W, HUDLIVES_TILES_H);
+}
+
+// Borra el contenido dinámico del HUD de un bloque (barra + vidas + puntaje).
+// Lo usa el marco vacío del P2 en 1 jugador.
+static void hudClearBlock(u16 baseCol) {
+    VDP_clearTileMapRect(BG_A, baseCol + 1, HUD_SCORE_ROW, HUD_TILE_W - 2, 3);
+}
+
 // Prepara el HUD de un jugador. Llamar DESPUÉS de initPlayer (PAL1 cargada) y
 // de fijar paleta/plano de texto. Fuerza el primer dibujado de cada elemento.
-static void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram) {
+void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram) {
     h->pl         = pl;
     h->baseCol    = baseCol;
     h->barVram    = barVram;
+    h->livesVram  = (u16)(barVram + HPBAR_FRAME_TILES);
     h->lastHealth = -1;   // -1 = fuerza el primer redibujo
     h->lastLives  = -1;
     h->lastScore  = -1;
+    hudClearBlock(baseCol);
     hpBarInit(barVram, baseCol);
+    hudLivesInit(h->livesVram, baseCol);
 }
 
 // Redibuja SOLO los elementos que cambiaron. Llamar una vez por frame.
-static void hudPlayerUpdate(HudPlayer* h) {
+void hudPlayerUpdate(HudPlayer* h) {
     s16 hp    = getPlayerHealth(h->pl);
     s16 lives = (s16)getPlayerLives(h->pl);
     s32 score = (s32)getPlayerScore(h->pl);
@@ -706,12 +1014,11 @@ static void hudPlayerUpdate(HudPlayer* h) {
         h->lastHealth = hp;
     }
 
+    // (17/09) Las vidas son un DÍGITO VERDE pegado a la barra, como el arcade
+    // (antes era un "x3" con la fuente del HUD). El tope de OPCIONES es 7, así
+    // que un dígito alcanza y sobra.
     if (lives != h->lastLives) {
-        char buf[6];
-        buf[0] = 'x';
-        uintToDec((u16)lives, buf + 1);            // p.ej. "x3"
-        VDP_clearText(h->baseCol + HUD_LIVES_COL, HUD_LIVES_ROW, 3);
-        VDP_drawText(buf, h->baseCol + HUD_LIVES_COL, HUD_LIVES_ROW);
+        hudLivesSetDigit(h->livesVram, (u8)((lives < 0) ? 0 : lives));
         h->lastLives = lives;
     }
 
@@ -791,12 +1098,39 @@ static void revivePlayer(Player* p, u8 ch, u16 joyId) {
 // al global del personaje de este jugador (se actualiza al confirmar);
 // 'otherChar' es el personaje del OTRO jugador (se saltea al seleccionar; en
 // 1P pasar 0xFF para no saltar ninguno). 'fps' da el ritmo de la cuenta.
+// Helpers del continue por jugador (14/09, para soportar 1..4).
+// Con 3-4 jugadores NO hay marcos ni retratos (ver hudInit): se pasan NULL, y
+// continuePoll ya los tiene guardados contra NULL.
+static Sprite* contFrameSpr(u8 k) {
+    if (numJugadores() > 2) return NULL;
+    return (k == 0) ? hudSprite1 : hudSprite2;
+}
+static u8* contCharSel(u8 k) {
+    switch (k) {
+        case 1:  return &personaje2Seleccionado;
+        case 2:  return &personaje3Seleccionado;
+        case 3:  return &personaje4Seleccionado;
+        default: return &personajeSeleccionado;
+    }
+}
+// Personaje que NO se puede elegir al continuar (el del companero). Con mas de
+// dos jugadores no tiene sentido bloquear uno solo, asi que no se bloquea
+// ninguno (0xFF).
+static u8 contOtherChar(u8 k, u8 nPl) {
+    if (nPl != 2) return 0xFF;
+    return (k == 0) ? personaje2Seleccionado : personajeSeleccionado;
+}
+
+// 'k' es el indice de jugador: hace falta para crear/soltar su retrato, que
+// (17/09) solo existe mientras esta eligiendo tortuga.
 static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSpr,
-                         Sprite* portrait, u16 joyId, u8* charSel, u8 otherChar, u16 fps) {
+                         u8 k, u16 joyId, u8* charSel, u8 otherChar, u16 fps) {
+    const bool conRetrato = (numJugadores() <= 2);
     // Vivo: nada que hacer (y limpiar si quedó texto de un continue previo).
     if (!isPlayerGameOver(p)) {
         if (c->state != CONT_NONE) {
             contDrawText(h, -1);
+            if (conRetrato) hudPortraitHide(k);
             c->state = CONT_NONE;
         }
         return FALSE;
@@ -822,6 +1156,7 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
             c->sel     = *charSel;
             c->prevJoy = joy;
             contDrawText(h, -1);
+            if (conRetrato) hudPortraitShow(k, c->sel);
             return FALSE;
         }
         c->tick++;
@@ -845,11 +1180,12 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
         c->sel = (u8)charMove((s8)c->sel, (s8)otherChar, +1);
     if (justPressedJoy(joy, c->prevJoy, BUTTON_LEFT))
         c->sel = (u8)charMove((s8)c->sel, (s8)otherChar, -1);
-    if (portrait) SPR_setAnim(portrait, c->sel);
+    if (conRetrato) hudPortraitShow(k, c->sel);
 
     if (justPressedJoy(joy, c->prevJoy, BUTTON_START)) {
         *charSel = c->sel;
-        if (frameSpr) SPR_setAnim(frameSpr, c->sel);
+        if (frameSpr) SPR_setAnim(frameSpr, hudAnimForChar[c->sel & 3]);
+        if (conRetrato) hudPortraitHide(k);
         revivePlayer(p, c->sel, joyId);
         // Forzar el redibujo del HUD (vidas/barra cambiaron) y limpiar texto.
         hudPlayerInit(h, h->pl, h->baseCol, h->barVram);
@@ -860,6 +1196,88 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
 
     c->prevJoy = joy;
     return FALSE;
+}
+
+// ===========================================================================
+// ENTRADA DEL PLAYER 2 EN PLENA PARTIDA (17/09)
+// ===========================================================================
+// Con UN jugador, el marco del P2 igual se dibuja (ver hudInit) y adentro
+// parpadea "PULSE / START" -- dos lineas porque el interior son 7 columnas y
+// "PULSE START" son 11 caracteres. Si el joystick 2 pulsa START, ese mismo
+// marco se vuelve un mini selector de tortuga: izquierda/derecha cambian el
+// retrato (que aparece en el borde derecho, el hueco que quedo libre al
+// sacarlos del HUD) saltandose la tortuga del P1, y START confirma.
+//
+// El nivel NO se pausa: el P1 sigue jugando mientras el P2 elige, como en el
+// arcade. La escena es la que decide donde aparece el jugador nuevo, porque
+// cada nivel tiene sus propios limites; p2JoinPoll solo devuelve el personaje
+// elegido el frame en que se confirma.
+// ---------------------------------------------------------------------------
+#define P2J_BLINK_FRAMES  24   // medio ciclo del parpadeo de la invitacion
+
+typedef enum { P2J_INVITE, P2J_SELECTING, P2J_DONE } P2JoinState;
+
+static P2JoinState p2jState;
+static u8   p2jSel;
+static u16  p2jPrevJoy;
+static u16  p2jBlink;
+static bool p2jTextOn;
+
+void p2JoinReset(void) {
+    p2jState   = P2J_INVITE;
+    p2jSel     = 0;
+    p2jPrevJoy = 0;
+    p2jBlink   = 0;
+    p2jTextOn  = FALSE;
+}
+
+// Las dos lineas van en las filas 2 y 3 -- las de la barra -- y NO en la 1:
+// a la altura de la fila 1 el arte del marco todavia tiene la pestana del
+// "2UP" sobre las columnas 1-2 y se comia media palabra (probado).
+static void p2DrawInvite(u16 baseCol, bool on) {
+    VDP_clearText(baseCol + 1, HUD_BAR_ROW,     HUD_TILE_W - 2);
+    VDP_clearText(baseCol + 1, HUD_BAR_ROW + 1, HUD_TILE_W - 2);
+    if (!on) return;
+    VDP_drawText("PULSE", baseCol + 2, HUD_BAR_ROW);
+    VDP_drawText("START", baseCol + 2, HUD_BAR_ROW + 1);
+}
+
+u8 p2JoinPoll(u16 baseCol) {
+    u16 joy = JOY_readJoypad(playerJoy(1));
+
+    if (p2jState == P2J_INVITE) {
+        if (++p2jBlink >= P2J_BLINK_FRAMES) {
+            p2jBlink  = 0;
+            p2jTextOn = !p2jTextOn;
+            p2DrawInvite(baseCol, p2jTextOn);
+        }
+        if (justPressedJoy(joy, p2jPrevJoy, BUTTON_START)) {
+            // Arranca en la primera tortuga libre (la del P1 no se puede).
+            p2jSel    = (u8)charMove((s8)personajeSeleccionado,
+                                     (s8)personajeSeleccionado, +1);
+            p2jState  = P2J_SELECTING;
+            p2DrawInvite(baseCol, FALSE);
+            hudPortraitShow(1, p2jSel);
+            if (hudSprite2) SPR_setAnim(hudSprite2, hudAnimForChar[p2jSel & 3]);
+        }
+    } else if (p2jState == P2J_SELECTING) {
+        if (justPressedJoy(joy, p2jPrevJoy, BUTTON_RIGHT))
+            p2jSel = (u8)charMove((s8)p2jSel, (s8)personajeSeleccionado, +1);
+        if (justPressedJoy(joy, p2jPrevJoy, BUTTON_LEFT))
+            p2jSel = (u8)charMove((s8)p2jSel, (s8)personajeSeleccionado, -1);
+        hudPortraitShow(1, p2jSel);
+        if (hudSprite2) SPR_setAnim(hudSprite2, hudAnimForChar[p2jSel & 3]);
+
+        if (justPressedJoy(joy, p2jPrevJoy, BUTTON_START)) {
+            hudPortraitHide(1);
+            p2jState   = P2J_DONE;
+            p2jPrevJoy = joy;
+            return p2jSel;
+        }
+    }
+
+    p2jPrevJoy = joy;
+    return 0xFF;
 }
 
 // ---------------------------------------------------------------------------
@@ -990,6 +1408,52 @@ SceneId showVramClear() {
 // Inactividad que dispara el modo atracto (perfiles de las tortugas).
 #define PLAYER_SELECT_IDLE_SECS   15
 #define PLAYER_SELECT_IDLE_TICKS  ((IS_PAL_SYSTEM ? 50 : 60) * PLAYER_SELECT_IDLE_SECS)
+// Frames que la pantalla se queda quieta al confirmar, para que se escuche el
+// "COWABUNGA!" completo antes del cambio de escena (14/09). El wav dura 1,22s
+// = 73 frames NTSC / 61 PAL; se toman 78 para dejar cola.
+#define COWABUNGA_HOLD_FRAMES     78
+
+// ---------------------------------------------------------------------------
+// CODIGO SECRETO: modo de CUATRO tortugas (14/09, pedido de Gustavo)
+// ---------------------------------------------------------------------------
+// IZQ ABAJO IZQ DER ABAJO DER IZQ IZQ DER DER en la pantalla de cantidad de
+// jugadores. Al acertarlo suena el "COWABUNGA!" y aparece la opcion "4
+// TURTLES". El menu pasa de 3 a 4 filas, asi que se sube una fila (la de mas
+// abajo ya estaba en la 26, la ultima de la pantalla de 28).
+// OJO: ABAJO tambien mueve el cursor mientras se tipea el codigo. Es a
+// proposito: asi funciona cualquier codigo de arcade, y no molesta porque al
+// final se elige la opcion igual.
+// El desbloqueo es STATIC: sobrevive a entrar y salir de OPCIONES o del modo
+// atracto dentro de la misma partida encendida.
+#define SECRET_LEN  10
+static const u16 secretSeq[SECRET_LEN] = {
+    BUTTON_LEFT, BUTTON_DOWN, BUTTON_LEFT,  BUTTON_RIGHT, BUTTON_DOWN,
+    BUTTON_RIGHT, BUTTON_LEFT, BUTTON_LEFT, BUTTON_RIGHT, BUTTON_RIGHT
+};
+static bool secret4P = FALSE;
+
+// Filas del menu segun este desbloqueado o no.
+#define MENU_ROW0        22   // sin el secreto: 22, 24, 26
+#define MENU_ROW0_4P     20   // con el secreto: 20, 22, 24, 26
+#define MENU_CURSOR_ROW0    18
+#define MENU_CURSOR_ROW0_4P 16
+
+// Dibuja el menu de cantidad de jugadores. Con el secreto desbloqueado son 4
+// filas (y arrancan una fila mas arriba, porque la ultima ya estaba al borde).
+static void menuDraw4P(bool with4P) {
+    // Limpiar las dos variantes: al desbloquear en vivo hay que borrar la
+    // version de 3 filas antes de dibujar la de 4.
+    for (u16 row = 20; row <= 26; row += 2) VDP_clearText(14, row, 12);
+    u16 r = with4P ? MENU_ROW0_4P : MENU_ROW0;
+    VDP_drawText("1 TURTLE",  14, r);
+    VDP_drawText("2 TURTLES", 14, r + 2);
+    if (with4P) {
+        VDP_drawText("4 TURTLES", 14, r + 4);
+        VDP_drawText("OPTIONS",   14, r + 6);
+    } else {
+        VDP_drawText("OPTIONS",   14, r + 4);
+    }
+}
 
 SceneId showPlayerSelect() {
     clearScene();
@@ -1031,15 +1495,17 @@ SceneId showPlayerSelect() {
     PAL_setPalette(PAL2, title_font_pal.data, CPU);
     VDP_setTextPalette(PAL2);
 
-    VDP_drawText("1 TORTUGA",  14, 22);
-    VDP_drawText("2 TORTUGAS", 14, 24);
-    VDP_drawText("OPCIONES",   14, 26);
+    // Menu (3 filas, o 4 con el secreto de 4 jugadores desbloqueado).
+    menuDraw4P(secret4P);
 
-    Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8, 18 * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8,
+                                   (secret4P ? MENU_CURSOR_ROW0_4P : MENU_CURSOR_ROW0) * 8,
+                                   TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     PAL_setPalette(PAL1, selector_turtle.palette->data, CPU);
 
     u8  selectedOption = 0;
     u16 prev = 0;
+    u8  secretStep = 0;   // progreso dentro de secretSeq
 
     // Modo ATRACTO: si nadie toca nada durante PLAYER_SELECT_IDLE_SECS, la
     // pantalla se va sola a los perfiles de las tortugas (SCENE_PROFILES), que
@@ -1048,20 +1514,50 @@ SceneId showPlayerSelect() {
     bool goToProfiles = FALSE;
 
     // Esperar a que se suelte START para no confirmar al instante.
-    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+    while (JOY_readJoypad(playerJoy(0)) & BUTTON_START)
         SYS_doVBlankProcess();
 
     while (1) {
-        u16 value = JOY_readJoypad(JOY_1);
+        // (17/09) por playerJoy(), no JOY_1 a mano: con un multitap enchufado
+        // el mando del jugador 1 NO es JOY_1 (ver playerJoy).
+        u16 value = JOY_readJoypad(playerJoy(0));
 
         // Cualquier boton de cualquiera de los dos joysticks resetea la cuenta
-        if (value | JOY_readJoypad(JOY_2)) idleTicks = 0;
+        if (value | JOY_readJoypad(playerJoy(1))) idleTicks = 0;
         else if (++idleTicks >= PLAYER_SELECT_IDLE_TICKS) { goToProfiles = TRUE; break; }
 
-        if (justPressedJoy(value, prev, BUTTON_UP))   selectedOption = (selectedOption + 2) % 3;
-        if (justPressedJoy(value, prev, BUTTON_DOWN)) selectedOption = (selectedOption + 1) % 3;
+        // --- Codigo secreto de 4 jugadores ---
+        // Se mira UNA direccion por frame (la que se acaba de presionar). Si
+        // no es la esperada, el progreso se reinicia -- pero se vuelve a
+        // probar contra el PRIMER paso, para que tipear el codigo dos veces
+        // seguidas funcione sin tener que soltar nada.
+        if (!secret4P) {
+            u16 dir = 0;
+            if      (justPressedJoy(value, prev, BUTTON_LEFT))  dir = BUTTON_LEFT;
+            else if (justPressedJoy(value, prev, BUTTON_RIGHT)) dir = BUTTON_RIGHT;
+            else if (justPressedJoy(value, prev, BUTTON_UP))    dir = BUTTON_UP;
+            else if (justPressedJoy(value, prev, BUTTON_DOWN))  dir = BUTTON_DOWN;
+            if (dir) {
+                if (dir == secretSeq[secretStep]) secretStep++;
+                else                              secretStep = (dir == secretSeq[0]) ? 1 : 0;
+                if (secretStep >= SECRET_LEN) {
+                    secret4P   = TRUE;
+                    secretStep = 0;
+                    XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    menuDraw4P(TRUE);
+                }
+            }
+        }
 
-        SPR_setPosition(cursor, 8 * 8, (18 + selectedOption * 2) * 8);
+        u8 nOpts = secret4P ? 4 : 3;
+        if (justPressedJoy(value, prev, BUTTON_UP))   selectedOption = (u8)((selectedOption + nOpts - 1) % nOpts);
+        if (justPressedJoy(value, prev, BUTTON_DOWN)) selectedOption = (u8)((selectedOption + 1) % nOpts);
+        if (selectedOption >= nOpts) selectedOption = 0;
+
+        SPR_setPosition(cursor, 8 * 8,
+                        ((secret4P ? MENU_CURSOR_ROW0_4P : MENU_CURSOR_ROW0)
+                         + selectedOption * 2) * 8);
 
         if (value & BUTTON_START) break;
 
@@ -1077,10 +1573,34 @@ SceneId showPlayerSelect() {
         return SCENE_PROFILES;
     }
 
-    // selectedOption 0 → 1 jugador | 1 → 2 jugadores | 2 → OPCIONES
-    // (OPCIONES no toca cantidadJugadores: vuelve acá al salir).
-    if (selectedOption < 2)
-        cantidadJugadores = selectedOption + 1;
+    // Sin el secreto: 0 -> 1 jugador | 1 -> 2 jugadores | 2 -> OPCIONES.
+    // Con el secreto:  0 -> 1 | 1 -> 2 | 2 -> 4 jugadores | 3 -> OPCIONES.
+    // (OPCIONES no toca cantidadJugadores: vuelve acá al salir.)
+    u8 optOptions = secret4P ? 3 : 2;
+    if (selectedOption < optOptions) {
+        cantidadJugadores = (selectedOption == 2) ? 4 : (u8)(selectedOption + 1);
+        if (cantidadJugadores == 4) {
+            // El multitap ya se declaro al arrancar (ver main.c): los 4 mandos
+            // salen del TeamPlayer del puerto 1 y se leen como JOY_1..JOY_4.
+            // Tortuga fija por jugador: no se pasa por la seleccion de
+            // personaje (pedido de Gustavo).
+            personajeSeleccionado  = 0;   // Leo
+            personaje2Seleccionado = 1;   // Mike
+            personaje3Seleccionado = 2;   // Don
+            personaje4Seleccionado = 3;   // Raph
+        }
+        // "COWABUNGA!" al confirmar la cantidad de jugadores (14/09, pedido de
+        // Gustavo). Se sostiene la pantalla lo que dura el wav ANTES de irse a
+        // la seleccion de personaje: la escena siguiente arranca su propia
+        // musica con XGM2_play, que reinicia el driver y cortaria el PCM a
+        // mitad. 1,22s a 60fps ≈ 73 frames; se dejan 78 de margen.
+        XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
+                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+        for (u16 t = 0; t < COWABUNGA_HOLD_FRAMES; t++) {
+            SPR_update();
+            SYS_doVBlankProcess();
+        }
+    }
 
     // Restaurar fuente default.
     VDP_loadFont(&font_default, DMA);
@@ -1088,18 +1608,29 @@ SceneId showPlayerSelect() {
     SPR_end();
     SPR_initEx(752);
 
-    return (selectedOption == 2) ? SCENE_OPTIONS : SCENE_CHAR_SELECT;
+    // En 4 jugadores se SALTEA la seleccion de tortuga: cada joystick ya tiene
+    // la suya. OPCIONES es siempre la ultima fila.
+    if (selectedOption == optOptions) return SCENE_OPTIONS;
+    if (cantidadJugadores == 4) {
+        // Mismo cierre que hace showCharSelect al confirmar: partida nueva.
+        playerPersistReset();
+        continuesLeft = 3;
+        return SCENE_CINEMATIC_FIRE;
+    }
+    return SCENE_CHAR_SELECT;
 }
 
 // ---------------------------------------------------------------------------
-// 5b. OPCIONES — VIDAS (3/5/7), SOUNDTEST y SALIR
+// 5b. OPCIONES — LIVES (3/5/7), SOUNDTEST y EXIT
 // ---------------------------------------------------------------------------
 // Mismo look que la selección de players (logo de fondo + fuente arcade).
-// VIDAS configura el global vidasIniciales (lo usan playerPersistReset y
+// Los textos en pantalla van en INGLÉS (igual que el resto del juego, que
+// imita al arcade); los identificadores del código siguen en castellano.
+// LIVES configura el global vidasIniciales (lo usan playerPersistReset y
 // revivePlayer: aplica a partida nueva y a continues). SOUNDTEST reproduce
-// los VGM de los niveles: A o C = play/stop, LEFT/RIGHT cambia de pista
-// (por ahora solo FIRE! del nivel 1). SALIR (START sobre la fila, o B en
-// cualquier fila) vuelve a la selección de cantidad de players.
+// los VGM del juego: A o C = play/stop, LEFT/RIGHT cambia de pista.
+// EXIT (START sobre la fila, o B en cualquier fila) vuelve a la selección de
+// cantidad de players.
 // ---------------------------------------------------------------------------
 #define OPT_ROW_VIDAS      0
 #define OPT_ROW_SOUNDTEST  1
@@ -1107,20 +1638,33 @@ SceneId showPlayerSelect() {
 #define OPT_ROW_COUNT      3
 
 #define OPT_LABEL_COL      12   // columna de los labels
-#define OPT_VALUE_COL      24   // columna de los valores < ... >
-#define OPT_STATUS_COL     34   // columna del indicador ON/OFF del soundtest
-#define OPT_ROW_Y          20   // fila de texto de VIDAS; las demás van +2
+#define OPT_VALUE_COL      24   // columna del "< n >" de LIVES
+// El soundtest necesita mas ancho que LIVES: el nombre de la pista mas largo
+// ("APRILS ROOM" / "SCENE CLEAR") son 11 caracteres y ademas hay que dejar 3
+// columnas para el ON/OFF. La pantalla tiene 40 columnas y el label termina en
+// la 20, asi que el campo arranca en la 22 (antes que el de LIVES) y queda
+// 22 + "< " + 11 + " >" = 37, con el ON/OFF en 37..39: justo justo.
+// Si se agrega una pista con nombre mas largo hay que ACORTARLA, no ampliar
+// esto: no queda una sola columna libre.
+#define OPT_SND_COL        22   // columna del "< NOMBRE >" del soundtest
+#define OPT_SND_NAME_MAX   11   // caracteres de nombre que entran
+#define OPT_SND_FIELD_W    (OPT_SND_NAME_MAX + 4)
+#define OPT_STATUS_COL     (OPT_SND_COL + OPT_SND_FIELD_W)  // ON/OFF
+#define OPT_ROW_Y          20   // fila de texto de LIVES; las demás van +2
 // El cursor (selector_turtle, 64x64) se dibuja 4 tiles arriba de la fila de
 // texto, igual que en showPlayerSelect (fila de texto 22 -> cursor fila 18).
 #define OPT_CURSOR_Y       (OPT_ROW_Y - 4)
 
 // Pistas del sound test: nombre en pantalla (ASCII puro) + recurso XGM2.
 typedef struct { const char* name; const u8* track; } SoundTrack;
+// OJO: maximo OPT_SND_NAME_MAX caracteres, lo que pase de ahi se corta.
 static const SoundTrack soundTracks[] = {
-    { "FIRE!", music_level1 },
-    { "CHARACTER PROFILES", music_profiles },
-    { "APRIL'S ROOM", music_level2 },
-    { "CHOOSE YOUR TURTLE", music_charselect },
+    { "FIRE!",        music_level1 },
+    { "PROFILES",     music_profiles },
+    { "APRILS ROOM",  music_level2 },
+    { "CHAR SELECT",  music_charselect },
+    { "FIGHT!",       music_boss },
+    { "SCENE CLEAR",  music_scene_clear },
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 
@@ -1135,14 +1679,16 @@ static void optDrawLives(u8 lives) {
 
 // Redibuja la fila SOUNDTEST: nombre de la pista + indicador ON/OFF.
 static void optDrawSound(u8 trackIdx, bool playing) {
-    char buf[16];
+    char buf[OPT_SND_FIELD_W + 1];
     u8 i = 0;
     const char* name = soundTracks[trackIdx].name;
     buf[i++] = '<'; buf[i++] = ' ';
-    while (*name && i < 12) buf[i++] = *name++;
+    while (*name && i < OPT_SND_NAME_MAX + 2) buf[i++] = *name++;
     buf[i++] = ' '; buf[i++] = '>'; buf[i] = 0;
-    VDP_clearText(OPT_VALUE_COL, OPT_ROW_Y + 2, 10);
-    VDP_drawText(buf, OPT_VALUE_COL, OPT_ROW_Y + 2);
+    // Se borra el campo ENTERO antes de escribir: los nombres tienen distinto
+    // largo y si no quedan letras del anterior colgando a la derecha.
+    VDP_clearText(OPT_SND_COL, OPT_ROW_Y + 2, OPT_SND_FIELD_W);
+    VDP_drawText(buf, OPT_SND_COL, OPT_ROW_Y + 2);
     VDP_clearText(OPT_STATUS_COL, OPT_ROW_Y + 2, 3);
     VDP_drawText(playing ? "ON" : "OFF", OPT_STATUS_COL, OPT_ROW_Y + 2);
 }
@@ -1186,9 +1732,9 @@ SceneId showOptions() {
     PAL_setPalette(PAL2, title_font_pal.data, CPU);
     VDP_setTextPalette(PAL2);
 
-    VDP_drawText("VIDAS",     OPT_LABEL_COL, OPT_ROW_Y);
+    VDP_drawText("LIVES",     OPT_LABEL_COL, OPT_ROW_Y);
     VDP_drawText("SOUNDTEST", OPT_LABEL_COL, OPT_ROW_Y + 2);
-    VDP_drawText("SALIR",     OPT_LABEL_COL, OPT_ROW_Y + 4);
+    VDP_drawText("EXIT",      OPT_LABEL_COL, OPT_ROW_Y + 4);
 
     Sprite *cursor = SPR_addSprite(&selector_turtle, 4 * 8, OPT_CURSOR_Y * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
@@ -1231,12 +1777,23 @@ SceneId showOptions() {
             if (justPressedJoy(value, prev, BUTTON_RIGHT)) { trackIdx = (trackIdx + 1) % SOUND_TRACK_COUNT; trackChanged = TRUE; }
             if (trackChanged) {
                 // Si estaba sonando, arrancar la pista nueva.
-                if (sndPlaying) playMusicVol(soundTracks[trackIdx].track, 100);
+                // setLoopNumber(-1) SIEMPRE antes del play: el driver latchea
+                // el loop en el instante del play. Sin esto el soundtest se
+                // queda con el ultimo loop que dejo la escena anterior y las
+                // pistas cortas (SCENE CLEAR son 0,7s) sonaban una sola vez.
+                if (sndPlaying) {
+                    XGM2_setLoopNumber(-1);
+                    playMusicVol(soundTracks[trackIdx].track, 100);
+                }
                 optDrawSound(trackIdx, sndPlaying);
             }
             if (justPressedJoy(value, prev, BUTTON_A) || justPressedJoy(value, prev, BUTTON_C)) {
                 if (sndPlaying) { XGM2_stop(); sndPlaying = FALSE; }
-                else { playMusicVol(soundTracks[trackIdx].track, 100); sndPlaying = TRUE; }
+                else {
+                    XGM2_setLoopNumber(-1);
+                    playMusicVol(soundTracks[trackIdx].track, 100);
+                    sndPlaying = TRUE;
+                }
                 optDrawSound(trackIdx, sndPlaying);
             }
         }
@@ -1296,7 +1853,6 @@ SceneId showCharSelect() {
     // marcos tiene los frames en orden de personaje (0=Leo, 1=Mike, 2=Don, 3=Raph),
     // pero en esta pantalla el cursor recorre: 0=Leo, 1=Mike, 2=Don, 3=Raph.
     // Mapeo de índice de cursor → frame del HUD.
-    const u8 hudAnimForChar[] = {0, 3, 2, 1};
 
     // Paletas: el HUD comparte la de las tortugas en PAL1. El selector de
     // personaje va en PAL3 para no pisar los colores del HUD.
@@ -1308,6 +1864,7 @@ SceneId showCharSelect() {
     // que haya en las variables persistentes; luego se fuerza el frame según
     // la selección actual del cursor.
     hudInit();
+    hudInitPortraits();   // esta pantalla SI muestra los retratos: es su razon de ser
 
     // -----------------------------------------------------------------------
     // MODO 1 JUGADOR
@@ -1361,7 +1918,7 @@ SceneId showCharSelect() {
         playerPersistReset();
         continuesLeft = 3;
         clearScene();
-        return SCENE_LEVEL1_TITLE;
+        return SCENE_CINEMATIC_FIRE;
     }
 
     // -----------------------------------------------------------------------
@@ -1389,8 +1946,10 @@ SceneId showCharSelect() {
     if (portraitSpr2) SPR_setAnim(portraitSpr2, sel2);
 
     while (1) {
-        u16 v1 = JOY_readJoypad(JOY_1);
-        u16 v2 = JOY_readJoypad(JOY_2);
+        // (17/09) por playerJoy(), no JOY_1/JOY_2 a mano: con un multitap los
+        // mandos NO se numeran asi (ver playerJoy) y el P2 no podia elegir.
+        u16 v1 = JOY_readJoypad(playerJoy(0));
+        u16 v2 = JOY_readJoypad(playerJoy(1));
 
         // --- Jugador 1 (mientras no haya confirmado) ---
         if (!ready1) {
@@ -1447,10 +2006,12 @@ SceneId showCharSelect() {
     // antes del nivel 1.
     playerPersistReset();
     continuesLeft = 3;
-    return SCENE_LEVEL1_TITLE;
+    return SCENE_CINEMATIC_FIRE;
 }
 
-SceneId showFireCinematic() { return SCENE_LEVEL1_TITLE; }
+// showFireCinematic() (SCENE_CINEMATIC_FIRE) vive en src/cinematic_fire.c:
+// es la cinematica del rescate de April que va entre la seleccion de
+// personaje y el titulo del nivel 1.
 
 // ---------------------------------------------------------------------------
 // 7. Título del nivel 1 — texto letra a letra con la fuente arcade
@@ -1618,8 +2179,11 @@ SceneId showCredits() {
     return SCENE_INTRO_ARCADE;
 }
 
-SceneId showLevel1Title() {
-    clearScene();
+SceneId showScene11Title() {
+    // (18/09) keepAudio: la cinematica del rescate deja sonando el tema de la
+    // intro y tiene que seguir durante todo el titulo. Se corta al final, ya
+    // con la pantalla en negro, antes de que el nivel arranque music_level1.
+    clearSceneEx(TRUE);
 
     // Esperar a que se suelte START: venimos de confirmar personaje con
     // START y, si sigue apretado, saltearía el título sin querer.
@@ -1664,14 +2228,89 @@ SceneId showLevel1Title() {
     VDP_loadFont(&font_default, DMA);
 
     clearScene();
-    return SCENE_LEVEL1;
+    return SCENE_1_1;
+}
+
+// ---------------------------------------------------------------------------
+// 7 bis. Título de la SCENE 2 — mismo tratamiento que el de la Scene 1
+// ---------------------------------------------------------------------------
+// Entra justo después de la cutscene en la que Shredder se escapa por la
+// ventana del edificio en llamas (showEnding). Misma fuente arcade
+// (title_font), mismo efecto de aparición letra a letra y mismo skip por
+// START. La segunda línea son 34 caracteres: entra justa en las 40 columnas
+// de la pantalla arrancando en la columna 3.
+// ---------------------------------------------------------------------------
+SceneId showScene21Title() {
+    clearScene();
+
+    // Venimos de showEnding, donde START adelanta el hold final: esperar a que
+    // lo suelten para no saltear también este título.
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    VDP_loadFont(&title_font, DMA);
+    PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPalette(PAL0);
+    VDP_setBackgroundColor(0);
+
+    const char* line1 = "SCENE 2";
+    const char* line2 = "C'MON, AFTER THAT SHREDDER CREEP!!";
+
+    bool skipped;
+    skipped = drawTextTypewriter(line1, 16, 10, TITLE_CHAR_DELAY);
+    if (!skipped) skipped = drawTextTypewriter(line2, 3, 13, TITLE_CHAR_DELAY);
+
+    if (skipped) {
+        VDP_drawText(line1, 16, 10);
+        VDP_drawText(line2, 3, 13);
+    }
+
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 2;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SYS_doVBlankProcess();
+    }
+
+    VDP_loadFont(&font_default, DMA);
+
+    clearScene();
+    return SCENE_2_1;
 }
 
 // ---------------------------------------------------------------------------
 // 8. Nivel 1 — fondo scrolleable + fuego en primer plano + jugador
 // ---------------------------------------------------------------------------
-SceneId showLevel1() {
+SceneId showScene11() {
     clearScene();
+
+    // --- Presupuesto del motor de sprites para ESTE nivel (15/09) ---
+    // Se CALCULA, no se estima: el area de sprites vive en
+    // [TILE_FONT_INDEX - size .. TILE_FONT_INDEX-1], asi que el tope seguro es
+    // TILE_FONT_INDEX menos el ultimo tile de usuario que usa el nivel.
+    // Los tiles de usuario del nivel 1 son, en este orden: fondo, fuego, un
+    // bloque de barra de vida POR JUGADOR y los bloques de sparks.
+    //
+    // Antes esto era un 752 global (main.c) puesto a ojo, y hacia cuentas la
+    // cosa no cerraba: con 1-2 jugadores el final real de los tiles de usuario
+    // deja un tope de 749, o sea que el 752 ya se comia 3 tiles del bloque de
+    // sparks_2. Ahora sale exacto para cualquier cantidad de jugadores.
+    //
+    // OJO: esto TIENE que ir antes de cualquier SPR_addSprite de la escena
+    // (SPR_initEx resetea el motor y libera lo que hubiera).
+    const u8   nPlSetup    = numJugadores();
+    const bool sparksFullOn = (nPlSetup <= 2);   // 4P apaga puertas y piso
+    const u16  bgUserTiles  = TILE_USER_INDEX + bg_level1.tileset->numTile
+                              + FIRE_CELL_TILES;
+    const u16  barTiles     = (u16)((nPlSetup > 2) ? MAX_PLAYERS : 2)
+                              * HUD_VRAM_PER_PLAYER;
+    // (16/09) Con 4 jugadores NO va ningun spark: ni puertas, ni piso, ni
+    // ascensor. Sus tres bloques de VRAM de fondo (16+15+40 = 71 tiles) se los
+    // queda entero el motor de sprites.
+    const u16  sparkTiles   = sparksFullOn
+                              ? (SPARKS_TILES + ELEV_SPARK_TILES + SPARKS2_TILES)
+                              : 0;
+    SPR_initEx((u16)(TILE_FONT_INDEX - (bgUserTiles + barTiles + sparkTiles)));
 
     // --- Fondo con STREAMING de columnas (nivel completo de 1376px) ---
     // bgInit carga la paleta + tileset completo a VRAM y dibuja las primeras
@@ -1697,12 +2336,15 @@ SceneId showLevel1() {
     hudInit();
     u16 hudVramFree = TILE_USER_INDEX + bg_level1.tileset->numTile + FIRE_CELL_TILES;
 
+
     // Estado global de la IA de grupo: contador de atacantes simultáneos y
     // reparto de targets entre los jugadores presentes (1 o 2).
     resetEnemyAI(cantidadJugadores);
 
     // Shurikens: resetear el sistema de proyectiles del foot soldier naranja.
     shurikenInit();
+    // Dinamita del morado de la escalera (18/09): un solo cartucho, guionado.
+    tntInit();
 
     // La paleta PAL3 (foot soldier naranja + texto del HUD) la carga
     // levelFadeIn al final del setup.
@@ -1712,24 +2354,38 @@ SceneId showLevel1() {
 
     // --- Inicializar jugador(es) ---
     // Las 4 tortugas comparten la paleta unificada, así que P1 y P2 usan PAL1.
-    bool dosJugadores = (cantidadJugadores == 2);
+    // (14/09) nPl = jugadores presentes (1..4). 'dosJugadores' se mantiene con
+    // el sentido de "hay mas de uno", que es como lo usa el resto del nivel.
+    u8   nPl = numJugadores();
+    bool dosJugadores = (nPl >= 2);
 
     // Los límites izquierdo/derecho reales se recalculan CADA frame en el
     // paso 3 del bucle (dependen de la cámara); acá solo el arranque.
-    Player p1;
+    Player p1, p2, p3, p4;
+    Player* pls[MAX_PLAYERS] = { &p1, &p2, &p3, &p4 };
     initPlayer(&p1, personajeSeleccionado, JOY_1, PAL1, 40, 182);   // 5 tiles desde el borde izq
     setPlayerRightBound(&p1, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
 
-    Player p2;
-    if (dosJugadores) {
-        initPlayer(&p2, personaje2Seleccionado, JOY_2, PAL1, 160, 182);
-        setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+    // Jugadores 2..4: se reparten en X para no nacer uno encima del otro.
+    // (17/09) Nacian en 160 / 200 / 240, o sea FUERA de la franja muerta de la
+    // camara (CAM_DEAD_ZONE_RIGHT = 120). Como la camara sigue al que mas
+    // avanzo, el nivel arrancaba solo: 40px de scroll involuntario con 2
+    // jugadores y 120px con 4. Ahora nacen pegados al P1 y todos adentro.
+    {
+        const s16 spreadX = (nPl > 2) ? 26 : 64;   // 104 / 66-92-118
+        for (u8 k = 1; k < nPl; k++) {
+            initPlayer(pls[k], playerChar(k), playerJoy(k), PAL1,
+                       (s16)(40 + k * spreadX), 182);
+            setPlayerRightBound(pls[k], SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+        }
     }
 
     // --- Bola de hierro (obstáculo que cae rebotando) ---
     // Comparte PAL1 (tortugas), ya cargada por initPlayer. Sprite oculto hasta
-    // el primer spawn (cada IRON_BALL_PERIOD frames).
-    ironBallInit();
+    // el primer spawn. Dos bolas independientes, mismo arco, cadencia distinta
+    // (IRON_BALL_PERIOD / _PERIOD2 -- ver comentario grande más arriba).
+    ironBallInit(&ironBall, IRON_BALL_PERIOD);
+    ironBallInit(&ironBall2, IRON_BALL_PERIOD2);
 
     // --- HUD dinámico: barra de vida + vidas + puntaje ---
     // El texto (vidas/puntaje) va con la fuente arcade del HUD (hud_font) sobre
@@ -1742,15 +2398,38 @@ SceneId showLevel1() {
     VDP_setTextPriority(1);
     VDP_setTextPalette(PAL1);
 
-    HudPlayer hud1;
-    hudPlayerInit(&hud1, &p1, HUD_P1_BASECOL, hudVramFree);
-    HudPlayer hud2;
-    if (dosJugadores)
-        hudPlayerInit(&hud2, &p2, HUD_P2_BASECOL, hudVramFree + HPBAR_FRAME_TILES);
+    p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
+    HudPlayer huds[MAX_PLAYERS];
+    for (u8 k = 0; k < nPl; k++)
+        hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
+                      (u16)(hudVramFree + k * HUD_VRAM_PER_PLAYER));
+
+    // --- Sparks (puertas + ascensores + decorado fijo): streaming de tiles ---
+    // Reservan VRAM de fondo justo después de las 2 barras de vida (se
+    // reserva SIEMPRE el bloque de 2 jugadores, haya 1 o 2, para que la
+    // dirección no dependa de dosJugadores). Ver el comentario grande junto
+    // a SPARKS_* más arriba: reemplaza la vieja rotación de PAL2.
+    // (14/09) Se reserva UN bloque de barra POR JUGADOR presente, con un
+    // minimo de 2 para que en 1-2 jugadores las direcciones queden EXACTAMENTE
+    // donde estaban antes (el modo de 4 corre los sparks 8 tiles mas arriba).
+    // (15/09) Y con 4 jugadores los bloques de las puertas y del piso NI SE
+    // RESERVAN: el ascensor arranca directo, y esos 56 tiles se los queda el
+    // motor de sprites (ver el calculo del presupuesto arriba).
+    u16 barBlocks = (u16)((nPl > 2) ? MAX_PLAYERS : 2) * HUD_VRAM_PER_PLAYER;
+    if (sparksFullOn)
+        sparksStreamInit(hudVramFree + barBlocks,
+                         hudVramFree + barBlocks + SPARKS_TILES,
+                         hudVramFree + barBlocks + SPARKS_TILES + ELEV_SPARK_TILES,
+                         TRUE);
+    else
+        sparksStreamInit(0, 0, 0, FALSE);   // 4P: ningun spark
 
     // --- Estado de continues por jugador (cuenta regresiva + selección) ---
-    ContPlayer cont1 = { CONT_NONE, 0, 0, 0, 0 };
-    ContPlayer cont2 = { CONT_NONE, 0, 0, 0, 0 };
+    ContPlayer conts[MAX_PLAYERS];
+    for (u8 k = 0; k < MAX_PLAYERS; k++) {
+        ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
+        conts[k] = cz;
+    }
 
     // --- Definición de spawns por OLEADAS (trigger-based) ---
     // DESACTIVADOS por ahora (a pedido): el nivel sólo tiene el foot soldier de
@@ -1792,9 +2471,16 @@ SceneId showLevel1() {
         enemies[i].sprite = NULL;
     }
 
-    // --- Robot del látigo (mini-jefe del final del nivel) ---
-    Robot robot;
-    robotInit(&robot);
+    // --- Robot(es) del látigo (mini-jefe del final del nivel) ---
+    // 1 jugador -> 1 robot · 2 jugadores -> 2 (mismo X, distinto lane) ·
+    // 4 jugadores -> CUATRO, uno por lane (pedido del 16/09: "quiero ver como
+    // lo maneja la consola y si el parpadeo inevitable es tolerable").
+    // Los que no se spawnean quedan ROBOT_INACTIVE, y robotUpdateN /
+    // robotCanBeHit son no-op en ese estado.
+    // nRobots: cuantos salen de verdad en esta partida.
+    const u8 nRobots = (nPlSetup > 2) ? LEVEL1_MAX_ROBOTS : nPlSetup;
+    Robot robots[LEVEL1_MAX_ROBOTS];
+    for (u8 r = 0; r < LEVEL1_MAX_ROBOTS; r++) robotInit(&robots[r]);
 
     // --- Puertas: spawn points sobre los huecos "ACA" del fondo ---
     // doorSpr: sprite de la puerta cerrada (se crea/suelta según visibilidad,
@@ -1810,22 +2496,27 @@ SceneId showLevel1() {
     }
 
     // --- Sparks: efecto de fuego detrás de cada puerta rompible ---
+    // sparksTimer/sparksFrame ahora son de ámbito de archivo (los maneja
+    // sparksStreamInit/Update, ya llamado más arriba junto al HUD).
     Sprite* sparkSpr[LEVEL1_DOOR_COUNT];
     for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) sparkSpr[d] = NULL;
-    u16 sparksTimer = 0;   // Ticks para la próxima rotación de paleta
-    u16 sparksFrame = 0;   // Cuadro actual de la rotación (0..3)
 
     // --- Sparks 2: efecto decorativo fijo en el mundo ---
     #define SPARKS2_WORLD_X  330
     #define SPARKS2_WORLD_Y  154
-    Sprite* sparks2Spr = SPR_addSprite(&sparks_2,
-                                       SPARKS2_WORLD_X, SPARKS2_WORLD_Y,
-                                       TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    // (15/09) Con 4 jugadores el spark del PISO no se crea (ver sparksDoorFloorOn).
+    Sprite* sparks2Spr = !sparksFullOn ? NULL : sparksAddSprite(&sparks_2, sparks2VramInd,
+                                         SPARKS2_WORLD_X, SPARKS2_WORLD_Y);
     if (sparks2Spr) SPR_setDepth(sparks2Spr, -SPARKS2_WORLD_Y);
 
     // --- Ascensores: 2 puertas animadas que se abren JUNTAS ---
     // elevPhase: 0=cerradas (esperando que ambas estén centradas) · 1=abriendo
-    // (animación) · 2=remover + spawnear · 3=hecho (no vuelve a disparar).
+    // (animación) · 2=remover + spawnear OLEADA 1 (2 de los ascensores + 2 por
+    // los costados) · 3=oleada 1 activa, esperando que caigan todos · 4=oleada
+    // 2 activa (emboscada completa por ambos lados, se dispara sola al limpiar
+    // la 1) · 5=hecho, ambas oleadas despejadas (no vuelve a disparar).
+    // Ampliado a pedido de Gustavo (30/08): antes elevPhase==2 terminaba el
+    // encuentro con solo 2 enemigos; ahora es una emboscada de dos oleadas.
     static const s16 elevCenterX[LEVEL1_ELEV_COUNT] = { 972, 1100 };
     Sprite* elevSpr[LEVEL1_ELEV_COUNT];
     for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) elevSpr[ev] = NULL;
@@ -1893,12 +2584,14 @@ SceneId showLevel1() {
     // --- Zonas de combate ---
     s16  cameraLockX = -1;    // -1 = sin bloqueo; >=0 = cameraX no puede superar este valor
     u8   combatZone = 0;      // Zona actual (0-9)
+    // Un jugador se come UN solo golpe por explosion: la ventana de dano dura
+    // varios frames y la invulnerabilidad podria no cubrirla entera.
+    u8   tntHitMask = 0;
 
     // --- Bucle principal del nivel ---
     while (1) {
         // 1. Input y física de cada jugador
-        updatePlayer(&p1);
-        if (dosJugadores) updatePlayer(&p2);
+        for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
 
         // 2. Cámara dead-zone: la mueve el jugador que va MÁS ADELANTE
         //    (estilo arcade), pero SIN dejar nunca al rezagado fuera de
@@ -1908,10 +2601,10 @@ SceneId showLevel1() {
         //    revelamos columnas nuevas a la derecha).
         s16 leadX  = getPlayerWorldX(&p1);
         s16 trailX = leadX;
-        if (dosJugadores) {
-            s16 x2 = getPlayerWorldX(&p2);
-            if (x2 > leadX)  leadX  = x2;
-            if (x2 < trailX) trailX = x2;
+        for (u8 k = 1; k < nPl; k++) {
+            s16 xk = getPlayerWorldX(pls[k]);
+            if (xk > leadX)  leadX  = xk;
+            if (xk < trailX) trailX = xk;
         }
         s16 leadScreenX = leadX - cameraX;
 
@@ -1956,10 +2649,10 @@ SceneId showLevel1() {
         setPlayerCamera(&p1, cameraX);
         setPlayerLeftBound(&p1, cameraX);
         setPlayerRightBound(&p1, rightBound);
-        if (dosJugadores) {
-            setPlayerCamera(&p2, cameraX);
-            setPlayerLeftBound(&p2, cameraX);
-            setPlayerRightBound(&p2, rightBound);
+        for (u8 k = 1; k < nPl; k++) {
+            setPlayerCamera(pls[k], cameraX);
+            setPlayerLeftBound(pls[k], cameraX);
+            setPlayerRightBound(pls[k], rightBound);
         }
 
         // 3b. Intro scriptada: el globo (ya creado y posicionado antes del
@@ -2008,11 +2701,11 @@ SceneId showLevel1() {
                                                screenX - DOOR_HALF_W, DOOR_SPRITE_TOP_Y,
                                                TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
                     if (doorSpr[d]) SPR_setDepth(doorSpr[d], SPR_MAX_DEPTH - 1);
-                    // Sparks: fuego detrás de la puerta (misma paleta PAL2, fondo).
-                    if (!sparkSpr[d]) {
-                        sparkSpr[d] = SPR_addSprite(&sparks,
-                                                    screenX - SPARKS_HALF_W, SPARKS_SPRITE_TOP_Y,
-                                                    TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+                    // Sparks: fuego detrás de la puerta (streaming compartido,
+                    // ver sparksAddSprite -- ya no gasta VRAM propia).
+                    if (sparksFullOn && !sparkSpr[d]) {
+                        sparkSpr[d] = sparksAddSprite(&sparks, sparksVramInd,
+                                                      screenX - SPARKS_HALF_W, SPARKS_SPRITE_TOP_Y);
                         if (sparkSpr[d]) SPR_setDepth(sparkSpr[d], SPR_MAX_DEPTH);
                     }
                 } else if (!nearScreen && doorSpr[d]) {
@@ -2040,10 +2733,10 @@ SceneId showLevel1() {
             if (!doorTriggered[d]) {
                 s16 pdx = getPlayerWorldX(&p1) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
                 if (pdx < 0) pdx = -pdx;
-                if (dosJugadores) {
-                    s16 pdx2 = getPlayerWorldX(&p2) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
-                    if (pdx2 < 0) pdx2 = -pdx2;
-                    if (pdx2 < pdx) pdx = pdx2;
+                for (u8 k = 1; k < nPl; k++) {
+                    s16 pdxk = getPlayerWorldX(pls[k]) + (PLAYER_SPRITE_W / 2) - doorCenterX[d];
+                    if (pdxk < 0) pdxk = -pdxk;
+                    if (pdxk < pdx) pdx = pdxk;
                 }
                 if (!doorArmed[d] && pdx < DOOR_TRIGGER_DIST) doorArmed[d] = TRUE;
 
@@ -2068,7 +2761,7 @@ SceneId showLevel1() {
         //     cada hueco sale un foot soldier (BREAK_DOOR frames 3-4).
         //     Sparks de ascensor: fuego fijo en el hueco, se crea con la puerta
         //     y persiste después de que se remueve, se libera al salir de cámara.
-        if (elevPhase < 3) {
+        if (elevPhase < 5) {
             // Crear/mantener los sprites de ambas puertas mientras estén cerca
             // de pantalla (frame 0 = cerrada, auto-animación congelada).
             if (elevPhase <= 1) {
@@ -2084,10 +2777,12 @@ SceneId showLevel1() {
                             SPR_setDepth(elevSpr[ev], SPR_MAX_DEPTH - 1);
                             SPR_setAutoAnimation(elevSpr[ev], FALSE);
                         }
-                        if (!elevSparkSpr[ev]) {
-                            elevSparkSpr[ev] = SPR_addSprite(&spark_ascensor,
-                                                              sx - ELEV_SPARK_HALF_W, ELEV_SPARK_TOP_Y,
-                                                              TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+                        // (16/09) Con 4 jugadores tampoco va el spark del
+                        // ascensor, a pedido de Gustavo: son otros 15 tiles de
+                        // fondo y unos cuantos sprites de hardware menos.
+                        if (sparksFullOn && !elevSparkSpr[ev]) {
+                            elevSparkSpr[ev] = sparksAddSprite(&spark_ascensor, elevSparkVramInd,
+                                                               sx - ELEV_SPARK_HALF_W, ELEV_SPARK_TOP_Y);
                             if (elevSparkSpr[ev]) SPR_setDepth(elevSparkSpr[ev], SPR_MAX_DEPTH);
                         }
                     } else if (!nearScr && elevSpr[ev] && elevPhase == 0) {
@@ -2121,7 +2816,10 @@ SceneId showLevel1() {
                 if (elevTimer > 0) elevTimer--;
                 else               elevPhase = 2;
             } else if (elevPhase == 2) {
-                // Remover ambas puertas y spawnear un foot soldier de cada hueco.
+                // Remover ambas puertas y spawnear la OLEADA 1: un foot
+                // soldier de cada hueco de ascensor + 2 refuerzos entrando
+                // por ambos lados de la cámara (a pedido de Gustavo, 30/08:
+                // antes salían solo los 2 de los ascensores).
                 for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
                     if (elevSpr[ev]) { SPR_releaseSprite(elevSpr[ev]); elevSpr[ev] = NULL; }
                     for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -2132,7 +2830,65 @@ SceneId showLevel1() {
                         }
                     }
                 }
-                elevPhase = 3;   // hecho: no vuelve a disparar
+                {
+                    // cameraLockX ya está fijo en ZONE4_ELEV_LOCK desde que
+                    // se dispararon las puertas (elevPhase 0->1).
+                    s16 camL = cameraLockX;
+                    s16 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
+                    for (u16 s = 0; s < 2; s++) {
+                        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                                if (s == 0)
+                                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 170,
+                                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                else
+                                    initEnemyKickSpawn(&enemies[i], camR, 196,
+                                                       -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                activeEnemies++;
+                                break;
+                            }
+                        }
+                    }
+                }
+                elevPhase = 3;   // oleada 1 activa: esperar a que caigan todos
+            } else if (elevPhase == 3) {
+                // Oleada 1 despejada -> disparar la OLEADA 2, una emboscada
+                // completa por ambos lados (a pedido de Gustavo, 30/08). Solo
+                // al limpiar ESTA oleada se desbloquea la cámara (ver
+                // combatZone == 7 más abajo).
+                if (activeEnemies == 0) {
+                    s16 camL = cameraLockX;
+                    s16 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
+                    for (u16 s = 0; s < 4; s++) {
+                        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                                if (s == 0)
+                                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 148,
+                                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                else if (s == 1)
+                                    // Este era el 2do morado de la emboscada;
+                                    // desde el 13/09 es el foot soldier BLANCO
+                                    // de espada larga (pedido de Gustavo), que
+                                    // entra saltando por la derecha. Usa PAL3,
+                                    // la misma linea que el naranja del s == 3.
+                                    initEnemyWhiteJumpSpawn(&enemies[i], camR, 163, -1, PAL3);
+                                else if (s == 2)
+                                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 196,
+                                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                else
+                                    initEnemyKickSpawn(&enemies[i], camR, 191,
+                                                       -1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                activeEnemies++;
+                                break;
+                            }
+                        }
+                    }
+                    elevPhase = 4;   // oleada 2 activa
+                }
+            } else if (elevPhase == 4) {
+                // Oleada 2 despejada -> encuentro de ascensores terminado.
+                if (activeEnemies == 0)
+                    elevPhase = 5;   // hecho: no vuelve a disparar
             }
         }
 
@@ -2159,13 +2915,13 @@ SceneId showLevel1() {
             s16 camL, camR;
             u16 s;
 
-            // --- Zona 1: cameraX >= 150 → 2 morados kick + 1 naranja kick ---
+            // --- Zona 1: cameraX >= 150 → 2 morados kick + 1 naranja kick + 1 morado espalda ---
             if (combatZone == 0 && cameraX >= ZONE1_CAM_LOCK) {
                 combatZone = 1;
                 cameraLockX = ZONE1_CAM_LOCK;
                 camL = cameraLockX;
                 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
-                for (s = 0; s < 3; s++) {
+                for (s = 0; s < 4; s++) {
                     for (u16 i = 0; i < MAX_ENEMIES; i++) {
                         if (enemies[i].state == ENEMY_STATE_INACTIVE) {
                             if (s == 0)
@@ -2174,9 +2930,16 @@ SceneId showLevel1() {
                             else if (s == 1)
                                 initEnemyKickSpawn(&enemies[i], camR, 160,
                                                    -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            else
+                            else if (s == 2)
                                 initEnemyKickSpawn(&enemies[i], camR, 166,
                                                    -1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                            else
+                                // Cuarto morado (a pedido de Gustavo, 30/08): entra por
+                                // la espalda con voltereta, Y=190 (>=24px de separación
+                                // del resto de la oleada, vuelve a la proporción "2 y 2"
+                                // del viejo sistema de oleadas antes de desactivarse).
+                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 190,
+                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
                             activeEnemies++;
                             break;
                         }
@@ -2188,13 +2951,27 @@ SceneId showLevel1() {
                 combatZone = 2;
             }
 
-            // --- Zona 2: cameraX >= 300 → 2 morados walk (izq Y=145, der Y=160) ---
+            // --- Zona 2: cameraX >= 300 → 3 morados walk (izq Y=145, der Y=160 y Y=185)
+            //     + (18/09) el DINAMITERO que se asoma por la escalera ---
             if (combatZone == 2 && cameraX >= ZONE2_CAM_LOCK) {
                 cameraLockX = ZONE2_CAM_LOCK;
                 combatZone = 3;
                 camL = cameraLockX;
                 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
-                for (s = 0; s < 2; s++) {
+                // El de la escalera va PRIMERO: pide su VRAM antes que los
+                // otros tres, que es la misma regla que se uso con los robots
+                // del final (el que pide primero se la queda).
+                for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                        initEnemyTntSpawn(&enemies[i], TNT_THROWER_X, TNT_THROWER_Y,
+                                          +1, PAL2, TNT_LAND_X, TNT_LAND_Y);
+                        enemies[i].jumpZ = TNT_THROWER_Z;
+                        tntHitMask = 0;
+                        activeEnemies++;
+                        break;
+                    }
+                }
+                for (s = 0; s < 3; s++) {
                     for (u16 i = 0; i < MAX_ENEMIES; i++) {
                         if (enemies[i].state == ENEMY_STATE_INACTIVE) {
                             if (s == 0) {
@@ -2202,8 +2979,15 @@ SceneId showLevel1() {
                                 // voltereta y recién al terminar pasa a CHASE.
                                 initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 145,
                                                          1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            } else {
+                            } else if (s == 1) {
                                 initEnemySpawn(&enemies[i], camR, 160,
+                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                enemies[i].dir = -1;
+                                enemies[i].state = ENEMY_STATE_CHASE;
+                            } else {
+                                // Tercer morado (a pedido de Gustavo, 30/08): entra
+                                // de frente, Y=185 (>=24px de separación del resto).
+                                initEnemySpawn(&enemies[i], camR, 185,
                                                0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
                                 enemies[i].dir = -1;
                                 enemies[i].state = ENEMY_STATE_CHASE;
@@ -2219,13 +3003,13 @@ SceneId showLevel1() {
                 combatZone = 4;
             }
 
-            // --- Zona 3: cameraX >= 614 → 1 morado walk izq Y=162 + 1 naranja walk der Y=150 ---
+            // --- Zona 3: cameraX >= 614 → 2 morados walk (izq Y=162, der Y=186) + 1 naranja walk der Y=150 ---
             if (combatZone == 4 && cameraX >= ZONE3_CAM_LOCK) {
                 cameraLockX = ZONE3_CAM_LOCK;
                 combatZone = 5;
                 camL = cameraLockX;
                 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
-                for (s = 0; s < 2; s++) {
+                for (s = 0; s < 3; s++) {
                     for (u16 i = 0; i < MAX_ENEMIES; i++) {
                         if (enemies[i].state == ENEMY_STATE_INACTIVE) {
                             if (s == 0) {
@@ -2233,9 +3017,16 @@ SceneId showLevel1() {
                                 // izquierdo de la cámara).
                                 initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 162,
                                                          1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            } else {
+                            } else if (s == 1) {
                                 initEnemySpawn(&enemies[i], camR, 150,
                                                0, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                enemies[i].dir = -1;
+                                enemies[i].state = ENEMY_STATE_CHASE;
+                            } else {
+                                // Tercer enemigo (a pedido de Gustavo, 30/08): morado
+                                // de frente, Y=186 (>=24px de separación del resto).
+                                initEnemySpawn(&enemies[i], camR, 186,
+                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
                                 enemies[i].dir = -1;
                                 enemies[i].state = ENEMY_STATE_CHASE;
                             }
@@ -2255,8 +3046,12 @@ SceneId showLevel1() {
                 // Ascensores dispararon por centering y bloquearon cámara
                 combatZone = 7;
             }
-            if (combatZone == 7 && elevPhase >= 2 && activeEnemies == 0) {
-                // Ascensores limpiados → desbloquear cámara, permitir avanzar
+            if (combatZone == 7 && elevPhase >= 5) {
+                // Las DOS oleadas del ascensor quedaron limpias → desbloquear
+                // cámara, permitir avanzar (antes bastaba elevPhase>=2, o sea
+                // la primera tanda de 2 enemigos; ahora hace falta llegar a
+                // elevPhase==5, que el propio elevPhase==3/4 solo alcanza
+                // cuando activeEnemies volvió a 0 dos veces seguidas).
                 cameraLockX = -1;
                 combatZone = 8;
             }
@@ -2265,21 +3060,59 @@ SceneId showLevel1() {
             if (combatZone == 8 && cameraX >= CAM_MAX_X) {
                 cameraLockX = ZONE5_ROBOT_LOCK;
                 combatZone = 9;
-                // Spawn 1 naranja walk desde la izquierda Y=160
-                for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                    if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                        initEnemySpawn(&enemies[i],
-                                       cameraLockX - ENEMY_SPRITE_W_ORANGE, 160,
-                                       0, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
-                        enemies[i].dir = 1;
-                        enemies[i].state = ENEMY_STATE_CHASE;
-                        activeEnemies++;
-                        break;
+                // (16/09) Primero los ROBOTS y despues el naranja de escolta:
+                // el que pide VRAM de sprites primero se la queda.
+                // Robot(es): todos en el mismo eje X, cada uno en su lane.
+                //   1 jugador  -> 1 robot   · 2 jugadores -> 2
+                //   4 jugadores-> 4 (16/09, pedido explicito para medir el
+                //                    parpadeo real de la consola)
+                // OJO VRAM: cada robot son 73 tiles de sprite en su frame
+                // pico. Si el presupuesto (SPR_initEx) se agota, SPR_addSprite
+                // devuelve NULL y un robot sin sprite NO ACTUA (robotUpdate
+                // sale en la primera linea) -> el nivel quedaria imposible de
+                // terminar. Por eso robotSpawn ahora marca ROBOT_GONE al que
+                // no consiguio sprite (ver robot.c), y la victoria no lo
+                // espera.
+                {
+                    static const s16 robotLane2[LEVEL1_MAX_ROBOTS] = {
+                        ROBOT_SPAWN_Y, ROBOT_SPAWN_Y2, ROBOT_SPAWN_Y, ROBOT_SPAWN_Y2
+                    };
+                    static const s16 robotLane4[LEVEL1_MAX_ROBOTS] = {
+                        ROBOT_SPAWN_Y_4P_0, ROBOT_SPAWN_Y_4P_1,
+                        ROBOT_SPAWN_Y_4P_2, ROBOT_SPAWN_Y_4P_3
+                    };
+                    // Con cuatro, las lanes quedan a 19px una de otra: si
+                    // ademas compartieran el eje X se verian como UN solo
+                    // robot apilado. Se los separa en zigzag (+-56px).
+                    static const s16 robotDx4[LEVEL1_MAX_ROBOTS] = { -56, 56, -56, 56 };
+                    const s16* lane = (nPl > 2) ? robotLane4 : robotLane2;
+                    for (u8 r = 0; r < nRobots; r++) {
+                        if (robots[r].state != ROBOT_INACTIVE) continue;
+                        s16 rx = ROBOT_SPAWN_CENTER + ((nPl > 2) ? robotDx4[r] : 0);
+                        robotSpawn(&robots[r], rx, lane[r]);
                     }
                 }
-                // Robot
-                if (robot.state == ROBOT_INACTIVE)
-                    robotSpawn(&robot, ROBOT_SPAWN_CENTER);
+
+                // Naranja de escolta: entra desde la izquierda con el kick de
+                // entrada (initEnemyKickSpawn lo deja en SPAWNING mientras
+                // avanza desde fuera de pantalla; antes se creaba ya en CHASE
+                // y el clamp de enemyMinX lo teletransportaba al borde -- bug
+                // del 29/08).
+                // (16/09) Con 4 jugadores NO sale: son 56 tiles de sprite y
+                // los necesitan los cuatro robots (4x73). El presupuesto del
+                // nivel en 4P es 820 y el pico ya es 4 tortugas (256) + 4
+                // marcos de HUD (144) + 4 robots (292) = 692.
+                if (nPl <= 2) {
+                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
+                            initEnemyKickSpawn(&enemies[i],
+                                               cameraLockX - ENEMY_SPRITE_W_ORANGE, 160,
+                                               1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                            activeEnemies++;
+                            break;
+                        }
+                    }
+                }
             }
             // Zona 9: esperar robot muerto + sin enemigos → victoria (check en sección 6e)
         }
@@ -2292,15 +3125,38 @@ SceneId showLevel1() {
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (enemies[i].state == ENEMY_STATE_INACTIVE) continue;
             setEnemyCamera(&enemies[i], cameraX);
-            updateEnemy(&enemies[i], &p1, &p2, dosJugadores);
+            updateEnemyN(&enemies[i], pls, nPl);
         }
 
         // 5c. Robot del látigo (mini-jefe): spawneado por zona 4 (combatZone == 9).
         //     Solo update: la máquina de estados corre por su cuenta.
-        robotUpdate(&robot, cameraX, &p1, dosJugadores ? &p2 : NULL, dosJugadores, fps);
+        for (u8 r = 0; r < nRobots; r++)
+            robotUpdateN(&robots[r], cameraX, pls, nPl, fps);
 
         // 5d. Shurikens: actualizar posición, auto-destrucción off-screen.
         shurikenUpdate(cameraX);
+
+        // 5e. Dinamita de la escalera (18/09): vuelo + explosión. Devuelve TRUE
+        //     el frame del impacto, que es cuando va el SFX. La explosión se
+        //     libera sola al terminar su animación.
+        if (tntUpdate(cameraX)) {
+            XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+            tntHitMask = 0;
+        }
+        // Daño de la explosión: sólo a las tortugas (los foot soldiers no se
+        // dañan entre ellos, igual que las bolas de hierro). Un golpe por
+        // jugador y por explosión.
+        if (tntBlastActive()) {
+            for (u8 k = 0; k < nPl; k++) {
+                if (tntHitMask & (1 << k)) continue;
+                if (!playerCanBeHit(pls[k])) continue;
+                s16 pcx = getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2;
+                if (!tntBlastHits(pcx, getPlayerY(pls[k]), PLAYER_BODY_HALF_W)) continue;
+                tntHitMask |= (u8)(1 << k);
+                playerHitBars(pls[k], tntBlastX(), TNT_BLAST_DMG);
+            }
+        }
 
         // 6. Colisiones: ataque del jugador → enemigos.
         //    playerAttackHits mide desde el CENTRO de la tortuga, con alcance
@@ -2321,10 +3177,11 @@ SceneId showLevel1() {
             s16     halfW    = enemyBodyHalfW(&enemies[i]);
             s16     dmg      = 0;
             Player* attacker = NULL;
-            if (playerAttackHitsBox(&p1, ex, ey, halfW)) {
-                dmg = isPlayerSpecialAttack(&p1) ? ENEMY_HP : 1; attacker = &p1;
-            } else if (dosJugadores && playerAttackHitsBox(&p2, ex, ey, halfW)) {
-                dmg = isPlayerSpecialAttack(&p2) ? ENEMY_HP : 1; attacker = &p2;
+            s16     bodyH    = enemyBodyH(&enemies[i]);
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerAttackHitsBox(pls[k], ex, ey, halfW, bodyH)) continue;
+                dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
+                break;
             }
 
             if (dmg > 0) {
@@ -2345,23 +3202,30 @@ SceneId showLevel1() {
 
         // 6-robot. Ataque del jugador → robot del látigo. Golpe normal −1,
         //          especial −ROBOT_SPECIAL_DMG. Los ataques del robot al jugador
-        //          (láser/agarre) se resuelven dentro de robotUpdate.
-        if (robotCanBeHit(&robot)) {
-            s16 rx = robotGetCenterX(&robot);
-            s16 ry = robotGetCenterY(&robot);
+        //          (láser/agarre) se resuelven dentro de robotUpdate. El golpe
+        //          además empuja al robot ~3 tiles en la dirección del golpe
+        //          (lejos del atacante) — se le pasa su X para calcular el
+        //          sentido (ver robotDamage/ROBOT_HURT en robot.c).
+        // (16/09) Un solo bucle para los N robots (antes habia dos bloques
+        // copiados, uno por robot; con cuatro no escalaba).
+        for (u8 r = 0; r < nRobots; r++) {
+            if (!robotCanBeHit(&robots[r])) continue;
+            s16 rx = robotGetCenterX(&robots[r]);
+            s16 ry = robotGetCenterY(&robots[r]);
             s16     rdmg = 0;
             Player* ratt = NULL;
-            if (playerAttackHits(&p1, rx, ry)) {
-                rdmg = isPlayerSpecialAttack(&p1) ? ROBOT_SPECIAL_DMG : 1; ratt = &p1;
-            } else if (dosJugadores && playerAttackHits(&p2, rx, ry)) {
-                rdmg = isPlayerSpecialAttack(&p2) ? ROBOT_SPECIAL_DMG : 1; ratt = &p2;
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerAttackHits(pls[k], rx, ry)) continue;
+                rdmg = isPlayerSpecialAttack(pls[k]) ? ROBOT_SPECIAL_DMG : 1;
+                ratt = pls[k];
+                break;
             }
-            if (rdmg > 0) {
-                robotDamage(&robot, rdmg);
+            if (rdmg > 0 && ratt) {
+                robotDamage(&robots[r], rdmg, getPlayerWorldX(ratt) + PLAYER_SPRITE_W / 2);
                 // Impacto de la patada con salto también contra el mini-jefe
-                if (ratt && isPlayerJumpKicking(ratt))
+                if (isPlayerJumpKicking(ratt))
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                if (ratt && robot.state == ROBOT_DEAD)
+                if (robots[r].state == ROBOT_DEAD)
                     addPlayerScore(ratt, 5);   // baja del mini-jefe
             }
         }
@@ -2376,16 +3240,14 @@ SceneId showLevel1() {
             Enemy* e = &enemies[i];
             if (e->state != ENEMY_STATE_ATTACK) continue;
 
-            if (playerCanBeHit(&p1) &&
-                enemyTryHitPlayerBox(e, getPlayerWorldX(&p1), getPlayerY(&p1),
-                                     PLAYER_BODY_HALF_W)) {
+            // El swing es UNO: pega al primer jugador alcanzado y se consume.
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerCanBeHit(pls[k])) continue;
+                if (!enemyTryHitPlayerBox(e, getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                                          PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p1, getEnemyCenterX(e));
-            } else if (dosJugadores && playerCanBeHit(&p2) &&
-                       enemyTryHitPlayerBox(e, getPlayerWorldX(&p2), getPlayerY(&p2),
-                                            PLAYER_BODY_HALF_W)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p2, getEnemyCenterX(e));
+                damagePlayer(pls[k], getEnemyCenterX(e));
+                break;
             }
         }
 
@@ -2393,59 +3255,87 @@ SceneId showLevel1() {
         //     shurikens que cruza (desaparecen sin dañar). Va ANTES de la
         //     colisión proyectil→jugador: un shuriken roto este frame no pega.
         {
-            if (shurikenBreakByPlayerAttack(&p1)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-            }
-            if (dosJugadores && shurikenBreakByPlayerAttack(&p2)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            for (u8 k = 0; k < nPl; k++) {
+                if (shurikenBreakByPlayerAttack(pls[k]))
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
             }
         }
 
         // 6b-bis. Shurikens → jugadores: colisión proyectil.
         {
             s16 hitX = 0;
-            if (playerCanBeHit(&p1) &&
-                shurikenCheckHitPlayer(getPlayerWorldX(&p1), getPlayerY(&p1), &hitX)) {
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerCanBeHit(pls[k])) continue;
+                if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p1, hitX);
-            }
-            if (dosJugadores && playerCanBeHit(&p2) &&
-                shurikenCheckHitPlayer(getPlayerWorldX(&p2), getPlayerY(&p2), &hitX)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p2, hitX);
+                damagePlayer(pls[k], hitX);
             }
         }
 
-        // 6b-bis. Bola de hierro: spawn periódico, física de rebote y
-        //     colisiones (resta 1 barra al jugador; aplasta foot soldiers).
-        //     Va ANTES del refresco del HUD para que el daño se vea el
-        //     mismo frame, y antes del game over para que un golpe fatal cuente.
-        ironBallUpdate(cameraX, &p1, &p2, dosJugadores, enemies, MAX_ENEMIES);
+        // 6b-bis. Bolas de hierro (x2): spawn periódico, física de rebote y
+        //     colisiones (resta 1 barra al jugador; NO afectan a los foot
+        //     soldiers -- ver nota en ironBallUpdate, 30/08). Va ANTES del
+        //     refresco del HUD para que el daño se vea el mismo frame, y
+        //     antes del game over para que un golpe fatal cuente.
+        ironBallUpdate(&ironBall, cameraX, pls, nPl);
+        ironBallUpdate(&ironBall2, cameraX, pls, nPl);
 
         // 6c. HUD: refrescar barra de vida, vidas y puntaje (solo redibuja lo
         //     que cambió respecto del frame anterior).
-        hudPlayerUpdate(&hud1);
-        if (dosJugadores) hudPlayerUpdate(&hud2);
+        // --- Entrada del P2 en plena partida (17/09) -----------------------
+        // Con un solo jugador, su marco muestra "PULSE / START" y el joystick
+        // 2 puede sumarse eligiendo una tortuga distinta a la del P1. El nivel
+        // NO se pausa: sigue corriendo mientras elige (ver p2JoinPoll).
+        if (nPl == 1) {
+            u8 ch2 = p2JoinPoll(hudPlayerCol(1));
+            if (ch2 != 0xFF) {
+                personaje2Seleccionado = ch2;
+                cantidadJugadores      = 2;
+                initPlayer(&p2, ch2, playerJoy(1), PAL1,
+                           (s16)(getPlayerWorldX(&p1) - 48), getPlayerY(&p1));
+                setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+                hudPlayerInit(&huds[1], &p2, hudPlayerCol(1),
+                              (u16)(hudVramFree + HUD_VRAM_PER_PLAYER));
+                nPl          = 2;
+                dosJugadores = TRUE;
+                resetEnemyAI(2);
+            }
+        }
+
+        for (u8 k = 0; k < nPl; k++) hudPlayerUpdate(&huds[k]);
 
         // 6d. Continues: si un jugador cayó sin vidas, su marco muestra
         //     "CONTINUE?" con cuenta regresiva (START = seguir con tortuga
         //     nueva). Queda fuera solo cuando la cuenta llega a 0; en 2P el
         //     compañero vivo sigue jugando mientras tanto. El nivel termina
         //     cuando TODOS los jugadores quedaron fuera.
-        bool out1 = continuePoll(&cont1, &p1, &hud1, hudSprite1, portraitSpr1,
-                                 JOY_1, &personajeSeleccionado,
-                                 dosJugadores ? personaje2Seleccionado : 0xFF, fps);
-        bool out2 = FALSE;
-        if (dosJugadores)
-            out2 = continuePoll(&cont2, &p2, &hud2, hudSprite2, portraitSpr2,
-                                JOY_2, &personaje2Seleccionado,
-                                personajeSeleccionado, fps);
-        if (out1 && (!dosJugadores || out2))
-            break;
+        {
+            bool allOut = TRUE;
+            for (u8 k = 0; k < nPl; k++) {
+                if (!continuePoll(&conts[k], pls[k], &huds[k],
+                                  contFrameSpr(k), k,
+                                  playerJoy(k), contCharSel(k),
+                                  contOtherChar(k, nPl), fps))
+                    allOut = FALSE;
+            }
+            if (allOut) break;
+        }
 
-        // 6e. Victoria: robot destruido y sin enemigos en pantalla -> arranca la
-        //     secuencia de salida (ver después del bucle).
-        if (robot.state == ROBOT_GONE && activeEnemies == 0) {
+        // 6e. Victoria: robot(es) destruido(s) y sin enemigos en pantalla ->
+        //     arranca la secuencia de salida (ver después del bucle). En 2
+        //     jugadores hay que esperar a que AMBOS robots estén GONE.
+        // (16/09) Con N robots: basta con que ninguno siga en juego. Los que
+        // nunca se spawnearon quedan ROBOT_INACTIVE y los que se quedaron sin
+        // VRAM de sprite, ROBOT_GONE (ver robotSpawn) -- ninguno traba la
+        // victoria. Pero exigimos que AL MENOS UNO haya llegado a GONE, para
+        // no dar por ganado el nivel antes de que aparezca el mini-jefe.
+        bool robotsDone = (combatZone >= 9);
+        bool algunoGone = FALSE;
+        for (u8 r = 0; r < nRobots && robotsDone; r++) {
+            if (robots[r].state == ROBOT_GONE) algunoGone = TRUE;
+            else if (robots[r].state != ROBOT_INACTIVE) robotsDone = FALSE;
+        }
+        if (robotsDone && algunoGone && activeEnemies == 0) {
             XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH2, 15, FALSE, FALSE);
             win = TRUE;
             break;
@@ -2458,18 +3348,9 @@ SceneId showLevel1() {
         //    con la cámara a FIRE_SCROLL_NUM/DEN de la velocidad del fondo)
         fireUpdate(cameraX);
 
-        // 8b. Sparks: rotación de paleta constante durante el nivel.
-        //     Escribe directamente en CRAM (PAL2, índices 5-8) cada SPARKS_PAL_SPEED ticks.
-        {
-            if (++sparksTimer >= SPARKS_PAL_SPEED) {
-                sparksTimer = 0;
-                sparksFrame = (sparksFrame + 1) % SPARKS_PAL_FRAME_COUNT;
-                // PAL2 empieza en CRAM index 32; +5 = index 37
-                PAL_setColors(32 + SPARKS_PAL_IDX_START,
-                              sparksPalAnim[sparksFrame],
-                              SPARKS_PAL_IDX_COUNT, DMA);
-            }
-        }
+        // 8b. Sparks: streaming de tiles constante durante el nivel (puertas +
+        //     ascensores + sparks_2), ya NO toca CRAM -- ver sparksStreamUpdate.
+        sparksStreamUpdate();
 
         // 8c. Sparks 2: reposicionar sprite decorativo fijo en el mundo.
         if (sparks2Spr)
@@ -2479,12 +3360,14 @@ SceneId showLevel1() {
         SYS_doVBlankProcess();
     }
 
-    // La bola no debe seguir viva en la cutscene de victoria (evita que quede
-    // congelada en pantalla o golpee durante el paseo scripteado del outro).
-    ironBallEnd();
+    // Las bolas no deben seguir vivas en la cutscene de victoria (evita que
+    // queden congeladas en pantalla o golpeen durante el paseo scripteado del outro).
+    ironBallEnd(&ironBall);
+    ironBallEnd(&ironBall2);
 
     // Liberar shurikens activos (evita que queden volando en la cutscene).
     shurikenReleaseAll();
+    tntReleaseAll();   // dinamita de la escalera (18/09)
 
     // Liberar sparks que pudieran quedar visibles.
     for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) {
@@ -2510,30 +3393,38 @@ SceneId showLevel1() {
     if (win) {
         // Victoria: guardar vidas/puntaje para que persistan al nivel 2.
         playerPersistSave(&p1);
-        if (dosJugadores) playerPersistSave(&p2);
+        for (u8 k = 1; k < nPl; k++) playerPersistSave(pls[k]);
 
-        setPlayerCamera(&p1, cameraX);
-        if (dosJugadores) setPlayerCamera(&p2, cameraX);
+        for (u8 k = 0; k < nPl; k++) setPlayerCamera(pls[k], cameraX);
 
         // 1) Quieto OUTRO_STAND_SECS segundos
         u16 standT = fps * OUTRO_STAND_SECS;
         while (standT-- > 0) {
-            playerCutsceneStand(&p1);
-            if (dosJugadores) playerCutsceneStand(&p2);
+            for (u8 k = 0; k < nPl; k++) playerCutsceneStand(pls[k]);
             bgUpdate(cameraX);
             fireUpdate(cameraX);
             SPR_update();
             SYS_doVBlankProcess();
         }
 
-        // 2) Camina hacia la puerta (P2 un poco por detrás para no encimarse)
+        // 2) Caminan TODOS hacia la puerta, en abanico para no encimarse.
+        // (15/09) Antes el escalonado era de un ANCHO DE SPRITE por jugador
+        // (104px), y con cuatro el tercero y el cuarto terminaban apuntando a
+        // X 1035 y 931 -- o sea, FUERA de la pantalla por la izquierda, porque
+        // la camara esta clavada en ZONE5_ROBOT_LOCK (1056). Se los veia
+        // caminar para el otro lado (o directamente no se los veia) y parecia
+        // que solo el jugador 1 iba a la puerta. Ahora el escalonado es de
+        // OUTRO_FAN_X en X y OUTRO_FAN_Y en la lane: los cuatro quedan en el
+        // mismo grupo delante de la puerta y todos dentro de cuadro.
         bool walking = TRUE;
         while (walking) {
-            bool a1 = playerCutsceneWalkTo(&p1, OUTRO_DOOR_X, OUTRO_DOOR_Y);
-            bool a2 = TRUE;
-            if (dosJugadores)
-                a2 = playerCutsceneWalkTo(&p2, OUTRO_DOOR_X - PLAYER_SPRITE_W, OUTRO_DOOR_Y);
-            walking = !(a1 && a2);
+            bool allArrived = TRUE;
+            for (u8 k = 0; k < nPl; k++)
+                if (!playerCutsceneWalkTo(pls[k],
+                                          OUTRO_DOOR_X - (s16)k * OUTRO_FAN_X,
+                                          OUTRO_DOOR_Y + (s16)k * OUTRO_FAN_Y))
+                    allArrived = FALSE;
+            walking = !allArrived;
             bgUpdate(cameraX);
             fireUpdate(cameraX);
             SPR_update();
@@ -2545,7 +3436,7 @@ SceneId showLevel1() {
         while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
         clearScene();
-        return SCENE_LEVEL2;
+        return SCENE_1_2;
     }
 
     clearScene();
@@ -2573,6 +3464,24 @@ SceneId showLevel1() {
 // (filas 0-3) queda libre para el HUD y las 4 filas de la base (24-27) las
 // tapa el fuego. offset = 28 - 24 = 4.
 #define LEVEL2_BG_OFFSET_Y   (SCROLL_TILE_ROWS - (192 / 8))  // 4
+
+// --- Pared diagonal del sofa (esquina inferior-izq de la sala) ---
+// El arte de bg_test.png tiene el sofa "cortado" contra el borde izquierdo,
+// con el piso libre recortado en diagonal delante de el. No habia ningun
+// chequeo de colision para esto (a diferencia del muro del fondo/puerta a
+// la derecha, que ya viene resuelto por otro lado) y el player lo podia
+// atravesar caminando. Mismo patron que levelEndWallX (res/player.c):
+// interpolacion lineal de un limite en X segun la Y (profundidad) del
+// jugador, medido a ojo sobre el overlay que paso Gustavo el 30/08.
+// Si al jugarlo queda muy ajustado o muy suelto, tocar estas 2 constantes.
+#define SOFA_WALL_X_TOP      75   // limite en X cuando Y=BOUND_LANE_TOP (fondo)
+#define SOFA_WALL_X_BOTTOM   17   // limite en X cuando Y=BOUND_LANE_BOTTOM (frente)
+
+static s16 sofaWallX(s16 y) {
+    s32 laneRange = BOUND_LANE_BOTTOM - BOUND_LANE_TOP;
+    s32 wallRange = SOFA_WALL_X_BOTTOM - SOFA_WALL_X_TOP;
+    return SOFA_WALL_X_TOP + (s16)(wallRange * (y - BOUND_LANE_TOP) / laneRange);
+}
 
 #define SMOKE_CELL_TILES_W   8    // Celda de humo: 8 tiles de ancho (64px)
 #define SMOKE_CELL_TILES_H   8    // 8 tiles de alto (64px)
@@ -2703,11 +3612,14 @@ static void smokeUpdate(s16 cameraX) {
 
 // Flash de paleta por HP bajo del jefe (efecto "quemado" brillante). Con <= 20
 // HP la paleta de Rocksteady alterna entre la normal y una versión quemada cada
-// ROCKSTEADY_FLASH_TICKS frames; con <= 10 HP (crítico) alterna cada
+// ROCKSTEADY_FLASH_TICKS frames; con <= ROCKSTEADY_FLASH_CRIT_HP (crítico) alterna cada
 // ROCKSTEADY_FLASH_CRIT_TICKS (más rápido). El índice 1 (texto del HUD) queda
 // blanco en ambas paletas, así el HUD no parpadea.
-#define ROCKSTEADY_FLASH_HP        20
-#define ROCKSTEADY_FLASH_CRIT_HP   10
+// Umbrales RELATIVOS al HP total del jefe (1/3 y 1/6), no numeros sueltos: al
+// duplicar ROCKSTEADY_HP los valores fijos (20 y 10) pasaban de avisar al 32% y
+// al 16% de vida a avisar al 16% y al 8%, o sea casi encima de la muerte.
+#define ROCKSTEADY_FLASH_HP        (ROCKSTEADY_HP / 3)
+#define ROCKSTEADY_FLASH_CRIT_HP   (ROCKSTEADY_HP / 6)
 #define ROCKSTEADY_FLASH_TICKS      8
 #define ROCKSTEADY_FLASH_CRIT_TICKS 3
 
@@ -2795,7 +3707,7 @@ static s16 capsuleShake(u8 tick) {
 #define BOSS_BUBBLE_BLINK_F      45    // ~0.75s de parpadeo antes de irse
 #define BOSS_BUBBLE_TOGGLE       4     // frames por semiciclo de parpadeo (~7-8 Hz)
 
-SceneId showLevel2() {
+SceneId showScene12() {
     clearScene();
 
     // --- Motor de sprites con presupuesto seguro para el nivel 2 ---
@@ -2808,7 +3720,14 @@ SceneId showLevel2() {
     // streaming): HUD 35 + retrato 16 (x2 jugadores) + tortugas 64 (x2) +
     // soldados ~56 c/u + April 28 + cápsula 106 + Rocksteady 68 ≈ 700 <= 768.
     // Se restaura a 752 al salir de la escena.
-    SPR_initEx(768);
+    // (14/09, revisado el 16/09) Con 3-4 jugadores las barras suben de 2 a 4
+    // bloques (+8 tiles de usuario), asi que el techo baja de 773 a 765: se
+    // usa 760, con el mismo margen de 5 que el 768 de 1-2 jugadores. Desde el
+    // 16/09 el HUD de 4 tambien lleva los cuatro MARCOS (4x36 = 144 tiles de
+    // sprite). Con cuatro tortugas de 64 el pico se pasa del presupuesto en
+    // los momentos cargados y el motor deja de dibujar algun sprite -- es un
+    // modo de PRUEBA y se acepto asi (parpadeo tolerable, pedido de Gustavo).
+    SPR_initEx((numJugadores() > 2) ? 760 : 768);
 
     // --- Fondo (sala de 440px): dibujo completo + scroll (sin streaming) ---
     // Mapa de paletas (igual que el nivel 1):
@@ -2839,30 +3758,47 @@ SceneId showLevel2() {
     playMusicVol(music_level2, VOL_MUSIC_LEVEL2);
 
     // --- Inicializar jugador(es) ---
-    bool dosJugadores = (cantidadJugadores == 2);
+    // (14/09) nPl = jugadores presentes (1..4). 'dosJugadores' se mantiene con
+    // el sentido de "hay mas de uno", que es como lo usa el resto del nivel.
+    u8   nPl = numJugadores();
+    bool dosJugadores = (nPl >= 2);
 
-    Player p1;
+    Player p1, p2, p3, p4;
+    Player* pls[MAX_PLAYERS] = { &p1, &p2, &p3, &p4 };
     initPlayer(&p1, personajeSeleccionado, JOY_1, PAL1, 40, 182);
     setPlayerRightBound(&p1, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
 
-    Player p2;
-    if (dosJugadores) {
-        initPlayer(&p2, personaje2Seleccionado, JOY_2, PAL1, 160, 182);
-        setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+    // Jugadores 2..4: se reparten en X para no nacer uno encima del otro.
+    // (17/09) Nacian en 160 / 200 / 240, o sea FUERA de la franja muerta de la
+    // camara (CAM_DEAD_ZONE_RIGHT = 120). Como la camara sigue al que mas
+    // avanzo, el nivel arrancaba solo: 40px de scroll involuntario con 2
+    // jugadores y 120px con 4. Ahora nacen pegados al P1 y todos adentro.
+    {
+        const s16 spreadX = (nPl > 2) ? 26 : 64;   // 104 / 66-92-118
+        for (u8 k = 1; k < nPl; k++) {
+            initPlayer(pls[k], playerChar(k), playerJoy(k), PAL1,
+                       (s16)(40 + k * spreadX), 182);
+            setPlayerRightBound(pls[k], SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+        }
     }
 
     // --- April (rehén) atada al fondo de la sala ---
     // Decorativa: usa PAL1 (tortugas, ya cargada). Fondo del mundo (x=205,
-    // lane 148) y con DEPTH FIJA por detrás de toda la acción (SPR_setDepth
-    // con valor MENOS negativo que el de los jugadores/el jefe, que usan -y):
-    // así queda detrás aunque se agregue antes o después que ellos.
+    // lane 148) y con la MISMA convención de depth por Y que los jugadores/
+    // el jefe (-y, ver player.c y rocksteady.c): antes tenía un +20 fijo que
+    // la mandaba siempre detrás de cualquier jugador (el mínimo Y posible de
+    // un jugador, BOUND_LANE_TOP=142, ya perdía contra 148-20=128). A pedido
+    // de Gustavo, ahora tiene prioridad sobre una tortuga cuando esa tortuga
+    // está más arriba en Y que ella (Y < 148): con -y puro, quien tenga
+    // mayor Y (más "adelante" en el lane) dibuja al frente, igual que entre
+    // dos jugadores o un jugador y un enemigo.
     static const s16 APRIL_WORLD_X    = 160;
     static const s16 APRIL_LANE_Y     = 148;
     static const s16 APRIL_FOOT_OFFSET = 58;
     Sprite* aprilSpr = SPR_addSprite(&april, APRIL_WORLD_X /*cámara en 0 al inicio*/,
                                      APRIL_LANE_Y - APRIL_FOOT_OFFSET,
                                      TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
-    if (aprilSpr) SPR_setDepth(aprilSpr, -APRIL_LANE_Y + 20);
+    if (aprilSpr) SPR_setDepth(aprilSpr, -APRIL_LANE_Y);
     u16 aprilTimer = 0;
 
     // --- HUD dinámico: barra de vida + vidas + puntaje ---
@@ -2873,15 +3809,18 @@ SceneId showLevel2() {
     VDP_setTextPriority(1);
     VDP_setTextPalette(PAL1);
 
-    HudPlayer hud1;
-    hudPlayerInit(&hud1, &p1, HUD_P1_BASECOL, hudVramFree);
-    HudPlayer hud2;
-    if (dosJugadores)
-        hudPlayerInit(&hud2, &p2, HUD_P2_BASECOL, hudVramFree + HPBAR_FRAME_TILES);
+    p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
+    HudPlayer huds[MAX_PLAYERS];
+    for (u8 k = 0; k < nPl; k++)
+        hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
+                      (u16)(hudVramFree + k * HUD_VRAM_PER_PLAYER));
 
     // --- Estado de continues por jugador (cuenta regresiva + selección) ---
-    ContPlayer cont1 = { CONT_NONE, 0, 0, 0, 0 };
-    ContPlayer cont2 = { CONT_NONE, 0, 0, 0, 0 };
+    ContPlayer conts[MAX_PLAYERS];
+    for (u8 k = 0; k < MAX_PLAYERS; k++) {
+        ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
+        conts[k] = cz;
+    }
 
     // --- Pool de enemigos ---
     Enemy enemies[MAX_ENEMIES];
@@ -2908,6 +3847,9 @@ SceneId showLevel2() {
     rocksteadyBulletInit();
     u8      bossStage    = 0;
     u8      bossTimer    = 0;
+    // Volumen actual de music_boss mientras se hace el ducking del taunt
+    // (ver VOL_MUSIC_BOSS_DUCK). 0 = todavia no arranco el tema del jefe.
+    u8      bossMusicVol = 0;
     u8      capsulaFrame = 0;
     bool    bossSpawned  = FALSE;
     Sprite* capsulaSpr   = NULL;
@@ -2966,8 +3908,20 @@ SceneId showLevel2() {
                 foot_soldier.palette->data,
                 foot_soldier_orange.palette->data);
 
+    // "Help me!" de April apenas se revela la sala (2da parte del nivel 1).
+    // CH2 (no CH4: SOUND_PCM_CH4 no existe de verdad en el driver XGM2 de
+    // SGDK -- solo tiene 3 canales PCM reales, PCM0..PCM2 = CH1..CH3 -- y
+    // usarlo corrompia el comando del Z80, dejando un pitido constante;
+    // bug encontrado 29/08, ver DEVLOG).
+    XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+
     // --- Fases del nivel ---
-    u8   phase       = 0;    // 0=oleada A · 1=sala libre · 2=oleada B · 3=victoria
+    // 0 = oleada A (2 morados)  ·  1 = oleada B (2 blancos + 1 naranja)
+    // 2 = sala libre (camara desbloqueada)  ·  3 = pelea con Rocksteady
+    // La oleada B se agrego el 13/09 a pedido de Gustavo: hasta entonces la
+    // sala libre era la fase 1 y el jefe la 2, por eso todos los `phase == 3`
+    // de mas abajo eran `phase == 2`.
+    u8   phase       = 0;
     s16  cameraLockX = 0;    // >=0 = cameraX no puede superar este valor
     bool win         = FALSE;
 
@@ -2978,11 +3932,17 @@ SceneId showLevel2() {
         if (cutScene > 0) {
             // La tortuga viva se congela observando; la caída (game over) queda
             // tirada como estaba.
-            if (!isPlayerGameOver(&p1)) playerCutsceneWatch(&p1);
-            if (dosJugadores && !isPlayerGameOver(&p2)) playerCutsceneWatch(&p2);
+            for (u8 k = 0; k < nPl; k++)
+                if (!isPlayerGameOver(pls[k])) playerCutsceneWatch(pls[k]);
         } else {
-            updatePlayer(&p1);
-            if (dosJugadores) updatePlayer(&p2);
+            for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
+        }
+
+        // Sofa de la esquina (no-walk): empuja al jugador fuera de la zona
+        // diagonal si quedo mas a la izquierda de lo permitido para su Y.
+        for (u8 k = 0; k < nPl; k++) {
+            s16 wx = sofaWallX(pls[k]->y);
+            if (pls[k]->x < wx) pls[k]->x = wx;
         }
 
         // 2. Cámara con dead-zone BIDIRECCIONAL (la sala se recorre de ida y
@@ -2990,10 +3950,10 @@ SceneId showLevel2() {
         //    Izquierda: retrocede cuando el que va adelante queda muy atrás.
         s16 leadX  = getPlayerWorldX(&p1);
         s16 trailX = leadX;
-        if (dosJugadores) {
-            s16 x2 = getPlayerWorldX(&p2);
-            if (x2 > leadX)  leadX  = x2;
-            if (x2 < trailX) trailX = x2;
+        for (u8 k = 1; k < nPl; k++) {
+            s16 xk = getPlayerWorldX(pls[k]);
+            if (xk > leadX)  leadX  = xk;
+            if (xk < trailX) trailX = xk;
         }
         s16 leadScreenX = leadX - cameraX;
 
@@ -3008,7 +3968,7 @@ SceneId showLevel2() {
             }
             if (newCam - cameraX > CAM_MAX_SPEED) newCam = cameraX + CAM_MAX_SPEED;
             if (newCam > cameraX) cameraX = newCam;   // nunca retrocede
-        } else if (leadScreenX < CAM_DEAD_ZONE_LEFT && cameraX > 0 && phase != 2) {
+        } else if (leadScreenX < CAM_DEAD_ZONE_LEFT && cameraX > 0 && phase != 3) {
             // Retroceder en la sala (prohibido durante la pelea contra el jefe:
             // el taladro en BG_A está anclado a la pantalla y se alinearía mal).
             s16 newCam = cameraX - (CAM_DEAD_ZONE_LEFT - leadScreenX);
@@ -3021,10 +3981,10 @@ SceneId showLevel2() {
         setPlayerCamera(&p1, cameraX);
         setPlayerLeftBound(&p1, cameraX);
         setPlayerRightBound(&p1, rightBound);
-        if (dosJugadores) {
-            setPlayerCamera(&p2, cameraX);
-            setPlayerLeftBound(&p2, cameraX);
-            setPlayerRightBound(&p2, rightBound);
+        for (u8 k = 1; k < nPl; k++) {
+            setPlayerCamera(pls[k], cameraX);
+            setPlayerLeftBound(pls[k], cameraX);
+            setPlayerRightBound(pls[k], rightBound);
         }
 
         // 4. Conteo de enemigos activos.
@@ -3034,25 +3994,88 @@ SceneId showLevel2() {
 
         // 4b. Fases / oleadas.
         if (phase == 0 && activeEnemies == 0) {
-            // Oleada A limpia: desbloquear la cámara (sala libre, ida y vuelta)
-            cameraLockX = -1;
+            // --- Oleada A limpia -> OLEADA B ---
+            // Dos foot soldiers BLANCOS (espada larga) entrando POR LA
+            // IZQUIERDA y un NARANJA por la derecha, antes de Rocksteady
+            // (13/09, pedido de Gustavo). La camara sigue bloqueada: es una
+            // emboscada, no se puede escapar hacia adelante.
+            // Los blancos entran SALTANDO (su anim 6, el arco de 107px), uno
+            // por lane para que no vengan en fila india; el naranja entra con
+            // su patada de siempre.
+            {
+                s16 camL = cameraX;
+                s16 camR = cameraX + SCREEN_PIXEL_WIDTH;
+                for (u16 s = 0; s < 3; s++) {
+                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                        if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
+                        // Los dos blancos nacen en la MISMA X (el clamp de
+                        // enemyMinX no deja nacer mas alla de -w, asi que
+                        // separarlos en X no serviria de nada) y se separan
+                        // por LANE: uno al fondo y otro al frente.
+                        if (s == 0)
+                            initEnemyWhiteJumpSpawn(&enemies[i],
+                                camL - ENEMY_SPRITE_W_WHITE, 158, 1, PAL3);
+                        else if (s == 1)
+                            initEnemyWhiteJumpSpawn(&enemies[i],
+                                camL - ENEMY_SPRITE_W_WHITE, 192, 1, PAL3);
+                        else
+                            initEnemyKickSpawn(&enemies[i], camR, 174,
+                                               -1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                        activeEnemies++;
+                        break;
+                    }
+                }
+            }
             phase = 1;
-        } else if (phase == 1 && cameraX >= LEVEL2_CAM_MAX_X) {
+        } else if (phase == 1 && activeEnemies == 0) {
+            // Oleada B limpia: recien ahi se desbloquea la camara (sala libre,
+            // ida y vuelta) y se puede avanzar hacia el jefe.
+            cameraLockX = -1;
+            phase = 2;
+        } else if (phase == 2 && cameraX >= LEVEL2_CAM_MAX_X) {
             // Llegó al límite de la sala: cámara bloqueada y comienza la pelea
             // contra Rocksteady. La cápsula del taladro aparece en pantalla
             // (oculta hasta el stage 1, cuando empieza a emerger del piso).
             cameraLockX = LEVEL2_CAM_MAX_X;
-            phase = 2;
+            phase = 3;
             bossStage = 0;
             bossTimer = 0;
-            capsulaSpr = SPR_addSprite(&taladro_capsula, CAPSULA_SCREEN_X,
+            // SPR_addSpriteSafe (no SPR_addSprite): la capsula es GRANDE
+            // (hasta 112 tiles en su frame mas grande, medido sobre el PNG
+            // real -- el comentario viejo decia 106) y se crea reciEN
+            // termina la oleada A, justo despues de que un monton de foot
+            // soldiers chicos nacieron y murieron liberando/pisando VRAM.
+            // SGDK avisa en su propia doc que SPR_addSprite puede fallar o
+            // degradarse por FRAGMENTACION de VRAM aunque sobre espacio
+            // libre en total (el hueco libre mas grande puede ser mas
+            // chico que 112 tiles aunque haya de sobra repartido en varios
+            // huecos) -- exactamente el sintoma reportado (parpadeo, se ve
+            // mayormente transparente). SPR_addSpriteSafe reintenta con
+            // SPR_defragVRAM() si la primera pasada falla.
+            capsulaSpr = SPR_addSpriteSafe(&taladro_capsula, CAPSULA_SCREEN_X,
                                        CAPSULA_SCREEN_Y,
                                        TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
             if (capsulaSpr) {
-                SPR_setDepth(capsulaSpr, SPR_MAX_DEPTH);
+                // OJO (29/08): SPR_MAX_DEPTH (0x7FFF) es el valor por
+                // DEFECTO de cualquier sprite nuevo -- no la aleja de nada.
+                // Ademas, como capsulaSpr se crea recien ACA (bien entrada
+                // la fase 2), SGDK la inserta al FINAL de su lista interna
+                // de sprites (orden de insercion, no de profundidad), asi
+                // que es de las ultimas en procesarse en SPR_update(). SGDK
+                // solo escribe hasta SAT_MAX_SIZE=80 "hardware sprites" por
+                // frame (limite real de la VDP) y CUALQUIER sprite que quede
+                // despues del cupo NO se dibuja ESE frame (se ve completa,
+                // no a pedazos) -- exactamente el parpadeo reportado. Todo
+                // lo demas en esta escena (jugadores, April, Rocksteady,
+                // enemigos) usa profundidad = -(y) real; le damos a la
+                // capsula una profundidad fija coherente con esa convencion
+                // en lugar del maximo, para que un SPR_setDepth real la
+                // reordene por profundidad (no por orden de insercion) y dejen
+                // de competir sprites de fondo/HUD por su lugar en la SAT.
+                SPR_setDepth(capsulaSpr, -(CAPSULA_CENTER_Y));
                 SPR_setVisibility(capsulaSpr, HIDDEN);
             }
-        } else if (cutScene == 0 && phase == 2 && bossSpawned &&
+        } else if (cutScene == 0 && phase == 3 && bossSpawned &&
                    boss.state == ROCKSTEADY_GONE) {
             // Jefe muerto (el sprite ya se liberó solo al terminar la anim de
             // muerte): arranca la cutscene de victoria. Aplica aunque el jefe
@@ -3062,6 +4085,12 @@ SceneId showLevel2() {
             // Shredder en PAL3.
             bossFlashOn = 0;
             bossStage = 99;
+            // (14/09) YA NO se devuelve el volumen al normal acá. Antes, si el
+            // taunt se abortaba, el tema quedaba ducked y se restauraba a mano;
+            // ahora el duck de la MUERTE tiene que sobrevivir hasta que la
+            // cutscene corte la música (el frame siguiente, XGM2_stop en
+            // cutScene 1), porque encima está sonando el grito del jefe. Subir
+            // el volumen acá lo tapaba justo en el final.
             cutScene = 1;
             cutTimer = 0;
             // Si el jefe murió durante el taunt, suelta el globo de diálogo
@@ -3071,7 +4100,7 @@ SceneId showLevel2() {
         }
 
         // 4c. Secuencia de introducción del jefe (fase 2, stages 0..3).
-        if (phase == 2 && bossStage < 99) {
+        if (phase == 3 && bossStage < 99) {
             switch (bossStage) {
                 case 0:   // pausa dramática con la cápsula oculta
                     if (++bossTimer >= 30) { bossStage = 1; bossTimer = 0; }
@@ -3115,6 +4144,26 @@ SceneId showLevel2() {
                     break;
                 case 3:   // Rocksteady aparece en la puerta, quieto (IDLE) + say_your_p
                     if (bossTimer == 0) {
+                        // --- Tema del jefe ---------------------------------
+                        // Arranca ACA, con la puerta de la capsula ya abierta
+                        // (el stage 2 la abrio y espero a que sonara el wav de
+                        // la puerta), y NO se vuelve a tocar en toda la pelea:
+                        // el unico XGM2 posterior es music_ending, que lo pisa
+                        // solo cuando el jefe ya murio y arranca la cutscene.
+                        // La musica de fondo del nivel la habia cortado el
+                        // stage 1 (XGM2_stop) al empezar a emerger el taladro.
+                        //
+                        // setLoopNumber(-1) SIEMPRE antes del play, nunca
+                        // despues: el driver latchea el loop en el instante del
+                        // play (misma trampa que documenta MUSIC_ENDING_LEN mas
+                        // arriba, pero al reves -- aca queremos loop INFINITO,
+                        // porque la pelea dura mas que los 32,5s del tema).
+                        XGM2_setLoopNumber(-1);
+                        // Entra BAJO: arriba esta el voice over. La rampa de
+                        // vuelta al volumen normal esta al final de este case.
+                        playMusicVol(music_boss, VOL_MUSIC_BOSS_DUCK);
+                        bossMusicVol = VOL_MUSIC_BOSS_DUCK;
+
                         if (!bossSpawned) {
                             bossSpawned = TRUE;
                             // Paleta del jefe en PAL3 (índice 1 blanco: HUD).
@@ -3176,6 +4225,22 @@ SceneId showLevel2() {
                             bubblePhase = 3;
                         }
                     }
+                    // Rampa del ducking: el tema vuelve al volumen normal recién
+                    // cuando el voice over terminó, subiendo de a poco para que
+                    // no se note el salto. Se hace acá y no con XGM2_fadeTo
+                    // porque el fade del driver NO actualiza su fmVol interno,
+                    // así que el próximo fade arrancaría desde el valor viejo.
+                    if (bossTimer >= BOSS_TAUNT_DUCK_F && bossMusicVol < VOL_MUSIC_BOSS) {
+                        u16 t = bossTimer - BOSS_TAUNT_DUCK_F;
+                        u16 v = VOL_MUSIC_BOSS_DUCK
+                              + ((VOL_MUSIC_BOSS - VOL_MUSIC_BOSS_DUCK) * t) / BOSS_TAUNT_RAMP_F;
+                        if (v > VOL_MUSIC_BOSS) v = VOL_MUSIC_BOSS;
+                        if (v != bossMusicVol) {
+                            bossMusicVol = (u8)v;
+                            XGM2_setFMVolume(v);
+                            XGM2_setPSGVolume(v);
+                        }
+                    }
                     // Espera a que termine el taunt (~2.8s) → empieza la batalla.
                     if (++bossTimer >= 170) { bossStage = 99; bossTimer = 0; }
                     break;
@@ -3186,8 +4251,24 @@ SceneId showLevel2() {
         //     cuando el jefe llega a ROCKSTEADY_GONE).
         if (cutScene > 0) {
             switch (cutScene) {
-                case 1: {   // Shredder aparece en la puerta de la cápsula (Idle)
-                    if (cutTimer == 0) {
+                case 1: {   // Silencio, y recién ahí Shredder en la puerta (Idle)
+                    // 1a. PRIMER FRAME: cortar el tema del jefe. La cutscene ya
+                    //     no arranca encima de la música de la pelea (music_boss
+                    //     venía sonando desde que se abrió la cápsula y el play
+                    //     de music_ending la pisaba de golpe). Se corta, se deja
+                    //     CUT_SILENCE_FRAMES de silencio con la escena quieta y
+                    //     recién entonces entra Shredder con su tema.
+                    if (cutTimer == 0) XGM2_stop();
+
+                    // 1b. El segundo de aire. Nada más pasa en estos frames: el
+                    //     jefe ya desapareció y Shredder todavía no existe.
+                    //     (El corte de respaldo de MUSIC_ENDING_LEN que hay
+                    //     después del switch no molesta acá: con el driver
+                    //     parado, XGM2_isPlaying() da FALSE.)
+                    if (++cutTimer < CUT_SILENCE_FRAMES) break;
+
+                    // 1c. Entra Shredder + su tema.
+                    {
                         // Paleta propia de Shredder en PAL3 (Rocksteady ya la
                         // liberó al morir); índice 1 blanco para el HUD.
                         PAL_setPalette(PAL3, shredder_lvl1.palette->data, DMA);
@@ -3197,20 +4278,24 @@ SceneId showLevel2() {
                         shredderSpr = SPR_addSprite(&shredder_lvl1,
                                                     shredderX - cameraX, shredderY,
                                                     TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
-                        playMusicVol(music_ending, VOL_MUSIC_ENDING);
+                        // OJO DE ORDEN (bug encontrado 30/08, ver MUSIC_ENDING_LEN mas
+                        // arriba): setLoopNumber SIEMPRE antes del play, nunca despues --
+                        // estaba al reves y por eso el tema repetia en loop.
                         XGM2_setLoopNumber(0);
+                        playMusicVol(music_ending, VOL_MUSIC_ENDING);
                         if (shredderSpr) {
-                            // Detrás de April (depth -APRIL_LANE_Y+20 = -128):
-                            // menor valor = delante, así que con -108 Shredder
-                            // queda DETRÁS de ella (y de los jugadores, que usan
-                            // -y con y >= 118) pero delante de la cápsula.
+                            // Detrás de April (su depth ahora es -APRIL_LANE_Y = -148,
+                            // ver el SPR_addSprite de aprilSpr mas arriba): menor
+                            // valor = delante, así que con -108 Shredder sigue
+                            // quedando DETRÁS de ella (y de los jugadores, que
+                            // usan -y con y >= 118) pero delante de la cápsula.
                             SPR_setDepth(shredderSpr, -APRIL_LANE_Y + 40);
                             SPR_setAutoAnimation(shredderSpr, FALSE);
                             SPR_setAnim(shredderSpr, 0);          // Idle [0] (sin flip: el arte ya mira a la izquierda)
                         }
                     }
-                    // Pausa dramática corta mirando la escena, luego camina.
-                    if (++cutTimer >= 2) { cutScene = 2; cutTimer = 0; }
+                    // Ya se vio aparecer: pasa a caminar hacia April.
+                    cutScene = 2; cutTimer = 0;
                     break;
                 }
                 case 2: {   // Camina (Walk [1]) por el lane de April. El spawn está a la
@@ -3304,6 +4389,17 @@ SceneId showLevel2() {
                 case 5:   // (no-op: la victoria se marcó en el case 4)
                     break;
             }
+
+            // Corte de respaldo del vgm de music_ending -- ver MUSIC_ENDING_LEN
+            // mas arriba (mismo problema y misma tecnica que introTick en
+            // intro_arcade.c). No depende de que XGM2_setLoopNumber(0) se
+            // haya aplicado bien en el punto de loop del propio driver -- es
+            // una garantia adicional, no un reemplazo. La musica sigue
+            // sonando en showEnding() (clearSceneEx(TRUE) no corta audio al
+            // salir de aca), asi que el mismo chequeo se repite alla.
+            if (XGM2_isPlaying() && XGM2_getElapsed() >= MUSIC_ENDING_LEN)
+                XGM2_stop();
+
             if (cutScene == 5)
                 break;
         }
@@ -3313,14 +4409,26 @@ SceneId showLevel2() {
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (enemies[i].state == ENEMY_STATE_INACTIVE) continue;
             setEnemyCamera(&enemies[i], cameraX);
-            updateEnemy(&enemies[i], &p1, &p2, dosJugadores);
+            updateEnemyN(&enemies[i], pls, nPl);
         }
 
         // 5b. Shurikens: actualizar posición, auto-destrucción off-screen.
         shurikenUpdate(cameraX);
 
         // 5c. Rocksteady (jefe de la fase 2).
-        rocksteadyUpdate(&boss, cameraX, &p1, &p2, dosJugadores);
+        rocksteadyUpdateN(&boss, cameraX, pls, nPl);
+
+        // DUCK del tema del jefe mientras suena su GRITO DE MUERTE (14/09). El
+        // wav dura 101 frames y los primeros 42 (los de la anim de muerte)
+        // competirian con music_boss a volumen pleno; despues de eso la
+        // cutscene corta la musica sola (XGM2_stop en cutScene 1). Mismo
+        // criterio que el taunt del principio: una voz no se gana subiendo el
+        // PCM, se gana bajando los FM (ver claude/audio-mix-voz-vs-musica.md).
+        if (boss.state == ROCKSTEADY_DEAD && bossMusicVol > VOL_MUSIC_BOSS_DUCK) {
+            bossMusicVol = VOL_MUSIC_BOSS_DUCK;
+            XGM2_setFMVolume(VOL_MUSIC_BOSS_DUCK);
+            XGM2_setPSGVolume(VOL_MUSIC_BOSS_DUCK);
+        }
 
         // 5d. Balas del disparo del jefe.
         rocksteadyBulletUpdate(cameraX);
@@ -3361,10 +4469,11 @@ SceneId showLevel2() {
             s16     halfW    = enemyBodyHalfW(&enemies[i]);
             s16     dmg      = 0;
             Player* attacker = NULL;
-            if (playerAttackHitsBox(&p1, ex, ey, halfW)) {
-                dmg = isPlayerSpecialAttack(&p1) ? ENEMY_HP : 1; attacker = &p1;
-            } else if (dosJugadores && playerAttackHitsBox(&p2, ex, ey, halfW)) {
-                dmg = isPlayerSpecialAttack(&p2) ? ENEMY_HP : 1; attacker = &p2;
+            s16     bodyH    = enemyBodyH(&enemies[i]);
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerAttackHitsBox(pls[k], ex, ey, halfW, bodyH)) continue;
+                dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
+                break;
             }
 
             if (dmg > 0) {
@@ -3392,13 +4501,18 @@ SceneId showLevel2() {
             s16     by    = rocksteadyGetCenterY(&boss);
             s16     bdmg = 0;
             Player* batt = NULL;
-            if (playerAttackHitsBox(&p1, bcx, by, ROCKSTEADY_BODY_HALF_W)) {
+            if (playerAttackHitsBox(&p1, bcx, by, ROCKSTEADY_BODY_HALF_W,
+                                    ROCKSTEADY_BODY_H)) {
                 bdmg = isPlayerSpecialAttack(&p1) ? ROCKSTEADY_SPECIAL_DMG : 1;
                 batt = &p1;
-            } else if (dosJugadores &&
-                       playerAttackHitsBox(&p2, bcx, by, ROCKSTEADY_BODY_HALF_W)) {
-                bdmg = isPlayerSpecialAttack(&p2) ? ROCKSTEADY_SPECIAL_DMG : 1;
-                batt = &p2;
+            } else {
+                for (u8 k = 1; k < nPl; k++) {
+                    if (!playerAttackHitsBox(pls[k], bcx, by, ROCKSTEADY_BODY_HALF_W,
+                                             ROCKSTEADY_BODY_H)) continue;
+                    bdmg = isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG : 1;
+                    batt = pls[k];
+                    break;
+                }
             }
             if (bdmg > 0) {
                 rocksteadyDamage(&boss, bdmg);
@@ -3417,60 +4531,72 @@ SceneId showLevel2() {
             Enemy* e = &enemies[i];
             if (e->state != ENEMY_STATE_ATTACK) continue;
 
-            if (playerCanBeHit(&p1) &&
-                enemyTryHitPlayerBox(e, getPlayerWorldX(&p1), getPlayerY(&p1),
-                                     PLAYER_BODY_HALF_W)) {
+            // El swing es UNO: pega al primer jugador alcanzado y se consume.
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerCanBeHit(pls[k])) continue;
+                if (!enemyTryHitPlayerBox(e, getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                                          PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p1, getEnemyCenterX(e));
-            } else if (dosJugadores && playerCanBeHit(&p2) &&
-                       enemyTryHitPlayerBox(e, getPlayerWorldX(&p2), getPlayerY(&p2),
-                                            PLAYER_BODY_HALF_W)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p2, getEnemyCenterX(e));
+                damagePlayer(pls[k], getEnemyCenterX(e));
+                break;
             }
         }
 
         // 6c. Shurikens → ataque del jugador (rompe proyectiles) y → jugadores.
         {
-            if (shurikenBreakByPlayerAttack(&p1)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-            }
-            if (dosJugadores && shurikenBreakByPlayerAttack(&p2)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            for (u8 k = 0; k < nPl; k++) {
+                if (shurikenBreakByPlayerAttack(pls[k]))
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
             }
         }
         {
             s16 hitX = 0;
-            if (playerCanBeHit(&p1) &&
-                shurikenCheckHitPlayer(getPlayerWorldX(&p1), getPlayerY(&p1), &hitX)) {
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerCanBeHit(pls[k])) continue;
+                if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p1, hitX);
-            }
-            if (dosJugadores && playerCanBeHit(&p2) &&
-                shurikenCheckHitPlayer(getPlayerWorldX(&p2), getPlayerY(&p2), &hitX)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p2, hitX);
+                damagePlayer(pls[k], hitX);
             }
         }
 
         // 6c-bis. Balas del jefe → impacto contra los jugadores.
         {
             s16 hitX = 0;
-            if (playerCanBeHit(&p1) &&
-                rocksteadyBulletCheckHitPlayer(getPlayerWorldX(&p1), getPlayerY(&p1), &hitX)) {
+            // playerCanBeHitAir y no playerCanBeHit (14/09): la bala YA filtra
+            // por altura, y el tiro hacia arriba existe justamente para pegarle
+            // al que salta. Con la regla general ("saltando no te pegan") el
+            // antiaereo no podia conectar NUNCA.
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerCanBeHitAir(pls[k])) continue;
+                if (!rocksteadyBulletCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                                                   getPlayerJumpZ(pls[k]), &hitX)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p1, hitX);
-            }
-            if (dosJugadores && playerCanBeHit(&p2) &&
-                rocksteadyBulletCheckHitPlayer(getPlayerWorldX(&p2), getPlayerY(&p2), &hitX)) {
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(&p2, hitX);
+                playerHitProjectile(pls[k], hitX, ROCKSTEADY_BULLET_DMG);
             }
         }
 
         // 6d. HUD: refrescar barra de vida, vidas y puntaje.
-        hudPlayerUpdate(&hud1);
-        if (dosJugadores) hudPlayerUpdate(&hud2);
+        // --- Entrada del P2 en plena partida (17/09) -----------------------
+        // Con un solo jugador, su marco muestra "PULSE / START" y el joystick
+        // 2 puede sumarse eligiendo una tortuga distinta a la del P1. El nivel
+        // NO se pausa: sigue corriendo mientras elige (ver p2JoinPoll).
+        if (nPl == 1) {
+            u8 ch2 = p2JoinPoll(hudPlayerCol(1));
+            if (ch2 != 0xFF) {
+                personaje2Seleccionado = ch2;
+                cantidadJugadores      = 2;
+                initPlayer(&p2, ch2, playerJoy(1), PAL1,
+                           (s16)(getPlayerWorldX(&p1) - 48), getPlayerY(&p1));
+                setPlayerRightBound(&p2, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+                hudPlayerInit(&huds[1], &p2, hudPlayerCol(1),
+                              (u16)(hudVramFree + HUD_VRAM_PER_PLAYER));
+                nPl          = 2;
+                dosJugadores = TRUE;
+                resetEnemyAI(2);
+            }
+        }
+
+        for (u8 k = 0; k < nPl; k++) hudPlayerUpdate(&huds[k]);
 
         // 6d-bis. April (rehén): bobbing suave de "respirando".
         {
@@ -3491,15 +4617,15 @@ SceneId showLevel2() {
         bool bossDown = (boss.state == ROCKSTEADY_DEAD ||
                          boss.state == ROCKSTEADY_GONE);
         if (cutScene == 0 && !bossDown) {
-            bool out1 = continuePoll(&cont1, &p1, &hud1, hudSprite1, portraitSpr1,
-                                     JOY_1, &personajeSeleccionado,
-                                     dosJugadores ? personaje2Seleccionado : 0xFF, fps);
-            bool out2 = FALSE;
-            if (dosJugadores)
-                out2 = continuePoll(&cont2, &p2, &hud2, hudSprite2, portraitSpr2,
-                                    JOY_2, &personaje2Seleccionado,
-                                    personajeSeleccionado, fps);
-            if (out1 && (!dosJugadores || out2))
+            bool allOut = TRUE;
+            for (u8 k = 0; k < nPl; k++) {
+                if (!continuePoll(&conts[k], pls[k], &huds[k],
+                                  contFrameSpr(k), k,
+                                  playerJoy(k), contCharSel(k),
+                                  contOtherChar(k, nPl), fps))
+                    allOut = FALSE;
+            }
+            if (allOut)
                 break;
         }
 
@@ -3508,10 +4634,28 @@ SceneId showLevel2() {
         //    sprite, no scrollea sola): el HUD y la cámara de juego NO tiemblan.
         s16 dispCam = cameraX;
         s16 capsX   = CAPSULA_SCREEN_X;
-        if (phase == 2 && bossStage == 1) {
+        if (phase == 3 && bossStage == 1) {
             s16 shake = capsuleShake(bossTimer);
             dispCam += shake;
-            capsX   += shake;
+            // OJO (29/08): iba "capsX += shake" -- signo al reves. El scroll
+            // de fondo se escribe como -cameraX (bgUpdate2/fireUpdate/
+            // smokeUpdate), asi que un punto fijo del MUNDO se mueve en
+            // pantalla en la direccion CONTRARIA a "dispCam" (si dispCam
+            // sube, el fondo se corre a la izquierda). La capsula es un
+            // sprite posicionado en coordenadas de PANTALLA directas: para
+            // que tiemble EN EL MISMO SENTIDO que el fondo/humo/fuego (y no
+            // se desalinee de la mascara de prioridad del humo del techo,
+            // que tapa su mitad superior -- ver smokeInit) hay que restar el
+            // temblor, no sumarlo. Con el signo viejo, cápsula y fondo se
+            // movían en sentidos OPUESTOS cada frame durante el temblor (hasta
+            // 1.5x la amplitud de desfasaje relativo, por el parallax 1/2 del
+            // humo/fuego), lo que hacía que la máscara de prioridad tapara una
+            // porción variable e impredecible de la cápsula frame a frame --
+            // el parpadeo/transparencia reportado. Bug real encontrado 29/08
+            // tras descartar fragmentación de VRAM y el límite de 80 sprites
+            // de hardware (el contador en pantalla confirmó solo 5-7 sprites
+            // activos, muy lejos del límite).
+            capsX -= shake;
         }
         if (capsulaSpr) SPR_setPosition(capsulaSpr, capsX, CAPSULA_SCREEN_Y);
         bgUpdate2(dispCam);
@@ -3546,7 +4690,7 @@ SceneId showLevel2() {
         // Victoria: guardar vidas/puntaje persistentes (por si se rejuega o hay
         // más niveles; el estado se resetea en la selección de personajes).
         playerPersistSave(&p1);
-        if (dosJugadores) playerPersistSave(&p2);
+        for (u8 k = 1; k < nPl; k++) playerPersistSave(pls[k]);
 
         // Si la cutscene ya fundió a negro (fade del final en el vuelo), la
         // pantalla ya está en negro: no volver a fadear.
@@ -3603,7 +4747,14 @@ SceneId showEnding() {
 
     // Esperar a que la imagen esté COMPLETAMENTE visible (el fade corre por
     // VBlank) antes de contar el retraso de la risa.
-    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+    while (PAL_isDoingFade()) {
+        // Corte de respaldo de music_ending (ver MUSIC_ENDING_LEN) -- viene
+        // sonando desde la cutscene de showScene12, clearSceneEx(TRUE) no la
+        // cortó al entrar acá.
+        if (XGM2_isPlaying() && XGM2_getElapsed() >= MUSIC_ENDING_LEN)
+            XGM2_stop();
+        SYS_doVBlankProcess();
+    }
 
     // Mantener ~3 segundos (START adelanta). La risa de Shredder NO suena al
     // entrar a la escena: arranca ~1.5s después de verse la imagen.
@@ -3620,6 +4771,11 @@ SceneId showEnding() {
                 laughed = TRUE;
             }
         }
+        // Corte de respaldo de music_ending (ver MUSIC_ENDING_LEN): que
+        // solo se escuche una vez, aunque este hold + la cutscene previa de
+        // showScene12 sumen más que la duración del tema.
+        if (XGM2_isPlaying() && XGM2_getElapsed() >= MUSIC_ENDING_LEN)
+            XGM2_stop();
         if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
         SYS_doVBlankProcess();
     }
@@ -3627,7 +4783,9 @@ SceneId showEnding() {
     XGM2_setLoopNumber(-1);   // restaurar loop infinito para la siguiente escena
     SPR_initEx(600);                 // restaurar el motor de sprites (lo usan las escenas siguientes)
     clearScene();
-    return SCENE_SEGA;               // reinicia el juego
+    // La persecución sigue: de acá se encadena el título de la Scene 2 y
+    // después el nivel de la calle (antes esto reiniciaba el juego).
+    return SCENE_2_1_TITLE;
 }
 
 // ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 #include "player.h"
+#include "player_hitbox.h"   // playerAtkReach: alcance por frame medido sobre el arte
 #include "audio.h"
 
 // ===========================================================================
@@ -18,17 +19,42 @@
 // joystick (slot 0 = JOY_1 / P1, slot 1 = JOY_2 / P2). initPlayer arranca con
 // estos valores; playerPersistSave() los actualiza al ganar un nivel;
 // playerPersistReset() los vuelve al default (partida nueva — lo llama
-// scenes.c en la selección de personajes). La VIDA (barra) NO persiste: cada
-// nivel arranca con la barra llena.
+// scenes.c en la selección de personajes).
+// (13/09) La BARRA DE VIDA tambien persiste, a pedido de Gustavo: al pasar del
+// 1-1 al apartamento de April se recargaba sola y regalaba la barra entera.
+// Como en el arcade, la barra se arrastra de una parte a la otra; lo unico que
+// la rellena es perder una vida (revivir) o empezar partida nueva.
 // ---------------------------------------------------------------------------
 // Vidas iniciales configurables desde la pantalla OPCIONES (3/5/7).
 u8 vidasIniciales = PLAYER_START_LIVES;
 
-static u8  s_persistLives[2] = { PLAYER_START_LIVES, PLAYER_START_LIVES };
-static u16 s_persistScore[2] = { 0, 0 };
+static u8  s_persistLives[MAX_PLAYERS];
+static u16 s_persistScore[MAX_PLAYERS];
+static s16 s_persistHealth[MAX_PLAYERS];
+static bool s_persistInit = FALSE;
+
+static void persistEnsureInit(void) {
+    if (s_persistInit) return;
+    s_persistInit = TRUE;
+    for (u8 i = 0; i < MAX_PLAYERS; i++) {
+        s_persistLives[i]  = PLAYER_START_LIVES;
+        s_persistScore[i]  = 0;
+        s_persistHealth[i] = PLAYER_MAX_HEALTH;
+    }
+}
+
+// (15/09) Antes esto era `return (joyId == JOY_2) ? 1 : 0;` y con el modo de 4
+// TODOS los jugadores caian en el slot 0: el multitap les da JOY_3/JOY_4/JOY_5,
+// ninguno es JOY_2. O sea que los cuatro compartian vidas, puntaje y barra, y
+// al cambiar de nivel el ultimo en guardar le pisaba el estado a los otros
+// tres. Ahora el slot sale del INDICE de jugador, resolviendo el joyId contra
+// el mismo mapa que usa scenes.c (playerJoy), asi sirve con y sin multitap.
+extern u16 playerJoy(u8 k);
 
 static u8 persistSlot(u16 joyId) {
-    return (joyId == JOY_2) ? 1 : 0;
+    for (u8 k = 0; k < MAX_PLAYERS; k++)
+        if (playerJoy(k) == joyId) return k;
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -38,14 +64,22 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     const SpriteDefinition* spriteDef = &leo_player;
 
     switch(selectedCharacter) {
-        case 0: spriteDef = &leo_player;  p->atkReach = PLAYER_ATK_REACH_LEO;  break;
-        case 1: spriteDef = &mike_player; p->atkReach = PLAYER_ATK_REACH_MIKE; break;
-        case 2: spriteDef = &don_player;  p->atkReach = PLAYER_ATK_REACH_DON;  break;
-        case 3: spriteDef = &raph_player; p->atkReach = PLAYER_ATK_REACH_RAPH; break;
+        case 0: spriteDef = &leo_player;  break;
+        case 1: spriteDef = &mike_player; break;
+        case 2: spriteDef = &don_player;  break;
+        case 3: spriteDef = &raph_player; break;
     }
+    // Indexa playerAtkReach (el alcance por frame medido sobre el arte).
+    p->charIndex = (selectedCharacter < PHB_CHARS) ? selectedCharacter : 0;
 
     p->x             = startX;
     p->y             = startY;       // Pies sobre la vereda
+    // Lane y pared del nivel 1 por defecto; los otros niveles las pisan con
+    // setPlayerLane() / setPlayerEndWall() después de initPlayer().
+    p->laneTop       = BOUND_LANE_TOP;
+    p->laneBottom    = BOUND_LANE_BOTTOM;
+    p->wallXTop      = LEVEL_END_WALL_X_TOP;
+    p->wallXBottom   = LEVEL_END_WALL_X_BOTTOM;
     p->state         = STATE_IDLE;
     p->boundLeft     = 0;
     p->boundRight    = 288;
@@ -71,9 +105,18 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->koTimer       = 0;
     p->kdPhase       = 0;
     p->kdTimer       = 0;
+    p->kdFront       = 0;
+    p->kdSlide       = 0;
+    p->kdSlideTick   = 0;
     p->blinkTimer    = 0;
     p->gameOver      = FALSE;
-    p->health        = PLAYER_MAX_HEALTH;   // barra de vida llena (se recarga por nivel)
+    // Barra de vida: viene del estado persistente, igual que vidas y puntaje
+    // (ver la nota de arriba). Red de seguridad: si quedo en 0 o basura, se
+    // arranca con la barra llena en vez de con la tortuga muerta.
+    persistEnsureInit();
+    p->health        = s_persistHealth[persistSlot(joyId)];
+    if (p->health <= 0 || p->health > PLAYER_MAX_HEALTH)
+        p->health    = PLAYER_MAX_HEALTH;
     // Vidas y puntaje vienen del estado persistente entre niveles (no se
     // reinician al cambiar de nivel). El slot depende del joystick: JOY_1 ->
     // P1, JOY_2 -> P2.
@@ -92,7 +135,16 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     // Las 4 tortugas comparten la misma paleta unificada (PAL1); la carga el
     // fade-in de nivel (levelFadeIn) al final del setup para no revelar los
     // sprites durante la carga. Ya está en CRAM cuando revive el jugador.
-    SPR_setAnim(p->sprite, ANIM_IDLE);
+    //
+    // (15/09) OJO CON EL NULL. SPR_addSprite devuelve NULL si no queda lugar en
+    // el presupuesto del motor (SPR_initEx), cosa que con CUATRO tortugas de 64
+    // tiles cada una pasa de verdad. Sin esta guarda se llamaba
+    // SPR_setAnim(NULL) y a partir de ahi todo el modulo leia el "struct
+    // Sprite" desde la direccion 0 -- que en la MegaDrive es ROM, asi que NO
+    // crashea: devuelve basura. El sintoma es peor que un crash, porque
+    // SPR_isAnimationDone() nunca da TRUE y los estados que esperan el fin de
+    // una anim (HURT, ATTACKING) se cuelgan para siempre.
+    if (p->sprite) SPR_setAnim(p->sprite, ANIM_IDLE);
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +156,18 @@ s16 getPlayerWorldX(const Player* p) {
 
 void setPlayerCamera(Player* p, s16 camX) {
     p->cameraOffsetX = camX;
+}
+
+void setPlayerLane(Player* p, s16 top, s16 bottom) {
+    p->laneTop    = top;
+    p->laneBottom = bottom;
+    if (p->y < top)    p->y = top;
+    if (p->y > bottom) p->y = bottom;
+}
+
+void setPlayerEndWall(Player* p, s16 xTop, s16 xBottom) {
+    p->wallXTop    = xTop;
+    p->wallXBottom = xBottom;
 }
 
 void setPlayerLeftBound(Player* p, s16 leftBound) {
@@ -140,16 +204,40 @@ static void setHeldFrame(Player* p, u8 frame) {
 // Pared diagonal del final del nivel: interpola linealmente entre los dos
 // extremos calibrados (LEVEL_END_WALL_X_TOP/BOTTOM) según la profundidad
 // 'y'. Devuelve la X de mundo del borde SÓLIDO para esa lane.
-static s16 levelEndWallX(s16 y) {
-    s16 laneRange = BOUND_LANE_BOTTOM - BOUND_LANE_TOP;
-    s32 wallRange = LEVEL_END_WALL_X_BOTTOM - LEVEL_END_WALL_X_TOP;
-    return LEVEL_END_WALL_X_TOP + (s16)(wallRange * (y - BOUND_LANE_TOP) / laneRange);
+static s16 levelEndWallX(const Player* p, s16 y) {
+    s16 laneRange = p->laneBottom - p->laneTop;
+    if (laneRange <= 0) return p->wallXTop;
+    s32 wallRange = p->wallXBottom - p->wallXTop;
+    return p->wallXTop + (s16)(wallRange * (y - p->laneTop) / laneRange);
 }
 
 // ---------------------------------------------------------------------------
 // LÓGICA PRINCIPAL — llamar una vez por frame para cada instancia
 // ---------------------------------------------------------------------------
+// Gruñido de ataque POR PERSONAJE (14/09, pedido de Gustavo). Leo (charIndex 0)
+// y Raph (3) comparten un wav, Mike (1) y Don (2) el otro. Va en el canal PCM 3,
+// el mismo donde estaba el "Attack!!" generico de los golpes normales: asi el
+// golpe que conecta (hit_turtles, canal 2) se superpone en vez de cortarlo.
+// El "Attack!!" (attack_turtles) queda SOLO para los especiales (A y B+C), que
+// asi mantienen su acento propio.
+static void playAttackGrunt(const Player* p) {
+    if (p->charIndex == 0 || p->charIndex == 3)
+        XGM2_playPCMEx(leo_raph_attack_vo, sizeof(leo_raph_attack_vo),
+                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+    else
+        XGM2_playPCMEx(mike_don_attack_vo, sizeof(mike_don_attack_vo),
+                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+}
+
 void updatePlayer(Player* p) {
+    // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
+    // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
+    // lo que sigue leeria el struct Sprite desde la direccion 0 (ROM) y
+    // devolveria basura -- y los estados que esperan SPR_isAnimationDone se
+    // colgarian para siempre. Sin sprite el jugador queda invisible e inerte,
+    // pero el juego sigue.
+    if (!p->sprite) return;
+
     u16 joy = JOY_readJoypad(p->joyId);
 
     // Límite derecho EFECTIVO de este frame: el menor entre el borde de
@@ -157,8 +245,12 @@ void updatePlayer(Player* p) {
     // final del nivel en la profundidad actual (fija en coordenadas de
     // mundo). La pared está dibujada en PERSPECTIVA, no vertical, así que
     // este límite depende de 'y' — ver LEVEL_END_WALL_X_TOP/BOTTOM.
-    s16 wallRight = levelEndWallX(p->y) - PLAYER_SPRITE_W;
-    s16 effRight  = (wallRight < p->boundRight) ? wallRight : p->boundRight;
+    // wallXTop == 0 -> el nivel no tiene pared diagonal (p.ej. el 2-1).
+    s16 effRight = p->boundRight;
+    if (p->wallXTop) {
+        s16 wallRight = levelEndWallX(p, p->y) - PLAYER_SPRITE_W;
+        if (wallRight < effRight) effRight = wallRight;
+    }
 
     // I-frames: invulnerabilidad "lógica" SIN efecto visual. Un golpe normal
     // ya no hace parpadear al sprite (queda visible durante los i-frames).
@@ -188,7 +280,7 @@ void updatePlayer(Player* p) {
 
             if (moveX != 0 || moveY != 0) {
                 p->x = clampS16(p->x + moveX, p->boundLeft, effRight);
-                p->y = clampS16(p->y + moveY, BOUND_LANE_TOP, BOUND_LANE_BOTTOM);
+                p->y = clampS16(p->y + moveY, p->laneTop, p->laneBottom);
                 p->state = STATE_WALKING;
                 // Reiniciar el timer de la pose de espera: hubo movimiento
                 p->idleTimer = 0;
@@ -250,7 +342,10 @@ void updatePlayer(Player* p) {
                 // jugador puede seguir moviéndola en el aire (ver abajo).
                 p->state     = STATE_JUMPING;
                 p->jumpVel   = -PLAYER_JUMP_FORCE;
-                p->jumpZ     = 0;
+                // Arranca 2px arriba: ver PLAYER_JUMP_BOOST en player.h (con
+                // gravedad entera el apex va de 91 a 105 a 120, y hacen falta
+                // 107 clavados para que sean 2 tiles justos sobre los 91).
+                p->jumpZ     = PLAYER_JUMP_BOOST;
                 p->apexHang  = APEX_HANG;
                 p->airFrame  = 1;
                 p->airTimer  = 0;
@@ -268,7 +363,7 @@ void updatePlayer(Player* p) {
                 p->idleTwice = 0;
                 SPR_setAnimationLoop(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_1, 0);
-                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                playAttackGrunt(p);
             } else if (justPressed(joy, p->prevJoy, BUTTON_A)) {
                 // ESPECIAL (A): antes disparaba ANIM_KICK; el kick queda
                 // reservado para otro uso futuro.
@@ -307,7 +402,7 @@ void updatePlayer(Player* p) {
                 SPR_setAnimAndFrame(p->sprite,
                                     (p->comboStep == 2) ? ANIM_ATTACK_2
                                                         : ANIM_ATTACK_3, 0);
-                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                playAttackGrunt(p);
             } else if (canChain && p->comboLinger > 0) {
                 // Ventana de enlace: quedarse unos frames en la pose final
                 // esperando el press que encadena
@@ -337,8 +432,21 @@ void updatePlayer(Player* p) {
             if (p->jumpVel == 0 && noHoriz && p->apexHang > 0) {
                 p->apexHang--;
                 // No se aplica gravedad este frame → vel queda en 0
+            } else if (p->jumpVel >= 0 && !p->isJumpKicking) {
+                // CAIDA SIN PATADA: velocidad CONSTANTE, no acelerada. Se fija
+                // en PLAYER_FALL_SPEED apenas se pasa el apex y se queda ahi,
+                // asi el descenso es parejo y da tiempo a reposicionarse en el
+                // aire (que es para lo que sirve el salto en un beat'em up).
+                p->jumpVel = PLAYER_FALL_SPEED;
             } else {
+                // Subida (vel < 0), y caida CON patada: gravedad normal. Patear
+                // en el aire renuncia a la caida flotada y te tira mas rapido…
                 p->jumpVel += GRAVITY;
+                // …pero con VELOCIDAD TERMINAL (14/09): sin este tope la caida
+                // terminaba a 14 px/frame y se sentia una plomada. Solo afecta
+                // la bajada (vel > 0); la subida es negativa y pasa de largo.
+                if (p->jumpVel > PLAYER_KICK_FALL_MAX)
+                    p->jumpVel = PLAYER_KICK_FALL_MAX;
             }
 
             // --- Movimiento en el aire (X e Y) ---
@@ -359,8 +467,8 @@ void updatePlayer(Player* p) {
             } else {
                 if (joy & BUTTON_RIGHT) { p->x = clampS16(p->x + PLAYER_SPEED, p->boundLeft, effRight); SPR_setHFlip(p->sprite, FALSE); p->dir = 1; }
                 if (joy & BUTTON_LEFT)  { p->x = clampS16(p->x - PLAYER_SPEED, p->boundLeft, effRight); SPR_setHFlip(p->sprite, TRUE);  p->dir = -1; }
-                if (joy & BUTTON_UP)    { p->y = clampS16(p->y - PLAYER_SPEED, BOUND_LANE_TOP, BOUND_LANE_BOTTOM); }
-                if (joy & BUTTON_DOWN)  { p->y = clampS16(p->y + PLAYER_SPEED, BOUND_LANE_TOP, BOUND_LANE_BOTTOM); }
+                if (joy & BUTTON_UP)    { p->y = clampS16(p->y - PLAYER_SPEED, p->laneTop, p->laneBottom); }
+                if (joy & BUTTON_DOWN)  { p->y = clampS16(p->y + PLAYER_SPEED, p->laneTop, p->laneBottom); }
             }
 
             // --- Inicio de la patada en salto (una sola por salto) ---
@@ -463,14 +571,23 @@ void updatePlayer(Player* p) {
         }
 
         case STATE_KNOCKED_DOWN: {
-            // Derribo (patada del jefe): pequeño deslizamiento inicial y la
-            // secuencia de anims a mano — HIT_BEHIND_1 (retroceso) →
-            // HIT_BEHIND_2 (cae de espaldas) → tirada en el piso un momento →
-            // GET_UP_2 (se levanta) → IDLE.
-            if (p->hurtTimer > 0) {
-                p->hurtTimer--;
-                p->x = clampS16(p->x + p->hurtDir * PLAYER_HURT_KNOCK_SPEED,
+            // Derribo: la secuencia de anims va a mano — de frente HIT_3 (13),
+            // de espaldas HIT_BEHIND_1 (15) → HIT_BEHIND_2 (16) — y después
+            // tirada en el piso un momento → GET_UP_1/2 → IDLE.
+            //
+            // ARRASTRE: las dos anims de caída son golpes potentes que dan por
+            // sentado que el personaje VIAJA, pero el arte no lleva ese avance
+            // adentro (ver PLAYER_KD_SLIDE_* en player.h). Así que el motor lo
+            // desplaza mientras CAE (fases 0 y 1), con una velocidad que decae
+            // hasta frenar: al tocar el piso ya no se mueve más.
+            if (p->kdSlide > 0 && p->kdPhase <= 1) {
+                p->x = clampS16(p->x + p->hurtDir * p->kdSlide,
                                 p->boundLeft, effRight);
+                if (p->kdSlideTick > 0) p->kdSlideTick--;
+                else {
+                    p->kdSlide--;
+                    p->kdSlideTick = PLAYER_KD_SLIDE_DECAY;
+                }
             }
             switch (p->kdPhase) {
                 case 0:   // retroceso terminado → caída de espaldas
@@ -483,6 +600,7 @@ void updatePlayer(Player* p) {
                     if (SPR_isAnimationDone(p->sprite)) {
                         p->kdPhase = 2;
                         p->kdTimer = PLAYER_KD_HOLD_FRAMES;
+                        p->kdSlide = 0;   // en el piso ya no se arrastra
                     }
                     break;
                 case 2:   // tirada; al terminar, se levanta
@@ -490,9 +608,12 @@ void updatePlayer(Player* p) {
                         p->kdTimer--;
                     } else {
                         p->kdPhase = 3;
-                        // Sheets viejas sin GET_UP_2: se levanta directo.
-                        if (p->numAnims > ANIM_GET_UP_2)
-                            SPR_setAnimAndFrame(p->sprite, ANIM_GET_UP_2, 0);
+                        // Cada caída tiene SU levantada: de frente GET_UP_1,
+                        // de espaldas GET_UP_2. Sheets viejas sin esas anims:
+                        // se levanta directo.
+                        u16 getUp = p->kdFront ? ANIM_GET_UP_1 : ANIM_GET_UP_2;
+                        if (p->numAnims > getUp)
+                            SPR_setAnimAndFrame(p->sprite, getUp, 0);
                         else
                             p->kdPhase = 4;
                     }
@@ -588,12 +709,62 @@ bool isPlayerAttackActive(const Player* p) {
 }
 
 bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY) {
-    return playerAttackHitsBox(p, targetCX, targetFeetY, 0);
+    // Objetivo PUNTUAL (shuriken en vuelo, bala del jefe): sin cuerpo ni
+    // altura, alcanza con el maximo del frame.
+    return playerAttackHitsBox(p, targetCX, targetFeetY, 0, 0);
 }
 
-bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY, s16 targetHalfW) {
+// Alcance del golpe EN ESTE FRAME: hasta donde llega el pixel opaco mas
+// adelantado del frame que se esta dibujando, medido desde el centro del frame
+// de 104x104 (ver player_hitbox.h). Sirve igual mirando a izquierda o derecha:
+// el arte siempre mira a la derecha y el motor lo espeja.
+//
+// Como el valor sale de la animacion en curso, el hitbox "acompaña" al arma: en
+// los frames de preparacion el golpe no llega, y recien conecta cuando el arma
+// esta de verdad extendida. Vale para el combo, la patada, el especial y la
+// patada en salto sin distinguir casos: todos son animaciones de la misma hoja.
+static s16 attackReachNow(const Player* p, s16 targetFeetY, s16 targetBodyH) {
+    if (!p->sprite) return PHB_NONE;
+    s16 a = p->sprite->animInd;
+    s16 f = p->sprite->frameInd;
+    if (a < 0 || a >= PHB_ANIMS || f < 0 || f >= PHB_FRAMES) return PHB_NONE;
+    s8 slot = phbSlotOfAnim[a];
+    if (slot < 0) return PHB_NONE;          // esta animacion no golpea
+
+    // Objetivo puntual (shuriken, bala): no hay cuerpo con el que cruzar
+    // franjas, se usa el maximo del frame.
+    if (targetBodyH <= 0)
+        return (s16)playerAtkReachMax[p->charIndex][slot][f];
+
+    // Tope del frame del jugador TAL COMO SE DIBUJA: 'y' son los pies y jumpZ
+    // lo levanta. Por eso saltar corre las franjas hacia arriba y una patada
+    // en el aire deja de tocar al enemigo que quedo abajo.
+    s16 top  = p->y - PLAYER_FOOT_OFFSET - p->jumpZ;
+    s16 tTop = targetFeetY - targetBodyH;   // tope del cuerpo del objetivo
+
+    const s8* bands = playerAtkReach[p->charIndex][slot][f];
+    s16 best = PHB_NONE;
+    for (u16 k = 0; k < PHB_BANDS; k++) {
+        s16 bTop = top + (s16)(k * PHB_BAND);
+        if (bTop + (PHB_BAND - 1) < tTop) continue;  // franja arriba del cuerpo
+        if (bTop > targetFeetY) break;               // ya paso los pies
+        if (bands[k] > best) best = bands[k];
+    }
+    return best;
+}
+
+bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
+                         s16 targetHalfW, s16 targetBodyH) {
     if (!isPlayerAttackActive(p))
         return FALSE;
+
+    // Alcance de ESTE frame a la ALTURA de ESTE objetivo. PHB_NONE = el arte
+    // del jugador no tiene un solo pixel en la franja del cuerpo del enemigo
+    // (patada en salto por encima de la cabeza, por ejemplo).
+    s16 reach = attackReachNow(p, targetFeetY, targetBodyH);
+    if (reach == PHB_NONE)
+        return FALSE;
+    reach += PLAYER_ATK_SLACK;
 
     // Alcance horizontal medido desde el CENTRO del frame, hacia adelante.
     // (El código anterior medía desde el borde izquierdo: pegando a la
@@ -601,7 +772,6 @@ bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY, s16 tar
     // "arriba" de la tortuga y nunca adelante, donde frenan los enemigos.)
     s16 pcx = p->x + PLAYER_SPRITE_W / 2;
     s16 dx  = (p->dir >= 0) ? (targetCX - pcx) : (pcx - targetCX);
-    s16 reach = p->isJumpKicking ? PLAYER_JUMPKICK_REACH : p->atkReach;
     // Solape horizontal entre la caja del ataque [-ATK_BACK, +reach] y la
     // hurtbox del objetivo [dx-halfW, dx+halfW]: el golpe conecta si toca el
     // CUERPO, no sólo si el centro entra en alcance (objetivo puntual con
@@ -637,6 +807,39 @@ bool isPlayerJumping(const Player* p) {
     return (p->state == STATE_JUMPING);
 }
 
+s16 getPlayerJumpZ(const Player* p) {
+    return p->jumpZ;
+}
+
+// (16/09) Dejarse caer desde una plataforma hasta una lane MAS ADELANTE (Y
+// mayor). Nivel 2-1: la cornisa de los portones esta 78px por detras de la
+// calle, y al caminar hacia abajo la tortuga se tira a la vereda.
+//
+// El truco es el mismo que usa el salto: 'y' es PROFUNDIDAD y jumpZ es una
+// altura VISUAL. Se mueve 'y' de golpe a la lane de destino y se le suma a
+// jumpZ exactamente esa diferencia, asi el sprite NO se teletransporta (queda
+// dibujado donde estaba) y despues cae solo con la gravedad del salto hasta
+// que jumpZ vuelve a 0. Con jumpVel = 0 y apexHang = 0, updatePlayer entra
+// derecho en la rama de caida (velocidad constante PLAYER_FALL_SPEED).
+void playerFallTo(Player* p, s16 newFeetY) {
+    if (!p->sprite) { p->y = newFeetY; return; }
+    s16 drop = newFeetY - p->y;
+    if (drop <= 0) { p->y = newFeetY; return; }
+    p->y      = newFeetY;
+    p->jumpZ += drop;
+    p->jumpVel = 0;
+    if (p->state != STATE_JUMPING) {
+        p->state         = STATE_JUMPING;
+        p->isJumpKicking = JUMPKICK_NONE;
+        p->airFrame      = 1;
+        p->airTimer      = 0;
+        SPR_setAutoAnimation(p->sprite, FALSE);
+        SPR_setAnimationLoop(p->sprite, FALSE);
+        SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
+    }
+    p->apexHang = 0;   // sin flote: es una caida, no un salto
+}
+
 s8 getPlayerDir(const Player* p) {
     return p->dir;
 }
@@ -661,27 +864,64 @@ bool playerCanBeHit(const Player* p) {
     return TRUE;
 }
 
+// Igual que playerCanBeHit pero SÍ acepta a la tortuga en el aire (14/09).
+// Es para los proyectiles que discriminan por altura: el esquive aéreo del
+// arcade vale contra golpes cuerpo a cuerpo, no contra un tiro antiaéreo que
+// te está apuntando justo ahí arriba.
+bool playerCanBeHitAir(const Player* p) {
+    if (p->invincible > 0) return FALSE;
+    if (p->state == STATE_HURT || p->state == STATE_KO ||
+        p->state == STATE_KNOCKED_DOWN)
+        return FALSE;
+    return TRUE;
+}
+
 // KNOCKOUT: se agotó la barra -> pierde una vida y queda tirada un momento
 // (ver STATE_KO). El llamador ya fijó p->hurtDir (dirección del deslizamiento).
 static void playerEnterKO(Player* p) {
     if (p->lives > 0) p->lives--;
+    // Grito de vida perdida (14/09). Canal PCM 3 y no el 2: el golpe fatal ya
+    // disparo hit_turtles en el 2 y asi se escuchan los dos (impacto + grito)
+    // en vez de que este pise al otro.
+    XGM2_playPCMEx(lost_life_turtles_vo, sizeof(lost_life_turtles_vo),
+                   SOUND_PCM_CH3, 15, FALSE, FALSE);
     p->state      = STATE_KO;
     p->koTimer    = PLAYER_KO_FRAMES;
     p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
     p->invincible = PLAYER_KO_FRAMES;           // intocable en el piso (SIN parpadeo)
 
-    // Pose de knockeado, CONGELADA. Anim dedicada (ANIM_KO — hoy sólo Leo) si la
-    // sheet la tiene; si no, último frame de la caída de espaldas (fallback).
-    SPR_setAutoAnimation(p->sprite, FALSE);
-    if (p->numAnims > ANIM_KO)
+    // Pose de knockeado. ANIM_KO son CUATRO frames (la tortuga tirada con las
+    // estrellitas girando), no una pose fija: antes se congelaba en el frame 0
+    // y las estrellas no se movian (13/09, reportado por Gustavo). Ahora corre
+    // en LOOP mientras dura koTimer -- es una animacion de espera, no una que
+    // termina. La caida en si no se ve porque el KO entra directo a esta pose.
+    // Fallback para sheets viejas sin ANIM_KO: ultimo frame de la caida de
+    // espaldas, ese si congelado (no hay otra cosa que animar).
+    if (p->numAnims > ANIM_KO) {
+        SPR_setAutoAnimation(p->sprite, TRUE);
+        SPR_setAnimationLoop(p->sprite, TRUE);
         SPR_setAnimAndFrame(p->sprite, ANIM_KO, 0);
-    else
+    } else {
+        SPR_setAutoAnimation(p->sprite, FALSE);
         SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_2, PLAYER_KO_FRAME);
+    }
 }
 
 // Núcleo del daño recibido: resta 'bars' barras. Si llega a 0 -> knockout; si
 // no, reacción de golpe (frente/espalda) con knockback e i-frames.
 static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
+    // Golpe recibido EN EL AIRE (sólo lo permite playerCanBeHitAir, hoy las
+    // balas del jefe): hay que bajar la tortuga al piso a mano, porque el
+    // estado pasa a HURT y nadie más vuelve a tocar jumpZ — si no, se queda
+    // flotando a la altura donde la agarró el disparo (14/09; mismo bug que
+    // tuvo el foot soldier blanco al ser golpeado en pleno salto).
+    if (p->state == STATE_JUMPING) {
+        p->jumpZ         = 0;
+        p->jumpVel       = 0;
+        p->isJumpKicking = JUMPKICK_NONE;
+        p->kickCarry     = 0;
+    }
+
     // ¿De qué lado vino el golpe? El empuje va hacia el lado contrario.
     s16 centerX = p->x + PLAYER_SPRITE_W / 2;
     s8  side    = (attackerX >= centerX) ? 1 : -1;
@@ -714,6 +954,15 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
     p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;
     p->invincible = PLAYER_HURT_INVINCIBLE;
 
+    // (14/09) setAutoAnimation(TRUE) OBLIGATORIO acá. STATE_HURT sale cuando
+    // SPR_isAnimationDone da TRUE, o sea que necesita que la anim CORRA. El
+    // salto apaga la auto-animación (maneja sus frames a mano) y sólo la vuelve
+    // a prender al aterrizar: si el golpe llega en el aire — cosa que recién
+    // ahora puede pasar, con las balas del jefe — la anim de hit quedaba
+    // congelada en el frame 0, isAnimationDone nunca daba TRUE y la tortuga se
+    // quedaba trabada en esa pose PARA SIEMPRE (reportado por Gustavo con las
+    // dos tortugas trabadas tras un disparo).
+    SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, FALSE);
     SPR_setAnimAndFrame(p->sprite, anim, 0);
 }
@@ -746,6 +995,17 @@ void playerHitBars(Player* p, s16 attackerX, u8 bars) {
     playerTakeHit(p, attackerX, bars);
 }
 
+// Golpe de PROYECTIL: igual que damagePlayer pero también conecta con la
+// tortuga EN EL AIRE (playerCanBeHitAir). Lo usan las balas de Rocksteady
+// (14/09): el tiro hacia arriba existe justamente para castigar el salto, y
+// con la regla general de "saltando no te pegan" no podía conectar nunca.
+// La altura ya la filtra quien llama (la bala compara su z contra el torso),
+// así que el tiro recto sigue pasando por debajo del que está en el ápex.
+void playerHitProjectile(Player* p, s16 attackerX, u8 bars) {
+    if (!playerCanBeHitAir(p)) return;
+    playerTakeHit(p, attackerX, bars);
+}
+
 // Golpe fuerte que DERRIBA (patada de Rocksteady): cae de espaldas, queda
 // tirada PLAYER_KD_HOLD_FRAMES y se levanta. Con la barra en 0 → KO normal.
 // Agarrada: degrada a golpe normal para no romper la lógica del agarre.
@@ -757,7 +1017,8 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     }
 
     s16 centerX = p->x + PLAYER_SPRITE_W / 2;
-    p->hurtDir  = (attackerX >= centerX) ? -1 : 1;
+    s8  side    = (attackerX >= centerX) ? 1 : -1;
+    p->hurtDir  = -side;   // sale despedida hacia el lado contrario al golpe
 
     // Un golpe corta cualquier combo o especial en curso
     p->comboStep       = 0;
@@ -769,15 +1030,31 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     else                       p->health = 0;
     if (p->health == 0) { playerEnterKO(p); return; }
 
+    // ¿De frente o por la espalda? La tortuga NO se da vuelta, así que el
+    // golpe es "por la espalda" si vino del lado contrario al que mira.
+    // Cada lado tiene su propia cadena de animaciones en la sheet:
+    //   DE FRENTE   anim 13 (sale despedida hacia atras) -> 14 (se levanta)
+    //   DE ESPALDAS anim 15 (trastabilla) -> 16 (rueda)  -> 17 (se levanta)
+    p->kdFront = (side == p->dir) ? 1 : 0;
+
     // Secuencia de derribo, animaciones a MANO con auto-anim encendida y sin
     // loop (mismo patrón que STATE_HURT: isAnimationDone marca el paso).
     p->state      = STATE_KNOCKED_DOWN;
-    p->kdPhase    = 0;
     p->kdTimer    = 0;
-    p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
+    p->hurtTimer  = 0;                          // el arrastre lo lleva kdSlide
     p->invincible = PLAYER_KD_INVINCIBLE;       // intocable toda la secuencia
+    p->kdSlide     = PLAYER_KD_SLIDE_SPEED;
+    p->kdSlideTick = PLAYER_KD_SLIDE_DECAY;
     SPR_setAnimationLoop(p->sprite, FALSE);
-    SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_1, 0);
+    if (p->kdFront) {
+        // De frente no hay frame de retroceso: la anim 13 YA es la caida
+        // entera, asi que se entra directo a la fase 1.
+        p->kdPhase = 1;
+        SPR_setAnimAndFrame(p->sprite, ANIM_HIT_3, 0);
+    } else {
+        p->kdPhase = 0;
+        SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_1, 0);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -818,6 +1095,22 @@ void playerWhipGrab(Player* p) {
         SPR_setAnimAndFrame(p->sprite, ANIM_WHIP_SHOCK, 0);
     else
         SPR_setAnimAndFrame(p->sprite, ANIM_HELD, 0);   // fallback (todas las sheets)
+}
+
+// Igual que playerWhipGrab pero COLOCANDO a la tortuga donde termina el cable
+// (14/09). El látigo del robot tiene 4 largos dibujados y nada más, así que el
+// enganche elige el que mejor cae y de paso pega este tirón para que la punta
+// quede justo sobre el cuerpo — y alinea la lane con la del robot, que es a la
+// altura donde está dibujado el cable. Sin esto el cable sobresalía por detrás
+// de la tortuga (o le quedaba corto) y encima iba a otra altura.
+// 'worldX' es la X de MUNDO del sprite (esquina), no el centro.
+void playerWhipGrabAt(Player* p, s16 worldX, s16 lane) {
+    if (!playerCanBeHit(p)) return;
+    if (playerIsGrabbed(p)) return;
+    playerWhipGrab(p);
+    if (!playerIsGrabbed(p)) return;          // no enganchó: no mover nada
+    p->x = clampS16(worldX, p->boundLeft, p->boundRight);
+    p->y = clampS16(lane,   p->laneTop,   p->laneBottom);
 }
 
 // Agarre por la espalda del foot soldier morado: misma mecánica que el látigo
@@ -883,14 +1176,17 @@ void addPlayerScore(Player* p, u16 points) {
 // ---------------------------------------------------------------------------
 void playerPersistSave(const Player* p) {
     u8 slot = persistSlot(p->joyId);
-    s_persistLives[slot] = p->lives;
-    s_persistScore[slot] = p->score;
+    s_persistLives[slot]  = p->lives;
+    s_persistScore[slot]  = p->score;
+    s_persistHealth[slot] = p->health;
 }
 
 void playerPersistReset(void) {
-    for (u8 i = 0; i < 2; i++) {
-        s_persistLives[i] = vidasIniciales;
-        s_persistScore[i] = 0;
+    s_persistInit = TRUE;
+    for (u8 i = 0; i < MAX_PLAYERS; i++) {
+        s_persistLives[i]  = vidasIniciales;
+        s_persistScore[i]  = 0;
+        s_persistHealth[i] = PLAYER_MAX_HEALTH;
     }
 }
 
@@ -907,11 +1203,27 @@ bool isPlayerGameOver(const Player* p) {
 // Renderiza la tortuga en su posición actual (mundo - cámara). La cámara la fija
 // scenes.c con setPlayerCamera antes de la cutscene.
 static void playerRenderAt(Player* p) {
+    // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
+    // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
+    // lo que sigue leeria el struct Sprite desde la direccion 0 (ROM) y
+    // devolveria basura -- y los estados que esperan SPR_isAnimationDone se
+    // colgarian para siempre. Sin sprite el jugador queda invisible e inerte,
+    // pero el juego sigue.
+    if (!p->sprite) return;
+
     SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, p->y - PLAYER_FOOT_OFFSET);
     SPR_setDepth(p->sprite, -(p->y));
 }
 
 void playerCutsceneStand(Player* p) {
+    // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
+    // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
+    // lo que sigue leeria el struct Sprite desde la direccion 0 (ROM) y
+    // devolveria basura -- y los estados que esperan SPR_isAnimationDone se
+    // colgarian para siempre. Sin sprite el jugador queda invisible e inerte,
+    // pero el juego sigue.
+    if (!p->sprite) return;
+
     SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, TRUE);
     SPR_setAnim(p->sprite, ANIM_IDLE);
@@ -919,6 +1231,9 @@ void playerCutsceneStand(Player* p) {
 }
 
 bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
+    // Sin sprite (ver la guarda de updatePlayer) se da por LLEGADO: si no, la
+    // cutscene de salida se quedaria esperando a un jugador que no existe.
+    if (!p->sprite) return TRUE;
     bool arrived = TRUE;
 
     s16 dx = targetX - p->x;
@@ -940,6 +1255,14 @@ bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
 // con la auto-anim apagada se queda fija en ese frame, como observando la
 // cutscene de victoria (Shredder raptando a April). No lee input.
 void playerCutsceneWatch(Player* p) {
+    // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
+    // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
+    // lo que sigue leeria el struct Sprite desde la direccion 0 (ROM) y
+    // devolveria basura -- y los estados que esperan SPR_isAnimationDone se
+    // colgarian para siempre. Sin sprite el jugador queda invisible e inerte,
+    // pero el juego sigue.
+    if (!p->sprite) return;
+
     SPR_setAutoAnimation(p->sprite, FALSE);
     SPR_setAnimationLoop(p->sprite, FALSE);
     SPR_setAnimAndFrame(p->sprite, ANIM_WALK_BACK, 1);

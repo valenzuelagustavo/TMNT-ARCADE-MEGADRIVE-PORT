@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 #define ENEMY_TYPE_FOOT_SOLDIER        0   // foot soldier regular (PAL2)
 #define ENEMY_TYPE_FOOT_SOLDIER_ORANGE 1   // foot soldier naranja (PAL3, shuriken)
+#define ENEMY_TYPE_FOOT_SOLDIER_WHITE  2   // foot soldier blanco, espada larga (PAL3)
 
 #define MAX_ENEMIES         8
 #define ENEMY_SPEED         1
@@ -38,6 +39,13 @@
 #define ENEMY_SPRITE_W_ORANGE  104   // Ancho del frame naranja (px)
 #define ENEMY_SPRITE_H_ORANGE  104   // Alto del frame naranja (px)
 #define ENEMY_FOOT_OFFSET_ORANGE 96  // Pies ~96px bajo el borde superior (naranja)
+// El blanco comparte la grilla del naranja (104x104) pero su arte esta pegado
+// mas abajo dentro de la celda: el pixel mas bajo de los frames de caminata
+// esta en y=103 (el naranja los tiene en ~97), asi que los pies van 6px mas
+// abajo o el sprite queda flotando.
+#define ENEMY_SPRITE_W_WHITE   104
+#define ENEMY_SPRITE_H_WHITE   104
+#define ENEMY_FOOT_OFFSET_WHITE 102
 #define ENEMY_HP            4    // Daño que mata a CUALQUIER foot soldier de un
                                  // golpe (especial de la tortuga, bola de hierro)
 // ---------------------------------------------------------------------------
@@ -47,14 +55,29 @@
 // cuerpo ~32px); el naranja es corpulento pero su frame de 104px tiene mucho
 // aire (cuerpo ~40px).
 // ---------------------------------------------------------------------------
+// Alto del CUERPO sobre los pies, medido sobre el arte con
+// tools/gen_player_hitbox.py (mediana de todos los frames). Lo usa
+// playerAttackHitsBox para validar tambien la ALTURA del golpe: sin esto, una
+// patada en salto conecta con la tortuga por encima de la cabeza del soldier.
+#define ENEMY_BODY_H_PURPLE        60
+#define ENEMY_BODY_H_ORANGE        58
+// Blanco: del tope de la capucha (y=40 en los frames de walk) a los pies (102).
+// La espada NO cuenta: es arte que sale del cuerpo, no cuerpo.
+#define ENEMY_BODY_H_WHITE         62
+
 #define ENEMY_BODY_HALF_W_PURPLE   16
 #define ENEMY_BODY_HALF_W_ORANGE   20
+// Medido sobre torso+piernas (franja y=60..100, que no toca la espada):
+// el cuerpo va de -10 a +30 respecto del centro del frame -> 40px de ancho.
+#define ENEMY_BODY_HALF_W_WHITE    20
 
 // Vida maxima POR TIPO (max_health de la tabla de tipos del manual SGDK):
 // initEnemySpawn la asigna al spawnear. Hoy ambas mueren con los mismos
 // golpes (4), pero cada tipo puede ajustarse sin tocar el resto del codigo.
 #define ENEMY_HP_PURPLE    4    // Golpes para eliminar al morado
 #define ENEMY_HP_ORANGE    4    // Golpes para eliminar al naranja
+#define ENEMY_HP_WHITE     6    // El blanco aguanta mas: aparece recien antes
+                                // de Rocksteady y tiene espada larga (13/09)
 #define MAX_ACTIVE_ENEMIES  4    // Foot soldiers vivos al mismo tiempo (tope de spawn)
 #define ENEMY_INVINCIBLE    20
 
@@ -80,6 +103,12 @@
 #define ENEMY_ANIM_GRAB       14   // Agarre por la espalda (pose visible: el soldier
                                    // la muestra durante todo el GRAB)
 #define ENEMY_ANIM_VOLTERETA  15   // Voltereta de entrada (7f), avanza mas en X
+#define ENEMY_ANIM_TNT        16   // (18/09) Tirar DINAMITA (13f): se asoma, se
+                                   // planta, tira el cartucho y se recompone.
+                                   // El TNT sale en el frame 11 (ver
+                                   // ENEMY_TNT_RELEASE_TIMER).
+#define ENEMY_ANIM_MANHOLE    17   // (18/09) Salir por la ALCANTARILLA (6f).
+                                   // Declarada; todavia sin usar.
 
 // ---------------------------------------------------------------------------
 // Animaciones del foot soldier NARANJA (orden de filas en foot_soldier_orange.png).
@@ -94,6 +123,82 @@
 #define ORANGE_ANIM_EXPLODE       6   // Muerte (4 frames)
 #define ORANGE_ANIM_HIT           7   // Golpe recibido (1 frame, sin alternancia)
 #define ORANGE_ANIM_KICK          8   // Patada con salto (4 frames, desplaza en X)
+
+// ---------------------------------------------------------------------------
+// Animaciones del foot soldier BLANCO (orden de filas en el sheet de espada).
+// Otro orden mas, distinto del morado Y del naranja.
+// ---------------------------------------------------------------------------
+#define WHITE_ANIM_IDLE         0   // Quieto, espada al frente (1f)
+#define WHITE_ANIM_WALK         1   // Caminar (5f)
+#define WHITE_ANIM_WALK_UP      2   // Caminar hacia arriba de la pantalla (8f)
+#define WHITE_ANIM_SLASH_LONG   3   // Espadazo LARGO: estocada a fondo (3f)
+#define WHITE_ANIM_SLASH_MID    4   // Espadazo de alcance medio (3f)
+#define WHITE_ANIM_SLASH_MID2   5   // Variante del medio, corte descendente (3f)
+#define WHITE_ANIM_JUMP         6   // Salto: despegue + giro tipo bolita (5f)
+#define WHITE_ANIM_AIR_SLASH    7   // Espadazo cayendo desde el aire (2f)
+#define WHITE_ANIM_HIT          8   // Golpe recibido (2f)
+#define WHITE_ANIM_EXPLODE      9   // Muerte: cae al piso y explota (4f)
+
+// --- Tiempos (el sheet va a FAST 8: 8 ticks por frame) ---
+#define WHITE_SLASH_TIME       24   // 3 frames x 8 (vale para las 3 anims 3/4/5)
+#define WHITE_AIR_SLASH_TIME   16   // 2 frames x 8
+#define WHITE_EXPLODE_TIME     32   // 4 frames x 8
+#define WHITE_HIT_TIME         16   // 2 frames x 8
+
+// --- Ventanas de hitbox, en valores del timer que cuenta HACIA ATRAS ---
+// Con WHITE_SLASH_TIME 24 y 8 ticks por frame: frame 0 = timer 24..17,
+// frame 1 = 16..9, frame 2 = 8..1.
+//   [3] estocada larga -> la espada esta extendida en el frame 0
+//   [4] y [5]          -> la espada sale en el frame 2 (los dos primeros son
+//                         la carga por encima de la cabeza)
+#define WHITE_LONG_HIT_START   17
+#define WHITE_LONG_HIT_END     24
+#define WHITE_MID_HIT_START     1
+#define WHITE_MID_HIT_END       8
+
+// --- Alcances, medidos sobre el arte (offset del pixel opaco mas a la
+//     derecha respecto del centro del frame de 104px) ---
+// [3] la punta de la espada llega a +52 -> es el arma mas larga del juego, y
+//     es el sentido de este enemigo: pega desde donde el morado no llega.
+// [4] la espada sale horizontal a +41.
+// [5] mide bastante menos sobre el arte (+14: es un corte DESCENDENTE, la
+//     hoja termina apuntando al piso), pero Gustavo lo describio como "igual
+//     alcance que el [4]" y en juego barre el mismo frente a la altura del
+//     cuerpo, asi que se le deja un valor intermedio en vez del medido.
+#define WHITE_SLASH_LONG_REACH 50
+#define WHITE_SLASH_MID_REACH  38
+#define WHITE_SLASH_MID2_REACH 32
+
+// --- Salto con espadazo (el "kick" del blanco) ---
+// Salta EXACTAMENTE tan alto como las tortugas (pedido de Gustavo): misma
+// cuenta que PLAYER_JUMP_FORCE/BOOST de player.h -- la gravedad es entera y
+// frena 1px por frame, asi que el apex es 1+2+...+FORCE = 105, mas el empujon
+// suelto de 2 = 107 px clavados. Sube WHITE_JUMP_FORCE frames y baja otros
+// tantos; al tocar el piso termina el ataque.
+#define WHITE_JUMP_FORCE        14
+#define WHITE_JUMP_BOOST         2
+#define WHITE_JUMP_GRAVITY       1
+// CAIDA MAS LENTA (14/09, pedido de Gustavo): la subida no se toca (el apex
+// sigue en 107px clavados) pero al pasar el apex la gravedad se aplica solo
+// 1 de cada WHITE_FALL_GRAV_DIV frames. Con 2: las velocidades de bajada van
+// 0,0,1,1,2,2,3,3... asi que recorre los 107px en ~21 frames en vez de 14
+// (+50% de tiempo en el aire cayendo) y el espadazo se ve "planeado" en vez
+// de una plomada. Subir el divisor = caida aun mas lenta.
+#define WHITE_FALL_GRAV_DIV      2
+#define WHITE_JUMP_SPEED         3   // px/frame de avance horizontal en el aire
+// Avance horizontal MIENTRAS CAE: mas lento que el de subida para que el
+// vuelo total no se estire (la caida ahora dura 21 frames en vez de 14).
+// 14*3 + 21*2 = 84 px, practicamente los mismos 84 de antes (28*3).
+#define WHITE_FALL_SPEED_X       2
+#define WHITE_AIR_SLASH_REACH   30   // hitbox mientras cae con la espada
+
+// Rango en el que el blanco decide atacar: MAS que el generico de 60 porque
+// su estocada llega a 50 y si usara el rango comun desperdiciaria el arma.
+#define WHITE_ATTACK_RANGE      78
+#define WHITE_LONG_RANGE_MIN    40   // por debajo de esto la estocada larga
+                                     // pasa de largo: usa los cortes medios
+#define WHITE_JUMP_RANGE_MIN    90   // de mas lejos que esto entra saltando
+#define WHITE_JUMP_RANGE_MAX   190
 
 // ---------------------------------------------------------------------------
 // Movimiento vertical — lane de profundidad (coordenadas de PIES).
@@ -153,6 +258,7 @@
 #define ENEMY_ATTACK_KICK   1    // patada con salto (anim 2)
 #define ENEMY_ATTACK_FRONT  2    // golpe de frente / directo (anim 6)
 #define ENEMY_ATTACK_SHURIKEN 3  // lanzar shuriken (solo naranja, anim 3)
+#define ENEMY_ATTACK_JUMP   4    // salto + espadazo cayendo (solo blanco, anims 6/7)
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
 #define MAX_SHURIKENS           4   // proyectiles simultáneos en pantalla
@@ -204,6 +310,15 @@
 #define ENEMY_GIRO_TIME        16   // Giro: 2 frames x 8
 #define ENEMY_SOMERSAULT_TIME  56   // Voltereta de entrada: 7 frames x 8
 #define ENEMY_SOMERSAULT_SPEED  3   // px/frame durante la voltereta (avanza mas que el walk)
+
+// --- Tirada de DINAMITA (18/09) --------------------------------------------
+// La anim 16 son 13 frames x 8 ticks = 104. El cartucho sale de la mano entre
+// el frame 10 (brazo arriba, el TNT todavia dibujado en el sprite) y el 11
+// (brazo bajando, ya sin TNT): o sea al empezar el frame 11, tick 11x8 = 88.
+// El timer cuenta hacia ATRAS desde ENEMY_TNT_TIME, asi que el momento es
+// 104 - 88 = 16.
+#define ENEMY_TNT_TIME          104   // 13 frames x 8
+#define ENEMY_TNT_RELEASE_TIMER  16   // valor del timer en el que sale el TNT
 #define ENEMY_GRAB_RANGE       44   // Distancia (centro de frame a centro) para agarrar por la espalda
 // Agarre por la espalda: distancia centro-a-centro al sostener al jugador
 // (el soldier queda justo detrás de la espalda del jugador agarrado).
@@ -269,7 +384,17 @@ typedef struct {
     s16         hp;
     u8          invincible;
     u8          palette;      // Línea de paleta normal del sprite (PAL0..PAL3)
-    u8          type;         // ENEMY_TYPE_FOOT_SOLDIER o ENEMY_TYPE_FOOT_SOLDIER_ORANGE
+    u8          type;         // ENEMY_TYPE_FOOT_SOLDIER / _ORANGE / _WHITE
+
+    // Franja de profundidad y tope derecho de ESTE nivel. initEnemySpawn los
+    // deja en los del nivel 1 (ENEMY_LANE_*, la pared del hueco de escalera y
+    // el ancho 1376); los niveles con otro fondo los pisan con
+    // setEnemyBounds(). Igual que laneTop/wallXTop del Player.
+    s16         laneTop;
+    s16         laneBottom;
+    s16         wallXTop;     // 0 = este nivel no tiene pared diagonal
+    s16         wallXBottom;
+    s16         levelMaxX;    // ancho del nivel en px
     u8          anim;         // Animación actual (evita re-setear la misma anim)
     u8          attackType;   // ENEMY_ATTACK_PUNCH / KICK / FRONT / SHURIKEN
     u8          attackHit;    // 1 = este ataque ya conectó (un golpe por swing)
@@ -286,6 +411,11 @@ typedef struct {
     s8          lastMoveDir;  // Última dirección horizontal de movimiento (+1/-1/0)
     u8          turnTimer;    // Frames restantes del giro (ENEMY_STATE_TURN)
     u8          somersault;   // 1 = spawn entrando con voltereta (anim 15)
+    u8          tntThrow;     // 1 = spawn guionado de la ESCALERA: reproduce la
+                              // anim 16 y suelta el cartucho en el frame 11.
+                              // Se apaga al soltarlo: no se repite nunca.
+    s16         tntLandX;     // punto FIJO de caida del cartucho (mundo)
+    s16         tntLandY;
     u8          grabTarget;   // Jugador agarrado (0/1) durante ENEMY_STATE_GRAB
     Player*     grabbed;      // Puntero al jugador agarrado (liberado en damageEnemy)
     u8          grabTimer;    // Tope de seguridad del agarre (frames restantes)
@@ -299,6 +429,17 @@ typedef struct {
     // 0 y usa el ataque simple de siempre.
     u8          comboStep;    // Índice del golpe actual dentro del combo (0 = primero)
     u8          comboLen;     // Golpes del combo actual (0 = ataque simple, sin combo)
+
+    // --- Salto del BLANCO (13/09) ---
+    // Mismo truco que el jumpZ del Player: 'y' sigue siendo la lane real (la
+    // profundidad no cambia en el aire) y jumpZ es un offset puramente VISUAL
+    // que se resta al dibujar. Los otros dos tipos lo dejan siempre en 0.
+    s16         jumpZ;        // Altura visual sobre el piso (0 = en el suelo)
+    s16         jumpVel;      // Velocidad vertical del salto (+ sube, - baja)
+    u8          gravTick;     // Divisor de la gravedad EN LA BAJADA (ver
+                              // WHITE_FALL_GRAV_DIV): cuenta frames y solo
+                              // acelera 1 de cada N, para que la caida del
+                              // espadazo aereo no sea una plomada.
 } Enemy;
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
@@ -314,6 +455,9 @@ typedef struct {
 // Resetea el estado global de la IA (contador de atacantes simultáneos y
 // reparto de targets) e informa cuántos jugadores hay (1 o 2).
 // Llamar UNA VEZ al iniciar cada nivel, antes del primer spawn.
+// Cantidad maxima de jugadores entre los que la IA reparte objetivos.
+#define ENEMY_MAX_TARGETS 4
+
 void resetEnemyAI(u8 numPlayers);
 
 // Separación de grupo: empuja de a 1px a los pares de enemigos (en PATROL o
@@ -343,11 +487,28 @@ void initEnemyKickSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type
 // y luego pasa a CHASE. Usada para las oleadas "por la espalda".
 void initEnemySomersaultSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type);
 
+// (18/09) Spawn GUIONADO de la escalera del 1-1: el morado se asoma, tira UN
+// cartucho de dinamita al punto fijo (landX, landY) y despues pasa a CHASE
+// como un enemigo normal. No vuelve a tirar en toda la pelea.
+void initEnemyTntSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette,
+                       s16 landX, s16 landY);
+// Entrada saltando del BLANCO (arco de 107px, sin hitbox) -> ver enemy.c
+void initEnemyWhiteJumpSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette);
+
 // Los Player* se usan para el AGARRE por la espalda: el morado pone al jugador
 // en STATE_GRABBED (playerFootGrab) y lo suelta al zafarse (mash), ser golpeado
 // o si le pegan al soldier (damageEnemy lo saca de GRAB).
 void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers);
+
+// (14/09) Version de N jugadores (1..ENEMY_MAX_TARGETS). La de arriba es un
+// envoltorio de esta. El reparto de objetivos y el retargeteo por cercania
+// funcionan igual con 2 que con 4.
+void updateEnemyN(Enemy* e, Player** pls, u8 nPl);
 void setEnemyCamera(Enemy* e, s16 camX);
+// Cambia la franja de profundidad, la pared diagonal (xTop = 0 -> sin pared) y
+// el ancho del nivel. Llamar DESPUES de initEnemySpawn().
+void setEnemyBounds(Enemy* e, s16 laneTop, s16 laneBottom,
+                    s16 wallXTop, s16 wallXBottom, s16 levelW);
 bool damageEnemy(Enemy* e, s16 dmg);
 bool enemyCanBeHit(const Enemy* e);
 s16  getEnemyCenterX(const Enemy* e);
@@ -357,6 +518,8 @@ s16  getEnemyCenterY(const Enemy* e);
 // playerAttackHitsBox para que los golpes de la tortuga conecten contra el
 // cuerpo y no contra el borde transparente del frame.
 s16  enemyBodyHalfW(const Enemy* e);
+// Alto del cuerpo sobre los pies, segun el tipo (ENEMY_BODY_H_*).
+s16  enemyBodyH(const Enemy* e);
 
 // Intenta conectar el ataque en curso contra un jugador en (px, py) — coords
 // de mundo, px = borde izquierdo del frame (misma grilla de 104px), py = pies.
@@ -387,5 +550,62 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX);
 // desaparece sin dañar al jugador. Devuelve TRUE si rompió alguno. Llamar por
 // jugador y ANTES de shurikenCheckHitPlayer.
 bool shurikenBreakByPlayerAttack(const Player* p);
+
+// ---------------------------------------------------------------------------
+// DINAMITA del foot soldier MORADO (18/09)
+// ---------------------------------------------------------------------------
+// Es un ataque GUIONADO, no una habilidad de la IA: lo tira UNA sola vez el
+// morado que se asoma por la escalera del 1-1, y siempre cae en el mismo
+// punto. Por eso no hay pool: hay UN cartucho y UNA explosión, y el que los
+// dispara es la escena (scenes.c), no updateEnemy.
+//
+// El vuelo copia la convención del salto del jugador: 'y' es la LANE (la
+// profundidad, que interpola de la del que tira a la del punto de caída) y 'z'
+// es una altura puramente VISUAL que se resta al dibujar. Así el cartucho pasa
+// por delante/detrás de los sprites según su lane, como todo lo demás.
+//
+// La explosión es una sola, se crea al tocar el piso y se libera sola al
+// terminar la animación: su VRAM (64 tiles) sólo está tomada esos 42 frames.
+void tntInit(void);
+
+// Tira el cartucho desde (x, y) — x = borde izquierdo del frame del que tira,
+// y = su lane — hacia el punto FIJO (landX, landY). 'palette' es la línea del
+// morado (PAL2): el tnt y la explosión comparten su paleta.
+void tntLaunch(s16 x, s16 y, s8 dir, s16 landX, s16 landY, u8 palette);
+
+// Un paso de vuelo/explosión. Devuelve TRUE el frame EXACTO en que toca el
+// piso (para que la escena toque el SFX). Llamar una vez por frame.
+bool tntUpdate(s16 camX);
+
+// TRUE mientras la explosión está en su ventana de daño. La escena la usa para
+// castigar a los jugadores que estén dentro del radio.
+bool tntBlastActive(void);
+// Centro de la explosión (mundo). Sólo válido con tntBlastActive() == TRUE.
+s16  tntBlastX(void);
+s16  tntBlastY(void);
+// TRUE si el CUERPO del jugador — centro (px), pies (py) y media anchura
+// 'halfW' — se solapa con el radio de la explosión. Se mide contra el cuerpo y
+// no contra el punto central porque el frame del jugador son 104px: parado al
+// borde del estallido, el punto central quedaba fuera por 2px y no lo tocaba.
+// Un jugador sólo puede comerse UN golpe por explosión: eso lo lleva la escena
+// con su propia marca por jugador.
+bool tntBlastHits(s16 px, s16 py, s16 halfW);
+
+void tntReleaseAll(void);
+
+// Geometría y tiempos (todo en píxeles de mundo y frames de 60 Hz).
+#define TNT_FLIGHT_FRAMES     42   // duración del vuelo (0,7 s)
+#define TNT_ARC_APEX          72   // altura extra del arco sobre la recta
+#define TNT_HAND_Z            56   // altura de la mano sobre los pies del que tira
+#define TNT_HAND_DX           54   // x de la mano dentro del frame de 64px (mirando a la derecha)
+#define TNT_W                 24   // ancho/alto del sprite del cartucho
+#define TNT_EXPLOSION_W       64   // ancho/alto del sprite de la explosión
+#define TNT_EXPLOSION_FRAMES  42   // 7 frames x 6 ticks
+// Ventana de daño: las primeras 3 poses (destello, bola y anillo) + la bola
+// blanca. Después el hongo ya es humo y no lastima.
+#define TNT_BLAST_DMG_FRAMES  24
+#define TNT_BLAST_RADIUS_X    40   // media anchura del radio de daño
+#define TNT_BLAST_RADIUS_Y    26   // media profundidad (lanes)
+#define TNT_BLAST_DMG          2   // barras de vida que saca
 
 #endif

@@ -57,10 +57,47 @@ typedef enum {
 // ---------------------------------------------------------------------------
 // Constantes de movimiento y física
 // ---------------------------------------------------------------------------
+// (14/09) Tope de jugadores simultaneos. 2 es el modo normal; 4 es el modo
+// secreto que se habilita con el codigo de la pantalla de cantidad de players
+// (necesita multitap). Vive aca y no en hud.h porque el estado persistente
+// entre niveles (vidas/puntaje/barra) tambien se dimensiona con esto.
+#define MAX_PLAYERS         4
+
 #define PLAYER_SPEED        2       // Píxeles por frame
-#define PLAYER_JUMP_FORCE   13      // Velocidad inicial del salto (apex ~84px)
+// --- Salto ---
+// La altura del apex sale de la suma 1+2+...+FORCE (la gravedad es entera y
+// frena 1 px/frame por frame), asi que NO se puede pedir cualquier altura:
+// FORCE 13 -> 91 px, 14 -> 105, 15 -> 120. Para que el apex diera exactamente
+// 2 tiles mas que los 91 de antes (13/09, a pedido de Gustavo) se usa FORCE 14
+// mas un empujon suelto de PLAYER_JUMP_BOOST px al arrancar: 2 + 105 = 107 =
+// 91 + 16 clavado.
+#define PLAYER_JUMP_FORCE   14      // Velocidad inicial del salto
+#define PLAYER_JUMP_BOOST    2      // px de arranque para cerrar los 16 justos
 #define GRAVITY             1       // Aceleración de la gravedad (px/frame²)
 #define APEX_HANG           4       // Frames de float en el punto más alto del salto
+
+// Velocidad de CAIDA cuando NO se pateo en el aire: constante, sin acelerar
+// (13/09, a pedido de Gustavo). Si la tortuga patea, la caida vuelve a ser
+// acelerada por GRAVITY -- patear "pesa" y te tira al piso mas rapido.
+// Con el apex en 107 px: 18 frames de caida uniforme contra 14 acelerada.
+#define PLAYER_FALL_SPEED    6      // px/frame de la caida sin patada
+// VELOCIDAD TERMINAL de la caida CON patada (14/09, pedido de Gustavo). Antes
+// la gravedad aceleraba sin tope y la tortuga llegaba al piso a 14 px/frame:
+// se sentia una plomada. Ahora acelera igual al principio (patear sigue
+// "pesando") pero la velocidad se corta en este valor, asi que el ultimo tramo
+// de la caida no se dispara. MEDIDO en emulador (frames de caida desde el apex
+// de 107px, con un readout en pantalla; la patada se dispara en plena subida):
+//   sin tope (como estaba) -> 13 frames, toca el piso a 14 px/frame
+//   tope 9                 -> 14 frames, a  9 px/frame
+//   tope 8                 -> 15 frames, a  8 px/frame
+//   tope 7 (el que se usa) -> 16 frames, a  7 px/frame   <--
+//   sin patada             -> 18 frames, a  6 px/frame (caida pareja)
+// O sea: +23% de tiempo en el aire y LA MITAD de velocidad de impacto, pero
+// patear sigue llegando al piso antes que no patear. Bajar mas el tope invierte
+// eso (con 6 seria igual que no patear) y la patada perderia su peso.
+// Vale para las DOS patadas aereas (la debil de golpe solo y la fuerte de
+// golpe + direccion), que comparten este camino de caida.
+#define PLAYER_KICK_FALL_MAX 7      // px/frame maximos cayendo con patada
 
 // --- Animación del salto (control MANUAL de frames, auto-anim apagada) ---
 // Subida: frame 0 | Ápice/caída: loop del frame 1 al anteúltimo | Justo
@@ -142,13 +179,31 @@ typedef enum {
 //   Raphael   (sai)     → 48px
 //   Michelangelo (nunchaku) → 44px
 // ---------------------------------------------------------------------------
-#define PLAYER_ATK_REACH_LEO    56  // Katana: alcance medio
-#define PLAYER_ATK_REACH_MIKE   40  // Nunchaku: alcance corto
-#define PLAYER_ATK_REACH_DON    60  // Bō: alcance largo
-#define PLAYER_ATK_REACH_RAPH   38  // Sai: alcance corto-medio
+// ALCANCE DEL GOLPE: sale del ARTE, no de una constante (13/09).
+// Antes había un alcance fijo por personaje (56 Leo, 40 Mike, 60 Don, 38 Raph)
+// que valía durante TODO el swing. Pero el arma o el pie solo está extendido en
+// uno o dos frames de cada animación: en el frame 0 de ATTACK_1 de Leo el arte
+// llega a 6px del centro y el hitbox ya valía 56, así que el golpe conectaba
+// ~50px antes de que los sprites se tocaran.
+//
+// Ahora el alcance de CADA FRAME se mide sobre los píxeles opacos de la sheet
+// (tools/gen_player_hitbox.py -> src/player_hitbox.c) y el golpe solo conecta
+// en los frames en los que el arma realmente llega. Ver attackReachNow() en
+// player.c.
+//
+// PLAYER_ATK_SLACK es la única perilla que queda: px de gracia que se suman al
+// borde del arte. 0 = contacto estricto pixel a pixel, que es como se pidió. Si
+// al jugarlo se siente demasiado exigente, subirlo de a 2.
+#define PLAYER_ATK_SLACK     0  // px de gracia sobre el borde opaco del arte
+
+// Alto por defecto del cuerpo del objetivo, en px sobre sus pies. Solo lo usan
+// las llamadas que no pasan una altura propia; los enemigos y el jefe pasan la
+// suya (ENEMY_BODY_H_*, ROCKSTEADY_BODY_H). Con 0 se desactiva la validacion
+// por altura y el golpe usa el maximo del frame (objetivos puntuales: shuriken,
+// balas).
+#define PLAYER_TARGET_BODY_H  60
 #define PLAYER_ATK_BACK     12  // Tolerancia hacia atrás (enemigo encimado)
 #define PLAYER_ATK_TOL_Y    20  // |dy| máximo en profundidad (pies)
-#define PLAYER_JUMPKICK_REACH  28  // Alcance de la patada en salto (medido desde centro del sprite)
 
 // ---------------------------------------------------------------------------
 // Hurtbox del CUERPO de la tortuga (media anchura, en px desde el centro).
@@ -174,6 +229,20 @@ typedef enum {
 // HIT_BEHIND_2), queda TIRADA en el piso un momento y se levanta (GET_UP_2).
 #define PLAYER_KD_HOLD_FRAMES   35   // Frames tirada en el piso antes de levantarse
 #define PLAYER_KD_INVINCIBLE   110   // I-frames de TODA la secuencia (sin parpadeo)
+// ARRASTRE del derribo (13/09, pedido de Gustavo). Las anims 13 (la tumban de
+// FRENTE: sale despedida hacia atras dando una vuelta) y 16 (la tumban de
+// ESPALDAS: trastabilla hacia adelante y rueda) son golpes potentes que dan
+// por sentado que el personaje VIAJA -- pero el arte no lleva ese avance
+// adentro: midiendo el centro del cuerpo frame a frame en las 4 sheets, el
+// dibujo oscila +-20px y no progresa. O sea que el desplazamiento lo tiene que
+// poner el motor, o la tortuga se cae "en el lugar".
+// Arrastre que DECAE en vez de constante: arranca en SLIDE_SPEED y baja 1
+// px/frame cada SLIDE_DECAY frames hasta frenar -- 5*(4+3+2+1) = 50px en 20
+// frames, que es lo que dura la caida (anim 16 son 12 frames a 5 ticks = 60).
+// Frenar de a poco se lee como inercia; un arrastre constante que corta de
+// golpe se nota como un tiron.
+#define PLAYER_KD_SLIDE_SPEED    4   // px/frame al empezar el derribo
+#define PLAYER_KD_SLIDE_DECAY    5   // frames entre cada -1 px/frame
 // Frame EXACTO de ANIM_HIT_BEHIND_2 con la tortuga tirada de espaldas (la
 // "12a" de la fila, índice 11). Se salta directo a este frame y se congela:
 // no queremos ver la caída (los frames anteriores), sólo la pose knockeada.
@@ -230,6 +299,19 @@ typedef struct {
     s16         boundRight;     // Borde derecho actual (= fin de nivel - ancho sprite)
     s16         cameraOffsetX;  // Offset de cámara para render mundo→pantalla
 
+    // Lane de profundidad de ESTE nivel, en coordenadas de PIES. initPlayer la
+    // deja en BOUND_LANE_TOP/BOUND_LANE_BOTTOM (el nivel 1, que es donde se
+    // calibraron); los niveles con otro fondo la pisan con setPlayerLane().
+    // El nivel 2-1 (la calle) la abre de par en par y hace el recorte fino
+    // contra el polígono de la calle desde la propia escena.
+    s16         laneTop;
+    s16         laneBottom;
+
+    // Pared diagonal del final del nivel 1 (hueco de escalera), interpolada
+    // entre las dos lanes. wallXTop == 0 → este nivel no tiene pared.
+    s16         wallXTop;
+    s16         wallXBottom;
+
     // Combo
     u8          comboStep;      // 0 = ataque sin cadena (kick/especial), 1..3 = B-B-B
     u8          comboBuffered;  // B presionado durante el swing (buffer de input)
@@ -251,7 +333,7 @@ typedef struct {
     // Ataque especial (botón A o B+C): mata foot soldiers de un golpe.
     // TODO: cuando exista HP, usarlo debe restar vida al jugador.
     u8          attackIsSpecial;
-    s16         atkReach;       // Alcance frontal del ataque (varía por arma)
+    u8          charIndex;      // 0=Leo 1=Mike 2=Don 3=Raph (indexa playerAtkReach)
 
     // Entrada
     u16         joyId;          // JOY_1 o JOY_2
@@ -269,8 +351,15 @@ typedef struct {
     // Knockout / respawn
     u8          koTimer;        // Frames restantes de la pose de knockeado (0 = no está KO)
     // Derribo (STATE_KNOCKED_DOWN): secuencia manual caída → piso → levantarse
-    u8          kdPhase;        // 0=cae (BEHIND_1→BEHIND_2) 1=piso 2=tirada 3=get-up
+    u8          kdPhase;        // 0=retroceso (sólo de espaldas) 1=cayendo
+                                // 2=tirada en el piso 3=levantándose 4=listo
     u8          kdTimer;        // Frames restantes tirada en el piso (fase 2)
+    u8          kdFront;        // 1 = la tumbaron DE FRENTE (cadena HIT_3 →
+                                // GET_UP_1) · 0 = por la ESPALDA (HIT_BEHIND_1
+                                // → HIT_BEHIND_2 → GET_UP_2)
+    s8          kdSlide;        // px/frame que le queda al arrastre del derribo
+                                // (decae hasta 0; ver PLAYER_KD_SLIDE_*)
+    u8          kdSlideTick;    // Frames hasta el próximo -1 de kdSlide
     u8          blinkTimer;     // Frames restantes de PARPADEO (solo al revivir, no al ser golpeado)
     bool        gameOver;       // TRUE cuando cae sin vidas restantes (lo lee scenes.c)
 
@@ -316,6 +405,14 @@ s16  getPlayerWorldX(const Player* p);
 void setPlayerCamera(Player* p, s16 camX);
 
 // Actualiza el límite izquierdo de movimiento (borde izq. de la cámara)
+// Cambia la franja de profundidad por la que camina el jugador (coordenadas de
+// PIES). Por defecto es la del nivel 1.
+void setPlayerLane(Player* p, s16 top, s16 bottom);
+
+// Pared diagonal al final del nivel, interpolada entre las dos lanes.
+// xTop == 0 desactiva la pared (niveles que no la tienen).
+void setPlayerEndWall(Player* p, s16 xTop, s16 xBottom);
+
 void setPlayerLeftBound(Player* p, s16 leftBound);
 
 // Actualiza el límite derecho de movimiento (fin del nivel)
@@ -338,7 +435,12 @@ bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY);
 // [-ATK_BACK, +reach] se SOLAPA con la caja del cuerpo [dx-halfW, dx+halfW],
 // no sólo cuando el centro entra en alcance. Con halfW = 0 es idéntica a
 // playerAttackHits (objetos puntuales: shurikens, balas del jefe).
-bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY, s16 targetHalfW);
+// targetBodyH = alto del cuerpo del objetivo sobre sus pies. Con ese dato el
+// golpe valida tambien la ALTURA: solo conecta si el arte del jugador llega
+// lejos EN LA FRANJA donde esta el cuerpo del enemigo (ver player_hitbox.h).
+// Pasar 0 desactiva esa validacion (objetivos puntuales: shurikens, balas).
+bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
+                         s16 targetHalfW, s16 targetBodyH);
 
 // TRUE si el ataque en curso es el ESPECIAL (mata foot soldiers de un
 // golpe). Consultar junto con playerAttackHits para decidir el daño.
@@ -350,6 +452,16 @@ bool isPlayerJumpKicking(const Player* p);
 
 // TRUE si el jugador está en el aire saltando (con o sin patada voladora).
 bool isPlayerJumping(const Player* p);
+// Altura VISUAL sobre el piso (0 = en el suelo). La usa quien necesite saber
+// a que altura de PANTALLA esta la tortuga sin mirarle la lane: la lane 'y'
+// es profundidad y NO cambia en el aire (ver jumpZ arriba).
+s16  getPlayerJumpZ(const Player* p);
+
+// Dejarse caer hasta una lane mas adelante (newFeetY > y). Mueve la
+// profundidad de golpe y compensa con jumpZ, asi el sprite queda donde estaba
+// y baja con la gravedad del salto. Si newFeetY <= y solo asigna la lane.
+// La usa el nivel 2-1 para bajar de la cornisa de los portones.
+void playerFallTo(Player* p, s16 newFeetY);
 
 // Devuelve la dirección de la mirada (-1 izquierda, +1 derecha)
 s8   getPlayerDir(const Player* p);
@@ -367,6 +479,10 @@ s16  getPlayerY(const Player* p);
 // playerIsGrabbed.
 bool playerCanBeHit(const Player* p);
 
+// Igual que playerCanBeHit pero acepta a la tortuga EN EL AIRE. Para los
+// proyectiles que ya discriminan por altura (ver playerHitProjectile).
+bool playerCanBeHitAir(const Player* p);
+
 // Aplica un golpe: entra en STATE_HURT con la animación correcta según de
 // dónde vino el golpe (HIT_1/HIT_2 alternados de frente, HIT_BEHIND_1 por la
 // espalda), knockback alejándose del atacante e i-frames.
@@ -375,6 +491,13 @@ void damagePlayer(Player* p, s16 attackerX);
 
 // Golpe que resta VARIAS barras de una (p.ej. el láser del robot = 4).
 void playerHitBars(Player* p, s16 attackerX, u8 bars);
+
+// Golpe de PROYECTIL (14/09): igual que damagePlayer/playerHitBars pero usa
+// playerCanBeHitAir, o sea que TAMBIEN conecta con la tortuga en el aire. Lo
+// usan las balas de Rocksteady: el tiro hacia arriba es antiaereo y con la
+// regla general de "saltando no te pegan" no podia conectar nunca. Quien llama
+// ya filtro la altura (la bala compara su z contra el torso del jugador).
+void playerHitProjectile(Player* p, s16 attackerX, u8 bars);
 
 // Golpe FUERTE que DERRIBA: la tortuga cae de espaldas, queda tirada un
 // momento y se levanta (la usa la patada de Rocksteady). Misma regla de vida
@@ -388,6 +511,13 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars);
 // no es agarrable en ese momento (KO, salto, hurt, i-frames…) o si ya está
 // agarrada por algo (foot soldier).
 void playerWhipGrab(Player* p);
+
+// Igual que playerWhipGrab pero además COLOCA a la tortuga donde termina el
+// cable: 'worldX' es la X de mundo del sprite (esquina, no el centro) y 'lane'
+// la profundidad del robot. Es el tirón del enganche — sin él el cable queda
+// desfasado, porque solo hay 4 largos dibujados (ver ROBOT_WHIP_GRAB_* en
+// robot.h). Ambos valores se clampean a los límites vigentes del jugador.
+void playerWhipGrabAt(Player* p, s16 worldX, s16 lane);
 
 // TRUE mientras la tortuga está agarrada por el látigo o por un foot soldier.
 bool playerIsGrabbed(const Player* p);
@@ -427,7 +557,10 @@ void addPlayerScore(Player* p, u16 points);
 // Cada nivel crea un Player nuevo con initPlayer (que resetea todo el struct).
 // Para que vidas y puntaje NO se reinicien al cambiar de nivel, el módulo
 // guarda un estado "meta" por joystick (JOY_1 -> P1, JOY_2 -> P2) del que
-// initPlayer arranca. La barra de vida SÍ se recarga al máximo por nivel.
+// initPlayer arranca. Desde el 13/09 la BARRA DE VIDA tambien persiste (antes
+// se recargaba al maximo en cada nivel y regalaba la barra entera al pasar del
+// 1-1 al apartamento de April). Lo unico que la rellena es revivir tras perder
+// una vida, o empezar partida nueva (playerPersistReset).
 
 // Guarda las vidas/puntaje de la instancia en el estado persistente. Llamar
 // al GANAR un nivel (escena de victoria), antes del cambio de escena.

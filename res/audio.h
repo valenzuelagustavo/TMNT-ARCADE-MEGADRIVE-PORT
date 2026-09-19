@@ -15,13 +15,25 @@ extern const u8 electric_shock_sfx[15104];
 extern const u8 capsule_door_sfx[14592];
 extern const u8 say_your_p_sfx[23552];
 extern const u8 shredder_laugh_sfx[31488];
+extern const u8 fire_vo[7168];
+extern const u8 hang_on_april_vo[11008];
+extern const u8 robot_twip_sfx[14592];
+extern const u8 help_me_april_vo[17152];
+extern const u8 leo_raph_attack_vo[4608];
+extern const u8 mike_don_attack_vo[3840];
+extern const u8 cowabunga_vo[16384];
+extern const u8 boss_scream_rocksteady_vo[22528];
+extern const u8 lost_life_turtles_vo[29696];
 extern const u8 music_sega[1024];
 extern const u8 music_level1[14592];
 extern const u8 music_level2[11008];
 extern const u8 music_charselect[4096];
 extern const u8 music_profiles[2304];
 extern const u8 music_credits[1792];
-extern const u8 music_ending[4352];
+extern const u8 music_ending[3584];
+extern const u8 music_intro_arcade[3328];
+extern const u8 music_boss[11520];
+extern const u8 music_scene_clear[1280];
 extern const u8 golpe[1024];
 
 #endif // _RES_AUDIO_H_

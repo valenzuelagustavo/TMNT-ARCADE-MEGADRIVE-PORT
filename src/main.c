@@ -13,6 +13,16 @@ int main()
     // fuego 64).
     SPR_initEx(752);
 
+    // --- Multitap (14/09) ---------------------------------------------------
+    // El modo secreto de 4 tortugas necesita JOY_3/JOY_4, que solo existen con
+    // un TeamPlayer / Sega Tap conectado. NO hace falta declararlo a mano: el
+    // JOY_init de SGDK ya sondea los dos puertos y, si encuentra un teamplayer
+    // y ningun pad directo, llama solo a JOY_setSupport(..., TEAMPLAYER) (ver
+    // src/joy.c de SGDK v2.11, alrededor de la linea 240).
+    // PROBADO: volver a llamarlo desde aca REVIENTA la consola en el arranque
+    // (excepcion "LINE 1010 EMULATOR" apenas bootea, reproducible en mednafen
+    // con -md.input.multitap tp1). Asi que no se toca.
+
     SceneId currentScene = SCENE_SEGA; // Empezamos por Sega
 
     while (1)
@@ -47,19 +57,28 @@ int main()
             currentScene = showOptions();
             break;
         case SCENE_CHAR_SELECT:
-            currentScene = showCharSelect(); // Esta debe retornar SCENE_LEVEL1_TITLE
+            currentScene = showCharSelect(); // Retorna SCENE_CINEMATIC_FIRE
             break;
-        case SCENE_LEVEL1_TITLE:
-            currentScene = showLevel1Title();
+        case SCENE_CINEMATIC_FIRE:
+            currentScene = showFireCinematic();
             break;
-        case SCENE_LEVEL1:
-            currentScene = showLevel1();
+        case SCENE_1_1_TITLE:
+            currentScene = showScene11Title();
             break;
-        case SCENE_LEVEL2:
-            currentScene = showLevel2();
+        case SCENE_1_1:
+            currentScene = showScene11();
+            break;
+        case SCENE_1_2:
+            currentScene = showScene12();
             break;
         case SCENE_ENDING:
             currentScene = showEnding();
+            break;
+        case SCENE_2_1_TITLE:
+            currentScene = showScene21Title();
+            break;
+        case SCENE_2_1:
+            currentScene = showScene21();
             break;
         case SCENE_GAME_OVER:
             currentScene = showGameOver();

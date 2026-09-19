@@ -10,6 +10,24 @@
 // =============================================================================
 
 // --- Música ---
+// (17/09, 2da pasada) FIRE! se queda en su version FM+PSG; FIGHT! pasa a la
+// version CON SAMPLES.
+//
+// La "Fire con samples" DEJA MUDOS los canales PCM del juego: con ella sonando,
+// un SFX disparado en CH2 (y en CH3) no sale por el DAC -- medido con un tono
+// de 3,7 kHz: +24 dB sobre la musica con el tema viejo y CERO con el nuevo, 20
+// segundos seguidos. La de Fight NO hace eso (probado por Gustavo en la pelea
+// contra Rocksteady), asi que esa se usa.
+//
+// Aparte de eso, en las dos la bateria esta PITCHEADA: traen el mismo bloque
+// PCM de 7690 bytes y le cambian la frecuencia de reproduccion con comandos de
+// stream -- Fire 72 veces entre 11 valores distintos (12.713..32.000 Hz) y
+// Fight 83 veces entre 16 (11.326..32.000 Hz). XGM2 toca PCM a UNA sola
+// frecuencia fija (13,3 kHz, o 6,65 a media velocidad) y no puede representar
+// eso, asi que los samples no suenan a la altura escrita. Para que suenen bien
+// hay que exportarlos a UNA frecuencia fija y, si hacen falta varias alturas,
+// usar una muestra distinta por altura.
+// Ver DEVLOG, entradas del 17/09.
 XGM2 music_sega      "musica_intro.vgm"
 XGM2 music_level1    "music/Fire!_(Stage 1-1).vgm"
 XGM2 music_level2    "/music/05 - April's Room (Stage 1-2).vgm"
@@ -17,6 +35,17 @@ XGM2 music_charselect "/music/03 - Choose Your Turtle.vgm"
 XGM2 music_profiles  "/music/02 - Character Profiles.vgm"
 XGM2 music_credits   "/music/00 - SanSenpai Credit.vgm"
 XGM2 music_ending    "/music/07 - April is Kidnapped (Cutscene).vgm"
+XGM2 music_intro_arcade "/music/01 - Opening Demo.vgm"
+
+// Tema del jefe (Rocksteady). Arranca cuando se abre la puerta de la capsula
+// del taladro y se mantiene toda la pelea: el VGM trae punto de loop (32,5s de
+// duracion, loopSamples != 0), asi que con XGM2_setLoopNumber(-1) repite solo.
+XGM2 music_boss      "/music/Fight con samples (Prueba Gus).vgm"
+
+// Jingle de nivel completado (4s, SIN punto de loop -> hay que reproducirlo con
+// XGM2_setLoopNumber(0) ANTES del play, si no el driver lo repite). Declarado y
+// listo para usar; todavia no esta enganchado a ninguna escena.
+XGM2 music_scene_clear "/music/09 - Scene Clear Theme 1.vgm"
 
 // --- Efectos de Sonido ---
 XGM2 golpe         "golpe.vgm"
@@ -40,3 +69,33 @@ WAV electric_shock_sfx "audio/electric_shock.wav" XGM2
 WAV capsule_door_sfx "audio/capsule_door.wav" XGM2
 WAV say_your_p_sfx "audio/say_your_p.wav" XGM2
 WAV shredder_laugh_sfx "audio/shredder_laugh.wav" XGM2
+
+// Voice over de la cinematica de rescate (SCENE_CINEMATIC_FIRE, escena A,
+// globos "Fire!!" / "Hang on, April") y del arranque de la 2da parte del
+// nivel 1 (SCENE_LEVEL2, "April's Room") y del robot del latigo (final de
+// la 1ra parte). Origen: WAV estereo 48000 Hz, convertidos a mono 11025 Hz
+// 8-bit (misma convencion que el resto de esta seccion) antes de pasarlos
+// por rescomp.
+WAV fire_vo "audio/fire.wav" XGM2
+WAV hang_on_april_vo "audio/hang_on_april.wav" XGM2
+WAV robot_twip_sfx "audio/robot_twip.wav" XGM2
+WAV help_me_april_vo "audio/help_me_april.wav" XGM2
+
+// --- Tanda del 14/09 -------------------------------------------------------
+// Los cinco llegaron como WAV ESTEREO 8-bit 48000 Hz y se convirtieron a la
+// convencion de la casa: MONO, 8-bit, 11025 Hz, normalizados a pico ~97%
+// (ver claude/audio-mix-voz-vs-musica.md: pico ~100%, y el RMS sale del
+// contenido). Medidos despues de convertir:
+//   leo_raph_attack        0,33s  pico 96,9%  rms 31,8%   3.672 B
+//   mike_don_attack        0,27s  pico 96,9%  rms 25,8%   3.032 B
+//   cowabunga              1,22s  pico 96,9%  rms 24,5%  13.451 B
+//   boss_scream_rocksteady 1,69s  pico 96,9%  rms 17,4%  18.633 B
+//   lost_life_turtles      2,22s  pico 96,9%  rms 18,7%  24.476 B
+// Los dos gruñidos de ataque quedan con RMS por encima de la banda de voz
+// (20-24%) a proposito: son golpes cortos que tienen que cortar por encima de
+// la musica, igual que hit_turtles (23,2%).
+WAV leo_raph_attack_vo  "audio/leo_raph_attack.wav" XGM2
+WAV mike_don_attack_vo  "audio/mike_don_attack.wav" XGM2
+WAV cowabunga_vo        "audio/cowabunga.wav" XGM2
+WAV boss_scream_rocksteady_vo "audio/boss_scream_rocksteady.wav" XGM2
+WAV lost_life_turtles_vo "audio/lost_life_turtles.wav" XGM2

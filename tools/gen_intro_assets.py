@@ -111,6 +111,24 @@ tapa.save(os.path.join(OUT, 'intro_tapa.png')); report('intro_tapa.png', tapa)
 print('  PAL0 A/B/C: %d colores' % len(pal_abc))
 
 # ==========================================================================
+# 1.5) ESCENA A -- nubes que cruzan el cielo por debajo de la luna
+#      Paleta PROPIA (PAL2): la PAL0 de dolly/luz/tapa ya esta al limite de
+#      16 colores (ver arriba), no hay lugar para sumarles las nubes ahi.
+# ==========================================================================
+nube_chica_src  = load_rgba(os.path.join(SRC, 'nube_chica.png'))
+nube_grande_src = load_rgba(os.path.join(SRC, 'nube_grande.png'))
+
+pal_nubes = collect_colors([nube_chica_src, nube_grande_src])
+assert len(pal_nubes) <= 16, 'La paleta de las nubes se paso de 16: %d' % len(pal_nubes)
+
+nube_chica = build_indexed(nube_chica_src, pal_nubes)
+nube_chica.save(os.path.join(OUT, 'intro_nube_chica.png')); report('intro_nube_chica.png', nube_chica)
+
+nube_grande = build_indexed(nube_grande_src, pal_nubes)
+nube_grande.save(os.path.join(OUT, 'intro_nube_grande.png')); report('intro_nube_grande.png', nube_grande)
+print('  PAL2 nubes (escena A): %d colores' % len(pal_nubes))
+
+# ==========================================================================
 # 2) ESCENA C -- spritesheet reducido del salto de las 4 tortugas
 #    Fila 6 (ANIM_JUMP) de cada hoja, frames 1..8 (se descarta el 0 = despegue
 #    y el 9 = aterrizaje), recortados al bbox comun y llevados a multiplo de 8.
