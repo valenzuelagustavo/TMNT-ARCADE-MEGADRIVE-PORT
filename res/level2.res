@@ -9,7 +9,12 @@
 // =============================================================================
 
 // --- Fondo del nivel 2 (sala cerrada de 440px) ---
-IMAGE bg_test "images/lvl_1_scene/bg_test.png" NONE
+// (22/09, rama bg-nivel1-2-paleta-unica) Arte nuevo de un artista: fondo, humo
+// y capsula en UNA sola paleta de 15 colores (PAL0). Salen de
+// images/lvl_1_scene/nivel1_2_collage_artista.png via
+// tools/gen_nivel1_2_artista.py -- si se retoca el collage hay que volver a
+// correrlo. El nombre del recurso sigue siendo bg_test para no tocar el codigo.
+IMAGE bg_test "images/lvl_1_scene/bg_nivel1_2.png" NONE
 
 // --- Humo del techo (tira VERTICAL: 8 frames de 64x64 apilados) ---
 // smoke_lvl1.png (64x512) se genera igual que fire_strip.png. Se anima por
@@ -21,7 +26,9 @@ IMAGE bg_test "images/lvl_1_scene/bg_test.png" NONE
 // para que los 64 tiles de cada frame queden CONTIGUOS y en orden.
 // El humo NO lleva PALETTE propia: comparte la paleta de las tortugas (PAL1),
 // el PNG esta cuantizado sobre esa misma paleta indexada.
-TILESET smoke_tiles "sprites/smoke_lvl1.png" NONE NONE
+// (22/09) Humo nuevo: tiles UNICOS de cada frame (3 filas de tiles, una por
+// frame) + el mapa en src/smoke_lvl1_2.h. Ahora va en PAL0 con el fondo.
+TILESET smoke_tiles "sprites/smoke_lvl1_2.png" NONE NONE
 
 // =============================================================================
 // Jefe Rocksteady (pasillo en llamas)
@@ -37,7 +44,9 @@ TILESET smoke_tiles "sprites/smoke_lvl1.png" NONE NONE
 // El PNG esta cuantizado con la paleta del fondo: se dibuja con TILE_ATTR(PAL0,
 // FALSE, ...) (prioridad baja -> la banda de fuego, prioridad alta, tapa su base
 // y la hace "salir del piso").
-SPRITE taladro_capsula "sprites/taladro_capsula.png" 12 13 NONE 0
+// (22/09) Capsula nueva: fila 0 = 8 frames del taladro + la capsula cerrada,
+// fila 1 = cerrada y abierta. Mismas celdas de 96x104.
+SPRITE taladro_capsula "sprites/taladro_capsula_v2.png" 12 13 NONE 0
 
 // April (rehén atada al fondo de la sala). Usa la paleta de las tortugas
 // (PAL1): el PNG esta cuantizado sobre esa misma paleta indexada (4bpp).

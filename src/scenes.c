@@ -3495,11 +3495,12 @@ SceneId showScene11() {
 // ---------------------------------------------------------------------------
 #define LEVEL2_PIXEL_WIDTH   440
 #define LEVEL2_CAM_MAX_X     (LEVEL2_PIXEL_WIDTH - SCREEN_PIXEL_WIDTH)  // 120
-// El fondo (192px = 24 filas) es más bajo que la pantalla (224px = 28 filas).
-// Se dibuja PEGADO AL BORDE INFERIOR (filas 4..27); la franja de arriba
-// (filas 0-3) queda libre para el HUD y las 4 filas de la base (24-27) las
-// tapa el fuego. offset = 28 - 24 = 4.
-#define LEVEL2_BG_OFFSET_Y   (SCROLL_TILE_ROWS - (192 / 8))  // 4
+// (22/09, rama bg-nivel1-2-paleta-unica) El fondo nuevo mide 224 = la
+// pantalla entera: se dibuja desde la fila 0 y ya no queda la franja negra de
+// arriba (antes el fondo era de 192 y arrancaba en la fila 4). Las 4 filas de
+// la base (24-27) las sigue tapando el fuego. El offset se calcula del alto
+// REAL del tilemap (ver bgInit2), asi que un fondo de 192 volveria solo a 4.
+#define LEVEL2_BG_OFFSET_Y   (SCROLL_TILE_ROWS - bg_test.tilemap->h)
 
 // --- Pared diagonal del sofa (esquina inferior-izq de la sala) ---
 // El arte de bg_test.png tiene el sofa "cortado" contra el borde izquierdo,
@@ -3519,10 +3520,20 @@ static s16 sofaWallX(s16 y) {
     return SOFA_WALL_X_TOP + (s16)(wallRange * (y - BOUND_LANE_TOP) / laneRange);
 }
 
-#define SMOKE_CELL_TILES_W   8    // Celda de humo: 8 tiles de ancho (64px)
-#define SMOKE_CELL_TILES_H   8    // 8 tiles de alto (64px)
-#define SMOKE_CELL_TILES     (SMOKE_CELL_TILES_W * SMOKE_CELL_TILES_H)  // 64
-#define SMOKE_FRAMES         8    // Frames de animación en smoke_lvl1.png
+// (22/09, rama bg-nivel1-2-paleta-unica) Humo NUEVO del artista: 3 frames de
+// 128x64 (16x8 tiles) en la MISMA paleta que el fondo (PAL0), purpura con el
+// borde de fuego. Cargado entero serian 128 tiles por frame contra los 64 del
+// humo viejo, y la VRAM de usuario de este nivel no tiene ese lugar. Pero cada
+// frame deduplicado son ~42 tiles (la mitad es purpura liso o vacio), asi que
+// se streamea igual que antes, un frame a la vez, pero con sus tiles UNICOS
+// (SMOKE2_TILES) y un MAPA propio (smoke2Map) que se vuelve a escribir en el
+// plano en cada paso. Los genera tools/gen_nivel1_2_artista.py.
+#include "smoke_lvl1_2.h"
+#define SMOKE_CELL_TILES_W   SMOKE2_CELL_W   // 16
+#define SMOKE_CELL_TILES_H   SMOKE2_CELL_H   // 8
+#define SMOKE_CELL_TILES     64   // lugar reservado en VRAM (no cambia el layout;
+                                  // el frame nuevo mas grande usa SMOKE2_TILES = 42)
+#define SMOKE_FRAMES         SMOKE2_FRAMES   // 3
 #define SMOKE_FRAME_INTERVAL 8    // Frames de juego entre cada frame de humo
 #define SMOKE_Y_TILE         4    // Banda 64px justo debajo del HUD (filas 0-3)
 
@@ -3540,6 +3551,26 @@ static u16 smokeVramInd;   // Primer tile de VRAM de la celda del humo
 static u16 smokeFrame;     // Frame de animación actual (0..7)
 static u16 smokeTimer;     // Contador hasta el próximo paso
 static s16 smokeScrollTbl[SMOKE_CELL_TILES_H];  // H-scroll de las 8 filas del humo
+// Mapa de la banda del humo (64 columnas x 8 filas) ya con atributos, listo
+// para mandarlo al plano por DMA. Se rearma en cada paso de animacion. Tiene
+// que ser static: con DMA_QUEUE la transferencia sale en el vblank siguiente.
+static u16 smokeMapBuf[SMOKE_CELL_TILES_H * BG_PLANE_W];
+
+// Arma smokeMapBuf para el frame 'f': la celda de 16x8 repetida a lo ancho del
+// plano. Prioridad alta en las columnas de la capsula (ver SMOKE_FRONT_COL_*).
+static void smokeBuildMap(u16 f) {
+    for (u16 r = 0; r < SMOKE_CELL_TILES_H; r++) {
+        for (u16 col = 0; col < BG_PLANE_W; col++) {
+            u8  t = smoke2Map[f][r][col % SMOKE_CELL_TILES_W];
+            u16 v = 0;                                   // vacio: tile 0 (transparente)
+            if (t != 0xFF) {
+                bool front = (col >= SMOKE_FRONT_COL_MIN && col <= SMOKE_FRONT_COL_MAX);
+                v = TILE_ATTR_FULL(PAL0, front, FALSE, FALSE, smokeVramInd + t);
+            }
+            smokeMapBuf[r * BG_PLANE_W + col] = v;
+        }
+    }
+}
 
 // Fondo del nivel 2: paleta, tileset a VRAM y TODAS las columnas al plano.
 // A diferencia de bgInit (streaming), acá no hay columnas por revelar: el mapa
@@ -3577,24 +3608,12 @@ static void smokeInit(u16 vramInd) {
     smokeFrame   = 0;
     smokeTimer   = 0;
 
-    // Frame 0 a VRAM (64 tiles)
-    VDP_loadTileData(smoke_tiles.tiles, vramInd, SMOKE_CELL_TILES, DMA);
-
-    // Tilemap: celda 8x8 repetida en las 64 columnas del plano, filas 4-11.
-    // PRIORIDAD BAJA (FALSE) -> el humo queda DETRÁS de los sprites, salvo en
-    // las columnas de la cápsula del taladro (SMOKE_FRONT_COL_MIN..MAX), que se
-    // pintan con PRIORIDAD ALTA (TRUE) para que la cápsula salga DETRÁS del humo.
-    // Se escribe columna por columna (no por bloque) porque la celda NO es
-    // secuencial: el tile (col,row) de la celda está en (col%8) + row*8.
-    for (u16 col = 0; col < BG_PLANE_W; col++) {
-        bool front = (col >= SMOKE_FRONT_COL_MIN && col <= SMOKE_FRONT_COL_MAX);
-        for (u16 r = 0; r < SMOKE_CELL_TILES_H; r++)
-            VDP_setTileMapXY(BG_A,
-                             TILE_ATTR_FULL(PAL1, front, FALSE, FALSE,
-                                            vramInd + (r * SMOKE_CELL_TILES_W) +
-                                            (col % SMOKE_CELL_TILES_W)),
-                             col, SMOKE_Y_TILE + r);
-    }
+    // Frame 0 a VRAM (sus tiles unicos) y su mapa al plano, filas 4-11.
+    // PRIORIDAD BAJA salvo en las columnas de la capsula (smokeBuildMap).
+    VDP_loadTileData(smoke_tiles.tiles, vramInd, SMOKE2_TILES, DMA);
+    smokeBuildMap(0);
+    VDP_setTileMapDataRect(BG_A, smokeMapBuf, 0, SMOKE_Y_TILE,
+                           BG_PLANE_W, SMOKE_CELL_TILES_H, BG_PLANE_W, DMA);
     // El scroll de la banda arranca en 0: fireInit ya puso TODA la tabla de
     // BG_A en 0, así que no hay que escribirla acá.
 }
@@ -3604,12 +3623,18 @@ static void smokeInit(u16 vramInd) {
 static void smokeUpdate(s16 cameraX) {
     if (++smokeTimer >= SMOKE_FRAME_INTERVAL) {
         smokeTimer = 0;
-        smokeFrame = (smokeFrame + 1) & (SMOKE_FRAMES - 1);
-        // Pisar los MISMOS 64 tiles de VRAM con el frame siguiente. El frame N
-        // arranca en tiles + N*64*8 longwords. DMA_QUEUE: transferencia en el
-        // próximo vblank.
-        VDP_loadTileData(smoke_tiles.tiles + (smokeFrame * SMOKE_CELL_TILES * 8),
-                         smokeVramInd, SMOKE_CELL_TILES, DMA_QUEUE);
+        // 3 frames: ya no es potencia de 2, no sirve la mascara.
+        if (++smokeFrame >= SMOKE_FRAMES) smokeFrame = 0;
+        // Pisar los MISMOS tiles de VRAM con los del frame siguiente (el frame
+        // N arranca en tiles + N*SMOKE2_TILES*8 longwords) Y reescribir el
+        // mapa de la banda: cada frame tiene su propio orden de tiles. Los dos
+        // van por DMA_QUEUE, o sea que salen en el MISMO vblank y nunca se ve
+        // un mapa viejo con tiles nuevos.
+        VDP_loadTileData(smoke_tiles.tiles + (smokeFrame * SMOKE2_TILES * 8),
+                         smokeVramInd, SMOKE2_TILES, DMA_QUEUE);
+        smokeBuildMap(smokeFrame);
+        VDP_setTileMapDataRect(BG_A, smokeMapBuf, 0, SMOKE_Y_TILE,
+                               BG_PLANE_W, SMOKE_CELL_TILES_H, BG_PLANE_W, DMA_QUEUE);
     }
 
     // Scroll de parallax de la banda: mismas constantes que el fuego.
@@ -3636,14 +3661,22 @@ static void smokeUpdate(s16 cameraX) {
 // SPR_setAnimAndFrame sincronizada con el temblor, y el frame final queda fijo.
 #define CAPSULA_TILE_W        12    // 96px
 #define CAPSULA_TILE_H        13    // 104px
-#define CAPSULA_CENTER_X      220   // Centro en pantalla (x_mundo 340 - cámara 120)
-#define CAPSULA_CENTER_Y      103   // Centro (subido 4 tiles / 32px respecto al arcade)
-#define CAPSULA_SCREEN_X      (CAPSULA_CENTER_X - (CAPSULA_TILE_W * 8) / 2)   // 172
-#define CAPSULA_SCREEN_Y      (CAPSULA_CENTER_Y - (CAPSULA_TILE_H * 8) / 2)   // 51
-#define CAPSULA_FRAMES        7     // Frames del índice [0] (emergencia)
-#define CAPSULA_FRAME_TICKS   29    // Frames de juego entre frames (~203 total ≈ duración de drill.wav)
-#define CAPSULA_DOOR_FRAMES   4     // Frames del índice [1] (apertura de la puerta)
-#define CAPSULA_DOOR_TICKS    14    // Frames de juego entre frames de apertura (~0.23s)
+// (22/09, rama bg-nivel1-2-paleta-unica) Arte nuevo del artista: la capsula
+// ya NO la ubica el codigo sino el dibujo. tools/gen_nivel1_2_artista.py
+// encuentra cada frame adentro del fondo y los deja en celdas de 96x104
+// ancladas en el mundo en (288,56) -> en pantalla, con la camara en 120,
+// (168,56). Antes era (172,51) a ojo.
+#define CAPSULA_CENTER_X      216   // Centro en pantalla (x_mundo 336 - cámara 120)
+#define CAPSULA_CENTER_Y      108
+#define CAPSULA_SCREEN_X      (CAPSULA_CENTER_X - (CAPSULA_TILE_W * 8) / 2)   // 168
+#define CAPSULA_SCREEN_Y      (CAPSULA_CENTER_Y - (CAPSULA_TILE_H * 8) / 2)   // 56
+// El arte nuevo trae 8 frames del taladro + la capsula cerrada (9) y solo dos
+// de la puerta (cerrada y abierta). 9 x 23 = 207 ticks ~ los 203 de antes, que
+// es lo que dura drill.wav.
+#define CAPSULA_FRAMES        9     // Frames del índice [0] (emergencia)
+#define CAPSULA_FRAME_TICKS   23    // Frames de juego entre frames
+#define CAPSULA_DOOR_FRAMES   2     // Frames del índice [1] (cerrada, abierta)
+#define CAPSULA_DOOR_TICKS    28    // La puerta se abre a mitad de lo que tardaba antes
 #define CAPSULA_SHAKE_AMP     8     // Amplitud del temblor de pantalla (px)
 
 // Flash de paleta por HP bajo del jefe (efecto "quemado" brillante). Con <= 20
