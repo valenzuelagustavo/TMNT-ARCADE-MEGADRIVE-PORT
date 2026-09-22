@@ -3535,7 +3535,14 @@ static s16 sofaWallX(s16 y) {
                                   // el frame nuevo mas grande usa SMOKE2_TILES = 42)
 #define SMOKE_FRAMES         SMOKE2_FRAMES   // 3
 #define SMOKE_FRAME_INTERVAL 8    // Frames de juego entre cada frame de humo
-#define SMOKE_Y_TILE         4    // Banda 64px justo debajo del HUD (filas 0-3)
+// (22/09) La celda del humo sigue arrancando en la fila 4 (debajo del HUD),
+// pero sus SMOKE2_SOLID_ROWS filas de arriba son violeta liso y las lleva
+// PINTADAS EL FONDO (junto con la franja de detras del HUD, filas 0-3). En el
+// plano de adelante (BG_A) queda solo la parte que se mueve: arranca 4 filas
+// mas abajo y mide SMOKE2_CELL_H filas. El HUD (texto en BG_A, filas 0-3) no
+// se toca. La union no se nota aunque BG_A tenga parallax y BG_B no: cae
+// adentro del violeta liso.
+#define SMOKE_Y_TILE         (4 + SMOKE2_SOLID_ROWS)   // 8
 
 // La cápsula del taladro (sprite de la fase 2) debe quedar DETRÁS del humo del
 // techo. Como la prioridad del plano es global por TILE, solo las columnas del
@@ -3544,8 +3551,19 @@ static s16 sofaWallX(s16 y) {
 // sigue con prioridad baja (detrás de los sprites). Con la cámara bloqueada en
 // 120 toda la pelea (fase 2), la cápsula anclada a pantalla (172..268, ±8 de
 // temblor) cubre las columnas del plano (screen + 120) / 8 = 35..49.
-#define SMOKE_FRONT_COL_MIN   35
-#define SMOKE_FRONT_COL_MAX   49
+// (22/09) Corregido: el humo de BG_A scrollea con PARALLAX (FIRE_SCROLL_NUM/
+// DEN = 1/2 de la camara), asi que con la camara en 120 su scroll es 60, no
+// 120. La cuenta vieja ((pantalla + 120) / 8 = 35..49) daba columnas corridas
+// y cubria la pantalla 220..340 en vez de la capsula (160..272 con el
+// temblor). Con 60: (160 + 60) / 8 = 27 .. (280 + 60) / 8 = 42.
+#define SMOKE_FRONT_COL_MIN   27
+#define SMOKE_FRONT_COL_MAX   42
+// ...y las del FONDO (BG_B, scroll = camara exacta, o sea columnas de MUNDO):
+// la franja de humo liso del fondo tambien va con prioridad alta sobre la
+// capsula, que es lo que esconde su tope recortado en y=56. Capsula en el
+// mundo 288..384, +-8 de temblor -> columnas 35..49.
+#define BG_SMOKE_FRONT_COL_MIN  35
+#define BG_SMOKE_FRONT_COL_MAX  49
 
 static u16 smokeVramInd;   // Primer tile de VRAM de la celda del humo
 static u16 smokeFrame;     // Frame de animación actual (0..7)
@@ -3587,9 +3605,17 @@ static void bgInit2(void) {
     u16 w = bg_test.tilemap->w;
     u16 h = bg_test.tilemap->h;
     const u16* map = bg_test.tilemap->tilemap;
-    for (u16 c = 0; c < w; c++)
-        for (u16 r = 0; r < h; r++)
-            VDP_setTileMapXY(BG_B, attrBase + map[r * w + c], c, r + LEVEL2_BG_OFFSET_Y);
+    for (u16 c = 0; c < w; c++) {
+        // (22/09) Humo liso pintado en el fondo: prioridad ALTA en las columnas
+        // de la capsula para que su tope quede detras (ver BG_SMOKE_FRONT_COL_*).
+        bool front = (c >= BG_SMOKE_FRONT_COL_MIN && c <= BG_SMOKE_FRONT_COL_MAX);
+        for (u16 r = 0; r < h; r++) {
+            u16 attr = attrBase + map[r * w + c];
+            if (front && (r + LEVEL2_BG_OFFSET_Y) < SMOKE_Y_TILE)
+                attr |= TILE_ATTR_PRIORITY_MASK;
+            VDP_setTileMapXY(BG_B, attr, c, r + LEVEL2_BG_OFFSET_Y);
+        }
+    }
 }
 
 // Scroll del fondo del nivel 2: solo alimenta la tabla H-scroll de BG_B (el

@@ -72,6 +72,9 @@ BG_CROP_X, BG_CROP_Y = 3, 0    # x: donde cae el bg viejo adentro del nuevo
 BG_W, BG_H = 440, 224          # (22/09) ALTO COMPLETO: ocupa toda la pantalla
 
 SMOKE_Y = (4, 79, 158)         # los 3 frames del humo, x = 73..201
+PURPLE = 14                    # el violeta del humo en el collage
+SMOKE_TOP_TILE = 4             # fila de pantalla donde arranca la celda del humo
+                               # (debajo del HUD, filas 0-3) -- SMOKE_Y_TILE viejo
 SMOKE_X = 73
 SMOKE_W, SMOKE_H = 128, 64
 
@@ -138,10 +141,27 @@ def main():
     pal = make_palette(src)
     BG = A[BG_BOX[1]:BG_BOX[3], BG_BOX[0]:BG_BOX[2]]
 
+    # --- 0. Cuantas filas de tiles del humo son violeta LISO en los 3 frames --
+    # (22/09, idea de Gustavo) Esas filas no se animan: pasan al FONDO, junto
+    # con la franja de detras del HUD, y en el plano de adelante queda solo la
+    # parte que se mueve. Medido: son las 4 primeras (la 5ta ya tiene chispas).
+    solid = 0
+    for r in range(SMOKE_H // 8):
+        if all((A[y0 + r * 8:y0 + r * 8 + 8, SMOKE_X:SMOKE_X + SMOKE_W] == PURPLE).all()
+               for y0 in SMOKE_Y):
+            solid += 1
+        else:
+            break
+    purple_px = (SMOKE_TOP_TILE + solid) * 8
+
     # --- 1. Fondo -----------------------------------------------------------
     bg = BG[BG_CROP_Y:BG_CROP_Y + BG_H, BG_CROP_X:BG_CROP_X + BG_W] + 1
+    # Franja de humo liso pintada EN EL FONDO: desde arriba de la pantalla
+    # hasta donde termina el violeta liso de la celda del humo.
+    bg[:purple_px, :] = PURPLE + 1
     save_p(bg, pal, OUT_BG)
-    print("bg_nivel1_2.png        %dx%d" % (BG_W, BG_H))
+    print("bg_nivel1_2.png        %dx%d  (violeta liso en y=0..%d: %d filas de tiles)"
+          % (BG_W, BG_H, purple_px - 1, purple_px // 8))
 
     # --- 2. Humo: tiles unicos por frame + mapa ------------------------------
     per_frame_tiles, maps = [], []
@@ -149,7 +169,7 @@ def main():
         f = A[y0:y0 + SMOKE_H, SMOKE_X:SMOKE_X + SMOKE_W] + 1
         f[f == GREY + 1] = 0                     # gris del collage -> transparente
         tiles, index, m = [], {}, []
-        for r in range(SMOKE_H // 8):
+        for r in range(solid, SMOKE_H // 8):     # solo la parte que se mueve
             row = []
             for c in range(SMOKE_W // 8):
                 t = f[r * 8:r * 8 + 8, c * 8:c * 8 + 8]
@@ -176,13 +196,17 @@ def main():
     with open(OUT_SMOKE_H, "w") as fh:
         fh.write("// GENERADO POR tools/gen_nivel1_2_artista.py -- NO EDITAR A MANO\n")
         fh.write("// Humo del techo de la sala de April (nivel 1-2), arte del 22/09.\n")
-        fh.write("// Para cada frame, el mapa de su celda de 16x8 tiles: el numero es\n")
-        fh.write("// el tile DENTRO del frame (0..SMOKE2_TILES-1); 0xFF = vacio.\n")
+        fh.write("// Para cada frame, el mapa de la parte ANIMADA de su celda: el numero\n")
+        fh.write("// es el tile DENTRO del frame (0..SMOKE2_TILES-1); 0xFF = vacio.\n")
+        fh.write("// Las SMOKE2_SOLID_ROWS filas de arriba de la celda son violeta liso en\n")
+        fh.write("// los 3 frames: no estan aca, las lleva pintadas el FONDO.\n")
         fh.write("#ifndef _SMOKE_LVL1_2_H_\n#define _SMOKE_LVL1_2_H_\n\n")
         fh.write("#define SMOKE2_FRAMES   %d\n" % len(SMOKE_Y))
         fh.write("#define SMOKE2_TILES    %d   // tiles por frame (el mayor)\n" % n)
         fh.write("#define SMOKE2_CELL_W   %d\n" % (SMOKE_W // 8))
-        fh.write("#define SMOKE2_CELL_H   %d\n\n" % (SMOKE_H // 8))
+        fh.write("#define SMOKE2_SOLID_ROWS %d   // filas lisas que van en el fondo\n" % solid)
+        fh.write("#define SMOKE2_CELL_H   %d   // filas animadas (las que quedan en BG_A)\n\n"
+                 % (SMOKE_H // 8 - solid))
         fh.write("static const u8 smoke2Map[SMOKE2_FRAMES][SMOKE2_CELL_H][SMOKE2_CELL_W] = {\n")
         for m in maps:
             fh.write("    {\n")
