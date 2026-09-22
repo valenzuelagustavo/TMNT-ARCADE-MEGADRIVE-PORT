@@ -38,11 +38,14 @@ typedef enum {
     ANIM_WHIP_SHOCK   = 19,  // Atrapado por el látigo (frame 0) + electrocución (frames 1-2)
     ANIM_KO           = 20,  // Knockeado — pose dedicada (4 frames)
     ANIM_MANHOLE      = 21   // (20/09) Se cae por una boca de tormenta destapada
-                             // del 2-1. NUEVE frames, no se reproduce sola:
-                             //   0-2  se hunde en el agujero
-                             //   3    VACIO -- se sostiene mientras suena el
-                             //        voice over y esta el globo en pantalla
-                             //   4-8  sale del agujero
+                             // del 2-1. No se reproduce sola. Cantidad de
+                             // frames distinta por sheet (Leo 9, Mike/Raph 8,
+                             // Don 7), siempre con la forma:
+                             //   caida  se hunde en el agujero
+                             //   VACIO  se sostiene mientras suena el voice
+                             //          over y esta el globo en pantalla
+                             //   salida sale del agujero
+                             // El vacio se detecta en runtime (numSprite == 0).
                              // El frame lo maneja playerManholeStep() a mano
                              // (ver la seccion de abajo).
 } PlayerAnim;
@@ -113,9 +116,12 @@ typedef enum {
 #define PLAYER_JUMP_LOOP_TICKS  6   // Frames de juego entre pasos del loop del ápice
 
 // --- Jump kick ---
-// Sin dirección: frame 0 de ANIM_JUMP_KICK, vuelo normal.
-// Con dirección en X: frame 1, y la tortuga viaja MÁS LEJOS (ímpetu):
+// Sin dirección: anteultimo frame de ANIM_JUMP_KICK, vuelo normal.
+// Con dirección en X: ultimo frame, y la tortuga viaja MÁS LEJOS (ímpetu):
 // avanza sola a PLAYER_JUMPKICK_SPEED px/frame en la dirección elegida.
+// Sheets con 3 frames de patada (Don, Raph): frame 0 = arranque, se ve estos
+// ticks antes de pasar al frame de la patada elegida.
+#define PLAYER_JUMPKICK_TUCK_TICKS  5
 #define JUMPKICK_NONE       0
 #define JUMPKICK_SOFT       1   // Botón de golpe solo
 #define JUMPKICK_STRONG     2   // Golpe + dirección: más ímpetu

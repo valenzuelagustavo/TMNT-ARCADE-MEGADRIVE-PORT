@@ -476,8 +476,8 @@ void updatePlayer(Player* p) {
             }
 
             // --- Inicio de la patada en salto (una sola por salto) ---
-            // Golpe solo            -> frame 0 de ANIM_JUMP_KICK (débil)
-            // Golpe + direccion X   -> frame 1, con ímpetu (viaja más lejos)
+            // Golpe solo            -> anteultimo frame de ANIM_JUMP_KICK (débil)
+            // Golpe + direccion X   -> ultimo frame, con ímpetu (viaja más lejos)
             if (!p->isJumpKicking && (justPressed(joy, p->prevJoy, BUTTON_A) || justPressed(joy, p->prevJoy, BUTTON_B))) {
                 if      (joy & BUTTON_RIGHT) { p->dir =  1; SPR_setHFlip(p->sprite, FALSE); }
                 else if (joy & BUTTON_LEFT)  { p->dir = -1; SPR_setHFlip(p->sprite, TRUE);  }
@@ -486,7 +486,30 @@ void updatePlayer(Player* p) {
                 p->isJumpKicking = fuerte ? JUMPKICK_STRONG : JUMPKICK_SOFT;
                 // Auto-anim ya está apagada desde el inicio del salto: el
                 // frame elegido queda clavado hasta aterrizar.
-                SPR_setAnimAndFrame(p->sprite, ANIM_JUMP_KICK, fuerte ? 1 : 0);
+                // (22/09) Las sheets no tienen todas los mismos frames: Leo y
+                // Mike traen 2 (debil, fuerte) y Don y Raph 3, con una pose de
+                // arranque (piernas recogidas) delante. Debil y fuerte son
+                // SIEMPRE los dos ultimos; si hay un tercero se muestra primero
+                // PLAYER_JUMPKICK_TUCK_TICKS y despues se estira la patada.
+                // airTimer no se usa mientras se patea: hace de contador.
+                SPR_setAnim(p->sprite, ANIM_JUMP_KICK);
+                {
+                    u16 nk = p->sprite->animation->numFrame;
+                    u16 target = (nk >= 2) ? (u16)(nk - (fuerte ? 1 : 2)) : 0;
+                    if (nk >= 3) {
+                        SPR_setFrame(p->sprite, 0);
+                        p->airTimer = PLAYER_JUMPKICK_TUCK_TICKS;
+                    } else {
+                        SPR_setFrame(p->sprite, target);
+                        p->airTimer = 0;
+                    }
+                }
+            } else if (p->isJumpKicking && p->airTimer > 0) {
+                if (--p->airTimer == 0) {
+                    u16 nk = p->sprite->animation->numFrame;
+                    SPR_setFrame(p->sprite,
+                        nk - (p->isJumpKicking == JUMPKICK_STRONG ? 1 : 2));
+                }
             }
 
             // --- Fases de la animación del salto (solo si NO está pateando) ---
@@ -1270,9 +1293,10 @@ bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
 // que los 5 ticks del sheet.
 //
 // Tres fases (p->mhPhase), cada una con su cadencia:
-//   1  f0..f2  se hunde        PLAYER_MH_FALL_TICKS por frame
-//   2  f3      vacio           PLAYER_MH_HOLD_TICKS de una (globo + VO)
-//   3  f4..f8  sale del pozo   PLAYER_MH_OUT_TICKS por frame
+//   1  caida   se hunde        PLAYER_MH_FALL_TICKS por frame
+//   2  vacio   frame vacio     PLAYER_MH_HOLD_TICKS de una (globo + VO)
+//   3  salida  sale del pozo   PLAYER_MH_OUT_TICKS por frame
+// (cuantos frames tiene cada tramo depende de la sheet: ver mhLayout)
 //
 // La tortuga se dibuja SIEMPRE en el agujero (no se mueve mientras cae ni
 // mientras sale); recien al terminar la fase 3 se la teletransporta a
@@ -1280,9 +1304,29 @@ bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
 // reapareciera encima se volveria a caer en el acto, que es justo lo que
 // Gustavo pidio evitar.
 // ---------------------------------------------------------------------------
-#define MH_FALL_FRAMES  3   // f0..f2
-#define MH_OUT_FIRST    4   // primer frame de la salida
-#define MH_OUT_FRAMES   5   // f4..f8
+// (22/09) El layout NO es igual en las 4 sheets: Leo tiene 9 frames
+// (3 caida + vacio + 5 salida), Mike y Raph 8 (3+1+4) y Don 7 (2+1+4). Con el
+// layout de Leo clavado, a Don el "frame 3" le caia en la salida (la mano
+// asomando) en lugar del vacio. Se lee de la definicion del sprite: el frame
+// vacio es el primero con numSprite == 0 (rescomp conserva los frames vacios
+// en medio de una fila), lo anterior es la caida y lo posterior la salida.
+// Sin sprite se usa el layout de Leo, que solo importa para el tiempo.
+typedef struct { u8 fall; u8 empty; u8 outFirst; u8 out; } MhLayout;
+
+static MhLayout mhLayout(const Player* p) {
+    MhLayout l = { 3, 3, 4, 5 };
+    if (!p->sprite) return l;
+    const Animation* an = p->sprite->definition->animations[ANIM_MANHOLE];
+    u8 n = an->numFrame;
+    u8 e = 0;
+    while (e < n && an->frames[e]->numSprite != 0) e++;
+    if (e >= n) e = (n > 1) ? (u8)(n / 2) : 0;   // sin frame vacio: se sostiene el del medio
+    l.empty = e; l.fall = e; l.outFirst = (u8)(e + 1);
+    if (l.fall == 0) l.fall = 1;
+    l.out = (n > l.outFirst) ? (u8)(n - l.outFirst) : 1;
+    if (l.outFirst >= n) l.outFirst = (u8)(n - 1);
+    return l;
+}
 
 bool playerManholeFall(Player* p, s16 outX, s16 outY) {
     if (p->mhPhase != 0)        return FALSE;   // ya esta adentro
@@ -1313,7 +1357,7 @@ bool playerManholeFall(Player* p, s16 outX, s16 outY) {
     p->state           = STATE_IDLE;
 
     p->mhPhase = 1;
-    p->mhTimer = PLAYER_MH_FALL_TICKS * MH_FALL_FRAMES;
+    p->mhTimer = PLAYER_MH_FALL_TICKS * mhLayout(p).fall;
     p->mhOutX  = outX;
     p->mhOutY  = outY;
 
@@ -1334,31 +1378,32 @@ bool playerManholeStep(Player* p) {
     // Sin sprite (VRAM de sprites llena con 4 tortugas) la secuencia igual
     // corre por tiempo: si no, este jugador se quedaria en el pozo para
     // siempre. Misma regla que el resto del modulo.
-    s16 frame = 3;
+    const MhLayout L = mhLayout(p);
+    s16 frame = L.empty;
 
     if (p->mhTimer > 0) p->mhTimer--;
 
     switch (p->mhPhase) {
         case 1: {                                   // hundiendose
-            s16 done = (s16)(PLAYER_MH_FALL_TICKS * MH_FALL_FRAMES) - (s16)p->mhTimer;
+            s16 done = (s16)(PLAYER_MH_FALL_TICKS * L.fall) - (s16)p->mhTimer;
             frame = done / PLAYER_MH_FALL_TICKS;
-            if (frame > MH_FALL_FRAMES - 1) frame = MH_FALL_FRAMES - 1;
+            if (frame > L.fall - 1) frame = L.fall - 1;
             if (p->mhTimer == 0) { p->mhPhase = 2; p->mhTimer = PLAYER_MH_HOLD_TICKS; }
             break;
         }
         case 2:                                     // abajo: globo + voice over
-            frame = 3;
+            frame = L.empty;
             if (p->mhTimer == 0) {
                 p->mhPhase = 3;
-                p->mhTimer = PLAYER_MH_OUT_TICKS * MH_OUT_FRAMES;
+                p->mhTimer = PLAYER_MH_OUT_TICKS * L.out;
             }
             break;
 
         default: {                                  // saliendo
-            s16 done = (s16)(PLAYER_MH_OUT_TICKS * MH_OUT_FRAMES) - (s16)p->mhTimer;
-            frame = MH_OUT_FIRST + done / PLAYER_MH_OUT_TICKS;
-            if (frame > MH_OUT_FIRST + MH_OUT_FRAMES - 1)
-                frame = MH_OUT_FIRST + MH_OUT_FRAMES - 1;
+            s16 done = (s16)(PLAYER_MH_OUT_TICKS * L.out) - (s16)p->mhTimer;
+            frame = L.outFirst + done / PLAYER_MH_OUT_TICKS;
+            if (frame > L.outFirst + L.out - 1)
+                frame = L.outFirst + L.out - 1;
             if (p->mhTimer == 0) {
                 // Afuera: se la corre por debajo del agujero y vuelve el control.
                 p->mhPhase = 0;
