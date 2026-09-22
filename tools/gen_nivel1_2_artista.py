@@ -16,7 +16,7 @@
 #   res/images/lvl_1_scene/bg_nivel1_2.png   440x224  (reemplaza a bg_test.png)
 #   res/sprites/smoke_lvl1_2.png             tiles del humo, deduplicados por frame
 #   src/smoke_lvl1_2.h                       el mapa 16x8 de cada frame del humo
-#   res/sprites/taladro_capsula_v2.png       864x208 = 9x2 celdas de 96x104
+#   res/sprites/taladro_capsula_v2.png       864x240 = 9x2 celdas de 96x120
 #
 # TODAS comparten la misma paleta de 16: el 0 queda libre (en Megadrive es
 # transparente) y los 15 colores del collage van en 1..15. O sea que fondo,
@@ -86,8 +86,11 @@ CLOSED = (660, 4, 83, 143)
 OPEN = (660, 150, 83, 143)
 
 # Celda de la capsula en coordenadas de MUNDO de la escena (x = x del bg viejo)
-CELL_X, CELL_Y = 288, 56
-CELL_W, CELL_H = 96, 104
+# (22/09, 2da vuelta) Con el humo mas arriba, lo opaco termina en y~45: la
+# celda arranca en 40 para que el tope recortado de la capsula siga cayendo
+# adentro del humo opaco. 120 de alto = 15 tiles (antes 104 = 13).
+CELL_X, CELL_Y = 288, 40
+CELL_W, CELL_H = 96, 120
 
 
 def make_palette(src):
@@ -152,12 +155,15 @@ def main():
             solid += 1
         else:
             break
-    purple_px = (SMOKE_TOP_TILE + solid) * 8
+    # (22/09, 2da vuelta) Esas filas lisas se CORTAN: no van ni al fondo ni al
+    # plano de adelante. La parte animada sube a SMOKE_TOP_TILE (justo debajo
+    # del HUD) y el fondo solo lleva violeta detras del HUD. Asi el humo es
+    # menos invasivo -- con las filas lisas bajaba hasta y=95.
+    purple_px = SMOKE_TOP_TILE * 8
 
     # --- 1. Fondo -----------------------------------------------------------
     bg = BG[BG_CROP_Y:BG_CROP_Y + BG_H, BG_CROP_X:BG_CROP_X + BG_W] + 1
-    # Franja de humo liso pintada EN EL FONDO: desde arriba de la pantalla
-    # hasta donde termina el violeta liso de la celda del humo.
+    # Franja de humo liso pintada EN EL FONDO: solo detras del HUD.
     bg[:purple_px, :] = PURPLE + 1
     save_p(bg, pal, OUT_BG)
     print("bg_nivel1_2.png        %dx%d  (violeta liso en y=0..%d: %d filas de tiles)"

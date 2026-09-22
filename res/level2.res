@@ -45,8 +45,8 @@ TILESET smoke_tiles "sprites/smoke_lvl1_2.png" NONE NONE
 // FALSE, ...) (prioridad baja -> la banda de fuego, prioridad alta, tapa su base
 // y la hace "salir del piso").
 // (22/09) Capsula nueva: fila 0 = 8 frames del taladro + la capsula cerrada,
-// fila 1 = cerrada y abierta. Mismas celdas de 96x104.
-SPRITE taladro_capsula "sprites/taladro_capsula_v2.png" 12 13 NONE 0
+// fila 1 = cerrada y abierta. Celdas de 96x120 (12x15 tiles).
+SPRITE taladro_capsula "sprites/taladro_capsula_v2.png" 12 15 NONE 0
 
 // April (rehén atada al fondo de la sala). Usa la paleta de las tortugas
 // (PAL1): el PNG esta cuantizado sobre esa misma paleta indexada (4bpp).

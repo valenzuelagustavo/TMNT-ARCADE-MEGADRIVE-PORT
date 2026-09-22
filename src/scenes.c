@@ -3535,14 +3535,13 @@ static s16 sofaWallX(s16 y) {
                                   // el frame nuevo mas grande usa SMOKE2_TILES = 42)
 #define SMOKE_FRAMES         SMOKE2_FRAMES   // 3
 #define SMOKE_FRAME_INTERVAL 8    // Frames de juego entre cada frame de humo
-// (22/09) La celda del humo sigue arrancando en la fila 4 (debajo del HUD),
-// pero sus SMOKE2_SOLID_ROWS filas de arriba son violeta liso y las lleva
-// PINTADAS EL FONDO (junto con la franja de detras del HUD, filas 0-3). En el
-// plano de adelante (BG_A) queda solo la parte que se mueve: arranca 4 filas
-// mas abajo y mide SMOKE2_CELL_H filas. El HUD (texto en BG_A, filas 0-3) no
-// se toca. La union no se nota aunque BG_A tenga parallax y BG_B no: cae
-// adentro del violeta liso.
-#define SMOKE_Y_TILE         (4 + SMOKE2_SOLID_ROWS)   // 8
+// (22/09) El fondo lleva pintada una franja de violeta liso detras del HUD
+// (filas 0-3), y en el plano de adelante (BG_A) va SOLO la parte animada del
+// humo, justo debajo: las SMOKE2_SOLID_ROWS filas lisas de arriba de la celda
+// se CORTARON (pedido de Gustavo: con ellas el humo bajaba hasta y=95 y tapaba
+// demasiado fondo). El HUD (texto en BG_A, filas 0-3) no se toca. La union no
+// se nota aunque BG_A tenga parallax y BG_B no: cae adentro del violeta liso.
+#define SMOKE_Y_TILE         4    // justo debajo del HUD (filas 0-3)
 
 // La cápsula del taladro (sprite de la fase 2) debe quedar DETRÁS del humo del
 // techo. Como la prioridad del plano es global por TILE, solo las columnas del
@@ -3558,12 +3557,7 @@ static s16 sofaWallX(s16 y) {
 // temblor). Con 60: (160 + 60) / 8 = 27 .. (280 + 60) / 8 = 42.
 #define SMOKE_FRONT_COL_MIN   27
 #define SMOKE_FRONT_COL_MAX   42
-// ...y las del FONDO (BG_B, scroll = camara exacta, o sea columnas de MUNDO):
-// la franja de humo liso del fondo tambien va con prioridad alta sobre la
-// capsula, que es lo que esconde su tope recortado en y=56. Capsula en el
-// mundo 288..384, +-8 de temblor -> columnas 35..49.
-#define BG_SMOKE_FRONT_COL_MIN  35
-#define BG_SMOKE_FRONT_COL_MAX  49
+
 
 static u16 smokeVramInd;   // Primer tile de VRAM de la celda del humo
 static u16 smokeFrame;     // Frame de animación actual (0..7)
@@ -3605,17 +3599,9 @@ static void bgInit2(void) {
     u16 w = bg_test.tilemap->w;
     u16 h = bg_test.tilemap->h;
     const u16* map = bg_test.tilemap->tilemap;
-    for (u16 c = 0; c < w; c++) {
-        // (22/09) Humo liso pintado en el fondo: prioridad ALTA en las columnas
-        // de la capsula para que su tope quede detras (ver BG_SMOKE_FRONT_COL_*).
-        bool front = (c >= BG_SMOKE_FRONT_COL_MIN && c <= BG_SMOKE_FRONT_COL_MAX);
-        for (u16 r = 0; r < h; r++) {
-            u16 attr = attrBase + map[r * w + c];
-            if (front && (r + LEVEL2_BG_OFFSET_Y) < SMOKE_Y_TILE)
-                attr |= TILE_ATTR_PRIORITY_MASK;
-            VDP_setTileMapXY(BG_B, attr, c, r + LEVEL2_BG_OFFSET_Y);
-        }
-    }
+    for (u16 c = 0; c < w; c++)
+        for (u16 r = 0; r < h; r++)
+            VDP_setTileMapXY(BG_B, attrBase + map[r * w + c], c, r + LEVEL2_BG_OFFSET_Y);
 }
 
 // Scroll del fondo del nivel 2: solo alimenta la tabla H-scroll de BG_B (el
@@ -3686,16 +3672,24 @@ static void smokeUpdate(s16 cameraX) {
 // -y). time = 0 en res/level2.res: la animación se controla MANUAL con
 // SPR_setAnimAndFrame sincronizada con el temblor, y el frame final queda fijo.
 #define CAPSULA_TILE_W        12    // 96px
-#define CAPSULA_TILE_H        13    // 104px
+#define CAPSULA_TILE_H        15    // 120px (22/09: el humo subio, ver abajo)
 // (22/09, rama bg-nivel1-2-paleta-unica) Arte nuevo del artista: la capsula
 // ya NO la ubica el codigo sino el dibujo. tools/gen_nivel1_2_artista.py
-// encuentra cada frame adentro del fondo y los deja en celdas de 96x104
-// ancladas en el mundo en (288,56) -> en pantalla, con la camara en 120,
-// (168,56). Antes era (172,51) a ojo.
+// encuentra cada frame adentro del fondo y los deja en celdas de 96x120
+// ancladas en el mundo en (288,40) -> en pantalla, con la camara en 120,
+// (168,40). Antes era (172,51) a ojo. Arranca en y=40 porque ahi el humo
+// (que ahora baja solo hasta ~y=45 opaco) todavia tapa su tope recortado.
 #define CAPSULA_CENTER_X      216   // Centro en pantalla (x_mundo 336 - cámara 120)
-#define CAPSULA_CENTER_Y      108
+#define CAPSULA_CENTER_Y      100
 #define CAPSULA_SCREEN_X      (CAPSULA_CENTER_X - (CAPSULA_TILE_W * 8) / 2)   // 168
-#define CAPSULA_SCREEN_Y      (CAPSULA_CENTER_Y - (CAPSULA_TILE_H * 8) / 2)   // 56
+#define CAPSULA_SCREEN_Y      (CAPSULA_CENTER_Y - (CAPSULA_TILE_H * 8) / 2)   // 40
+// Profundidad de la capsula. ANTES salia de -(CAPSULA_CENTER_Y) = -103, y al
+// mover el centro a 108 quedo EMPATADA con Shredder (-APRIL_LANE_Y + 40 =
+// -108): con el empate, Shredder pasaba por DETRAS de la capsula al saltar a la
+// ventana (22/09, reporte de Gustavo). Ahora es fija y no depende de la
+// geometria: -103 = detras de Shredder (-108), de los jugadores y del jefe
+// (-y con y >= 118).
+#define CAPSULA_DEPTH         (-103)
 // El arte nuevo trae 8 frames del taladro + la capsula cerrada (9) y solo dos
 // de la puerta (cerrada y abierta). 9 x 23 = 207 ticks ~ los 203 de antes, que
 // es lo que dura drill.wav.
@@ -4167,7 +4161,7 @@ SceneId showScene12() {
                 // en lugar del maximo, para que un SPR_setDepth real la
                 // reordene por profundidad (no por orden de insercion) y dejen
                 // de competir sprites de fondo/HUD por su lugar en la SAT.
-                SPR_setDepth(capsulaSpr, -(CAPSULA_CENTER_Y));
+                SPR_setDepth(capsulaSpr, CAPSULA_DEPTH);
                 SPR_setVisibility(capsulaSpr, HIDDEN);
             }
         } else if (cutScene == 0 && phase == 3 && bossSpawned &&
