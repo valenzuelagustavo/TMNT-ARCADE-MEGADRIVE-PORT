@@ -10,5 +10,6 @@ extern const SpriteDefinition foot_soldier_white;
 extern const SpriteDefinition shuriken_sprite;
 extern const SpriteDefinition tnt_sprite;
 extern const SpriteDefinition explosion_sprite;
+extern const SpriteDefinition lid_sprite;
 
 #endif // _RES_ENEMIES_H_

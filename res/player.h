@@ -36,7 +36,15 @@ typedef enum {
                              // lo tienen agarrado (solo se muestra al recibir un
                              // golpe en pleno agarre)
     ANIM_WHIP_SHOCK   = 19,  // Atrapado por el látigo (frame 0) + electrocución (frames 1-2)
-    ANIM_KO           = 20   // Knockeado — pose dedicada (4 frames)
+    ANIM_KO           = 20,  // Knockeado — pose dedicada (4 frames)
+    ANIM_MANHOLE      = 21   // (20/09) Se cae por una boca de tormenta destapada
+                             // del 2-1. NUEVE frames, no se reproduce sola:
+                             //   0-2  se hunde en el agujero
+                             //   3    VACIO -- se sostiene mientras suena el
+                             //        voice over y esta el globo en pantalla
+                             //   4-8  sale del agujero
+                             // El frame lo maneja playerManholeStep() a mano
+                             // (ver la seccion de abajo).
 } PlayerAnim;
 
 // ---------------------------------------------------------------------------
@@ -383,6 +391,13 @@ typedef struct {
     u8          heldFrame;   // Frame actual del loop manual de ANIM_HELD (0-2)
     u8          heldTimer;   // Ticks hasta el próximo paso del loop de HELD
     u8          heldHit;     // Frames restantes del frame 3 de HELD (golpe en el agarre)
+
+    // --- Caida por la boca de tormenta (20/09, solo 2-1) ---
+    u8          mhPhase;     // 0 = no esta en el pozo; 1 = cayendo (f0-2),
+                             // 2 = abajo (f3 + globo + VO), 3 = saliendo (f4-8)
+    u16         mhTimer;     // Ticks restantes de la fase actual
+    s16         mhOutX;      // Donde reaparece al terminar (mundo, borde del frame)
+    s16         mhOutY;      // ...y su lane
 } Player;
 
 // ---------------------------------------------------------------------------
@@ -588,5 +603,50 @@ bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY);
 // espaldas a la cámara) y deja de leer input: da la apariencia de que observa la
 // cutscene de victoria del nivel 2 (Shredder raptando a April).
 void playerCutsceneWatch(Player* p);
+
+// ---------------------------------------------------------------------------
+// CAIDA POR LA BOCA DE TORMENTA (20/09) — nivel 2-1
+// ---------------------------------------------------------------------------
+// Secuencia guionada de tres fases, con la anim 21 manejada A MANO (la
+// auto-animación no sirve: el frame 3 tiene que SOSTENERSE lo que dure el
+// voice over, y los otros dos tramos van a otra cadencia).
+//
+//   fase 1  f0..f2   se hunde
+//   fase 2  f3       vacío: la tortuga está abajo. Acá la escena muestra el
+//                    globo "who put the light out" y suena el VO.
+//   fase 3  f4..f8   sale del pozo
+//
+// Mientras dura, la tortuga NO lee input y NO se la puede golpear
+// (playerCanBeHit devuelve FALSE). Al terminar aparece en (mhOutX, mhOutY),
+// que la escena fija unos píxeles POR DEBAJO del agujero: si reapareciera
+// encima volvería a caer en el acto.
+#define PLAYER_MANHOLE_DMG        3   // barras que cuesta cada caída
+#define PLAYER_MH_FALL_TICKS      7   // ticks por frame del hundimiento (f0..f2)
+#define PLAYER_MH_OUT_TICKS       7   // ticks por frame de la salida (f4..f8)
+// El VO "who put the light out" dura 1,301 s = 78 frames NTSC. 96 deja el
+// globo un poco después de que termina de hablar, que es como se leen los
+// otros globos del juego (ver BUBBLE_SOLID_SECS en scenes.c).
+#define PLAYER_MH_HOLD_TICKS     96
+
+// Arranca la secuencia. Cobra PLAYER_MANHOLE_DMG barras; si con eso la barra
+// llega a 0 dispara el KNOCKOUT normal y NO hay caída (devuelve FALSE: la
+// tortuga se está muriendo, no se cae por el pozo).
+// (outX, outY) = dónde reaparece al salir, en coordenadas de MUNDO.
+// Devuelve FALSE también si la tortuga no está en condiciones (ya en el pozo,
+// KO, agarrada, en el aire…).
+bool playerManholeFall(Player* p, s16 outX, s16 outY);
+
+// TRUE mientras dura cualquier fase de la secuencia. La escena la usa para
+// saltearse updatePlayer y para no dejar que la cámara la siga.
+bool playerInManhole(const Player* p);
+
+// TRUE solo durante la fase 2 (el frame vacío): es la ventana del globo y del
+// voice over. El flanco de subida lo detecta la escena comparándolo con el
+// valor del frame anterior.
+bool playerManholeSpeaking(const Player* p);
+
+// Un frame de la secuencia. Se llama EN LUGAR de updatePlayer. Devuelve TRUE
+// el frame en que termina (la tortuga ya está fuera y vuelve a tener control).
+bool playerManholeStep(Player* p);
 
 #endif

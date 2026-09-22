@@ -25,10 +25,25 @@
 // enemigos entran a la vez.
 //
 // 13/09: bg01_completa.png (487 tiles) -> bg01_final.png (524).
+// 19/09: bg01_final.png (524) -> Arcade-...-Stage-1_15-CORES.png (399). Rip con
+//        paleta optimizada a 15 colores: ahorra ~125 tiles de VRAM, que pasan
+//        directo al motor de sprites (SPR_initEx se calcula solo).
+//        OJO con esta imagen: el color 0 de su paleta NO es negro, es un rojo
+//        oscuro (94,0,10) que usan los contraescalones y el hueco de la puerta
+//        del fondo. En Megadrive el indice 0 de un tile es TRANSPARENTE, asi
+//        que esos pixeles no salen del plano: salen del color de fondo (reg 7).
+//        Funciona porque showScene11 hace VDP_setBackgroundColor(0) y el fondo
+//        vive en PAL0 -> el backdrop ES PAL0[0] = ese mismo rojo. Si alguna vez
+//        se mueve el fondo a otra linea de paleta, o se cambia el backdrop,
+//        esos pixeles se van a ver del color equivocado.
+//        door_lvl_1.png y ascensor_door.png NO tienen paleta propia (comparten
+//        PAL0), asi que se reindexaron al vuelo contra estos 15 colores. Es un
+//        remapeo por cercania: conviene re-exportarlos desde Aseprite con la
+//        paleta nueva cuando haya tiempo.
 // =============================================================================
 
 // --- Fondo principal (nivel completo) ---
-IMAGE bg_level1 "images/lvl_1_scene/bg01_final.png" NONE
+IMAGE bg_level1 "images/lvl_1_scene/Arcade---Teenage-Mutant-Ninja-Turtles---Backgrounds---Stage-1_15-CORES.png" NONE
 
 // --- Fuego de primer plano (tira VERTICAL: 8 frames de 64x64 apilados) ---
 // fire_strip.png (64x512) se genera a partir de fire_512x224.png tomando la
@@ -121,6 +136,16 @@ TILESET hud_font "images/font/font_tmnt_arcade_2.png" NONE NONE
 // linea de paleta. Las 4 del nivel ya estan ocupadas: PAL0 fondo, PAL1
 // tortugas, PAL2 enemigos+fuego, PAL3 flash/HUD. Mismo truco que hp_bar/hud.
 SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
+
+// --- Globo "Duuuh, who put the light out" (caida por la alcantarilla, 2-1) ---
+// 96x32px = 12x4 tiles, UN solo frame. Lo usa el 2-1 cuando una tortuga se cae
+// por una boca de tormenta destapada; vive en level1.res y no en level2.res
+// porque el 2-1 ya incluye level1.h (de ahi saca hud_font) y level2.res son los
+// recursos de la escena 1-2 (el departamento de April), que es otra cosa.
+// Igual que attack_bubble, NO lleva PALETTE propia: verificado indice por
+// indice, los 0/7/8/9/11 del PNG son los mismos colores de Megadrive (9 bits)
+// que la paleta de las tortugas, asi que se dibuja con TILE_ATTR(PAL1,...).
+SPRITE light_out_bubble "sprites/light_out_baloon.png" 12 4 NONE 0
 
 // --- "HURRY UP!" (aviso de desplazamiento de camara) ---
 // 160x32px = spritesheet de 5 frames de 32x32 (4x4 tiles). time 6 -> anima

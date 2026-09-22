@@ -2045,10 +2045,29 @@ static bool drawTextTypewriter(const char* text, u16 x, u16 y, u16 delay) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Pantalla SGDK — créditos de herramientas y agradecimientos (bilingüe)
+// 3. Pantalla de creditos y agradecimientos
 // ---------------------------------------------------------------------------
 // Usa la fuente arcade del título (title_font). OJO: la fuente cubre ASCII
-// 32..126, por eso los textos van SIN acentos ni signos especiales.
+// 32..126, por eso los textos van SIN acentos ni signos especiales (por eso
+// STEPHANE y no STEPHANE con acento).
+//
+// (19/09) Reescrita en ingles, sin el bloque en espanol: equipo + creador de
+// SGDK + la lista de ripeadores de sprites de la comunidad.
+//
+// La pantalla son 40 columnas x 28 filas. Cada linea se centra a mano:
+//     x = (40 - strlen(texto)) / 2
+// Si se toca un texto HAY QUE recalcular su x, no hay centrado automatico.
+//
+// OJO 1 - GLIFOS VACIOS: font_tmnt_arcade.png tiene los 95 tiles de ASCII
+// 32..126, pero varios estan EN BLANCO y se dibujan como un espacio:
+//     # $ % & * + / < = > @ [ \ ] ^ _ ` { | }
+// Por eso la barra de "2D Assets / Background Artist" va como guion y el
+// separador "* * *" que habia antes no se veia (se saco).
+// Disponibles: letras, digitos y  ! " ' ( ) , - . : ; ?
+//
+// OJO 2 - INTERLINEADO: los glifos ocupan las 8 filas del tile, no tienen
+// margen. Dos lineas en filas consecutivas se tocan. Van todas de dos en dos
+// (2, 4, 6, ...): 13 lineas es el maximo que entra asi en las 28 filas.
 // ---------------------------------------------------------------------------
 #define CREDITS_CHAR_DELAY  2   // Más rápido que el título (hay mucho texto)
 #define SGDK_HOLD_SECS   4   // Segundos con el texto completo en pantalla
@@ -2064,19 +2083,22 @@ SceneId showSGDKIntro() {
 
     // Líneas centradas en las 40 columnas de pantalla: x = (40 - len) / 2
     static const struct { const char* text; u16 x; u16 y; } lines[] = {
-        // --- Español ---
-        { "ESTE JUEGO FUE CREADO CON SGDK",          5,  4 },
-        { "SGDK ES OBRA DE STEPHANE DALLONGEVILLE",  1,  6 },
-        { "GRACIAS A NAPALM",                       12,  8 },
-        { "POR EL RIPEO DE LOS SPRITES",             6,  9 },
-        { "DESARROLLADO POR GUSTAVO VALENZUELA",     2, 11 },
-        // --- Separador ---
-        { "* * *",                                  17, 14 },
-        // --- English ---
-        { "THIS GAME WAS MADE WITH SGDK",            6, 17 },
-        { "SGDK BY STEPHANE DALLONGEVILLE",          5, 19 },
-        { "THANKS TO NAPALM FOR THE SPRITE RIPS",    2, 21 },
-        { "DEVELOPED BY GUSTAVO VALENZUELA",         4, 23 },
+        //   texto                                     x   y     len
+        { "CREDITS",                                  16,  2 },  //  7
+        // --- Equipo ---
+        { "GUSTAVO VALENZUELA",                       11,  4 },  // 18
+        { "LEAD DEVELOPER - PROGRAMMER (SGDK)",        3,  6 },  // 34
+        { "AND GRAPHICS ADAPTATION",                   8,  8 },  // 23
+        { "ROBSON RICARDO",                           13, 10 },  // 14
+        { "2D ASSETS - BACKGROUND ARTIST",             5, 12 },  // 29
+        { "STEPHANE DALLONGEVILLE",                    9, 14 },  // 22
+        { "CREATOR OF SGDK",                          12, 16 },  // 15
+        { "(SEGA GENESIS DEVELOPMENT KIT)",            5, 18 },  // 30
+        // --- Ripeadores de sprites de la comunidad ---
+        { "SPRITE RIPS BY THE COMMUNITY",              6, 20 },  // 28
+        { "ENSCRIPTURE - NAPALM - MONFRIEZ",           4, 22 },  // 31
+        { "T0MISAURUS - SOMETHINGEVIL",                7, 24 },  // 26
+        { "EASTX - DEATHBRINGER",                     10, 26 },  // 20
     };
     const u16 numLines = sizeof(lines) / sizeof(lines[0]);
 
@@ -2217,15 +2239,29 @@ SceneId showScene11Title() {
     }
 
     // Mantener el texto completo 2 segundos (60 fps NTSC / 50 fps PAL)
+    //
+    // (19/09) Acá también se APAGA el tema de la cinemática. Viene sonando
+    // desde la mitad de la cinemática del rescate con XGM2_setLoopNumber(0),
+    // o sea una sola pasada: cuando el VGM llega al final el driver deja de
+    // sonar pero sigue cargado, así que en cuanto XGM2_isPlaying() da FALSE
+    // se lo para de verdad. El flag evita mandarle el comando al Z80 en cada
+    // frame una vez que ya está parado.
+    bool musicOff = FALSE;
     u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 2;
     while (timer > 0) {
         timer--;
+        if (!musicOff && !XGM2_isPlaying()) { XGM2_stop(); musicOff = TRUE; }
         if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
         SYS_doVBlankProcess();
     }
 
     // Restaurar la fuente por defecto de SGDK para el resto del juego
     VDP_loadFont(&font_default, DMA);
+
+    // IMPORTANTE: la cinemática dejó el driver en "una sola pasada". El nivel
+    // llama a playMusicVol(music_level1) SIN tocar el loop, así que si no se
+    // restaura acá el tema del nivel sonaría una vez y se cortaría.
+    XGM2_setLoopNumber(-1);
 
     clearScene();
     return SCENE_1_1;

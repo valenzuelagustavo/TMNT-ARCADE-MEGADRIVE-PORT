@@ -108,7 +108,12 @@
                                    // El TNT sale en el frame 11 (ver
                                    // ENEMY_TNT_RELEASE_TIMER).
 #define ENEMY_ANIM_MANHOLE    17   // (18/09) Salir por la ALCANTARILLA (6f).
-                                   // Declarada; todavia sin usar.
+                                   // (19/09) EN USO en el 2-1: el morado sale
+                                   // de la boca de tormenta y tira la TAPA.
+                                   // f0 = solo la tapa en el piso (el soldier
+                                   // todavia esta abajo), f1-f3 la levanta,
+                                   // f4 la tira (lineas de movimiento, ya sin
+                                   // tapa), f5 se recompone.
 
 // ---------------------------------------------------------------------------
 // Animaciones del foot soldier NARANJA (orden de filas en foot_soldier_orange.png).
@@ -319,6 +324,42 @@
 // 104 - 88 = 16.
 #define ENEMY_TNT_TIME          104   // 13 frames x 8
 #define ENEMY_TNT_RELEASE_TIMER  16   // valor del timer en el que sale el TNT
+
+// --- Salida por la ALCANTARILLA (19/09) ------------------------------------
+// La anim 17 son 6 frames. A diferencia del resto del sheet NO se reproduce
+// sola: el frame lo elige manholeStep() a partir del timer (por eso el spawn
+// hace SPR_setAutoAnimation(FALSE)). Hacen falta tres tramos con duraciones
+// distintas:
+//
+//   f0            la tapa quieta en el piso, el soldier todavia abajo
+//   f1 SOSTENIDO  el SALTO de salida: sube, cae y aterriza unos px por
+//                 delante de la boca (pedido de Gustavo, 19/09)
+//   f2..f5        la tirada propiamente dicha, 8 ticks cada uno
+//
+// La tapa sale de las manos entre el f3 (brazos arriba, la tapa todavia
+// dibujada) y el f4 (agachado, lineas de movimiento, ya sin tapa): o sea al
+// empezar el f4. Con el timer contando hacia ATRAS eso cae justo cuando quedan
+// dos frames de 8 ticks -> 16.
+#define ENEMY_MANHOLE_F0_TIME        8   // f0
+#define ENEMY_MANHOLE_HOP_TIME      24   // f1 sostenido (el salto)
+#define ENEMY_MANHOLE_REST_TIME     32   // f2..f5, 4 x 8
+#define ENEMY_MANHOLE_TIME          (ENEMY_MANHOLE_F0_TIME  + \
+                                     ENEMY_MANHOLE_HOP_TIME + \
+                                     ENEMY_MANHOLE_REST_TIME)   // 64
+#define ENEMY_MANHOLE_RELEASE_TIMER 16   // valor del timer en el que sale la tapa
+
+// El salto de salida. Todo esto vive en jumpZ, que es altura PURAMENTE VISUAL:
+// la lane (e->y) no se toca en ningun momento, asi que no hay forma de que el
+// soldier quede fuera del area caminable (clampToWalk no teletransporta: si la
+// posicion no entra, revierte -- y un enemigo spawneado fuera de la calle se
+// queda clavado para siempre).
+//
+// El truco del aterrizaje "por delante de la boca": se lo spawnea ya en la
+// lane FINAL (la del agujero + HOP_DROP) y se arranca con jumpZ = HOP_DROP,
+// que lo dibuja exactamente sobre el agujero. Durante el salto ese offset baja
+// a 0, asi que termina posado HOP_DROP px mas abajo sin haber movido la lane.
+#define ENEMY_MANHOLE_HOP_APEX      24   // px que se eleva en el salto
+#define ENEMY_MANHOLE_HOP_DROP      14   // px por debajo del agujero donde cae
 #define ENEMY_GRAB_RANGE       44   // Distancia (centro de frame a centro) para agarrar por la espalda
 // Agarre por la espalda: distancia centro-a-centro al sostener al jugador
 // (el soldier queda justo detrás de la espalda del jugador agarrado).
@@ -416,6 +457,9 @@ typedef struct {
                               // Se apaga al soltarlo: no se repite nunca.
     s16         tntLandX;     // punto FIJO de caida del cartucho (mundo)
     s16         tntLandY;
+    u8          lidThrow;     // 1 = spawn guionado de ALCANTARILLA: reproduce la
+                              // anim 17 y suelta la tapa en el frame 4. Se apaga
+                              // al soltarla: no vuelve a tirar nunca.
     u8          grabTarget;   // Jugador agarrado (0/1) durante ENEMY_STATE_GRAB
     Player*     grabbed;      // Puntero al jugador agarrado (liberado en damageEnemy)
     u8          grabTimer;    // Tope de seguridad del agarre (frames restantes)
@@ -492,6 +536,11 @@ void initEnemySomersaultSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u
 // como un enemigo normal. No vuelve a tirar en toda la pelea.
 void initEnemyTntSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette,
                        s16 landX, s16 landY);
+// Salida por la ALCANTARILLA (19/09, anim 17): el morado sale de la boca de
+// tormenta, tira la TAPA en direccion 'dir' y al terminar la animacion pasa a
+// CHASE como cualquier otro. 'spawnX' es el borde izquierdo del frame y 'y' la
+// lane (pies), o sea el centro del agujero: ver LVL21_MANHOLE_* en level2_1.c.
+void initEnemyManholeSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette);
 // Entrada saltando del BLANCO (arco de 107px, sin hitbox) -> ver enemy.c
 void initEnemyWhiteJumpSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette);
 
@@ -576,6 +625,10 @@ void tntLaunch(s16 x, s16 y, s8 dir, s16 landX, s16 landY, u8 palette);
 // Un paso de vuelo/explosión. Devuelve TRUE el frame EXACTO en que toca el
 // piso (para que la escena toque el SFX). Llamar una vez por frame.
 bool tntUpdate(s16 camX);
+// (19/09) Igual, pero con scroll VERTICAL. El 1-1 no lo tiene y usa la de
+// arriba (que es esta con camY = 0); el 2-1 baja la esquina en diagonal y sin
+// esto el cartucho y la explosion quedan clavados al mundo, no a la pantalla.
+bool tntUpdateEx(s16 camX, s16 camY);
 
 // TRUE mientras la explosión está en su ventana de daño. La escena la usa para
 // castigar a los jugadores que estén dentro del radio.
@@ -607,5 +660,53 @@ void tntReleaseAll(void);
 #define TNT_BLAST_RADIUS_X    40   // media anchura del radio de daño
 #define TNT_BLAST_RADIUS_Y    26   // media profundidad (lanes)
 #define TNT_BLAST_DMG          2   // barras de vida que saca
+
+// ---------------------------------------------------------------------------
+// TAPA VOLADORA de la alcantarilla (19/09)
+// ---------------------------------------------------------------------------
+// El proyectil del morado que sale por la boca de tormenta. A diferencia del
+// TNT no describe una parabola ni tiene punto de caida: es un TIRO RECTO por
+// el eje X a la altura del pecho, que viaja hasta salir de camara y ahi se
+// libera. Saca UNA barra al que toque.
+//
+// Convencion de coordenadas igual que el TNT:
+//   x = X de mundo del CENTRO de la tapa
+//   y = LANE (profundidad): la del que la tiro, y no cambia en todo el vuelo
+//   z = altura VISUAL sobre el piso, constante (no cae)
+//
+// El pool es de LID_MAX. Con las bocas de tormenta separadas como estan, en la
+// practica nunca hay mas de una en el aire; el pool es para no depender de eso
+// (y cada tapa cuesta 12 tiles de VRAM de sprites, asi que tampoco conviene
+// agrandarlo por las dudas).
+void lidInit(void);
+
+// Tira la tapa desde (x, y): x = borde izquierdo del frame del que tira,
+// y = su lane. 'palette' es la linea del morado (PAL2): la tapa la comparte.
+void lidLaunch(s16 x, s16 y, s8 dir, u8 palette);
+
+// Un paso de vuelo de todas las tapas activas. Libera las que salieron de
+// camara. Llamar una vez por frame.
+void lidUpdate(s16 camX, s16 camY);
+
+// TRUE si alguna tapa activa se solapa con el CUERPO del jugador -- centro
+// (px), pies (py) y media anchura 'halfW'. Si outX no es NULL devuelve ahi la
+// X de la tapa que pego, para el retroceso. La tapa NO se consume: sigue de
+// largo como en el arcade; de que un jugador no se coma dos golpes seguidos
+// se encarga la invencibilidad de playerCanBeHit().
+bool lidHits(s16 px, s16 py, s16 halfW, s16* outX);
+
+void lidReleaseAll(void);
+
+#define LID_MAX            2   // tapas simultaneas en el aire
+#define LID_W             32   // ancho del sprite (tapa_voladora.png)
+#define LID_H             24   // alto
+#define LID_SPEED          5   // px de mundo por frame
+#define LID_HAND_Z        46   // altura de salida sobre los pies del que tira
+#define LID_HAND_DX       46   // x de las manos dentro del frame de 64px
+                               // (mirando a la derecha; espejado si dir < 0)
+#define LID_HIT_HALF_W    13   // media anchura de la hitbox (el arte son 32px
+                               // pero los bordes son la elipse en perspectiva)
+#define LID_HIT_RADIUS_Y  20   // tolerancia de lane para conectar
+#define LID_MARGIN        24   // px fuera de pantalla antes de liberarla
 
 #endif

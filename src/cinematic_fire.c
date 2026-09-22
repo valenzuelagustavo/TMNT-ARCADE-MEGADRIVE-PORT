@@ -162,13 +162,21 @@
 #define T_PASS_NEAR           8   // ...y con el grande, hasta salir de cuadro
 #define T_PASS  (T_PASS_TINY + T_PASS_FAR + T_PASS_NEAR)   // 23 por tortuga
 
-#define T_C_FALL             16   // Escena C: duracion de la caida (la
+// (19/09) Escena C acortada a pedido de Gustavo: caen y caminan mas rapido.
+// Antes: FALL 16 / DOWN 12 / GETUP 10 / WALK 30 / HOLD 12 y arranques
+// {6,26,58,62} -> 142 ticks = 4,73 s. Ahora son 102 ticks = 3,40 s.
+// OJO al tocar estos numeros: la caminata recorre una distancia FIJA
+// (C_LAND -> C_DOOR, 84 px), asi que si se baja T_C_WALK hay que bajar
+// tambien C_WALK_ANIM_PERIOD o la tortuga patina (mueve los pies mas lento
+// de lo que avanza). 84/22 = 3,8 px por tick = 1,9 px por frame de 60 Hz,
+// que es el paso que tiene en el juego.
+#define T_C_FALL             12   // Escena C: duracion de la caida (la
                                   // diagonal es mas larga que la vertical
                                   // que habia antes)
-#define T_C_DOWN             12   // Mike tirado en el piso
-#define T_C_GETUP            10   // ...levantandose (2 frames x 5)
-#define T_C_WALK             30   // Caminata desde el punto de caida al vano
-#define T_C_HOLD             12   // Respiro con la azotea vacia antes de cortar
+#define T_C_DOWN              8   // Mike tirado en el piso
+#define T_C_GETUP             8   // ...levantandose (2 frames x 4)
+#define T_C_WALK             22   // Caminata desde el punto de caida al vano
+#define T_C_HOLD              8   // Respiro con la azotea vacia antes de cortar
 
 #define T_FADE_OUT           30   // Fundido final (en frames de 30 fps)
 #define T_BLACK_HOLD         12
@@ -316,8 +324,11 @@ static const s16 passDrift[4] = { 0, 20, -16, 10 };
 // Las hojas vienen con `time 5` (12 fps a 60 Hz). Como la cinematica corre a
 // 30, la animacion se maneja a mano para que camine al mismo ritmo que en el
 // juego en vez de a la mitad.
-#define C_WALK_ANIM_PERIOD   3   // Frames de cinematica por frame de caminata
-#define C_GETUP_ANIM_PERIOD  5
+// (19/09) Bajados de 3 y 5 a 2 y 4 junto con T_C_WALK/T_C_GETUP: la caminata
+// se acorto de 30 a 22 ticks, asi que las piernas tienen que ir en la misma
+// proporcion o el sprite patina.
+#define C_WALK_ANIM_PERIOD   2   // Frames de cinematica por frame de caminata
+#define C_GETUP_ANIM_PERIOD  4
 
 // Orden de llegada pedido: Leo, Don, Raph, Mike. Los indices son los del juego
 // (0=Leo 1=Mike 2=Don 3=Raph, igual que personajeSeleccionado).
@@ -325,7 +336,13 @@ static const s16 passDrift[4] = { 0, 20, -16, 10 };
 static const u8  arriveChar[C_ARRIVALS]  = {  0,  2,  3,  1 };
 // Raph (3ra) demora un poco mas, y Mike arranca 4 frames despues que ella:
 // como la caida dura lo mismo para todas, le cae justo encima al aterrizar.
-static const s16 arriveStart[C_ARRIVALS] = {  6, 26, 58, 62 };
+// (19/09) Comprimidos de {6,26,58,62} al acortar la escena. El escalonado
+// tiene un limite: si dos llegadas se juntan de mas hay TRES tortugas vivas
+// a la vez mas tiempo del que aguanta ROOF_SPR_TILES_C y SPR_addSprite
+// empieza a devolver NULL (en Megadrive eso NO crashea, devuelve basura).
+// Con estos numeros las ventanas son [4,38] [18,52] [40,74] [44,94]: el pico
+// sigue siendo de 3 simultaneas, igual que antes.
+static const s16 arriveStart[C_ARRIVALS] = {  4, 18, 40, 44 };
 // Solo Mike queda tirado; Raph amortigua el golpe y sigue caminando.
 static const u8  arriveDown[C_ARRIVALS]  = {  0,  0,  0,  1 };
 
@@ -645,12 +662,14 @@ static bool roofSceneA(void) {
             // numero de loops en el instante del play (misma trampa que
             // music_credits y music_scene_clear).
             //
-            // CON LOOP. Medido sobre la grabacion del emulador: desde aca
-            // hasta que arranca el nivel pasan 18,4 s y el VGM dura 15,08 s,
-            // asi que sin loop quedaban 3,1 s de silencio en la cola del
-            // titulo. El tema trae punto de loop (loopSamples = 470400 =
-            // 10,67 s), asi que repite solo y no se nota.
-            XGM2_setLoopNumber(-1);
+            // (19/09) SIN LOOP, a pedido de Gustavo: suena UNA sola vez y se
+            // apaga. Antes iba con loop infinito porque desde aca hasta que
+            // arranca el nivel pasan ~17 s y el VGM dura 15,08 s, o sea que
+            // quedan un par de segundos de silencio en la cola del titulo;
+            // pero con loop se escuchaba el tema volver a empezar, que es
+            // peor. El apagado de verdad lo hace showScene11Title cuando
+            // XGM2_isPlaying() da FALSE (ver ahi).
+            XGM2_setLoopNumber(0);
             playMusicVol(music_intro_arcade, CINEMATIC_MUSIC_VOL);
         } else if (f == T_BAL_HANG_OUT) {
             SPR_setVisibility(baloonSpr, HIDDEN);

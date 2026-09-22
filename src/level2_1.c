@@ -89,8 +89,11 @@
 //       al piso) y la partida real va pegada al techo. El generador ya no
 //       simula un camino: calcula la envolvente de todos los posibles.
 //
-// PENDIENTE A PROPOSITO: los foot soldiers spawnean al azar solo para probar
-// (sin oleadas guionadas) y no hay musica de nivel: falta el VGM del Stage 2.
+// (19/09) YA NO HAY SPAWN AL AZAR: los enemigos son los que Gustavo marco
+// sobre el arte -- cinco bocas de tormenta y un tirador de dinamita. Ver el
+// bloque "ENEMIGOS GUIONADOS" mas abajo.
+//
+// PENDIENTE A PROPOSITO: no hay musica de nivel, falta el VGM del Stage 2.
 // ===========================================================================
 
 #include <genesis.h>
@@ -161,16 +164,127 @@ extern u8 cantidadJugadores;
 // caer a la calle. Ver walkable()/playerFallTo().
 
 // ---------------------------------------------------------------------------
-// Foot soldiers al azar (provisorio, para testear)
+// ENEMIGOS GUIONADOS (19/09)
 // ---------------------------------------------------------------------------
-// No hay oleadas guionadas todavia: cada LVL21_SPAWN_EVERY px de avance de
-// camara entra un soldier por un costado de la pantalla, a una profundidad
-// sorteada dentro del poligono de la calle. El tope simultaneo lo fija la VRAM
-// de sprites (ver SPR_initEx mas abajo), no el diseno.
-#define LVL21_SPAWN_EVERY    220   // px de avance entre spawns
-#define LVL21_MAX_ALIVE_1P     3   // tope de soldiers vivos con 1 jugador
-#define LVL21_MAX_ALIVE_2P     2   // ... y con 2 (cada tortuga come 169 tiles)
-#define LVL21_SPAWN_MARGIN    72   // px fuera de pantalla por donde entran
+// (19/09) SE ELIMINO el spawn al azar que habia (un soldier cada 220px de
+// avance de camara, entrando por un costado). Gustavo marco sobre el arte las
+// posiciones reales y mientras se prueban no tiene que haber nada mas en
+// pantalla que las enturbie.
+//
+// BOCAS DE TORMENTA. En el mapa hay cinco alcantarillas por las que sale un
+// foot soldier morado con la anim 17: levanta la tapa y la tira en linea recta
+// hacia la tortuga. Cada una tiene:
+//
+//   holeX/holeY  centro del agujero MEDIDO SOBRE EL ARTE
+//                (res/images/lvl_2_scene/"Stage 2-_16_colors_v2.png"; las
+//                coordenadas del PNG son directamente las de mundo, el
+//                generador no aplica ningun offset).
+//   trigX        X de PIES del jugador que la dispara.
+//   dir          +1 tira la tapa a la derecha, -1 a la izquierda.
+//
+// La PRIMERA es la unica que ataca POR LA ESPALDA: se dispara cuando los
+// jugadores YA PASARON la tapa (trigX 283 > holeX 96), asi que la tapa sale
+// hacia la derecha. Las otras cuatro se disparan cuando el jugador ESTA POR
+// LLEGAR, con LVL21_MANHOLE_LEAD px de anticipo, y tiran hacia la izquierda.
+//
+// POR QUE 120 PX DE ANTICIPO. La camara sigue al lider con una franja muerta de
+// CAM_DEAD_ZONE_RIGHT (120) medida sobre el BORDE del frame de 104px, o sea
+// que en marcha camX = piesLider - 172. La boca de tormenta cae entonces en
+//     pantallaX = holeX - camX = LVL21_MANHOLE_LEAD + 172
+// Con 120 eso da 292: el frame del soldier (64px, centrado) ocupa 260..324, o
+// sea que se ve salir entero salvo 4px. Subirlo de 148 lo deja FUERA de cuadro
+// cuando dispara.
+// (19/09) Era 96. Se subio 24 al agregarle el salto de salida: la animacion
+// paso de 48 a 64 ticks, y esos 16 frames de mas son 32px que el jugador
+// avanza antes de que salga la tapa. Con 120 la distancia a la que tira la
+// tapa vuelve a ser la de antes.
+#define LVL21_MANHOLES        5
+#define LVL21_MANHOLE_LEAD  120   // px de anticipo (bocas 2..5)
+
+// De la coordenada del agujero a la del enemigo:
+//   X  el frame del morado son 64px y la tapa esta centrada en el -> -32
+//   Y  'y' es la LANE (los PIES). En el frame 0 la tapa ocupa y=62..79, o sea
+//      18px pegados al borde de abajo; para que caiga centrada en el agujero
+//      los pies van 10px por debajo de su centro.
+//      OJO: al enemigo se le pasa la lane FINAL, o sea con ENEMY_MANHOLE_HOP_DROP
+//      ya sumado -- sale de un salto y aterriza por delante de la boca. Mientras
+//      dura el salto el sprite se dibuja mas arriba con jumpZ, que es altura
+//      visual y no toca el area caminable (ver enemy.h).
+#define LVL21_MANHOLE_DX    (-(ENEMY_SPRITE_W_PURPLE / 2))
+#define LVL21_MANHOLE_DY      10
+
+// La tapa CERRADA que se ve mientras el soldier todavia no salio. El arte del
+// fondo tiene las bocas de tormenta ABIERTAS (elipse oscura), asi que sin esto
+// la tapa aparece de la nada en el frame 0 de la animacion. Se dibuja con
+// lid_sprite (12 tiles) en vez de con un foot_soldier congelado (80 tiles):
+// es el mismo dibujo y cuesta la sexta parte de VRAM.
+// Solo se instancia la de las bocas que estan cerca de camara.
+#define LVL21_MANHOLE_ARM_MARGIN  64   // px fuera de pantalla que siguen armadas
+
+// EL QUE TIRA DINAMITA. Misma logica que el de la escalera del 1-1 (ver
+// TNT_THROWER_* en scenes.c): sale con la anim 16, tira UN cartucho a un punto
+// FIJO y despues persigue como cualquiera. El flip va en la MISMA direccion
+// que en el 1-1 (dir = +1): la anim de la dinamita esta dibujada mirando a la
+// IZQUIERDA, al reves que el resto del sheet, asi que +1 es la que hace que
+// mire hacia donde vienen las tortugas y el cartucho salga hacia la izquierda.
+//
+// Las distancias al punto de caida son las mismas del 1-1, medidas desde el
+// CENTRO del que tira: -99 px en X y +23 en profundidad.
+//
+// (19/09) Corrido un tile a la IZQUIERDA y dos tiles ARRIBA, a ojo de Gustavo
+// sobre la captura: 379 -> 371 -> 363 en X, y los 16px de alto van por
+// LVL21_TNT_Z, NO bajandole la lane. Motivo: la tabla de limites da
+// walkTop = 160 en toda esa cuadra, o sea que una lane de 155 cae DENTRO de la
+// pared -- y clampToWalk no teletransporta, revierte: el soldier quedaria
+// clavado ahi para siempre en cuanto intentara moverse. jumpZ es altura
+// visual, no toca el area caminable, y ademas el bloque de SPAWNING de
+// enemy.c ya lo baja a 0 despues de tirar el cartucho, o sea que "baja del
+// portal" a la calle -- exactamente lo mismo que hace el de la escalera del
+// 1-1 con TNT_THROWER_Z.
+#define LVL21_TNT_CENTER_X   363   // lo que marca la flecha sobre el arte, -1 tile
+#define LVL21_TNT_Y          171   // pies (la punta de la flecha) -- lane REAL
+#define LVL21_TNT_Z           16   // 2 tiles de alto visual (el vano del portal)
+#define LVL21_TNT_X         (LVL21_TNT_CENTER_X - ENEMY_SPRITE_W_PURPLE / 2)
+#define LVL21_TNT_LAND_X    (LVL21_TNT_CENTER_X - 99)
+#define LVL21_TNT_LAND_Y    (LVL21_TNT_Y + 23)
+#define LVL21_TNT_TRIG_X    (LVL21_TNT_CENTER_X - 96)
+#define LVL21_TNT_DIR        (+1)
+#define LVL21_TNT_DMG_BARS    2    // igual que en el 1-1
+
+// --- CAERSE POR UNA BOCA DE TORMENTA DESTAPADA (20/09) ---------------------
+// Una vez que el soldier salio y tiro la tapa, el agujero queda ABIERTO y es
+// una trampa: la tortuga que lo pise se cae adentro, pierde
+// PLAYER_MANHOLE_DMG barras y se come la secuencia de la anim 21 (ver
+// player.h). Antes de que salga el soldier la tapa esta puesta y no pasa nada,
+// asi que la trampa solo existe con mhState == MH_DONE.
+//
+// SALTANDO NO SE CAE: playerCanBeHit() devuelve FALSE en STATE_JUMPING, y
+// playerManholeFall se apoya en eso. Sale gratis y es la mecanica del arcade.
+//
+// El agujero mide 31x18 px. La caja de la trampa es un poco mas angosta en X
+// (que haya que pisarlo de verdad) y un poco mas generosa en Y (la lane se
+// mueve de a 2px y con 9 se podia cruzar en diagonal sin tocarlo).
+#define LVL21_HOLE_HALF_W    12
+#define LVL21_HOLE_HALF_H    10
+// Donde reaparece al salir: los mismos px por debajo del centro del agujero
+// para las cinco. Tiene que ser mayor que LVL21_HOLE_HALF_H o vuelve a caer en
+// el acto -- que es justo lo que pidio Gustavo evitar.
+#define LVL21_HOLE_OUT_DY    22
+
+// Globo "Duuuh, who put the light out": se crea cuando una tortuga toca fondo
+// y se suelta cuando empieza a salir. Uno solo aunque caigan las dos (son 48
+// tiles de VRAM de sprites y el voice over es uno).
+#define LVL21_BUBBLE_W       96
+#define LVL21_BUBBLE_H       32
+#define LVL21_BUBBLE_DY     (-40)   // borde superior respecto del centro del agujero
+#define LVL21_BUBBLE_MARGIN    4    // no se pega a los bordes de pantalla
+
+// Tope de foot soldiers vivos a la vez. No es diseno: es VRAM de sprites (ver
+// la cuenta del SPR_initEx mas abajo). Un spawn guionado que llegue con el
+// tope lleno NO se pierde: queda PENDIENTE y entra en cuanto se libera un
+// lugar, asi no se saltea un tramo del guion por una casualidad de timing.
+#define LVL21_MAX_ALIVE_1P     3
+#define LVL21_MAX_ALIVE_2P     2
 
 // Fin del nivel: X de PIES a partir del cual, con la camara en su tope, se
 // da por terminado el nivel (el auto quemado del final).
@@ -227,6 +341,32 @@ extern u8 cantidadJugadores;
 // (17/09) La tabla la genera el script junto con el .res: la cantidad de
 // secciones cambia con SEC_SPAN_PX y escrita a mano se desincronizaba.
 #include "level2_1_sections.h"
+
+// ---------------------------------------------------------------------------
+// Tabla de bocas de tormenta (coordenadas medidas sobre el PNG del nivel)
+// ---------------------------------------------------------------------------
+typedef struct {
+    s16 holeX, holeY;   // centro del agujero, en pixeles de mundo
+    s16 trigX;          // X de PIES del lider que la dispara
+    s8  dir;            // +1 = tira la tapa a la derecha, -1 = a la izquierda
+} Manhole;
+
+static const Manhole manholes[LVL21_MANHOLES] = {
+    //  holeX holeY  trigX   dir
+    {     96,  189,   283,  +1 },   // POR LA ESPALDA: se dispara ya pasada
+    {    480,  189,   384,  -1 },   // 480 - 96
+    {    768,  157,   672,  -1 },
+    {   1240,  205,  1144,  -1 },
+    {   2456,  589,  2360,  -1 },
+};
+
+// Estado de cada boca a lo largo del nivel.
+#define MH_DORMANT   0   // todavia no la disparo nadie
+#define MH_PENDING   1   // disparada, esperando lugar en el pool de enemigos
+#define MH_DONE      2   // el soldier ya salio (o murio): no vuelve
+
+static u8      mhState[LVL21_MANHOLES];
+static Sprite* mhLid[LVL21_MANHOLES];      // tapa cerrada (solo cerca de camara)
 
 static u16 bgVramBase;                     // primer tile de VRAM del ring
 static u16 secBase[LVL21_SECTIONS];        // offset dentro del ring, por seccion
@@ -420,15 +560,12 @@ static bool walkable(s16 fx, s16 fy, bool air) {
 
 #define FOOT_DX  (PLAYER_SPRITE_W / 2)   // de x (borde del frame) al eje de los pies
 
-// Para un X de pies dado, devuelve una Y valida dentro de la calle (o -1 si esa
-// columna no tiene calle). Se usa para soltar a los foot soldiers en un punto
-// caminable: la calle se corre con X, asi que la profundidad buena depende de X.
-static s16 streetFeetY(s16 fx, u16 seed) {
-    s16 lo = walkTopAt(fx), hi = walkBotAt(fx);
-    if (lo > hi) return -1;
-    if (hi - lo < 8) return lo;
-    return lo + 4 + (s16)(seed % (u16)(hi - lo - 7));
-}
+static inline s16 absS16(s16 v) { return (v < 0) ? (s16)-v : v; }
+
+// (19/09) Aca vivia streetFeetY(fx, seed), que devolvia una profundidad valida
+// sorteada para la columna fx. La usaba SOLO el spawn al azar, que se saco al
+// pasar a enemigos guionados. Si mas adelante hacen falta oleadas que entren
+// por los costados, esta en el historial de git (commit del 19/09).
 
 // Recorta una posicion al area caminable. Se llama DESPUES de update*, con la
 // posicion que tenia antes: si el movimiento completo no entra, se prueba solo
@@ -483,6 +620,53 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
         }
     }
     *wasAir = isPlayerJumping(p);
+}
+
+// ---------------------------------------------------------------------------
+// Bocas de tormenta: la tapa cerrada y el disparo del soldier
+// ---------------------------------------------------------------------------
+// La tapa cerrada existe SOLO mientras la boca esta cerca de camara. Son 12
+// tiles cada una y con las distancias de la tabla nunca hay mas de dos armadas
+// a la vez, pero igual no tiene sentido pagarlas durante todo el nivel.
+static void mhReset(void) {
+    for (u16 i = 0; i < LVL21_MANHOLES; i++) {
+        mhState[i] = MH_DORMANT;
+        mhLid[i]   = NULL;
+    }
+}
+
+static void mhReleaseLid(u16 i) {
+    if (mhLid[i]) SPR_releaseSprite(mhLid[i]);
+    mhLid[i] = NULL;
+}
+
+static void mhReleaseAll(void) {
+    for (u16 i = 0; i < LVL21_MANHOLES; i++) mhReleaseLid(i);
+}
+
+// Crea / mueve / libera las tapas cerradas segun donde esta la camara.
+static void mhUpdateLids(s16 camX, s16 camY) {
+    for (u16 i = 0; i < LVL21_MANHOLES; i++) {
+        if (mhState[i] != MH_DORMANT) { mhReleaseLid(i); continue; }
+
+        s16 sx = (s16)(manholes[i].holeX - camX);
+        bool cerca = (sx > -(LID_W / 2 + LVL21_MANHOLE_ARM_MARGIN)) &&
+                     (sx <  (s16)(SCREEN_PIXEL_WIDTH + LID_W / 2
+                                  + LVL21_MANHOLE_ARM_MARGIN));
+        if (!cerca) { mhReleaseLid(i); continue; }
+
+        if (!mhLid[i])
+            mhLid[i] = SPR_addSprite(&lid_sprite, 0, 0,
+                                     TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        if (!mhLid[i]) continue;     // sin VRAM: se ve la boca abierta, nada mas
+
+        SPR_setPosition(mhLid[i], (s16)(sx - LID_W / 2),
+                        (s16)(manholes[i].holeY - LID_H / 2 - camY));
+        // Esta EN EL PISO: que cualquier cosa que pise la misma lane le pase
+        // por encima (depth mayor = mas atras).
+        SPR_setDepth(mhLid[i],
+                     (s16)(-(manholes[i].holeY + LVL21_MANHOLE_DY) + 2));
+    }
 }
 
 // ===========================================================================
@@ -583,10 +767,17 @@ SceneId showScene21() {
         eOnPlat[i] = FALSE;
         eClimb[i]  = 0;
     }
-    const u16 maxAlive = dosJugadores ? LVL21_MAX_ALIVE_2P : LVL21_MAX_ALIVE_1P;
-    (void)dosJugadores;
-    s16 nextSpawnAt = LVL21_SPAWN_EVERY;   // progreso de camara del proximo spawn
-    u16 rng = 0x2B7D;                      // LFSR de 16 bits: el VDP no tiene random
+    u16 maxAlive = dosJugadores ? LVL21_MAX_ALIVE_2P : LVL21_MAX_ALIVE_1P;
+
+    // Guion: bocas de tormenta + el tirador de dinamita. tntInit/lidInit dejan
+    // los dos proyectiles en OFF (son estado de modulo, no del stack: si una
+    // partida anterior murio con algo en el aire hay que limpiarlo).
+    mhReset();
+    tntInit();
+    lidInit();
+    u8 tntState   = MH_DORMANT;            // el tirador usa los mismos estados
+    u8 tntHitMask = 0;                     // un golpe de explosion por jugador
+    Sprite* lightBubble = NULL;            // globo de la caida por la alcantarilla
 
     // Revelado: PAL0 el fondo, PAL1 la de las tortugas (la dejo cargada
     // initPlayer), PAL2 la de los foot soldiers.
@@ -615,9 +806,27 @@ SceneId showScene21() {
     bool running = TRUE;
     while (running) {
         for (u8 k = 0; k < nPl; k++) {
+            // Dentro del pozo la secuencia corre sola y NO se lee input.
+            if (playerInManhole(pls[k])) { playerManholeStep(pls[k]); continue; }
+
             s16 prevX = pls[k]->x, prevY = pls[k]->y;
             updatePlayer(pls[k]);
             playerStepStreet(pls[k], prevX, prevY, &plOnPlat[k], &plWasAir[k]);
+
+            // ¿Piso una boca de tormenta ya destapada? (saltando no cuenta:
+            // playerManholeFall se apoya en playerCanBeHit, que descarta
+            // STATE_JUMPING).
+            if (plOnPlat[k]) continue;              // arriba de la cornisa no hay pozos
+            s16 fx = pls[k]->x + FOOT_DX, fy = pls[k]->y;
+            for (u16 m = 0; m < LVL21_MANHOLES; m++) {
+                if (mhState[m] != MH_DONE) continue;            // todavia tapada
+                if (absS16((s16)(fx - manholes[m].holeX)) > LVL21_HOLE_HALF_W) continue;
+                if (absS16((s16)(fy - manholes[m].holeY)) > LVL21_HOLE_HALF_H) continue;
+                playerManholeFall(pls[k],
+                                  (s16)(manholes[m].holeX - FOOT_DX),
+                                  (s16)(manholes[m].holeY + LVL21_HOLE_OUT_DY));
+                break;
+            }
         }
 
         // --- Camara ------------------------------------------------------
@@ -681,41 +890,109 @@ SceneId showScene21() {
                 SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
                                 pls[k]->y - PLAYER_FOOT_OFFSET - pls[k]->jumpZ - cameraY);
 
+        // --- Globo "who put the light out" (20/09) -------------------------
+        // Se muestra mientras ALGUNA tortuga esta en el fondo del pozo (fase 2
+        // de la secuencia, el frame vacio). Uno solo aunque caigan las dos: son
+        // 48 tiles de VRAM y el voice over es uno. Se ancla a la tortuga que
+        // cayo, que durante toda la secuencia no se mueve del agujero.
+        {
+            s8 talking = -1;
+            for (u8 k = 0; k < nPl; k++)
+                if (playerManholeSpeaking(pls[k])) { talking = (s8)k; break; }
+
+            if (talking < 0) {
+                if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }
+            } else {
+                if (!lightBubble) {
+                    lightBubble = SPR_addSprite(&light_out_bubble, 0, 0,
+                                                TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+                    // El voice over arranca con el globo, una sola vez.
+                    XGM2_playPCMEx(who_put_light_vo, sizeof(who_put_light_vo),
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                }
+                if (lightBubble) {
+                    s16 bx = (s16)(pls[talking]->x + FOOT_DX - LVL21_BUBBLE_W / 2 - cameraX);
+                    if (bx < LVL21_BUBBLE_MARGIN) bx = LVL21_BUBBLE_MARGIN;
+                    if (bx > (s16)(SCREEN_PIXEL_WIDTH - LVL21_BUBBLE_W - LVL21_BUBBLE_MARGIN))
+                        bx = (s16)(SCREEN_PIXEL_WIDTH - LVL21_BUBBLE_W - LVL21_BUBBLE_MARGIN);
+                    s16 by = (s16)(pls[talking]->y + LVL21_BUBBLE_DY - cameraY);
+                    if (by < LVL21_BUBBLE_MARGIN) by = LVL21_BUBBLE_MARGIN;
+                    SPR_setPosition(lightBubble, bx, by);
+                    SPR_setDepth(lightBubble, SPR_MIN_DEPTH);   // por encima de todo
+                }
+            }
+        }
+
         // --- Foot soldiers -------------------------------------------------
         u16 alive = 0;
         for (u16 i = 0; i < MAX_ENEMIES; i++)
             if (enemies[i].state != ENEMY_STATE_INACTIVE) alive++;
 
-        // Spawn: cada LVL21_SPAWN_EVERY px de avance de camara, si hay lugar.
-        s16 progress = cameraX + cameraY;
-        if (progress >= nextSpawnAt) {
-            nextSpawnAt = progress + LVL21_SPAWN_EVERY;
-            if (alive < maxAlive) {
+        // --- Guion de enemigos (19/09) -------------------------------------
+        // El lider en X es el que dispara los eventos: se mide sobre los PIES,
+        // que es la coordenada con la que estan marcadas las posiciones en el
+        // arte (leadX es el borde del frame de 104px).
+        s16 leadFeetX = leadX + FOOT_DX;
+        for (u8 k = 0; k < nPl; k++) {
+            s16 f = pls[k]->x + FOOT_DX;
+            if (f > leadFeetX) leadFeetX = f;
+        }
+
+        // Bocas de tormenta: pasar a PENDING al cruzar el gatillo y entrar en
+        // cuanto haya lugar en el pool.
+        for (u16 m = 0; m < LVL21_MANHOLES; m++) {
+            if (mhState[m] == MH_DONE) continue;
+            if (mhState[m] == MH_DORMANT) {
+                if (leadFeetX < manholes[m].trigX) continue;
+                mhState[m] = MH_PENDING;
+                mhReleaseLid(m);           // la tapa pasa a ser la del sprite
+            }
+            if (alive >= maxAlive) continue;          // se reintenta el frame que viene
+            for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
+                initEnemyManholeSpawn(&enemies[i],
+                                      (s16)(manholes[m].holeX + LVL21_MANHOLE_DX),
+                                      (s16)(manholes[m].holeY + LVL21_MANHOLE_DY
+                                            + ENEMY_MANHOLE_HOP_DROP),
+                                      manholes[m].dir, PAL2);
+                // La calle no es el pasillo del nivel 1: franja de profundidad
+                // completa, sin pared diagonal, y el ancho real.
+                setEnemyBounds(&enemies[i], LVL21_WALK_Y_MIN, LVL21_WALK_Y_MAX,
+                               0, 0, LVL21_MAP_W * 8);
+                eOnPlat[i] = FALSE;
+                eClimb[i]  = 0;
+                mhState[m] = MH_DONE;
+                alive++;
+                break;
+            }
+        }
+
+        // El tirador de dinamita: mismo mecanismo, un solo evento.
+        if (tntState != MH_DONE) {
+            if (tntState == MH_DORMANT && leadFeetX >= LVL21_TNT_TRIG_X)
+                tntState = MH_PENDING;
+            if (tntState == MH_PENDING && alive < maxAlive) {
                 for (u16 i = 0; i < MAX_ENEMIES; i++) {
                     if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
-                    // LFSR x^16+x^14+x^13+x^11+1: alcanza y sobra para sortear
-                    // el lado de entrada y la profundidad.
-                    rng = (u16)((rng >> 1) ^ (u16)(-(rng & 1) & 0xB400));
-                    bool fromRight = (rng & 1) != 0;
-                    s16  sx = fromRight ? (cameraX + SCREEN_PIXEL_WIDTH + LVL21_SPAWN_MARGIN)
-                                        : (cameraX - LVL21_SPAWN_MARGIN);
-                    // La profundidad se sortea sobre la calle A LA ALTURA del
-                    // jugador, no del punto de entrada: en la diagonal el
-                    // poligono se corre con X y el soldier caeria fuera.
-                    s16 fy = streetFeetY(p1.x + FOOT_DX, rng >> 4);
-                    if (fy < 0) break;             // esa columna no tiene calle
-                    initEnemySpawn(&enemies[i], sx, fy, 48, PAL2,
-                                   ENEMY_TYPE_FOOT_SOLDIER);
-                    // La calle no es el pasillo del nivel 1: franja de
-                    // profundidad completa, sin pared diagonal, y el ancho real.
+                    initEnemyTntSpawn(&enemies[i], LVL21_TNT_X, LVL21_TNT_Y,
+                                      LVL21_TNT_DIR, PAL2,
+                                      LVL21_TNT_LAND_X, LVL21_TNT_LAND_Y);
+                    // Alto del vano del portal: visual, igual que el escalon
+                    // del 1-1. enemy.c lo baja solo despues del lanzamiento.
+                    enemies[i].jumpZ = LVL21_TNT_Z;
                     setEnemyBounds(&enemies[i], LVL21_WALK_Y_MIN, LVL21_WALK_Y_MAX,
                                    0, 0, LVL21_MAP_W * 8);
                     eOnPlat[i] = FALSE;
                     eClimb[i]  = 0;
+                    tntState = MH_DONE;
+                    alive++;
                     break;
                 }
             }
         }
+
+        // Tapas cerradas de las bocas que todavia no salieron.
+        mhUpdateLids(cameraX, cameraY);
 
         separateEnemies(enemies, MAX_ENEMIES);
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -819,6 +1096,42 @@ SceneId showScene21() {
             }
         }
 
+        // --- Proyectiles del guion (19/09) ---------------------------------
+        // Dinamita: mismo bloque que el 1-1, pero con tntUpdateEx porque aca la
+        // camara tambien baja. Devuelve TRUE el frame exacto del impacto.
+        if (tntUpdateEx(cameraX, cameraY))
+            XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+        // Un jugador se come UN solo golpe por explosion: el estallido dura 24
+        // frames quieto, asi que sin la mascara le sacaria una barra por frame.
+        if (tntBlastActive()) {
+            for (u8 k = 0; k < nPl; k++) {
+                if (tntHitMask & (u8)(1 << k)) continue;
+                if (!playerCanBeHit(pls[k])) continue;
+                if (!tntBlastHits(getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                                  PLAYER_BODY_HALF_W)) continue;
+                playerHitBars(pls[k], tntBlastX(), LVL21_TNT_DMG_BARS);
+                tntHitMask |= (u8)(1 << k);
+            }
+        } else {
+            tntHitMask = 0;
+        }
+
+        // Tapas de alcantarilla: vuelan solas y se liberan al salir de camara.
+        // No se consumen al pegar (siguen de largo, como en el arcade): de que
+        // un mismo jugador no se coma dos golpes seguidos se encarga la
+        // invencibilidad de playerCanBeHit().
+        lidUpdate(cameraX, cameraY);
+        for (u8 k = 0; k < nPl; k++) {
+            if (!playerCanBeHit(pls[k])) continue;
+            s16 lx = 0;
+            if (!lidHits(getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                         PLAYER_BODY_HALF_W, &lx)) continue;
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+            damagePlayer(pls[k], lx);     // una barra, como pidio Gustavo
+        }
+
         lvl21BgUpdate(cameraX, cameraY);
 
 #if LVL21_CAM_DEBUG
@@ -849,6 +1162,8 @@ SceneId showScene21() {
                               (u16)(hudVram + HUD_VRAM_PER_PLAYER));
                 nPl          = 2;
                 dosJugadores = TRUE;
+                maxAlive     = LVL21_MAX_ALIVE_2P;   // la segunda tortuga come
+                                                     // 169 tiles de sprites
                 resetEnemyAI(2);
             }
         }
@@ -888,6 +1203,14 @@ SceneId showScene21() {
         SYS_doVBlankProcess();
     }
     XGM2_stop();
+
+    // Soltar lo que el guion pudiera haber dejado vivo: los proyectiles y las
+    // tapas cerradas son estado de MODULO (static), no del stack, asi que si no
+    // se liberan aca la proxima partida arranca con sprites fantasma.
+    tntReleaseAll();
+    lidReleaseAll();
+    mhReleaseAll();
+    if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }
 
     clearScene();
     return SCENE_GAME_OVER;   // y showGameOver() vuelve al logo de SEGA

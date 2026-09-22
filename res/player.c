@@ -130,6 +130,10 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->heldFrame     = 0;
     p->heldTimer     = 0;
     p->heldHit       = 0;
+    p->mhPhase       = 0;
+    p->mhTimer       = 0;
+    p->mhOutX        = 0;
+    p->mhOutY        = 0;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     // Las 4 tortugas comparten la misma paleta unificada (PAL1); la carga el
@@ -853,6 +857,8 @@ s16 getPlayerY(const Player* p) {
 // ---------------------------------------------------------------------------
 bool playerCanBeHit(const Player* p) {
     if (p->invincible > 0) return FALSE;
+    // Dentro de la boca de tormenta no la alcanza nada (esta bajo tierra).
+    if (p->mhPhase != 0) return FALSE;
     // Saltando no se recibe daño (esquive aéreo estilo arcade). KO = ya está
     // en el piso. AGARRADO SÍ se puede: los otros foot soldiers le pegan a la
     // tortuga inmovilizada (damagePlayer lo resuelve mostrando el frame 3 del
@@ -870,6 +876,7 @@ bool playerCanBeHit(const Player* p) {
 // te está apuntando justo ahí arriba.
 bool playerCanBeHitAir(const Player* p) {
     if (p->invincible > 0) return FALSE;
+    if (p->mhPhase != 0) return FALSE;
     if (p->state == STATE_HURT || p->state == STATE_KO ||
         p->state == STATE_KNOCKED_DOWN)
         return FALSE;
@@ -1254,6 +1261,129 @@ bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
 // Congela a la tortuga en un frame de "caminar hacia arriba" (ANIM_WALK_BACK):
 // con la auto-anim apagada se queda fija en ese frame, como observando la
 // cutscene de victoria (Shredder raptando a April). No lee input.
+// ---------------------------------------------------------------------------
+// CAIDA POR LA BOCA DE TORMENTA (20/09) — nivel 2-1
+// ---------------------------------------------------------------------------
+// La anim 21 son NUEVE frames y se maneja a mano, igual que la salida por
+// alcantarilla del foot soldier: la auto-animacion de SGDK no sirve porque el
+// frame 3 (vacio) tiene que sostenerse lo que dure el voice over, mucho mas
+// que los 5 ticks del sheet.
+//
+// Tres fases (p->mhPhase), cada una con su cadencia:
+//   1  f0..f2  se hunde        PLAYER_MH_FALL_TICKS por frame
+//   2  f3      vacio           PLAYER_MH_HOLD_TICKS de una (globo + VO)
+//   3  f4..f8  sale del pozo   PLAYER_MH_OUT_TICKS por frame
+//
+// La tortuga se dibuja SIEMPRE en el agujero (no se mueve mientras cae ni
+// mientras sale); recien al terminar la fase 3 se la teletransporta a
+// (mhOutX, mhOutY), que la escena puso unos px por debajo del agujero. Si
+// reapareciera encima se volveria a caer en el acto, que es justo lo que
+// Gustavo pidio evitar.
+// ---------------------------------------------------------------------------
+#define MH_FALL_FRAMES  3   // f0..f2
+#define MH_OUT_FIRST    4   // primer frame de la salida
+#define MH_OUT_FRAMES   5   // f4..f8
+
+bool playerManholeFall(Player* p, s16 outX, s16 outY) {
+    if (p->mhPhase != 0)        return FALSE;   // ya esta adentro
+    if (!playerCanBeHit(p))     return FALSE;   // i-frames, KO, salto, hurt...
+    if (p->state == STATE_GRABBED) return FALSE;
+    // Sheets viejas sin la anim 21: no hay con que dibujar la caida.
+    if (p->numAnims <= ANIM_MANHOLE) return FALSE;
+
+    // El pozo cuesta PLAYER_MANHOLE_DMG barras. Si lo deja en 0 no hay caida:
+    // manda el knockout normal (perder una vida y revivir es mas fuerte que
+    // quedar atrapado en una animacion de 2 segundos).
+    if (p->health > (s16)PLAYER_MANHOLE_DMG) p->health -= (s16)PLAYER_MANHOLE_DMG;
+    else                                     p->health = 0;
+    if (p->health == 0) {
+        p->hurtDir = 0;
+        playerEnterKO(p);
+        return FALSE;
+    }
+
+    // Cortar cualquier cosa en curso (combo, especial, salto).
+    p->comboStep       = 0;
+    p->comboBuffered   = 0;
+    p->comboLinger     = 0;
+    p->attackIsSpecial = 0;
+    p->jumpZ           = 0;
+    p->jumpVel         = 0;
+    p->hurtTimer       = 0;
+    p->state           = STATE_IDLE;
+
+    p->mhPhase = 1;
+    p->mhTimer = PLAYER_MH_FALL_TICKS * MH_FALL_FRAMES;
+    p->mhOutX  = outX;
+    p->mhOutY  = outY;
+
+    if (p->sprite) {
+        SPR_setAutoAnimation(p->sprite, FALSE);
+        SPR_setAnimationLoop(p->sprite, FALSE);
+        SPR_setAnimAndFrame(p->sprite, ANIM_MANHOLE, 0);
+    }
+    return TRUE;
+}
+
+bool playerInManhole(const Player* p)       { return (bool)(p->mhPhase != 0); }
+bool playerManholeSpeaking(const Player* p) { return (bool)(p->mhPhase == 2); }
+
+bool playerManholeStep(Player* p) {
+    if (p->mhPhase == 0) return TRUE;
+
+    // Sin sprite (VRAM de sprites llena con 4 tortugas) la secuencia igual
+    // corre por tiempo: si no, este jugador se quedaria en el pozo para
+    // siempre. Misma regla que el resto del modulo.
+    s16 frame = 3;
+
+    if (p->mhTimer > 0) p->mhTimer--;
+
+    switch (p->mhPhase) {
+        case 1: {                                   // hundiendose
+            s16 done = (s16)(PLAYER_MH_FALL_TICKS * MH_FALL_FRAMES) - (s16)p->mhTimer;
+            frame = done / PLAYER_MH_FALL_TICKS;
+            if (frame > MH_FALL_FRAMES - 1) frame = MH_FALL_FRAMES - 1;
+            if (p->mhTimer == 0) { p->mhPhase = 2; p->mhTimer = PLAYER_MH_HOLD_TICKS; }
+            break;
+        }
+        case 2:                                     // abajo: globo + voice over
+            frame = 3;
+            if (p->mhTimer == 0) {
+                p->mhPhase = 3;
+                p->mhTimer = PLAYER_MH_OUT_TICKS * MH_OUT_FRAMES;
+            }
+            break;
+
+        default: {                                  // saliendo
+            s16 done = (s16)(PLAYER_MH_OUT_TICKS * MH_OUT_FRAMES) - (s16)p->mhTimer;
+            frame = MH_OUT_FIRST + done / PLAYER_MH_OUT_TICKS;
+            if (frame > MH_OUT_FIRST + MH_OUT_FRAMES - 1)
+                frame = MH_OUT_FIRST + MH_OUT_FRAMES - 1;
+            if (p->mhTimer == 0) {
+                // Afuera: se la corre por debajo del agujero y vuelve el control.
+                p->mhPhase = 0;
+                p->x       = p->mhOutX;
+                p->y       = p->mhOutY;
+                p->state   = STATE_IDLE;
+                // Unos i-frames para que no la reciba un golpe justo al salir.
+                p->invincible = PLAYER_HURT_INVINCIBLE;
+                if (p->sprite) {
+                    SPR_setAutoAnimation(p->sprite, TRUE);
+                    SPR_setAnimationLoop(p->sprite, TRUE);
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                }
+                playerRenderAt(p);
+                return TRUE;
+            }
+            break;
+        }
+    }
+
+    if (p->sprite) SPR_setFrame(p->sprite, frame);
+    playerRenderAt(p);
+    return FALSE;
+}
+
 void playerCutsceneWatch(Player* p) {
     // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
     // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo

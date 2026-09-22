@@ -104,3 +104,19 @@ SPRITE shuriken_sprite "sprites/shuriken.png" 2 2 FAST 0
 // del 1-1), asi que su VRAM no esta reservada todo el nivel.
 SPRITE tnt_sprite "sprites/tnt.png" 3 3 FAST 3
 SPRITE explosion_sprite "sprites/explosion.png" 8 8 FAST 6
+
+// --- TAPA de la alcantarilla (19/09) ---------------------------------------
+// 32x24 = UN solo frame (4x3 tiles). Es el proyectil que tira el morado que
+// sale por la boca de tormenta del 2-1 (anim 17 del sheet). Tambien se usa
+// QUIETA como "tapa cerrada" sobre cada boca de tormenta mientras el soldier
+// todavia no salio: son 12 tiles contra los 80 que costaria tener ahi un
+// foot_soldier congelado en el frame 0, y el dibujo es practicamente el mismo.
+//
+// Tampoco lleva PALETTE propia: comparte la del morado (PAL2), igual que el
+// tnt y la explosion. Verificado indice por indice contra
+// foot_soldier_16colors_purple.png (usa los indices 0, 1, 4, 10 y 14).
+//
+// Frame time 0 = sin animacion: el sprite no gira. Si algun dia se quiere que
+// de vueltas en el aire hay que traer un PNG con varios frames y subir el
+// primer numero.
+SPRITE lid_sprite "sprites/tapa_voladora.png" 4 3 FAST 0

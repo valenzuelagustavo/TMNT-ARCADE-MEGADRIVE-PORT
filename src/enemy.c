@@ -490,24 +490,27 @@ void tntLaunch(s16 x, s16 y, s8 dir, s16 landX, s16 landY, u8 palette) {
     tnt.state = TNT_FLYING;
 }
 
-// Dibuja el cartucho o la explosion en pantalla segun camX.
-static void tntDraw(s16 camX) {
+// Dibuja el cartucho o la explosion en pantalla segun la camara.
+// camY es 0 en el 1-1 (no hay scroll vertical) y el scroll real en el 2-1.
+static void tntDraw(s16 camX, s16 camY) {
     if (!tnt.sprite) return;
     if (tnt.state == TNT_FLYING) {
         SPR_setPosition(tnt.sprite,
                         (s16)(tnt.x - TNT_W / 2 - camX),
-                        (s16)(tnt.y - tnt.z - TNT_W / 2));
+                        (s16)(tnt.y - tnt.z - TNT_W / 2 - camY));
         // Profundidad por lane, igual que todo el resto de la escena.
         SPR_setDepth(tnt.sprite, (s16)(-(tnt.y) - 1));
     } else {
         SPR_setPosition(tnt.sprite,
                         (s16)(tnt.x1 - TNT_EXPLOSION_W / 2 - camX),
-                        (s16)(tnt.y1 - TNT_EXPLOSION_W / 2));
+                        (s16)(tnt.y1 - TNT_EXPLOSION_W / 2 - camY));
         SPR_setDepth(tnt.sprite, (s16)(-(tnt.y1) - 1));
     }
 }
 
-bool tntUpdate(s16 camX) {
+bool tntUpdate(s16 camX) { return tntUpdateEx(camX, 0); }
+
+bool tntUpdateEx(s16 camX, s16 camY) {
     if (tnt.state == TNT_OFF) return FALSE;
 
     if (tnt.state == TNT_FLYING) {
@@ -532,10 +535,10 @@ bool tntUpdate(s16 camX) {
             if (tnt.sprite) SPR_setAnimationLoop(tnt.sprite, FALSE);
             tnt.state = TNT_BLAST;
             tnt.t     = 0;
-            tntDraw(camX);
+            tntDraw(camX, camY);
             return TRUE;          // el frame del impacto (la escena toca el SFX)
         }
-        tntDraw(camX);
+        tntDraw(camX, camY);
         return FALSE;
     }
 
@@ -547,7 +550,7 @@ bool tntUpdate(s16 camX) {
         tnt.state  = TNT_OFF;
         return FALSE;
     }
-    tntDraw(camX);
+    tntDraw(camX, camY);
     return FALSE;
 }
 
@@ -569,6 +572,104 @@ void tntReleaseAll(void) {
     tnt.sprite = NULL;
     tnt.state  = TNT_OFF;
     tnt.t      = 0;
+}
+
+// ---------------------------------------------------------------------------
+// TAPA VOLADORA de la alcantarilla (19/09)
+// ---------------------------------------------------------------------------
+// Mucho mas simple que el TNT: tiro RECTO por X, sin parabola ni punto de
+// caida. Sale a la altura del pecho (LID_HAND_Z sobre los pies del que tira),
+// mantiene la lane del que la tiro durante todo el vuelo y viaja hasta salir
+// de camara, donde se libera el sprite.
+//
+// Por que no se consume al pegar: en el arcade la tapa sigue de largo y puede
+// barrer a las dos tortugas. De que un mismo jugador no se coma dos golpes en
+// frames seguidos se encarga la invencibilidad de playerCanBeHit(), que ya
+// aplica damagePlayer -- no hace falta una mascara propia como en la explosion
+// del TNT (esa SI la necesita porque el estallido dura 24 frames quieto).
+// ---------------------------------------------------------------------------
+static struct {
+    u8      active;
+    Sprite* sprite;
+    s16     x, y, z;     // centro (mundo), lane, altura visual
+    s8      dir;
+} lids[LID_MAX];
+
+void lidInit(void) {
+    for (u16 i = 0; i < LID_MAX; i++) {
+        lids[i].active = 0;
+        lids[i].sprite = NULL;
+    }
+}
+
+static void lidRelease(u16 i) {
+    if (lids[i].sprite) SPR_releaseSprite(lids[i].sprite);
+    lids[i].sprite = NULL;
+    lids[i].active = 0;
+}
+
+void lidLaunch(s16 x, s16 y, s8 dir, u8 palette) {
+    for (u16 i = 0; i < LID_MAX; i++) {
+        if (lids[i].active) continue;
+
+        // Las manos estan en LID_HAND_DX dentro del frame de 64px mirando a la
+        // derecha; espejadas cuando mira a la izquierda.
+        s16 handDx = (dir >= 0) ? LID_HAND_DX
+                                : (s16)(ENEMY_SPRITE_W_PURPLE - LID_HAND_DX);
+        lids[i].x   = (s16)(x + handDx);
+        lids[i].y   = y;
+        lids[i].z   = LID_HAND_Z;
+        lids[i].dir = (dir >= 0) ? 1 : -1;
+        // Prioridad alta por la misma razon que el TNT: que ningun plano de
+        // primer plano se la coma. En el 2-1 da igual, pero es gratis.
+        lids[i].sprite = SPR_addSprite(&lid_sprite, 0, 0,
+                                       TILE_ATTR(palette, TRUE, FALSE, FALSE));
+        // Sin sprite (VRAM llena) la tapa igual VUELA y hace daño: la hitbox no
+        // depende del sprite. Misma regla que el cartucho de dinamita.
+        lids[i].active = 1;
+        return;
+    }
+    // Pool lleno: no se tira. Con las bocas de tormenta separadas como estan no
+    // deberia pasar nunca.
+}
+
+void lidUpdate(s16 camX, s16 camY) {
+    for (u16 i = 0; i < LID_MAX; i++) {
+        if (!lids[i].active) continue;
+
+        lids[i].x += (s16)(lids[i].dir * LID_SPEED);
+
+        // Fuera de camara -> se libera el sprite y el slot.
+        s16 sx = (s16)(lids[i].x - camX);
+        if (sx < -(LID_W / 2 + LID_MARGIN) ||
+            sx >  (s16)(ENEMY_SCREEN_W + LID_W / 2 + LID_MARGIN)) {
+            lidRelease(i);
+            continue;
+        }
+
+        if (lids[i].sprite) {
+            SPR_setPosition(lids[i].sprite,
+                            (s16)(sx - LID_W / 2),
+                            (s16)(lids[i].y - lids[i].z - LID_H / 2 - camY));
+            // Profundidad por lane, como el resto de la escena.
+            SPR_setDepth(lids[i].sprite, (s16)(-(lids[i].y) - 1));
+        }
+    }
+}
+
+bool lidHits(s16 px, s16 py, s16 halfW, s16* outX) {
+    for (u16 i = 0; i < LID_MAX; i++) {
+        if (!lids[i].active) continue;
+        if (absS16(px - lids[i].x) > (s16)(LID_HIT_HALF_W + halfW)) continue;
+        if (absS16(py - lids[i].y) > LID_HIT_RADIUS_Y) continue;
+        if (outX) *outX = lids[i].x;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+void lidReleaseAll(void) {
+    for (u16 i = 0; i < LID_MAX; i++) lidRelease(i);
 }
 
 // ---------------------------------------------------------------------------
@@ -606,6 +707,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->turnTimer   = 0;
     e->somersault  = 0;
     e->tntThrow    = 0;
+    e->lidThrow    = 0;
     e->tntLandX    = 0;
     e->tntLandY    = 0;
     e->grabTarget  = 0;
@@ -758,6 +860,60 @@ void initEnemyTntSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette,
     e->anim = ENEMY_ANIM_TNT;
     SPR_setAnimAndFrame(e->sprite, ENEMY_ANIM_TNT, 0);
     SPR_setAnimationLoop(e->sprite, FALSE);
+}
+
+// Spawn GUIONADO de ALCANTARILLA (19/09, anim 17): el morado sale de la boca
+// de tormenta, tira la TAPA en direccion 'dir' y al terminar la animacion pasa
+// a CHASE como cualquier otro. La tapa sale sola en el frame 4 (ver
+// ENEMY_MANHOLE_RELEASE_TIMER) y el flag se apaga ahi: no vuelve a tirar.
+void initEnemyManholeSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette) {
+    initEnemySpawn(e, spawnX, y, 0, palette, ENEMY_TYPE_FOOT_SOLDIER);
+    e->state    = ENEMY_STATE_SPAWNING;
+    e->timer    = ENEMY_MANHOLE_TIME;
+    e->dir      = dir;
+    e->lidThrow = 1;
+    // 'y' es la lane FINAL (ya con el HOP_DROP sumado); este offset inicial lo
+    // vuelve a dibujar sobre el agujero hasta que arranca el salto.
+    e->jumpZ    = ENEMY_MANHOLE_HOP_DROP;
+
+    e->anim = ENEMY_ANIM_MANHOLE;
+    SPR_setAnimAndFrame(e->sprite, ENEMY_ANIM_MANHOLE, 0);
+    SPR_setAnimationLoop(e->sprite, FALSE);
+    // El frame lo maneja manholeStep() a mano: el f1 se SOSTIENE todo el salto,
+    // asi que la animacion no puede correr sola.
+    SPR_setAutoAnimation(e->sprite, FALSE);
+}
+
+// Un paso de la salida por la alcantarilla: elige el frame y la altura visual
+// a partir del timer (que cuenta hacia atras desde ENEMY_MANHOLE_TIME).
+static void manholeStep(Enemy* e) {
+    const s16 HOP  = ENEMY_MANHOLE_HOP_TIME;
+    const s16 REST = ENEMY_MANHOLE_REST_TIME;
+    s16 rem = (s16)e->timer;
+    s16 frame;
+
+    if (rem > (s16)(HOP + REST)) {
+        // f0: la tapa quieta sobre la boca (el jumpZ la deja calzada ahi).
+        frame    = 0;
+        e->jumpZ = ENEMY_MANHOLE_HOP_DROP;
+    } else if (rem > REST) {
+        // f1 SOSTENIDO: sale de un salto. Parabola de HOP_APEX (0 en las dos
+        // puntas, maxima en el medio) mas el offset de la boca bajando a 0, que
+        // es lo que lo hace aterrizar por delante del agujero.
+        frame = 1;
+        s16 t = (s16)(HOP + REST) - rem;            // 0..HOP-1
+        s32 arc = ((s32)ENEMY_MANHOLE_HOP_APEX * 4 * t * (HOP - t))
+                  / ((s32)HOP * HOP);
+        s16 lift = (s16)(ENEMY_MANHOLE_HOP_DROP
+                         - ((s16)ENEMY_MANHOLE_HOP_DROP * t) / HOP);
+        e->jumpZ = (s16)(arc + lift);
+    } else {
+        // f2..f5, 8 ticks cada uno: ya esta en el piso y tira la tapa.
+        frame    = (s16)(2 + (REST - rem) / 8);
+        if (frame > 5) frame = 5;
+        e->jumpZ = 0;
+    }
+    if (e->sprite) SPR_setFrame(e->sprite, frame);
 }
 
 void setEnemyBounds(Enemy* e, s16 laneTop, s16 laneBottom,
@@ -943,6 +1099,16 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         if (e->anim == ENEMY_ANIM_TNT && e->jumpZ > 0 &&
             e->timer < ENEMY_TNT_RELEASE_TIMER)
             e->jumpZ--;
+        // Salida por la ALCANTARILLA: aca el sprite NO se anima solo (el f1 se
+        // sostiene durante todo el salto), asi que el frame y la altura los
+        // pone manholeStep(). La tapa sale en el frame justo.
+        if (e->anim == ENEMY_ANIM_MANHOLE) {
+            manholeStep(e);
+            if (e->lidThrow && e->timer == ENEMY_MANHOLE_RELEASE_TIMER) {
+                lidLaunch(e->x, e->y, e->dir, e->palette);
+                e->lidThrow = 0;      // una sola vez, nunca mas
+            }
+        }
         // Voltereta de entrada: avanza en X durante TODO el SPAWNING (más rápido
         // que el walk; el sprite hace la voltereta sola con la anim 15).
         if (e->somersault) {
@@ -950,7 +1116,14 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
         }
         if (e->timer > 0) e->timer--;
-        else            { e->state = ENEMY_STATE_CHASE; e->jumpZ = 0; }
+        else {
+            e->state = ENEMY_STATE_CHASE;
+            e->jumpZ = 0;
+            // La salida por alcantarilla corre con la animacion automatica
+            // APAGADA (ver manholeStep): si no se vuelve a prender, el soldier
+            // se queda congelado en el ultimo frame para el resto del nivel.
+            SPR_setAutoAnimation(e->sprite, TRUE);
+        }
         SPR_setHFlip(e->sprite, (e->dir < 0));
         SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ);
         SPR_setDepth(e->sprite, -(e->y));

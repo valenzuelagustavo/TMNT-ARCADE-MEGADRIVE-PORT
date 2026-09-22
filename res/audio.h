@@ -24,6 +24,7 @@ extern const u8 mike_don_attack_vo[3840];
 extern const u8 cowabunga_vo[16384];
 extern const u8 boss_scream_rocksteady_vo[22528];
 extern const u8 lost_life_turtles_vo[29696];
+extern const u8 who_put_light_vo[17408];
 extern const u8 music_sega[1024];
 extern const u8 music_level1[14592];
 extern const u8 music_level2[11008];

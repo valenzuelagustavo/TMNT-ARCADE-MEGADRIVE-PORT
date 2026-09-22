@@ -99,3 +99,14 @@ WAV mike_don_attack_vo  "audio/mike_don_attack.wav" XGM2
 WAV cowabunga_vo        "audio/cowabunga.wav" XGM2
 WAV boss_scream_rocksteady_vo "audio/boss_scream_rocksteady.wav" XGM2
 WAV lost_life_turtles_vo "audio/lost_life_turtles.wav" XGM2
+
+// --- Caida por la boca de tormenta (2-1, 20/09) ----------------------------
+// "Duuuh, who put the light out". Llego como WAV ESTEREO 8-bit 48000 Hz de
+// 1,308 s y se paso a la convencion de la casa: MONO, 8-bit, 11025 Hz,
+// recortado el silencio de las puntas y normalizado a pico 96,9%.
+// Medido despues de convertir:
+//   who_put_the_light_out   1,301s  pico 96,9%  rms 21,4%  14.340 B
+// El RMS cae justo en la banda de voz (20-24%), asi que se mezcla igual que
+// el resto de los voice over (ver claude/audio-mix-voz-vs-musica.md).
+// El original de 48k queda al lado como who_put_the_light_out_orig48k.wav.
+WAV who_put_light_vo "audio/who_put_the_light_out.wav" XGM2

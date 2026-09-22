@@ -213,6 +213,21 @@ static const s16 turtleTime[4]  = {  46,  52,  50,  48 };  // duracion del vuelo
 #define QUAD_COLS            16   // 128 px
 #define QUAD_ROWS            14   // 112 px
 
+// Tile SOLIDO de cada cuadrante (color de fondo liso) con el que crecen los
+// rectangulos: columna/fila de tile dentro del cuadro de 32x28.
+// (22/09) Antes se tomaba siempre la esquina externa. Con el rip nuevo
+// (intro_quad_tela.png) la esquina de arriba a la derecha la cruza el bo de
+// Donatello, y el rectangulo crecia estampando un pedazo de palo repetido. Se
+// usa el tile liso mas cercano a cada esquina, medido sobre el PNG.
+#define QUAD_SOLID_TL_C   0
+#define QUAD_SOLID_TL_R   0
+#define QUAD_SOLID_TR_C  31
+#define QUAD_SOLID_TR_R   1
+#define QUAD_SOLID_BL_C   0
+#define QUAD_SOLID_BL_R  27
+#define QUAD_SOLID_BR_C  31
+#define QUAD_SOLID_BR_R  27
+
 // ---------------------------------------------------------------------------
 // Escenas E/F - banner, logo y copyright
 // ---------------------------------------------------------------------------
@@ -646,13 +661,13 @@ static bool introBlockQuad(void) {
     const u16 *map = intro_quad.tilemap->tilemap;
     u16 mw = intro_quad.tilemap->w;
 
-    // Tile solido de cada cuadrante = el que la imagen tiene en su esquina
-    // EXTERNA (arriba-izq, arriba-der, abajo-izq, abajo-der).
+    // Tile solido de cada cuadrante (ver QUAD_SOLID_*): arriba-izq,
+    // arriba-der, abajo-izq, abajo-der.
     u16 solid[4];
-    solid[0] = attr + map[0];
-    solid[1] = attr + map[mw - 1];
-    solid[2] = attr + map[(u32)(INTRO_SCREEN_ROWS - 1) * mw];
-    solid[3] = attr + map[(u32)(INTRO_SCREEN_ROWS - 1) * mw + (mw - 1)];
+    solid[0] = attr + map[(u32)QUAD_SOLID_TL_R * mw + QUAD_SOLID_TL_C];
+    solid[1] = attr + map[(u32)QUAD_SOLID_TR_R * mw + QUAD_SOLID_TR_C];
+    solid[2] = attr + map[(u32)QUAD_SOLID_BL_R * mw + QUAD_SOLID_BL_C];
+    solid[3] = attr + map[(u32)QUAD_SOLID_BR_R * mw + QUAD_SOLID_BR_C];
 
     PAL_setPalette(PAL0, intro_quad.palette->data, DMA);
 
