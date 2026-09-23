@@ -1122,6 +1122,36 @@ SceneId showScene21() {
         // un mismo jugador no se coma dos golpes seguidos se encarga la
         // invencibilidad de playerCanBeHit().
         lidUpdate(cameraX, cameraY);
+
+        // (23/09) Golpe cuerpo a cuerpo a una tapa en vuelo: cambia de sentido
+        // en X y pasa a ser de las tortugas. Va ANTES del chequeo contra el
+        // jugador para que la tapa que se acaba de devolver no le pegue en el
+        // mismo frame. La patada voladora no la devuelve (lo resuelve enemy.c).
+        for (u8 k = 0; k < nPl; k++) {
+            if (lidReflectByPlayerAttack(pls[k], (s8)k))
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+        }
+
+        // Tapa devuelta contra los soldiers: LID_ENEMY_DMG de vida por soldier,
+        // una vez por tapa. La tapa NO se consume: sigue de largo y puede
+        // barrer a mas de uno, igual que cuando venia de frente.
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (!enemyCanBeHit(&enemies[i])) continue;
+            s8 owner = -1;
+            if (!lidHitsEnemy(i, getEnemyCenterX(&enemies[i]),
+                              getEnemyCenterY(&enemies[i]),
+                              enemyBodyHalfW(&enemies[i]), &owner)) continue;
+            damageEnemy(&enemies[i], LID_ENEMY_DMG);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+            if (enemies[i].state == ENEMY_STATE_DEAD) {
+                XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[owner], 1);
+            }
+        }
+
         for (u8 k = 0; k < nPl; k++) {
             if (!playerCanBeHit(pls[k])) continue;
             s16 lx = 0;

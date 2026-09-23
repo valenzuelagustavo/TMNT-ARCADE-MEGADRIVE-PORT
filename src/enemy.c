@@ -402,11 +402,16 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
 }
 
 bool shurikenBreakByPlayerAttack(const Player* p) {
-    // La hitbox del ataque de la tortuga (MISMA geometría que contra los
-    // enemigos: playerAttackHits) rompe los shurikens que la cruzan: el
+    // La hitbox del ataque CUERPO A CUERPO de la tortuga (MISMA geometría que
+    // contra los enemigos: playerAttackHits) rompe los shurikens que cruza: el
     // proyectil desaparece SIN dañar al jugador. Devuelve TRUE si rompió
     // alguno (para tocar un SFX). Se llama por jugador, ANTES de
     // shurikenCheckHitPlayer: un shuriken roto este frame ya no pega.
+    // (23/09) SOLO cuerpo a cuerpo: la patada voladora NO rompe shurikens.
+    // El jugador no puede limpiar la pantalla saltando; para cortar el tiro
+    // hay que estar en el piso y golpear.
+    if (isPlayerJumpKicking(p)) return FALSE;
+
     bool broke = FALSE;
     for (u16 i = 0; i < MAX_SHURIKENS; i++) {
         if (!shurikens[i].active) continue;
@@ -593,6 +598,9 @@ static struct {
     Sprite* sprite;
     s16     x, y, z;     // centro (mundo), lane, altura visual
     s8      dir;
+    u8      friendly;    // 1 = devuelta de un golpe: ya no pega a las tortugas
+    s8      owner;       // jugador que la devolvio (para el puntaje), -1 = nadie
+    u8      hitMask;     // enemigos ya golpeados por ESTA tapa (bit por indice)
 } lids[LID_MAX];
 
 void lidInit(void) {
@@ -620,6 +628,9 @@ void lidLaunch(s16 x, s16 y, s8 dir, u8 palette) {
         lids[i].y   = y;
         lids[i].z   = LID_HAND_Z;
         lids[i].dir = (dir >= 0) ? 1 : -1;
+        lids[i].friendly = 0;
+        lids[i].owner    = -1;
+        lids[i].hitMask  = 0;
         // Prioridad alta por la misma razon que el TNT: que ningun plano de
         // primer plano se la coma. En el 2-1 da igual, pero es gratis.
         lids[i].sprite = SPR_addSprite(&lid_sprite, 0, 0,
@@ -660,9 +671,51 @@ void lidUpdate(s16 camX, s16 camY) {
 bool lidHits(s16 px, s16 py, s16 halfW, s16* outX) {
     for (u16 i = 0; i < LID_MAX; i++) {
         if (!lids[i].active) continue;
+        if (lids[i].friendly) continue;   // devuelta: ahora es de las tortugas
         if (absS16(px - lids[i].x) > (s16)(LID_HIT_HALF_W + halfW)) continue;
         if (absS16(py - lids[i].y) > LID_HIT_RADIUS_Y) continue;
         if (outX) *outX = lids[i].x;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+// (23/09) DEVOLVER LA TAPA de un golpe cuerpo a cuerpo.
+// La patada voladora no la devuelve (misma regla que el shuriken). Solo se
+// devuelve UNA vez: al invertirse queda 'friendly' y deja de pegarle a las
+// tortugas, asi que dos golpes seguidos del mismo swing no la dejan temblando
+// en el lugar. Se le da vuelta el sprite para que la elipse acompañe el viaje.
+bool lidReflectByPlayerAttack(const Player* p, s8 playerIdx) {
+    if (isPlayerJumpKicking(p)) return FALSE;
+
+    bool any = FALSE;
+    for (u16 i = 0; i < LID_MAX; i++) {
+        if (!lids[i].active || lids[i].friendly) continue;
+        if (!playerAttackHits(p, lids[i].x, lids[i].y)) continue;
+        lids[i].dir      = (s8)(-lids[i].dir);
+        lids[i].friendly = 1;
+        lids[i].owner    = playerIdx;
+        lids[i].hitMask  = 0;
+        if (lids[i].sprite)
+            SPR_setHFlip(lids[i].sprite, (bool)(lids[i].dir < 0));
+        any = TRUE;
+    }
+    return any;
+}
+
+// TRUE si una tapa DEVUELTA barre a este enemigo. Cada tapa golpea a cada
+// enemigo UNA sola vez (mascara por indice): sin eso, con 5 px por frame le
+// sacaria vida en cada frame que lo cruza. Si owner no es NULL sale ahi el
+// jugador que la devolvio, para sumarle el punto si el golpe mata.
+bool lidHitsEnemy(u16 enemyIdx, s16 ex, s16 ey, s16 halfW, s8* owner) {
+    u8 bit = (u8)(1 << (enemyIdx & 7));
+    for (u16 i = 0; i < LID_MAX; i++) {
+        if (!lids[i].active || !lids[i].friendly) continue;
+        if (lids[i].hitMask & bit) continue;
+        if (absS16(ex - lids[i].x) > (s16)(LID_HIT_HALF_W + halfW)) continue;
+        if (absS16(ey - lids[i].y) > LID_HIT_RADIUS_Y) continue;
+        lids[i].hitMask |= bit;
+        if (owner) *owner = lids[i].owner;
         return TRUE;
     }
     return FALSE;

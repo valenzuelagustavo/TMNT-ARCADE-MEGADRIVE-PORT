@@ -695,6 +695,18 @@ void lidUpdate(s16 camX, s16 camY);
 // se encarga la invencibilidad de playerCanBeHit().
 bool lidHits(s16 px, s16 py, s16 halfW, s16* outX);
 
+// (23/09) Golpe CUERPO A CUERPO del jugador sobre una tapa en vuelo: la tapa
+// invierte su direccion en X y pasa a ser de las tortugas (deja de pegarles y
+// empieza a barrer soldiers). La patada voladora NO la devuelve. playerIdx es
+// el numero de jugador, para el puntaje si la tapa termina matando a alguien.
+// Devuelve TRUE si devolvio alguna (para el SFX).
+bool lidReflectByPlayerAttack(const Player* p, s8 playerIdx);
+
+// TRUE si una tapa DEVUELTA alcanza a este enemigo (centro ex, lane ey, media
+// anchura halfW). Cada tapa golpea a cada enemigo una sola vez. El nivel le
+// pasa el daño a damageEnemy: LID_ENEMY_DMG.
+bool lidHitsEnemy(u16 enemyIdx, s16 ex, s16 ey, s16 halfW, s8* owner);
+
 void lidReleaseAll(void);
 
 #define LID_MAX            2   // tapas simultaneas en el aire
@@ -708,5 +720,6 @@ void lidReleaseAll(void);
                                // pero los bordes son la elipse en perspectiva)
 #define LID_HIT_RADIUS_Y  20   // tolerancia de lane para conectar
 #define LID_MARGIN        24   // px fuera de pantalla antes de liberarla
+#define LID_ENEMY_DMG      2   // vida que le saca a un soldier la tapa devuelta
 
 #endif
