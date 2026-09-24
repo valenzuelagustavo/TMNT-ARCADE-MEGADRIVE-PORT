@@ -105,7 +105,8 @@
 #include "player.h"
 #include "hud.h"
 #include "enemy.h"    // foot soldiers
-#include "audio.h"    // music_scene_clear
+#include "bebop.h"    // jefe del nivel (24/09)
+#include "audio.h"    // music_scene_clear, music_boss, boss_scream_bebop_vo
 
 #ifndef IS_PAL_SYSTEM
 #define IS_PAL_SYSTEM IS_PALSYSTEM
@@ -317,6 +318,7 @@ extern u8 cantidadJugadores;
 // Fin del nivel: cuantos segundos queda la imagen congelada con el jingle.
 #define LVL21_CLEAR_SECS       5
 #define VOL_MUSIC_SCENE_CLEAR 90
+#define VOL_MUSIC_BOSS_2_1    90   // tema del jefe, igual que el de Rocksteady
 
 // Punto de partida (el jugador sale del edificio, a la izquierda del todo)
 #define START_P1_X        40
@@ -775,6 +777,12 @@ SceneId showScene21() {
     mhReset();
     tntInit();
     lidInit();
+    // --- Jefe (24/09) ------------------------------------------------------
+    // Vive en el stack de la escena como todo lo demas; bebopInit ademas deja
+    // el pool de disparos limpio.
+    static Bebop bebop;
+    bebopInit(&bebop);
+    bool bossStarted = FALSE;
     u8 tntState   = MH_DORMANT;            // el tirador usa los mismos estados
     u8 tntHitMask = 0;                     // un golpe de explosion por jugador
     Sprite* lightBubble = NULL;            // globo de la caida por la alcantarilla
@@ -786,7 +794,12 @@ SceneId showScene21() {
         target[i]      = lvl21_pal.data[i];
         target[16 + i] = leo_player.palette->data[i];
         target[32 + i] = foot_soldier.palette->data[i];
-        target[48 + i] = 0;
+        // (24/09) PAL3 es la del JEFE. En este nivel no hay foot soldier
+        // blanco ni naranja, asi que la linea estaba en negro y Bebop se la
+        // queda entera. Se carga desde el fade y no al aparecer el jefe: son
+        // 16 colores que no molestan a nadie mientras no haya nada dibujado
+        // con PAL3.
+        target[48 + i] = bebop_boss.palette->data[i];
     }
     // Colocar los sprites en pantalla ANTES del fundido: updatePlayer solo
     // sabe de cameraX, asi que el desplazamiento vertical de la camara hay que
@@ -940,7 +953,11 @@ SceneId showScene21() {
 
         // Bocas de tormenta: pasar a PENDING al cruzar el gatillo y entrar en
         // cuanto haya lugar en el pool.
-        for (u16 m = 0; m < LVL21_MANHOLES; m++) {
+        // (24/09) Con la pelea del jefe en curso el guion de la calle queda
+        // CONGELADO: ni bocas de tormenta ni dinamita. No es solo estetico --
+        // el jefe se lleva 77 tiles de sprites y un soldier de 80 mas no entra
+        // en el presupuesto del nivel.
+        for (u16 m = 0; m < LVL21_MANHOLES && !bossStarted; m++) {
             if (mhState[m] == MH_DONE) continue;
             if (mhState[m] == MH_DORMANT) {
                 if (leadFeetX < manholes[m].trigX) continue;
@@ -968,7 +985,7 @@ SceneId showScene21() {
         }
 
         // El tirador de dinamita: mismo mecanismo, un solo evento.
-        if (tntState != MH_DONE) {
+        if (tntState != MH_DONE && !bossStarted) {
             if (tntState == MH_DORMANT && leadFeetX >= LVL21_TNT_TRIG_X)
                 tntState = MH_PENDING;
             if (tntState == MH_PENDING && alive < maxAlive) {
@@ -1117,6 +1134,8 @@ SceneId showScene21() {
             tntHitMask = 0;
         }
 
+        // (24/09) Con la pelea del jefe en curso el guion de la calle queda
+        // congelado: nada de bocas de tormenta ni dinamita.
         // Tapas de alcantarilla: vuelan solas y se liberan al salir de camara.
         // No se consumen al pegar (siguen de largo, como en el arcade): de que
         // un mismo jugador no se coma dos golpes seguidos se encarga la
@@ -1200,12 +1219,52 @@ SceneId showScene21() {
 
         for (u8 k = 0; k < nPl; k++) hudPlayerUpdate(&huds[k]);
 
-        // --- Fin del nivel -------------------------------------------------
-        // La camara llego al tope y el jugador esta pegado al borde derecho.
-        // Se mide sobre los PIES (leadX es el borde del frame de 104px), que es
-        // la misma coordenada con la que trabaja el poligono.
-        if (cameraX >= LVL21_CAM_X_MAX && leadX + FOOT_DX >= LVL21_END_X)
-            running = FALSE;
+        // --- JEFE: Bebop (24/09) -------------------------------------------
+        // Llegar al borde derecho con la camara en su tope ya NO termina el
+        // nivel: arranca la pelea. La camara se queda donde esta (ya estaba
+        // clavada en su tope) y el nivel recien cierra cuando el jefe cae.
+        if (!bossStarted && cameraX >= LVL21_CAM_X_MAX &&
+            leadX + FOOT_DX >= LVL21_END_X) {
+            bossStarted = TRUE;
+            // Los soldiers que hayan quedado vivos se van: el jefe es el
+            // sprite mas grande de la escena (77 tiles) y con dos tortugas el
+            // presupuesto no da para los dos. Se sueltan ANTES de crearlo.
+            for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                if (enemies[i].state == ENEMY_STATE_INACTIVE) continue;
+                if (enemies[i].sprite) SPR_releaseSprite(enemies[i].sprite);
+                enemies[i].sprite = NULL;
+                enemies[i].state  = ENEMY_STATE_INACTIVE;
+            }
+            lidReleaseAll();
+            tntInit();
+            XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+            playMusicVol(music_boss, VOL_MUSIC_BOSS_2_1);
+            bebopSpawn(&bebop);
+        }
+
+        if (bossStarted) {
+            bebopUpdate(&bebop, pls, nPl, cameraX, cameraY);
+
+            // Golpe de la tortuga al jefe. Misma geometria que contra los
+            // soldiers (solape de cajas), asi que por la espalda tambien pega.
+            if (bebopCanBeHit(&bebop)) {
+                s16 bcx = bebopGetCenterX(&bebop);
+                s16 by  = bebopGetCenterY(&bebop);
+                for (u8 k = 0; k < nPl; k++) {
+                    if (!playerAttackHitsBox(pls[k], bcx, by,
+                                             BEBOP_BODY_HALF_W, BEBOP_BODY_H))
+                        continue;
+                    s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG : 1;
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    if (bebopDamage(&bebop, dmg)) addPlayerScore(pls[k], 5);
+                    break;
+                }
+            }
+
+            if (bebopIsGone(&bebop)) running = FALSE;
+        }
 
         // Atajo de calibracion: START + A corta el nivel sin recorrerlo entero.
         u16 joy = JOY_readJoypad(JOY_1);
@@ -1240,6 +1299,8 @@ SceneId showScene21() {
     tntReleaseAll();
     lidReleaseAll();
     mhReleaseAll();
+    bebopRelease(&bebop);      // el jefe y sus aros (tambien si el nivel se
+                               // corta por game over en plena pelea)
     if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }
 
     clearScene();

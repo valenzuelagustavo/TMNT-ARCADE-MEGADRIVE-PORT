@@ -1,0 +1,192 @@
+#!/usr/bin/env python3
+# =============================================================================
+# gen_bebop_sheet.py  -  Jefe del 2-1: grilla uniforme + frames del disparo
+# =============================================================================
+# Entradas (las dibuja Gustavo, NO se tocan):
+#     res/sprites/Bebop_Boss.png   541x715, 7 filas de frames sueltos
+#     res/sprites/bebop_shot.png    72x45, los 5 aros del disparo en fila
+#
+# Salidas (las que compila rescomp):
+#     res/sprites/bebop_boss_gen.png   grilla uniforme de 7 filas x 6 frames
+#     res/sprites/bebop_shot_gen.png   5 frames, el disparo formandose
+#
+# POR QUE HAY QUE REARMARLO: rescomp exige una GRILLA (todas las celdas del
+# mismo tamano, una fila por animacion). El sheet de Gustavo tiene los frames
+# pegados uno al lado del otro con el ancho de cada dibujo, asi que hay que
+# recortarlos y re-pegarlos centrados.
+#
+# EL ANCLA SON LOS PIES, no el centro del dibujo. Si se centrara cada frame por
+# su bounding box, el cuerpo se correria solo cada vez que el arma se estira o
+# se recoge (el arma mide medio Bebop). Se usa entonces:
+#     X = centro del contenido de las ULTIMAS FEET_ROWS filas del frame (las
+#         piernas, que es lo que se queda quieto)
+#     Y = borde inferior de la celda (la linea de pies)
+# La unica fila donde eso no aplica es la de golpes, cuando esta TIRADO en el
+# piso: ahi el "pie" es todo el cuerpo acostado, y centrarlo es lo correcto.
+#
+# Uso:  python3 tools/gen_bebop_sheet.py
+# =============================================================================
+import os
+import sys
+
+import numpy as np
+from PIL import Image
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SPR = os.path.join(ROOT, "res", "sprites")
+
+SRC = os.path.join(SPR, "Bebop_Boss.png")
+DST = os.path.join(SPR, "bebop_boss_gen.png")
+SRC_SHOT = os.path.join(SPR, "bebop_shot.png")
+DST_SHOT = os.path.join(SPR, "bebop_shot_gen.png")
+
+FEET_ROWS = 14          # filas de abajo que se toman como "las piernas"
+PAD = 8                 # la celda se redondea a multiplo de 8 (tiles)
+
+# Cuantos frames tiene cada fila, para validar contra lo que detecta el script
+# (asi un sheet re-exportado con una fila de mas no pasa de largo).
+EXPECTED = [3, 3, 6, 4, 5, 5, 6]
+ROW_NAMES = ["idle", "vitoreo", "walk", "embestida", "uppercut",
+             "disparo", "golpes"]
+
+
+def runs(mask):
+    out, start = [], None
+    for i, v in enumerate(mask):
+        if v and start is None:
+            start = i
+        if not v and start is not None:
+            out.append((start, i - 1))
+            start = None
+    if start is not None:
+        out.append((start, len(mask) - 1))
+    return out
+
+
+def cut_frames(a):
+    """Devuelve [[(sub, xcenter_rel, )...] por fila]: cada frame recortado a su
+    bounding box, con la X del centro de las piernas dentro del recorte."""
+    art = a != 0
+    rows = runs(art.any(axis=1))
+    if len(rows) != len(EXPECTED):
+        sys.exit("Se detectaron %d filas, se esperaban %d" % (len(rows), len(EXPECTED)))
+
+    out = []
+    for ri, (r0, r1) in enumerate(rows):
+        band = art[r0:r1 + 1]
+        cols = runs(band.any(axis=0))
+        if len(cols) != EXPECTED[ri]:
+            sys.exit("Fila %d (%s): %d frames, se esperaban %d"
+                     % (ri, ROW_NAMES[ri], len(cols), EXPECTED[ri]))
+        frames = []
+        for c0, c1 in cols:
+            sub = a[r0:r1 + 1, c0:c1 + 1]
+            ys = np.nonzero((sub != 0).any(axis=1))[0]
+            sub = sub[ys.min():ys.max() + 1]          # recorte vertical propio
+            feet = sub[max(0, sub.shape[0] - FEET_ROWS):]
+            xs = np.nonzero((feet != 0).any(axis=0))[0]
+            cx = (int(xs.min()) + int(xs.max())) // 2
+            frames.append((sub, cx))
+        out.append(frames)
+    return out
+
+
+def build_grid(frames):
+    # La celda tiene que cubrir, respecto del ancla: lo que sobresale a la
+    # izquierda, lo que sobresale a la derecha y el alto del frame mas alto.
+    left = max(f[1] for row in frames for f in row)
+    right = max(f[0].shape[1] - 1 - f[1] for row in frames for f in row)
+    half = max(left, right) + 1
+    cw = ((2 * half + PAD - 1) // PAD) * PAD
+    ch = max(f[0].shape[0] for row in frames for f in row)
+    ch = ((ch + PAD - 1) // PAD) * PAD
+    cols = max(len(row) for row in frames)
+    print("celda %dx%d px (%dx%d tiles), grilla %d filas x %d frames"
+          % (cw, ch, cw // 8, ch // 8, len(frames), cols))
+
+    out = np.zeros((ch * len(frames), cw * cols), np.uint8)
+    for ri, row in enumerate(frames):
+        for ci, (sub, cx) in enumerate(row):
+            h, w = sub.shape
+            x0 = ci * cw + cw // 2 - cx
+            y0 = ri * ch + ch - h                    # pegado abajo: los pies
+            if x0 < ci * cw or x0 + w > (ci + 1) * cw:
+                sys.exit("Fila %d frame %d no entra en la celda" % (ri, ci))
+            out[y0:y0 + h, x0:x0 + w] = np.where(sub != 0, sub,
+                                                 out[y0:y0 + h, x0:x0 + w])
+    return out, cw, ch
+
+
+def build_shot(a):
+    """Los 5 aros del disparo, de menor a mayor, en celdas iguales. Cada frame
+    ACUMULA los aros anteriores: el disparo se va formando aro por aro, que es
+    como lo pidio Gustavo ('aparecer de a uno')."""
+    art = a != 0
+    cols = runs(art.any(axis=0))
+    if len(cols) < 2:
+        sys.exit("El disparo tiene %d aros" % len(cols))
+    ys = np.nonzero(art.any(axis=1))[0]
+    y0, y1 = int(ys.min()), int(ys.max())
+    x0 = cols[0][0]
+    x1 = cols[-1][1]
+    w = ((x1 - x0 + 1 + PAD - 1) // PAD) * PAD
+    h = ((y1 - y0 + 1 + PAD - 1) // PAD) * PAD
+    print("disparo: %d aros, celda %dx%d px (%dx%d tiles)"
+          % (len(cols), w, h, w // 8, h // 8))
+
+    out = np.zeros((h, w * len(cols)), np.uint8)
+    # El aro mas grande es el ultimo: se alinean todos por ABAJO y por el
+    # borde DERECHO del recorte, que es por donde avanza el disparo.
+    for i in range(len(cols)):
+        piece = a[y0:y1 + 1, x0:cols[i][1] + 1]
+        ph, pw = piece.shape
+        ox = i * w + (w - (x1 - x0 + 1))            # mismo origen en todos
+        oy = h - ph
+        out[oy:oy + ph, ox:ox + pw] = piece
+    return out
+
+
+def remap(arr, src_pal, dst_pal):
+    """Reindexa por cercania de color contra la paleta del jefe: el disparo
+    comparte PAL3 con el, asi que no puede traer indices propios."""
+    lut = np.zeros(256, np.uint8)
+    tgt = np.array(dst_pal[1:], dtype=np.int32)
+    for i in range(16):
+        if i == 0:
+            continue
+        d = ((tgt - np.array(src_pal[i], dtype=np.int32)) ** 2).sum(axis=1)
+        lut[i] = int(d.argmin()) + 1
+    return lut[arr]
+
+
+def save(arr, path, src_im):
+    img = Image.fromarray(arr, "P")
+    img.putpalette(src_im.getpalette())
+    img.save(path, transparency=0)
+    print("%s  %dx%d" % (os.path.basename(path), arr.shape[1], arr.shape[0]))
+
+
+def main():
+    im = Image.open(SRC)
+    if im.mode != "P":
+        sys.exit("El sheet de Bebop tiene que ser indexado")
+    a = np.asarray(im).astype(np.uint8)
+    grid, cw, ch = build_grid(cut_frames(a))
+    save(grid, DST, im)
+
+    ims = Image.open(SRC_SHOT)
+    if ims.mode != "P":
+        sys.exit("El disparo tiene que ser indexado")
+    def pal16(image):
+        p = list(image.getpalette() or [])
+        p += [0] * (48 - len(p))
+        return [tuple(p[i * 3:i * 3 + 3]) for i in range(16)]
+
+    pal_b = pal16(im)
+    pal_s = pal16(ims)
+    shot = remap(build_shot(np.asarray(ims).astype(np.uint8)), pal_s, pal_b)
+    save(shot, DST_SHOT, im)
+
+
+if __name__ == "__main__":
+    main()
