@@ -38,11 +38,12 @@ PURPLE = os.path.join(SPR, "foot_soldier_purple_13x13.png")
 CELL = 64          # celda de 8x8 tiles
 FRAMES = 8
 
-# Las 4 bandas del sheet (primera y ultima fila de cada una, medidas sobre el
-# PNG) y las dos columnas. Se recortan por contenido, no a ojo.
-ROW_BANDS = [(19, 81), (87, 151), (154, 216), (236, 297)]
-COL_BANDS = [(0, 344), (355, 664)]
-
+# El sheet trae una tira de muestras de paleta arriba a la izquierda (filas
+# 0..7) y debajo 8 frames en 4 filas x 2 columnas. Las columnas se detectan por
+# contenido, y DENTRO de cada columna cada frame se recorta con SU PROPIO alto:
+# no todos los frames del sheet llegan igual de abajo (el 3 de la columna
+# izquierda termina 3 px mas arriba que su vecino de la derecha).
+HEADER_ROWS = 8     # la tira de muestras de la paleta
 
 def main():
     im = Image.open(SRC)
@@ -71,13 +72,35 @@ def main():
             d = [sum((x - y) ** 2 for x, y in zip(c, t)) for t in dst_rgb[1:]]
             lut[i] = d.index(min(d)) + 1
 
-    # Recorte de los 8 frames, en orden de lectura (fila, columna).
+    art = lut[a] != 0                       # mapa de "hay pixel"
+    art[:HEADER_ROWS] = False               # la tira de muestras no es un frame
+
+    def runs(mask):
+        out, start = [], None
+        for i, v in enumerate(mask):
+            if v and start is None:
+                start = i
+            if not v and start is not None:
+                out.append((start, i - 1))
+                start = None
+        if start is not None:
+            out.append((start, len(mask) - 1))
+        return out
+
+    cols = runs(art.any(axis=0))
+    if len(cols) != 2:
+        sys.exit("Se esperaban 2 columnas de frames, se detectaron %d" % len(cols))
+
+    # Cada frame con su propio alto: las filas se buscan DENTRO de su columna.
     bands = []
-    for r0, r1 in ROW_BANDS:
-        for c0, c1 in COL_BANDS:
-            b = lut[a[r0:r1 + 1, c0:c1 + 1]]
+    for r0, r1 in runs(art[:, cols[0][0]:cols[0][1] + 1].any(axis=1)):
+        for c0, c1 in cols:
+            sub = art[:, c0:c1 + 1]
+            rows = [r for r in range(r0 - 4, min(r1 + 5, art.shape[0]))
+                    if r >= 0 and sub[r].any()]
+            b = lut[a[min(rows):max(rows) + 1, c0:c1 + 1]]
             if b.shape[0] > CELL:
-                b = b[b.shape[0] - CELL:]          # ninguna banda llega a 64
+                b = b[b.shape[0] - CELL:]       # se recorta por ARRIBA
             bands.append(b)
     if len(bands) != FRAMES:
         sys.exit("Se esperaban %d frames, salieron %d" % (FRAMES, len(bands)))
@@ -92,6 +115,12 @@ def main():
     best, bestcost = 0, None
     for x in range(width - CELL + 1):
         cost = 0.0
+        # Huecos en la ULTIMA fila de la celda: ahi se ve el fondo por debajo
+        # del fuego y parece que la llama "salta" hacia arriba en ese frame.
+        # (24/09, reportado por Gustavo.) Penalizacion fuerte, no descarte: si
+        # ninguna ventana quedara limpia, igual elige la menos mala.
+        for b in bands:
+            cost += float((b[-1, x:x + CELL] == 0).sum()) * 50.0
         for b in bands:
             left = b[:, x].astype(np.int16)
             right = b[:, x + CELL - 1].astype(np.int16)
@@ -106,8 +135,18 @@ def main():
     out = np.zeros((CELL * FRAMES, CELL), np.uint8)
     for i, b in enumerate(bands):
         cell = b[:, best:best + CELL]
-        # Pegado ABAJO de la celda: el fuego crece desde el piso y arriba queda
-        # transparente, igual que el fire_strip viejo.
+        # Pegado ABAJO por CONTENIDO: se descartan las filas transparentes que
+        # le queden debajo a ESTE recorte, asi los 8 frames apoyan en la misma
+        # linea y ninguno deja ver el fondo en la fila de abajo.
+        filled = [r for r in range(cell.shape[0]) if (cell[r] != 0).any()]
+        if not filled:
+            sys.exit("El frame %d quedo vacio en la ventana elegida" % i)
+        cell = cell[:max(filled) + 1]
+        if cell.shape[0] > CELL:
+            cell = cell[cell.shape[0] - CELL:]
+        hole = int((cell[-1] == 0).sum())
+        print("  frame %d alto=%2d  huecos en la fila de abajo=%d"
+              % (i, cell.shape[0], hole))
         out[i * CELL + (CELL - cell.shape[0]): (i + 1) * CELL] = cell
 
     img = Image.fromarray(out, "P")
