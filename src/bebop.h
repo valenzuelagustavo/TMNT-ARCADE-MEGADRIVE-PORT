@@ -101,7 +101,22 @@
 #define BEBOP_CHARGE_MAX     80   // tope de frames de la embestida
 #define BEBOP_CHARGE_OVER    16   // sigue de largo tras conectar
 #define BEBOP_CHARGE_DIST   150   // a mas de esto, embiste
-#define BEBOP_UPPER_RANGE    62   // distancia centro-a-centro para el uppercut
+#define BEBOP_UPPER_RANGE    62   // alcance hacia adelante del uppercut
+// (25/09) El uppercut es el ANTIAEREO: sale cuando el jugador SALTA cerca de
+// el (ya no es el golpe de melee comun). Reacciona desde IDLE o caminando.
+#define BEBOP_AA_RANGE       80   // distX maxima para reaccionar a un salto
+#define BEBOP_AA_MAX_Z      110   // jumpZ maxima que alcanza el puño
+#define BEBOP_AA_COOLDOWN    40   // frames entre dos antiaereos
+#define BEBOP_UPPER_WIND_TICKS 4  // ticks por frame del arranque (0-2): rapido,
+                                  // o el jugador ya aterrizo cuando pega
+#define BEBOP_UPPER_HIT_TICKS  8  // ticks por frame del golpe (3-4)
+// Rotacion de conductas (25/09): antes el disparo pedia estar alineado en lane
+// por casualidad y casi nunca salia. Ahora el jefe ROTA entre tres pasos:
+//   0, 1  ARMA       se alinea en lane (sin acercarse) y dispara
+//   2     CUERPO     lejos embiste; cerca, disparo agachado a quemarropa
+#define BEBOP_STEPS           3
+#define BEBOP_CLOSE_RANGE    70   // "cerca" para el paso de cuerpo
+#define BEBOP_ALIGN_TICKS    70   // tope de frames alineandose antes de rendirse
 #define BEBOP_SHOOT_RANGE   260   // a mas de esto no dispara (no se lo ve)
 #define BEBOP_HIT_TOL_Y      26   // |dy| de pies para que conecte un golpe
 #define BEBOP_ALIGN_Y         6   // |dy| que considera "alineado" en lane
@@ -131,11 +146,18 @@
 #define MAX_BEBOP_SHOTS        2
 #define BEBOP_SHOT_W          72   // celda del proyectil
 #define BEBOP_SHOT_H          40
-#define BEBOP_SHOT_HALF_W     28   // hitbox: un poco menos que el dibujo
 #define BEBOP_SHOT_TOL_Y      22   // |dy| de lane para conectar
-#define BEBOP_SHOT_TOL_Z      34   // |dz| contra el torso del jugador
-#define BEBOP_SHOT_TORSO_Z    30   // altura del torso sobre los pies
+#define BEBOP_SHOT_TOL_Z      36   // |dz| contra el torso del jugador
+#define BEBOP_SHOT_TORSO_Z    36   // altura del torso sobre los pies
 #define BEBOP_SHOT_MARGIN     40   // px fuera de pantalla antes de liberarlo
+
+// --- Flash por vida baja (igual que Rocksteady) ------------------------------
+// Alterna la paleta normal con una "quemada" (cada canal x2): lento por debajo
+// de un tercio de la vida, rapido por debajo de un sexto.
+#define BEBOP_FLASH_HP        (BEBOP_HP / 3)
+#define BEBOP_FLASH_CRIT_HP   (BEBOP_HP / 6)
+#define BEBOP_FLASH_TICKS      8
+#define BEBOP_FLASH_CRIT_TICKS 3
 
 typedef enum {
     BEBOP_INACTIVE = 0,
@@ -173,6 +195,11 @@ typedef struct {
     u8         frameTick;     // contador para los frames manejados a mano
     u8         frame;
     u8         crouchShot;    // el disparo en curso es el agachado
+    u8         step;          // paso de la rotacion (ver BEBOP_STEPS)
+    u8         alignOnly;     // caminata de alinearse para disparar
+    u16        aaCooldown;    // frames hasta el proximo antiaereo
+    u8         flashTick;
+    u8         flashOn;
     s16        fromX, fromY;  // origen de la parabola en curso (entrada)
     s16        cameraOffsetX;
     s16        cameraOffsetY;

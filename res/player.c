@@ -1370,6 +1370,22 @@ bool playerManholeFall(Player* p, s16 outX, s16 outY) {
 }
 
 bool playerInManhole(const Player* p)       { return (bool)(p->mhPhase != 0); }
+
+void playerDropIn(Player* p, s16 height) {
+    p->state         = STATE_JUMPING;
+    p->jumpZ         = height;
+    p->jumpVel       = PLAYER_FALL_SPEED;   // ya cayendo: sin subida ni apex
+    p->apexHang      = 0;
+    p->airFrame      = 1;
+    p->airTimer      = 0;
+    p->isJumpKicking = JUMPKICK_NONE;
+    p->comboStep     = 0;
+    p->hurtTimer     = 0;
+    if (p->sprite) {
+        SPR_setAutoAnimation(p->sprite, FALSE);
+        SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 1);
+    }
+}
 bool playerManholeSpeaking(const Player* p) { return (bool)(p->mhPhase == 2); }
 
 bool playerManholeStep(Player* p) {

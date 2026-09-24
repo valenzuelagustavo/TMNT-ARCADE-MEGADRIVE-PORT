@@ -646,6 +646,13 @@ bool playerManholeFall(Player* p, s16 outX, s16 outY);
 // saltearse updatePlayer y para no dejar que la cámara la siga.
 bool playerInManhole(const Player* p);
 
+// (25/09) ENTRADA CAYENDO: deja a la tortuga en el aire a 'height' px sobre su
+// lane, ya en la fase de CAIDA del salto (velocidad PLAYER_FALL_SPEED, loop
+// de frames del apex y ultimo frame antes de tocar el piso). No es un estado
+// nuevo: es un salto que arranca por la mitad, asi que aterriza, se puede
+// patear en el aire y los enemigos la ignoran igual que a cualquier salto.
+void playerDropIn(Player* p, s16 height);
+
 // TRUE solo durante la fase 2 (el frame vacío): es la ventana del globo y del
 // voice over. El flanco de subida lo detecta la escena comparándolo con el
 // valor del frame anterior.

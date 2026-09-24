@@ -184,8 +184,11 @@ extern u8 cantidadJugadores;
 //   dir          +1 tira la tapa a la derecha, -1 a la izquierda.
 //
 // La PRIMERA es la unica que ataca POR LA ESPALDA: se dispara cuando los
-// jugadores YA PASARON la tapa (trigX 283 > holeX 96), asi que la tapa sale
-// hacia la derecha. Las otras cuatro se disparan cuando el jugador ESTA POR
+// jugadores YA PASARON la tapa (trigX 174 > holeX 96), asi que la tapa sale
+// hacia la derecha. (25/09) Era 283 y el agujero quedaba fuera de cuadro al
+// disparar; 174 es la X de pies que marco Gustavo en una captura (Leo parado
+// a ~80 px de la boca), y con la camara arrancando en 32 la boca queda a la
+// vista en pantalla x=64. Las otras cuatro se disparan cuando el jugador ESTA POR
 // LLEGAR, con LVL21_MANHOLE_LEAD px de anticipo, y tiran hacia la izquierda.
 //
 // POR QUE 120 PX DE ANTICIPO. La camara sigue al lider con una franja muerta de
@@ -320,6 +323,21 @@ extern u8 cantidadJugadores;
 #define VOL_MUSIC_SCENE_CLEAR 90
 #define VOL_MUSIC_BOSS_2_1    90   // tema del jefe, igual que el de Rocksteady
 
+// (25/09) La camara ARRANCA corrida a la derecha (antes en 0) y las tortugas
+// ENTRAN CAYENDO desde arriba por el lado izquierdo de la pantalla: nacen
+// LVL21_DROP_Z px sobre su lane (fuera de cuadro) y bajan con la caida del
+// salto, derivando LVL21_DROP_DRIFT px por frame hacia la derecha para que se
+// lea como un salto desde la izquierda y no como una plomada. Los jugadores
+// 2..4 caen escalonados (LVL21_DROP_STAGGER mas arriba cada uno).
+// Con la camara en 32 el P1 nace con el borde del frame en pantalla x=8, y con
+// la deriva aterriza unos 32 px mas a la derecha: todos siguen DENTRO de la
+// franja muerta (ver la nota de abajo), asi que el nivel no scrollea solo.
+#define LVL21_CAM_START_X   32
+#define LVL21_DROP_Z       190   // alcanza para arrancar entero fuera de cuadro
+#define LVL21_DROP_STAGGER  36
+#define LVL21_DROP_DRIFT     1
+#define LVL21_DROP_TICKS    60   // frames durante los que se aplica la deriva
+
 // Punto de partida (el jugador sale del edificio, a la izquierda del todo)
 #define START_P1_X        40
 #define START_P1_Y       210
@@ -355,7 +373,7 @@ typedef struct {
 
 static const Manhole manholes[LVL21_MANHOLES] = {
     //  holeX holeY  trigX   dir
-    {     96,  189,   283,  +1 },   // POR LA ESPALDA: se dispara ya pasada
+    {     96,  189,   174,  +1 },   // POR LA ESPALDA: se dispara ya pasada
     {    480,  189,   384,  -1 },   // 480 - 96
     {    768,  157,   672,  -1 },
     {   1240,  205,  1144,  -1 },
@@ -706,7 +724,7 @@ SceneId showScene21() {
     u8   nPl = numJugadores();
     bool dosJugadores = (nPl >= 2);
 
-    s16 cameraX = 0;
+    s16 cameraX = LVL21_CAM_START_X;
     s16 cameraY = LVL21_CAM_Y_MIN;
 
     // El fondo arranca despues de los tiles reservados al HUD (las dos barras
@@ -740,8 +758,12 @@ SceneId showScene21() {
                            : START_P1_Y));
         setPlayerLane(pls[k], LVL21_WALK_Y_MIN, LVL21_WALK_Y_MAX);
         setPlayerEndWall(pls[k], 0, 0);           // este nivel no tiene pared diagonal
-        setPlayerRightBound(pls[k], SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+        setPlayerRightBound(pls[k], cameraX + SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
+        setPlayerLeftBound(pls[k], cameraX);
+        setPlayerCamera(pls[k], cameraX);
+        playerDropIn(pls[k], (s16)(LVL21_DROP_Z + k * LVL21_DROP_STAGGER));
     }
+    u16 dropTicks = LVL21_DROP_TICKS;
 
     VDP_loadFont(&hud_font, DMA);
     VDP_setTextPlane(BG_A);
@@ -807,7 +829,7 @@ SceneId showScene21() {
     for (u8 k = 0; k < nPl; k++)
         if (pls[k]->sprite)
             SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
-                            pls[k]->y - PLAYER_FOOT_OFFSET - cameraY);
+                            pls[k]->y - PLAYER_FOOT_OFFSET - pls[k]->jumpZ - cameraY);
     SPR_update();
 
     static const u16 black[64] = { 0 };
@@ -818,6 +840,13 @@ SceneId showScene21() {
     // --- Bucle principal ---------------------------------------------------
     bool running = TRUE;
     while (running) {
+        // Deriva de la entrada cayendo: solo mientras siguen en el aire.
+        if (dropTicks > 0) {
+            dropTicks--;
+            for (u8 k = 0; k < nPl; k++)
+                if (isPlayerJumping(pls[k]))
+                    pls[k]->x = (s16)(pls[k]->x + LVL21_DROP_DRIFT);
+        }
         for (u8 k = 0; k < nPl; k++) {
             // Dentro del pozo la secuencia corre sola y NO se lee input.
             if (playerInManhole(pls[k])) { playerManholeStep(pls[k]); continue; }
