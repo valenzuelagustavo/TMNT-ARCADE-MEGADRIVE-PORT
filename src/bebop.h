@@ -124,6 +124,25 @@
 #define BEBOP_COOLDOWN       34   // frames despues de un ataque
 #define BEBOP_HURT_FRAMES    14   // flinch
 #define BEBOP_KD_INTERVAL     8   // golpes recibidos entre caidas
+// --- Anti-trabado (26/09) ---------------------------------------------------
+// Gustavo lo trababa a golpes: cada golpe lo mandaba al flinch, al salir del
+// flinch quedaba golpeable de nuevo con cooldown 0, y la tortuga encadenaba
+// combos hasta tirarlo; se levantaba y vuelta a empezar, sin que el jefe
+// pudiera responder nunca. Tres frenos:
+//  1. RACHA: aguanta BEBOP_COUNTER_HITS golpes seguidos con flinch; el
+//     siguiente lo ABSORBE (le baja la vida igual) y contraataca en el acto
+//     con un uppercut CON ARMADURA (no se lo puede interrumpir) que derriba.
+//     La racha se corta sola tras BEBOP_COMBO_RESET frames sin recibir golpes.
+//  2. AL LEVANTARSE: BEBOP_GETUP_ARMOR frames invulnerable, y si hay una
+//     tortuga encima (BEBOP_WAKE_RANGE) se levanta directo con el uppercut
+//     con armadura.
+//  3. La caida cada BEBOP_KD_INTERVAL golpes se mantiene, pero la racha se
+//     reinicia al caer.
+#define BEBOP_COUNTER_HITS    2
+#define BEBOP_COMBO_RESET    50
+#define BEBOP_GETUP_ARMOR    40
+#define BEBOP_WAKE_RANGE     90
+#define BEBOP_COUNTER_DMG     2   // barras del uppercut de contraataque
 #define BEBOP_KD_HOLD        70   // frames tirado en el piso
 #define BEBOP_GETUP_TICKS     8   // ticks por frame al levantarse
 #define BEBOP_TAUNT_IDLE    260   // frames sin recibir golpes -> vitorea
@@ -200,6 +219,9 @@ typedef struct {
     u16        aaCooldown;    // frames hasta el proximo antiaereo
     u8         flashTick;
     u8         flashOn;
+    u8         comboHits;     // golpes recibidos SEGUIDOS (ver anti-trabado)
+    u8         armored;       // uppercut de contraataque: no se lo puede golpear
+    u16        armorTimer;    // invulnerable al levantarse
     s16        fromX, fromY;  // origen de la parabola en curso (entrada)
     s16        cameraOffsetX;
     s16        cameraOffsetY;

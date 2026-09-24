@@ -339,21 +339,19 @@ extern u8 cantidadJugadores;
 #define LVL21_DROP_TICKS    60   // frames durante los que se aplica la deriva
 
 // Punto de partida (el jugador sale del edificio, a la izquierda del todo)
+// (26/09) TODOS caen en la MISMA X, cada uno en su lane: con la separacion en X
+// el P2 aterrizaba mas a la derecha y, con la deriva de la caida, empujaba la
+// camara. La calle en esa zona va de y=160 a 250.
 #define START_P1_X        40
 #define START_P1_Y       210
-#define START_P2_Y       230
+#define START_P2_Y       232     // un poco mas abajo que el P1
+#define START_P3_Y       188
+#define START_P4_Y       248
 
-// (17/09) SEPARACION AL NACER. El P2 nacia en x=160, o sea FUERA de la franja
-// muerta de la camara (CAM_DEAD_ZONE_RIGHT = 120). Como la camara sigue al que
-// mas avanzo, el nivel arrancaba solo, con un scroll involuntario de 40px --
-// y con 4 jugadores el ultimo nacia en x=240 y el tiron era de 120px. Ahora
-// los jugadores 2..4 nacen PEGADOS al P1 y todos dentro de la franja muerta:
-//   2 jugadores: P2 en x=104
-//   3-4:         66 / 92 / 118
-// Los de atras ademas se corren un poco en profundidad para no encimarse.
-#define START_SPREAD_X_2P  64
-#define START_SPREAD_X_4P  26
-#define START_DEPTH_STEP    8
+// (17/09) El P2 nacia fuera de la franja muerta de la camara
+// (CAM_DEAD_ZONE_RIGHT = 120) y el nivel arrancaba con un scroll involuntario.
+// Se lo acerco en X; desde el 26/09 directamente nacen todos en la misma X
+// (ver arriba), separados solo en profundidad.
 
 // ---------------------------------------------------------------------------
 // Estado del streaming de fondo
@@ -748,14 +746,12 @@ SceneId showScene21() {
     for (u8 k = 0; k < nPl; k++) {
         // La calle no es un pasillo recto: al motor se le da la franja de
         // profundidad COMPLETA (la cornisa incluida) y el recorte fino lo hace
-        // clampToWalk() contra la tabla de limites. Los jugadores 2..4 se
-        // escalonan para no nacer encimados, pero SIN salirse de la franja
-        // muerta de la camara (ver START_SPREAD_X_*).
-        const s16 spreadX = (nPl > 2) ? START_SPREAD_X_4P : START_SPREAD_X_2P;
+        // clampToWalk() contra la tabla de limites. Todos nacen en la misma
+        // X y en distinta lane (ver START_P*_Y).
+        static const s16 startY[MAX_PLAYERS] = {
+            START_P1_Y, START_P2_Y, START_P3_Y, START_P4_Y };
         initPlayer(pls[k], playerChar(k), playerJoy(k), PAL1,
-                   (s16)(START_P1_X + k * spreadX),
-                   (s16)(k ? START_P2_Y + (k - 1) * START_DEPTH_STEP
-                           : START_P1_Y));
+                   START_P1_X, startY[k]);
         setPlayerLane(pls[k], LVL21_WALK_Y_MIN, LVL21_WALK_Y_MAX);
         setPlayerEndWall(pls[k], 0, 0);           // este nivel no tiene pared diagonal
         setPlayerRightBound(pls[k], cameraX + SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);

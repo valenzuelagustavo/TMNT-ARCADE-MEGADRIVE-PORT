@@ -268,6 +268,9 @@ void bebopInit(Bebop* b) {
     b->aaCooldown = 0;
     b->flashTick = 0;
     b->flashOn = 0;
+    b->comboHits = 0;
+    b->armored = 0;
+    b->armorTimer = 0;
     b->fromX = b->fromY = 0;
     b->cameraOffsetX = 0;
     b->cameraOffsetY = 0;
@@ -288,6 +291,9 @@ void bebopSpawn(Bebop* b) {
     b->aaCooldown = 0;
     b->flashTick = 0;
     b->flashOn   = 0;
+    b->comboHits = 0;
+    b->armored   = 0;
+    b->armorTimer = 0;
     bebopBuildPalettes();
 
     // Arranca la primera parabola: arriba y a la izquierda del auto.
@@ -318,7 +324,9 @@ bool bebopIsGone(const Bebop* b) { return (bool)(b->state == BEBOP_GONE); }
 
 bool bebopCanBeHit(const Bebop* b) {
     // Golpeable en el piso y peleando; NO durante la entrada, el flinch, la
-    // caida ni la muerte.
+    // caida ni la muerte. Tampoco con armadura (contraataque) ni en los
+    // frames de gracia al levantarse -- ver el anti-trabado en bebop.h.
+    if (b->armored || b->armorTimer > 0) return FALSE;
     return (bool)(b->state == BEBOP_IDLE   || b->state == BEBOP_TAUNT ||
                   b->state == BEBOP_WALK   || b->state == BEBOP_CHARGE ||
                   b->state == BEBOP_UPPER  || b->state == BEBOP_SHOOT);
@@ -333,6 +341,19 @@ void bebopRelease(Bebop* b) {
     if (b->sprite) SPR_releaseSprite(b->sprite);
     b->sprite = NULL;
     bebopShotReleaseAll();
+}
+
+// Uppercut CON ARMADURA: el contraataque del anti-trabado. Mismo golpe que el
+// antiaereo, pero no se lo puede interrumpir y al que agarra en el piso lo
+// DERRIBA (asi la tortuga sale despedida y la racha se corta de verdad).
+static void bebopStartCounter(Bebop* b) {
+    b->state     = BEBOP_UPPER;
+    b->upperHit  = 0;
+    b->frameTick = 0;
+    b->armored   = 1;
+    b->comboHits = 0;
+    b->aaCooldown = BEBOP_AA_COOLDOWN;
+    bebopManual(b, BEBOP_ANIM_UPPER, 0);
 }
 
 bool bebopDamage(Bebop* b, s16 dmg) {
@@ -353,12 +374,17 @@ bool bebopDamage(Bebop* b, s16 dmg) {
     }
 
     b->hitsTaken++;
+    b->comboHits++;
     if (b->hitsTaken >= BEBOP_KD_INTERVAL) {
         b->hitsTaken = 0;
+        b->comboHits = 0;
         b->state = BEBOP_DOWN;
         b->timer = BEBOP_KD_HOLD;
         b->frameTick = 0;
         bebopManual(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_HIT);
+    } else if (b->comboHits > BEBOP_COUNTER_HITS) {
+        // Ya aguanto la racha: este golpe lo absorbe y responde.
+        bebopStartCounter(b);
     } else {
         b->state = BEBOP_HURT;
         b->timer = BEBOP_HURT_FRAMES;
@@ -454,7 +480,9 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
 
     if (b->cooldown > 0) b->cooldown--;
     if (b->aaCooldown > 0) b->aaCooldown--;
+    if (b->armorTimer > 0) b->armorTimer--;
     if (b->calmTimer < 0xFFF0) b->calmTimer++;
+    if (b->calmTimer >= BEBOP_COMBO_RESET) b->comboHits = 0;
     if (b->state != BEBOP_DEAD) bebopFlashUpdate(b);
 
     Player* t = bebopTarget(b, pls, nPl);
@@ -474,6 +502,10 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         b->dir = (tcx < cx) ? -1 : 1;
         bebopStartUpper(b);
     }
+
+    // El contraataque sale hacia el que lo esta golpeando.
+    if (t && b->armored && b->state == BEBOP_UPPER && b->frame == 0)
+        b->dir = (tcx < cx) ? -1 : 1;
 
     switch (b->state) {
 
@@ -635,7 +667,10 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 s16 dx  = (s16)((pcx - bebopGetCenterX(b)) * b->dir);
                 if (dx < -12 || dx > BEBOP_AA_RANGE) continue;
                 if (abs(getPlayerY(pls[k]) - b->y) > BEBOP_HIT_TOL_Y) continue;
-                playerHitProjectile(pls[k], bebopGetCenterX(b), BEBOP_UPPER_DMG);
+                if (b->armored && getPlayerJumpZ(pls[k]) == 0)
+                    playerHitBarsKnockdown(pls[k], bebopGetCenterX(b), BEBOP_COUNTER_DMG);
+                else
+                    playerHitProjectile(pls[k], bebopGetCenterX(b), BEBOP_UPPER_DMG);
                 b->upperHit = 1;
                 break;
             }
@@ -643,6 +678,7 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         u8 ticks = (b->frame < BEBOP_UPPER_FR_HIT) ? BEBOP_UPPER_WIND_TICKS
                                                    : BEBOP_UPPER_HIT_TICKS;
         if (bebopStepFrames(b, BEBOP_ANIM_UPPER, 0, 4, ticks)) {
+            b->armored  = 0;
             b->cooldown = BEBOP_COOLDOWN;
             bebopToIdle(b);
         }
@@ -697,8 +733,15 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
     case BEBOP_GETUP:
         if (bebopStepFrames(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_GETUP, 5,
                             BEBOP_GETUP_TICKS)) {
-            b->cooldown = BEBOP_COOLDOWN;
-            bebopToIdle(b);
+            b->armorTimer = BEBOP_GETUP_ARMOR;
+            b->comboHits  = 0;
+            // Tortuga encima esperandolo: se levanta pegando.
+            if (t && distX <= BEBOP_WAKE_RANGE && abs(distY) <= BEBOP_HIT_TOL_Y) {
+                bebopStartCounter(b);
+            } else {
+                b->cooldown = BEBOP_COOLDOWN;
+                bebopToIdle(b);
+            }
         }
         break;
 
