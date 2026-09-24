@@ -56,7 +56,11 @@ IMAGE bg_level1 "images/lvl_1_scene/Arcade---Teenage-Mutant-Ninja-Turtles---Back
 // deduplicar para que los 64 tiles de cada frame queden CONTIGUOS y en orden.
 // El fuego NO lleva PALETTE propia: comparte la paleta del foot_soldier
 // (PAL2), los PNGs estan cuantizados sobre la misma paleta indexada.
-TILESET fire_tiles "sprites/fire_strip.png" NONE NONE
+// (24/09) El strip lo genera ahora tools/gen_fire_strip.py a partir del sheet
+// nuevo de Gustavo ("CHAMAS 7 CORES.png", 8 frames de banda ancha): elige la
+// ventana de 64 px que menos costura deja al repetirse y la pega abajo de la
+// celda. Los 7 colores del fuego son un subconjunto de la paleta de enemigos.
+TILESET fire_tiles "sprites/fire_strip_new.png" NONE NONE
 
 // --- HUD: marcos de vidas / puntos / barra de vida (72x32 cada uno) ---
 // Spritesheet de 4 animaciones de 1 frame (celda 72x32), UNA por tortuga en

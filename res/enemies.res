@@ -51,16 +51,23 @@
 // reproduce. El dia que se dibuje el agarre, el arte lo tapa y listo.
 // Para chequearlo: en out/symbol.txt tienen que estar foot_soldier_animation0
 // hasta foot_soldier_animation17, SIN huecos.
-SPRITE foot_soldier "sprites/foot_soldier_16colors_purple.png" 8 10 FAST 8
+// (24/09) SHEET NUEVO: foot_soldier_purple_13x13.png. Misma grilla (832x1440,
+// 13x18 frames de 64x80) pero repintado sobre la PALETA UNICA de enemigos, la
+// que tambien usan el naranja y el fuego. tools/gen_enemy_palette.py le dejo el
+// indice 0 libre (transparente) y los 15 colores reales en 1..15.
+SPRITE foot_soldier "sprites/foot_soldier_purple_13x13.png" 8 10 FAST 8
 
 // Foot Soldier Naranja: sheet de 416x936 = grilla 4x9 de frames de 104x104px.
-// Misma grilla que las tortugas/regular. Usa PAL3 (reemplaza al flash eliminado).
+// Misma grilla que las tortugas/regular. Usa PAL2 (la paleta unica de enemigos).
 // Animaciones (filas):
 //   [0] Idle (1f) | [1] Walk (4f) | [2] Walk up (4f) | [3] Shuriken throw (3f)
 //   [4] Punch front (2f) | [5] Uppercut (3f) | [6] Explode (4f)
 //   [7] Hit received (1f) | [8] Jump kick (4f)
 // El shuriken se spawnea en el frame 1 de la anim [3] (timer == 16).
-SPRITE foot_soldier_orange "sprites/foot_soldier_orange.png" 13 13 FAST 8
+// (24/09) SHEET NUEVO: Foot_Soldier_Orange_new.png, misma grilla que el viejo.
+// Comparte la paleta EXACTA del morado, asi que ya no gasta una linea propia:
+// se dibuja con PAL2 y PAL3 queda para el blanco (ver scenes.c).
+SPRITE foot_soldier_orange "sprites/Foot_Soldier_Orange_new.png" 13 13 FAST 8
 
 // Foot Soldier BLANCO (espada larga): sheet de 832x1040 = grilla 8x10 de
 // frames de 104x104px. Misma grilla que el naranja y las tortugas.

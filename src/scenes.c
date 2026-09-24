@@ -72,7 +72,7 @@
 // esos MISMOS índices para dibujarse, así que la rotación también le
 // temblaba el color al fuego de fondo -- reportado por Gustavo. No hay una
 // 5ta línea de paleta libre en el nivel para aislarlas (PAL0 fondo, PAL1
-// tortugas, PAL2 foot soldiers+fuego+chispas+robot final, PAL3 foot soldier
+// tortugas, PAL2 foot soldiers (morado Y naranja)+fuego+chispas+robot, PAL3 foot soldier
 // naranja: las 4 ya están repartidas).
 //
 // Fix: streaming de tiles REALES (mismo truco que fire_tiles/smoke_tiles),
@@ -2353,7 +2353,7 @@ SceneId showScene11() {
     // 64 columnas en el plano circular BG_B. bgUpdate() revela columnas nuevas
     // a medida que la cámara avanza.
     // Mapa de paletas del nivel:
-    //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers + fuego | PAL3 → foot soldier naranja
+    //   PAL0 → fondo | PAL1 → tortugas | PAL2 → foot soldiers (morado + naranja) + fuego | PAL3 → foot soldier blanco
     bgInit();
     // clearScene deja BG_A en el plano 32x32 anterior; al agrandarlo a 64x32
     // las columnas 32..63 pueden contener basura de escenas anteriores (por
@@ -2382,8 +2382,9 @@ SceneId showScene11() {
     // Dinamita del morado de la escalera (18/09): un solo cartucho, guionado.
     tntInit();
 
-    // La paleta PAL3 (foot soldier naranja + texto del HUD) la carga
-    // levelFadeIn al final del setup.
+    // La paleta PAL3 (foot soldier BLANCO) la carga levelFadeIn al final del
+    // setup. Antes era la del naranja: desde el 24/09 el naranja comparte la
+    // paleta del morado (PAL2), asi que esta linea quedo para el blanco.
 
     // --- Música del nivel (los SFX por PCM siguen activos) ---
     playMusicVol(music_level1, VOL_MUSIC_LEVEL1);
@@ -2570,7 +2571,7 @@ SceneId showScene11() {
     levelFadeIn(bg_level1.palette->data,
                 leo_player.palette->data,
                 foot_soldier.palette->data,
-                foot_soldier_orange.palette->data);
+                foot_soldier_white.palette->data);
 
     // --- Intro scriptada: se dispara YA, apenas arranca el nivel ---
     // Globo + voice over + primer foot soldier, sin esperar nada. El globo va en
@@ -2905,15 +2906,17 @@ SceneId showScene11() {
                                     // Este era el 2do morado de la emboscada;
                                     // desde el 13/09 es el foot soldier BLANCO
                                     // de espada larga (pedido de Gustavo), que
-                                    // entra saltando por la derecha. Usa PAL3,
-                                    // la misma linea que el naranja del s == 3.
+                                    // entra saltando por la derecha. Desde el
+                                    // 24/09 PAL3 es SOLO suya: el naranja se
+                                    // mudo a PAL2 (comparte sheet de colores
+                                    // con el morado).
                                     initEnemyWhiteJumpSpawn(&enemies[i], camR, 163, -1, PAL3);
                                 else if (s == 2)
                                     initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 196,
                                                              1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
                                 else
                                     initEnemyKickSpawn(&enemies[i], camR, 191,
-                                                       -1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                                       -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                                 activeEnemies++;
                                 break;
                             }
@@ -2968,7 +2971,7 @@ SceneId showScene11() {
                                                    -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
                             else if (s == 2)
                                 initEnemyKickSpawn(&enemies[i], camR, 166,
-                                                   -1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                                   -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                             else
                                 // Cuarto morado (a pedido de Gustavo, 30/08): entra por
                                 // la espalda con voltereta, Y=190 (>=24px de separación
@@ -3055,7 +3058,7 @@ SceneId showScene11() {
                                                          1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
                             } else if (s == 1) {
                                 initEnemySpawn(&enemies[i], camR, 150,
-                                               0, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                                 enemies[i].dir = -1;
                                 enemies[i].state = ENEMY_STATE_CHASE;
                             } else {
@@ -3143,7 +3146,7 @@ SceneId showScene11() {
                         if (enemies[i].state == ENEMY_STATE_INACTIVE) {
                             initEnemyKickSpawn(&enemies[i],
                                                cameraLockX - ENEMY_SPRITE_W_ORANGE, 160,
-                                               1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                               1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                             activeEnemies++;
                             break;
                         }
@@ -3820,7 +3823,7 @@ SceneId showScene12() {
 
     // --- Fondo (sala de 440px): dibujo completo + scroll (sin streaming) ---
     // Mapa de paletas (igual que el nivel 1):
-    //   PAL0 → fondo | PAL1 → tortugas + humo | PAL2 → foot soldiers + fuego | PAL3 → foot soldier naranja
+    //   PAL0 → fondo | PAL1 → tortugas + humo | PAL2 → foot soldiers (morado + naranja) + fuego | PAL3 → foot soldier blanco
     bgInit2();
 
     // --- Fuego en primer plano (BG_A, prioridad alta) ---
@@ -3840,8 +3843,8 @@ SceneId showScene12() {
     resetEnemyAI(cantidadJugadores);
     shurikenInit();
 
-    // --- La paleta PAL3 (foot soldier naranja + texto del HUD) la carga
-    //     levelFadeIn al final del setup ---
+    // --- La paleta PAL3 (foot soldier BLANCO) la carga levelFadeIn al final
+    //     del setup. El naranja se mudo a PAL2 el 24/09 ---
 
     // --- Música del nivel (los SFX por PCM siguen activos) ---
     playMusicVol(music_level2, VOL_MUSIC_LEVEL2);
@@ -3995,7 +3998,7 @@ SceneId showScene12() {
     levelFadeIn(bg_test.palette->data,
                 leo_player.palette->data,
                 foot_soldier.palette->data,
-                foot_soldier_orange.palette->data);
+                foot_soldier_white.palette->data);
 
     // "Help me!" de April apenas se revela la sala (2da parte del nivel 1).
     // CH2 (no CH4: SOUND_PCM_CH4 no existe de verdad en el driver XGM2 de
@@ -4109,7 +4112,7 @@ SceneId showScene12() {
                                 camL - ENEMY_SPRITE_W_WHITE, 192, 1, PAL3);
                         else
                             initEnemyKickSpawn(&enemies[i], camR, 174,
-                                               -1, PAL3, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                               -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                         activeEnemies++;
                         break;
                     }
