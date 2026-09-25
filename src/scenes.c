@@ -8,6 +8,7 @@
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
 #include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
 #include "hud.h"     // HUD compartido (marcos, retratos, barra de vida, puntaje)
+#include "pause_menu.h" // pausa con START del control 1 + selector de niveles (26/09)
 #include "rocksteady.h"  // jefe final del nivel 2 (cápsula del taladro; rocksteady_boss, boss_bullet)
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
@@ -1066,15 +1067,7 @@ void hudPlayerUpdate(HudPlayer* h) {
 #define CONT_MSG_COL        15  // Columna inicial del mensaje centrado
 #define CONT_MSG_TOTAL_W    10  // "CONTINUE?" (9) + dígito (1)
 
-typedef enum { CONT_NONE, CONT_COUNTING, CONT_SELECTING } ContState;
-
-typedef struct {
-    ContState state;
-    u8  seconds;     // 9..0 (CONT_COUNTING)
-    u16 tick;        // Frames hasta el próximo segundo
-    u8  sel;         // Selección actual (CONT_SELECTING)
-    u16 prevJoy;     // Estado previo del joystick del muerto
-} ContPlayer;
+// ContState / ContPlayer viven en hud.h (26/09: el 2-1 tambien los usa).
 
 // Dibuja/limpia el texto "CONTINUE?" + cuenta, centrado entre los HUD.
 // seconds >= 0 dibuja etiqueta + dígito; seconds < 0 solo limpia todo el
@@ -1095,8 +1088,14 @@ static void contDrawText(HudPlayer* h, s8 seconds) {
 // re-inicializa con el personaje elegido en el lugar donde cayó y restaura
 // vidas/barra completas con i-frames para no morir al instante.
 static void revivePlayer(Player* p, u8 ch, u16 joyId) {
+    // (26/09) Donde cayo puede haber quedado fuera de camara (el companero
+    // siguio avanzando mientras estaba fuera): se lo trae adentro de los
+    // bordes que el nivel le fijo este frame.
+    s16 x = p->x;
+    if (x < p->boundLeft)  x = p->boundLeft;
+    if (x > p->boundRight) x = p->boundRight;
     if (p->sprite) SPR_releaseSprite(p->sprite);
-    initPlayer(p, ch, joyId, PAL1, p->x, p->y);
+    initPlayer(p, ch, joyId, PAL1, x, p->y);
     p->lives      = vidasIniciales;
     p->health     = PLAYER_MAX_HEALTH;
     p->gameOver   = FALSE;
@@ -1159,6 +1158,20 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
         return FALSE;
     }
 
+    if (c->state == CONT_OUT) {
+        // Fuera de juego y sin sprite. START con continues lo vuelve a meter.
+        if (continuesLeft > 0 && justPressedJoy(joy, c->prevJoy, BUTTON_START)) {
+            continuesLeft--;
+            c->state   = CONT_SELECTING;
+            c->sel     = *charSel;
+            c->prevJoy = joy;
+            if (conRetrato) hudPortraitShow(k, c->sel);
+            return FALSE;
+        }
+        c->prevJoy = joy;
+        return TRUE;
+    }
+
     if (c->state == CONT_COUNTING) {
         // START del joystick del muerto + continues disponibles -> selección.
         if (continuesLeft > 0 && justPressedJoy(joy, c->prevJoy, BUTTON_START)) {
@@ -1177,8 +1190,15 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
                 c->seconds--;
                 contDrawText(h, (s8)c->seconds);
             } else {
-                // Se mostró el 0 un segundo completo: quedó fuera.
+                // Se mostró el 0 un segundo completo: quedó fuera. (26/09)
+                // La tortuga tirada DESAPARECE (antes quedaba en pantalla
+                // mientras el otro seguia jugando). Se oculta en vez de
+                // soltarla: revivePlayer ya suelta y recrea el sprite si
+                // despues vuelve a entrar.
                 contDrawText(h, -1);
+                if (p->sprite) SPR_setVisibility(p->sprite, HIDDEN);
+                c->state   = CONT_OUT;
+                c->prevJoy = joy;
                 return TRUE;
             }
         }
@@ -1207,6 +1227,39 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
 
     c->prevJoy = joy;
     return FALSE;
+}
+
+// Extremos en X (borde del frame) de los jugadores EN JUEGO, para la camara.
+// Si no queda ninguno, los del jugador 1 (el nivel esta por terminar).
+static void playersSpanX(Player** pls, u8 nPl, s16* lead, s16* trail) {
+    bool any = FALSE;
+    for (u8 k = 0; k < nPl; k++) {
+        if (isPlayerGameOver(pls[k])) continue;
+        s16 xk = getPlayerWorldX(pls[k]);
+        if (!any || xk > *lead)  *lead  = xk;
+        if (!any || xk < *trail) *trail = xk;
+        any = TRUE;
+    }
+    if (!any) *lead = *trail = getPlayerWorldX(pls[0]);
+}
+
+void contResetAll(ContPlayer* conts) {
+    for (u8 k = 0; k < MAX_PLAYERS; k++) {
+        ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
+        conts[k] = cz;
+    }
+}
+
+bool continueStepAll(ContPlayer* conts, Player** pls, HudPlayer* huds,
+                     u8 nPl, u16 fps) {
+    bool allOut = TRUE;
+    for (u8 k = 0; k < nPl; k++) {
+        if (!continuePoll(&conts[k], pls[k], &huds[k], contFrameSpr(k), k,
+                          playerJoy(k), contCharSel(k),
+                          contOtherChar(k, nPl), fps))
+            allOut = FALSE;
+    }
+    return allOut;
 }
 
 // ===========================================================================
@@ -2475,10 +2528,7 @@ SceneId showScene11() {
 
     // --- Estado de continues por jugador (cuenta regresiva + selección) ---
     static ContPlayer conts[MAX_PLAYERS];
-    for (u8 k = 0; k < MAX_PLAYERS; k++) {
-        ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
-        conts[k] = cz;
-    }
+    contResetAll(conts);
 
     // --- Definición de spawns por OLEADAS (trigger-based) ---
     // DESACTIVADOS por ahora (a pedido): el nivel sólo tiene el foot soldier de
@@ -2638,7 +2688,14 @@ SceneId showScene11() {
     u8   tntHitMask = 0;
 
     // --- Bucle principal del nivel ---
+    SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
+    pauseReset();
     while (1) {
+        // 0. Pausa (START del control 1). Va ANTES de los continues: el START
+        //    que revive al jugador 1 no tiene que abrir la pausa.
+        jump = pausePoll(pls, nPl);
+        if (jump != PAUSE_NO_JUMP) break;
+
         // 1. Input y física de cada jugador
         for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
 
@@ -2648,13 +2705,10 @@ SceneId showScene11() {
         //    se topea hasta que el otro también avance. Beat-em-up clásico:
         //    la cámara solo va a la derecha, nunca retrocede (por eso solo
         //    revelamos columnas nuevas a la derecha).
-        s16 leadX  = getPlayerWorldX(&p1);
-        s16 trailX = leadX;
-        for (u8 k = 1; k < nPl; k++) {
-            s16 xk = getPlayerWorldX(pls[k]);
-            if (xk > leadX)  leadX  = xk;
-            if (xk < trailX) trailX = xk;
-        }
+        // (26/09) Los que estan fuera de juego (sin vidas: contando el
+        // CONTINUE? o ya fuera) no cuentan: su cuerpo no frena la camara.
+        s16 leadX, trailX;
+        playersSpanX(pls, nPl, &leadX, &trailX);
         s16 leadScreenX = leadX - cameraX;
 
         if (leadScreenX > CAM_DEAD_ZONE_RIGHT && cameraX < CAM_MAX_X) {
@@ -3360,17 +3414,7 @@ SceneId showScene11() {
         //     nueva). Queda fuera solo cuando la cuenta llega a 0; en 2P el
         //     compañero vivo sigue jugando mientras tanto. El nivel termina
         //     cuando TODOS los jugadores quedaron fuera.
-        {
-            bool allOut = TRUE;
-            for (u8 k = 0; k < nPl; k++) {
-                if (!continuePoll(&conts[k], pls[k], &huds[k],
-                                  contFrameSpr(k), k,
-                                  playerJoy(k), contCharSel(k),
-                                  contOtherChar(k, nPl), fps))
-                    allOut = FALSE;
-            }
-            if (allOut) break;
-        }
+        if (continueStepAll(conts, pls, huds, nPl, fps)) break;
 
         // 6e. Victoria: robot(es) destruido(s) y sin enemigos en pantalla ->
         //     arranca la secuencia de salida (ver después del bucle). En 2
@@ -3491,7 +3535,7 @@ SceneId showScene11() {
     }
 
     clearScene();
-    return SCENE_GAME_OVER;
+    return (jump != PAUSE_NO_JUMP) ? jump : SCENE_GAME_OVER;
 }
 
 // ===========================================================================
@@ -3921,10 +3965,7 @@ SceneId showScene12() {
 
     // --- Estado de continues por jugador (cuenta regresiva + selección) ---
     static ContPlayer conts[MAX_PLAYERS];
-    for (u8 k = 0; k < MAX_PLAYERS; k++) {
-        ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
-        conts[k] = cz;
-    }
+    contResetAll(conts);
 
     // --- Pool de enemigos ---
     static Enemy enemies[MAX_ENEMIES];
@@ -4036,7 +4077,13 @@ SceneId showScene12() {
     s16  cameraLockX = 0;    // >=0 = cameraX no puede superar este valor
     bool win         = FALSE;
 
+    SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
+    pauseReset();
     while (1) {
+        // 0. Pausa (START del control 1), antes de los continues.
+        jump = pausePoll(pls, nPl);
+        if (jump != PAUSE_NO_JUMP) break;
+
         // 1. Input y física de cada jugador. Durante la cutscene de victoria la
         // tortuga deja de leer input y se queda congelada en el frame de
         // "caminar hacia arriba" (observando a Shredder llevarse a April).
@@ -4059,13 +4106,10 @@ SceneId showScene12() {
         // 2. Cámara con dead-zone BIDIRECCIONAL (la sala se recorre de ida y
         //    vuelta). Derecha: igual que el nivel 1 (capped por cameraLockX).
         //    Izquierda: retrocede cuando el que va adelante queda muy atrás.
-        s16 leadX  = getPlayerWorldX(&p1);
-        s16 trailX = leadX;
-        for (u8 k = 1; k < nPl; k++) {
-            s16 xk = getPlayerWorldX(pls[k]);
-            if (xk > leadX)  leadX  = xk;
-            if (xk < trailX) trailX = xk;
-        }
+        // (26/09) Los que estan fuera de juego (sin vidas: contando el
+        // CONTINUE? o ya fuera) no cuentan: su cuerpo no frena la camara.
+        s16 leadX, trailX;
+        playersSpanX(pls, nPl, &leadX, &trailX);
         s16 leadScreenX = leadX - cameraX;
 
         if (leadScreenX > CAM_DEAD_ZONE_RIGHT && cameraX < LEVEL2_CAM_MAX_X) {
@@ -4728,15 +4772,7 @@ SceneId showScene12() {
         bool bossDown = (boss.state == ROCKSTEADY_DEAD ||
                          boss.state == ROCKSTEADY_GONE);
         if (cutScene == 0 && !bossDown) {
-            bool allOut = TRUE;
-            for (u8 k = 0; k < nPl; k++) {
-                if (!continuePoll(&conts[k], pls[k], &huds[k],
-                                  contFrameSpr(k), k,
-                                  playerJoy(k), contCharSel(k),
-                                  contOtherChar(k, nPl), fps))
-                    allOut = FALSE;
-            }
-            if (allOut)
+            if (continueStepAll(conts, pls, huds, nPl, fps))
                 break;
         }
 
@@ -4815,7 +4851,7 @@ SceneId showScene12() {
     }
 
     clearScene();
-    return SCENE_GAME_OVER;
+    return (jump != PAUSE_NO_JUMP) ? jump : SCENE_GAME_OVER;
 }
 
 // ---------------------------------------------------------------------------

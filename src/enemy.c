@@ -1186,16 +1186,23 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     // --- Target asignado ---
     if (nPl > 1) {
         if (e->target >= nPl) e->target = 0;
+        // (26/09) Si su objetivo se quedo sin vidas (tirado contando el
+        // CONTINUE?, o ya fuera y sin sprite) se cambia YA al mas cercano de
+        // los que siguen jugando, sin esperar el retarget ni la histeresis.
+        bool tgtOut = isPlayerGameOver(pls[e->target]);
+        if (tgtOut) e->retargetTimer = 0;
         if (e->retargetTimer > 0) {
             e->retargetTimer--;
         } else {
             e->retargetTimer = ENEMY_RETARGET_INTERVAL;
             // Se cambia al MAS CERCANO, con histeresis para no oscilar.
-            s16 dCur = distS16(e->x, getPlayerWorldX(pls[e->target]));
+            s16 dCur = tgtOut ? 0x7FFF : distS16(e->x, getPlayerWorldX(pls[e->target]));
             u8  best = e->target; s16 dBest = dCur;
             for (u8 i = 0; i < nPl; i++) {
                 if (i == e->target) continue;
+                if (isPlayerGameOver(pls[i])) continue;
                 s16 d = distS16(e->x, getPlayerWorldX(pls[i]));
+                if (tgtOut) d = (s16)(d - ENEMY_RETARGET_HYSTERESIS);   // sin histeresis
                 if (d < dBest) { dBest = d; best = i; }
             }
             if (best != e->target && dBest + ENEMY_RETARGET_HYSTERESIS < dCur) {

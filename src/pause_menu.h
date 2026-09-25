@@ -1,0 +1,67 @@
+#ifndef _PAUSE_MENU_H_
+#define _PAUSE_MENU_H_
+
+#include <genesis.h>
+#include "scenes.h"
+#include "player.h"
+
+// ===========================================================================
+// PAUSA + SELECTOR DE NIVELES (26/09)
+// ===========================================================================
+// START del CONTROL 1 (el mando del jugador 1, playerJoy(0)) pausa el nivel.
+// Todo queda congelado tal cual (no se llama a SPR_update ni a la logica) y la
+// musica se pausa. En el medio de la pantalla aparece un recuadro:
+//
+//   DEV_LEVEL_SELECT = 1 (desarrollo)      DEV_LEVEL_SELECT = 0 (release)
+//   ------------------------------        ------------------------------
+//             PAUSA                                   PAUSA
+//     SEGUIR
+//     SCENE 1   1-1   1-2                        START: SEGUIR
+//     SCENE 2   2-1
+//      START: IR   B: SEGUIR
+//
+//   Arriba/abajo eligen la fila, izquierda/derecha el subnivel. START sobre
+//   SEGUIR (o B/C en cualquier fila) vuelve al juego; START sobre un subnivel
+//   corta el nivel actual y salta a ese (empezandolo de cero, con vidas y
+//   barra llenas y el puntaje que se traia).
+//
+// NO pisa el continue: si el jugador 1 esta en game over (mostrando
+// CONTINUE?), su START es del continue y la pausa no se abre. Los mandos 2-4
+// no pausan.
+//
+// Para sumar un nivel nuevo al menu alcanza con agregarlo a la tabla de
+// pause_menu.c; si hay mas filas que las que entran, la lista scrollea.
+//
+// Cada nivel lo engancha asi:
+//     pauseReset();                        // antes del bucle principal
+//     while (...) {
+//         SceneId jump = pausePoll(pls, nPl);
+//         if (jump != PAUSE_NO_JUMP) break;     // y al salir: return jump
+//         ...
+// ===========================================================================
+
+#define DEV_LEVEL_SELECT   1      // 0 en la version que se libere: solo pausa
+
+#define PAUSE_NO_JUMP      ((SceneId)0xFF)
+
+// Recuadro en BG_A, en tiles de PANTALLA. Filas 12..19: entre el humo del
+// techo del 1-2 (filas 4..11) y la banda de fuego del 1-1/1-2 (20..27), que
+// son las unicas zonas de BG_A que scrollean. Todo lo que hubiera debajo del
+// recuadro se guarda al abrir y se repone al cerrar.
+#define PAUSE_BOX_COL      8
+#define PAUSE_BOX_ROW      12
+#define PAUSE_BOX_W        24
+#define PAUSE_BOX_H        8
+
+// Olvida el START que venga apretado de la escena anterior. Llamar una vez,
+// justo antes del bucle principal del nivel.
+void pauseReset(void);
+
+// Llamar al PRINCIPIO de cada frame del nivel (antes de los continues). Si
+// no se pulso START, vuelve enseguida con PAUSE_NO_JUMP. Si se pulso, se
+// queda adentro hasta que el jugador sigue (PAUSE_NO_JUMP) o elige un nivel
+// (devuelve su SceneId; el nivel tiene que cortar su bucle, limpiar como en
+// el game over y devolver esa escena).
+SceneId pausePoll(Player** pls, u8 nPl);
+
+#endif

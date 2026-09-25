@@ -403,9 +403,11 @@ static Player* bebopTarget(Bebop* b, Player** pls, u8 nPl) {
     s16 cx = bebopGetCenterX(b);
     for (u8 k = 0; k < nPl; k++) {
         if (!pls[k]) continue;
+        if (isPlayerGameOver(pls[k])) continue;   // (26/09) sin vidas: no cuenta
         s16 d = (s16)abs((s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2) - cx);
         if (d < bestD) { bestD = d; best = pls[k]; }
     }
+    if (!best && nPl > 0) best = pls[0];      // no queda nadie: el nivel termina
     return best;
 }
 

@@ -108,6 +108,7 @@
 #include "enemy.h"    // foot soldiers
 #include "bebop.h"    // jefe del nivel (24/09)
 #include "meters_2_1.h" // parquimetros (25/09)
+#include "pause_menu.h" // pausa con START del control 1 + selector de niveles (26/09)
 #include "audio.h"    // music_stage2_1, music_scene_clear, music_boss, boss_scream_bebop_vo
 
 #ifndef IS_PAL_SYSTEM
@@ -783,6 +784,13 @@ SceneId showScene21() {
 
     p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
     static HudPlayer huds[MAX_PLAYERS];
+    // (26/09) CONTINUE? por jugador, igual que en el 1-1 y el 1-2. Antes el
+    // 2-1 no tenia: el que se quedaba sin vidas quedaba tirado para siempre
+    // y, si caian todos, el nivel no terminaba nunca.
+    static ContPlayer conts[MAX_PLAYERS];
+    contResetAll(conts);
+    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
+    bool allOut = FALSE;
     for (u8 k = 0; k < nPl; k++)
         hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
                       (u16)(hudVram + k * HUD_VRAM_PER_PLAYER));
@@ -841,7 +849,7 @@ SceneId showScene21() {
     for (u8 k = 0; k < nPl; k++)
         if (pls[k]->sprite)
             SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
-                            pls[k]->y - PLAYER_FOOT_OFFSET - pls[k]->jumpZ - cameraY);
+                            pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - cameraY);
     SPR_update();
 
     // Musica del nivel. setLoopNumber(-1) SIEMPRE antes del play (el driver
@@ -857,7 +865,13 @@ SceneId showScene21() {
 
     // --- Bucle principal ---------------------------------------------------
     bool running = TRUE;
+    SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
+    pauseReset();
     while (running) {
+        // Pausa (START del control 1). Primero de todo en el frame.
+        jump = pausePoll(pls, nPl);
+        if (jump != PAUSE_NO_JUMP) break;
+
         // Deriva de la entrada cayendo: solo mientras siguen en el aire.
         if (dropTicks > 0) {
             dropTicks--;
@@ -892,9 +906,19 @@ SceneId showScene21() {
         // --- Camara ------------------------------------------------------
         // Lidera el que va mas adelante (el que mas avanzo en la "L", o sea
         // el de mayor x + y).
+        // (26/09) Los que estan sin vidas no lideran: su cuerpo no arrastra
+        // la camara (si no queda ninguno en juego, manda el P1).
         s16 leadX = p1.x, leadY = p1.y;
-        for (u8 k = 1; k < nPl; k++)
-            if ((pls[k]->x + pls[k]->y) > (leadX + leadY)) { leadX = pls[k]->x; leadY = pls[k]->y; }
+        {
+            bool any = FALSE;
+            for (u8 k = 0; k < nPl; k++) {
+                if (isPlayerGameOver(pls[k])) continue;
+                if (!any || (pls[k]->x + pls[k]->y) > (leadX + leadY)) {
+                    leadX = pls[k]->x; leadY = pls[k]->y;
+                }
+                any = TRUE;
+            }
+        }
 
         // Vertical: solo se mueve cuando los pies salen de la franja muerta.
         s16 feetScreenY = leadY - cameraY;
@@ -948,7 +972,7 @@ SceneId showScene21() {
         for (u8 k = 0; k < nPl; k++)
             if (pls[k]->sprite)
                 SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
-                                pls[k]->y - PLAYER_FOOT_OFFSET - pls[k]->jumpZ - cameraY);
+                                pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - cameraY);
 
         // --- Globo "who put the light out" (20/09) -------------------------
         // Se muestra mientras ALGUNA tortuga esta en el fondo del pozo (fase 2
@@ -1288,6 +1312,14 @@ SceneId showScene21() {
 
         for (u8 k = 0; k < nPl; k++) hudPlayerUpdate(&huds[k]);
 
+        // Continues: si TODOS quedaron fuera, game over. Con el jefe ya
+        // cayendo no se evalua (un KO simultaneo no le gana a la victoria).
+        if (bebop.state != BEBOP_DEAD && bebop.state != BEBOP_GONE &&
+            continueStepAll(conts, pls, huds, nPl, fps)) {
+            allOut = TRUE;
+            break;
+        }
+
         // --- JEFE: Bebop (24/09) -------------------------------------------
         // Llegar al borde derecho con la camara en su tope ya NO termina el
         // nivel: arranca la pelea. La camara se queda donde esta (ya estaba
@@ -1335,9 +1367,8 @@ SceneId showScene21() {
             if (bebopIsGone(&bebop)) running = FALSE;
         }
 
-        // Atajo de calibracion: START + A corta el nivel sin recorrerlo entero.
-        u16 joy = JOY_readJoypad(JOY_1);
-        if ((joy & BUTTON_START) && (joy & BUTTON_A)) running = FALSE;
+        // (26/09) El viejo atajo START + A (cortar el nivel) se fue: ahora START
+        // abre la pausa, y desde ahi se salta a cualquier nivel.
 
         SPR_update();
         SYS_doVBlankProcess();
@@ -1351,17 +1382,21 @@ SceneId showScene21() {
     // music_scene_clear son ~4s SIN punto de loop: setLoopNumber(0) va SIEMPRE
     // ANTES del play (el driver latchea el numero de loops en el instante del
     // play), o el tema se repite para siempre.
-    XGM2_stop();
-    XGM2_setLoopNumber(0);
-    playMusicVol(music_scene_clear, VOL_MUSIC_SCENE_CLEAR);
+    // (26/09) Si se salio por el menu de pausa, o todos quedaron fuera de
+    // juego, no hay jingle: se va directo.
+    if (jump == PAUSE_NO_JUMP && !allOut) {
+        XGM2_stop();
+        XGM2_setLoopNumber(0);
+        playMusicVol(music_scene_clear, VOL_MUSIC_SCENE_CLEAR);
 
-    u16 hold = (IS_PAL_SYSTEM ? 50 : 60) * LVL21_CLEAR_SECS;
-    while (hold > 0) {
-        hold--;
-        SYS_doVBlankProcess();
+        u16 hold = (IS_PAL_SYSTEM ? 50 : 60) * LVL21_CLEAR_SECS;
+        while (hold > 0) {
+            hold--;
+            SYS_doVBlankProcess();
+        }
+        XGM2_stop();
+        XGM2_setLoopNumber(-1);   // el jingle lo dejo en 0: restaurar para lo que siga
     }
-    XGM2_stop();
-    XGM2_setLoopNumber(-1);   // el jingle lo dejo en 0: restaurar para lo que siga
 
     // Soltar lo que el guion pudiera haber dejado vivo: los proyectiles y las
     // tapas cerradas son estado de MODULO (static), no del stack, asi que si no
@@ -1375,5 +1410,6 @@ SceneId showScene21() {
     if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }
 
     clearScene();
+    if (jump != PAUSE_NO_JUMP) return jump;
     return SCENE_GAME_OVER;   // y showGameOver() vuelve al logo de SEGA
 }

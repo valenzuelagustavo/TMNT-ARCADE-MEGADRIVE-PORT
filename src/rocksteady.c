@@ -461,11 +461,15 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
     // Jugador objetivo: el MAS CERCANO en X (centro del frame), entre los que
     // haya (1..4). Se re-evalua cada frame, asi que el jefe "elige uno" y lo
     // persigue mientras siga siendo el mas cercano.
+    // (26/09) Los que estan sin vidas no cuentan (salvo que no quede nadie).
     Player* tgt = pls[0];
-    for (u8 k = 1; k < nPl; k++)
-        if (rabs(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2 - r->x) <
+    for (u8 k = 1; k < nPl; k++) {
+        if (isPlayerGameOver(pls[k])) continue;
+        if (isPlayerGameOver(tgt) ||
+            rabs(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2 - r->x) <
             rabs(getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2 - r->x))
             tgt = pls[k];
+    }
     s16 pcx  = getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2;
     s16 py   = getPlayerY(tgt);
     // Centro VISUAL del cuerpo (r->x ancla el borde izquierdo del frame):

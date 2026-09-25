@@ -131,11 +131,22 @@ typedef enum {
 // Con el salto completo (~28 frames) 9/16 ≈ 0.56 px/frame ≈ los 16px buscados.
 #define PLAYER_JUMPKICK_EXTRA_Q 9
 
-// --- Especial ---
-// El arte del especial es un "saltito" en el lugar: mientras dura la anim,
-// el sprite se DIBUJA unos px más arriba. Offset puramente VISUAL: la Y
-// lógica (lane, hitbox, profundidad) no cambia.
-#define PLAYER_SPECIAL_LIFT 8   // px de elevación visual durante el especial
+// --- Especial (26/09: rehecho como en el arcade) ---
+// Swing amplio del arma con un SALTITO: el frame 0 es la preparacion en el
+// piso, desde el frame PLAYER_SPECIAL_HOP_FROM la tortuga despega, sube en
+// arco hasta PLAYER_SPECIAL_HOP px y vuelve a apoyar justo al terminar el
+// ultimo frame. Los frames los maneja el codigo a mano (auto-animacion
+// apagada, como el salto) con la duracion de cada uno en specialFrameTicks
+// (player.c): asi la animacion se ve COMPLETA y el arco queda sincronizado con
+// ella. La altura es solo VISUAL (se suma a jumpZ al dibujar, ver
+// playerDrawZ): la lane, la profundidad y la tolerancia de golpe no cambian.
+#define PLAYER_SPECIAL_HOP       20   // px de alto del saltito (pico del arco)
+#define PLAYER_SPECIAL_HOP_FROM   1   // frame en el que despega
+// El especial del arcade es ATAQUE + SALTO a la vez. Apretar B y C en el mismo
+// frame exacto es dificil: si llega uno solo, arranca el golpe (B) o el salto
+// (C) de siempre, y si el otro llega dentro de esta ventana se convierte en el
+// especial.
+#define PLAYER_SPECIAL_BC_WINDOW  4
 
 // --- Movilidad en el aire ---
 // Como en el arcade original: saltando se puede seguir reposicionando en X
@@ -347,6 +358,8 @@ typedef struct {
     // Ataque especial (botón A o B+C): mata foot soldiers de un golpe.
     // TODO: cuando exista HP, usarlo debe restar vida al jugador.
     u8          attackIsSpecial;
+    u8          specialTick;    // ticks desde que arranco el especial
+    u8          bcWindow;       // frames que quedan para completar B+C
     u8          charIndex;      // 0=Leo 1=Mike 2=Don 3=Raph (indexa playerAtkReach)
 
     // Entrada
@@ -466,6 +479,11 @@ bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
 // TRUE si el ataque en curso es el ESPECIAL (mata foot soldiers de un
 // golpe). Consultar junto con playerAttackHits para decidir el daño.
 bool isPlayerSpecialAttack(const Player* p);
+// Altura VISUAL total sobre el piso: el salto (jumpZ) mas el saltito del
+// especial. Es lo que hay que restar a 'y' para dibujar la tortuga; los
+// niveles que reposicionan el sprite a mano (2-1, por la camara vertical)
+// tienen que usar esto y no jumpZ solo.
+s16  playerDrawZ(const Player* p);
 
 // TRUE si la tortuga está ejecutando la patada con salto (en el aire). Se usa
 // para reproducir el SFX de impacto sólo cuando conecta la patada aérea.

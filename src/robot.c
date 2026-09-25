@@ -269,10 +269,14 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
     if (r->attackCooldown > 0) r->attackCooldown--;
 
     // Jugador objetivo: el MAS CERCANO en X, entre los que haya (1..4).
+    // (26/09) Los que estan sin vidas no cuentan (salvo que no quede nadie).
     Player* tgt = pls[0];
-    for (u8 k = 1; k < nPl; k++)
-        if (rabs(getPlayerWorldX(pls[k]) - r->x) < rabs(getPlayerWorldX(tgt) - r->x))
+    for (u8 k = 1; k < nPl; k++) {
+        if (isPlayerGameOver(pls[k])) continue;
+        if (isPlayerGameOver(tgt) ||
+            rabs(getPlayerWorldX(pls[k]) - r->x) < rabs(getPlayerWorldX(tgt) - r->x))
             tgt = pls[k];
+    }
     s16 pcx  = getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2;
     s16 py   = getPlayerY(tgt);
     s16 ddx  = pcx - r->x;

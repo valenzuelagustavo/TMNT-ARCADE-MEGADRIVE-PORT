@@ -95,6 +95,28 @@ void p2JoinReset(void);
 // Redibuja SOLO lo que cambio. Una vez por frame.
 void hudPlayerUpdate(HudPlayer* h);
 
+// --- CONTINUE? por jugador (implementado en scenes.c) ----------------------
+// Un jugador sin vidas muestra "CONTINUE?" con cuenta regresiva: START de SU
+// mando entra a elegir tortuga y revive. Si la cuenta llega a 0 queda FUERA
+// (CONT_OUT): su tortuga DESAPARECE de la pantalla (26/09) y el companero
+// sigue solo. Estando fuera, START con continues disponibles lo vuelve a meter
+// (como poner una ficha en el arcade).
+typedef enum { CONT_NONE, CONT_COUNTING, CONT_SELECTING, CONT_OUT } ContState;
+
+typedef struct {
+    ContState state;
+    u8  seconds;     // 9..0 (CONT_COUNTING)
+    u16 tick;        // Frames hasta el próximo segundo
+    u8  sel;         // Selección actual (CONT_SELECTING)
+    u16 prevJoy;     // Estado previo del joystick del muerto
+} ContPlayer;
+
+void contResetAll(ContPlayer* conts);
+// Un frame de los continues de todos los jugadores. TRUE = TODOS quedaron
+// fuera (el nivel termina en game over).
+bool continueStepAll(ContPlayer* conts, Player** pls, HudPlayer* huds,
+                     u8 nPl, u16 fps);
+
 // --- Modo 4 jugadores (14/09, reescrito el 16/09) --------------------------
 // Primera version: cuatro bloques pelados de 10 columnas, sin marco, para
 // ahorrar sprites. Ahora van los CUATRO MARCOS, como el arcade.

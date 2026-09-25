@@ -90,6 +90,8 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->airFrame      = 1;
     p->airTimer      = 0;
     p->attackIsSpecial = 0;
+    p->specialTick   = 0;
+    p->bcWindow      = 0;
     p->jumpVel       = 0;
     p->jumpZ         = 0;
     p->isJumpKicking = FALSE;
@@ -233,6 +235,97 @@ static void playAttackGrunt(const Player* p) {
                        SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
+// ---------------------------------------------------------------------------
+// ESPECIAL (26/09) — ver PLAYER_SPECIAL_* en player.h
+// ---------------------------------------------------------------------------
+// Duracion de cada frame de ANIM_SPECIAL en ticks. Las cuatro hojas tienen 5
+// frames: preparacion (piso), tomar impulso, dos de giro con el caparazon de
+// espaldas y el remate. El giro se estira un poco respecto del 5-5-5-5-5 del
+// .res para que el swing se lea entero y el saltito tenga aire. Si una hoja
+// trae mas frames, los que sobran duran como el ultimo.
+static const u8 specialFrameTicks[] = { 5, 6, 6, 6, 7 };
+#define SPECIAL_TICK_TABLE ((u16)(sizeof(specialFrameTicks) / sizeof(specialFrameTicks[0])))
+
+static u16 specialTicksOf(u16 f) {
+    return specialFrameTicks[(f < SPECIAL_TICK_TABLE) ? f : (SPECIAL_TICK_TABLE - 1)];
+}
+
+static u16 specialNumFrames(const Player* p) {
+    if (!p->sprite || p->numAnims <= ANIM_SPECIAL) return 1;
+    return p->sprite->definition->animations[ANIM_SPECIAL]->numFrame;
+}
+
+// Ticks acumulados hasta el comienzo del frame 'f'.
+static u16 specialTicksBefore(const Player* p, u16 f) {
+    u16 nf = specialNumFrames(p);
+    u16 t = 0;
+    for (u16 i = 0; i < f && i < nf; i++) t += specialTicksOf(i);
+    return t;
+}
+
+// Altura del saltito en este tick: 0 durante la preparacion, arco
+// parabolico desde que despega hasta el ultimo tick, 0 otra vez al apoyar.
+static s16 specialHopZ(const Player* p) {
+    u16 nf = specialNumFrames(p);
+    s32 t0 = specialTicksBefore(p, PLAYER_SPECIAL_HOP_FROM);
+    s32 tEnd = specialTicksBefore(p, nf);
+    s32 t = p->specialTick;
+    if (t <= t0 || t >= tEnd) return 0;
+    s32 span = tEnd - t0;
+    return (s16)((4 * PLAYER_SPECIAL_HOP * (t - t0) * (tEnd - t)) / (span * span));
+}
+
+s16 playerDrawZ(const Player* p) {
+    s16 z = p->jumpZ;
+    if (p->state == STATE_ATTACKING && p->attackIsSpecial)
+        z += specialHopZ(p);
+    return z;
+}
+
+static void startSpecial(Player* p) {
+    p->state           = STATE_ATTACKING;
+    p->comboStep       = 0;
+    p->comboBuffered   = 0;
+    p->comboLinger     = 0;
+    p->attackIsSpecial = 1;
+    p->specialTick     = 0;
+    p->bcWindow        = 0;
+    p->idleTimer       = 0;
+    p->idleTwice       = 0;
+    // Venga del piso o de los primeros frames de un salto (B+C tardio), el
+    // especial arranca apoyado: el arco lo pone specialHopZ.
+    p->jumpZ           = 0;
+    p->jumpVel         = 0;
+    p->isJumpKicking   = JUMPKICK_NONE;
+    p->kickCarry       = 0;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
+    XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+}
+
+// Un tick del especial. Devuelve TRUE cuando termino (ya quedo en IDLE).
+static bool specialStep(Player* p) {
+    p->specialTick++;
+    u16 nf  = specialNumFrames(p);
+    u16 acc = 0;
+    for (u16 f = 0; f < nf; f++) {
+        acc += specialTicksOf(f);
+        if (p->specialTick < acc) {
+            if (p->sprite->frameInd != (s16)f)
+                SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, (s16)f);
+            return FALSE;
+        }
+    }
+    p->state           = STATE_IDLE;
+    p->attackIsSpecial = 0;
+    p->specialTick     = 0;
+    SPR_setAutoAnimation(p->sprite, TRUE);
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    SPR_setAnim(p->sprite, ANIM_IDLE);
+    return TRUE;
+}
+
 void updatePlayer(Player* p) {
     // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
     // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
@@ -274,6 +367,7 @@ void updatePlayer(Player* p) {
 
         case STATE_IDLE:
         case STATE_WALKING: {
+            p->bcWindow = 0;   // la ventana B+C solo vive dentro del golpe/salto
             s16 moveX = 0;
             s16 moveY = 0;
 
@@ -329,16 +423,7 @@ void updatePlayer(Player* p) {
             // una vez y queda congelada al final (ventana de enlace del combo).
             if ((bJust && (joy & BUTTON_C)) || (cJust && (joy & BUTTON_B))) {
                 // ESPECIAL (B+C): mata foot soldiers de un golpe
-                p->state         = STATE_ATTACKING;
-                p->comboStep     = 0;
-                p->comboBuffered = 0;
-                p->comboLinger   = COMBO_LINK_WINDOW;
-                p->attackIsSpecial = 1;
-                p->idleTimer = 0;
-                p->idleTwice = 0;
-                SPR_setAnimationLoop(p->sprite, FALSE);
-                SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
-                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                startSpecial(p);
             } else if (cJust) {
                 // SALTO: la anim se controla a MANO por fases (subida/ápice/
                 // aterrizaje), así que se apaga la auto-animación del sprite.
@@ -355,6 +440,7 @@ void updatePlayer(Player* p) {
                 p->airTimer  = 0;
                 p->idleTimer = 0;
                 p->idleTwice = 0;
+                p->bcWindow  = PLAYER_SPECIAL_BC_WINDOW;   // B tardio -> especial
                 SPR_setAutoAnimation(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
             } else if (bJust) {
@@ -365,27 +451,34 @@ void updatePlayer(Player* p) {
                 p->attackIsSpecial = 0;
                 p->idleTimer = 0;
                 p->idleTwice = 0;
+                p->bcWindow  = PLAYER_SPECIAL_BC_WINDOW;   // C tardio -> especial
                 SPR_setAnimationLoop(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_1, 0);
                 playAttackGrunt(p);
             } else if (justPressed(joy, p->prevJoy, BUTTON_A)) {
                 // ESPECIAL (A): antes disparaba ANIM_KICK; el kick queda
                 // reservado para otro uso futuro.
-                p->state         = STATE_ATTACKING;
-                p->comboStep     = 0;
-                p->comboBuffered = 0;
-                p->comboLinger   = COMBO_LINK_WINDOW;
-                p->attackIsSpecial = 1;
-                p->idleTimer = 0;
-                p->idleTwice = 0;
-                SPR_setAnimationLoop(p->sprite, FALSE);
-                SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
-                XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                startSpecial(p);
             }
             break;
         }
 
         case STATE_ATTACKING: {
+            // Especial: frames y saltito a mano (ver specialStep).
+            if (p->attackIsSpecial) {
+                specialStep(p);
+                break;
+            }
+            // B+C con el C un poco tarde: el primer golpe del combo se
+            // convierte en el especial.
+            if (p->bcWindow > 0) {
+                p->bcWindow--;
+                if (p->comboStep == 1 && justPressed(joy, p->prevJoy, BUTTON_C)) {
+                    startSpecial(p);
+                    break;
+                }
+            }
+
             // BUFFER de input: un press de B en CUALQUIER momento del swing
             // queda guardado y encadena al terminar la anim. Antes solo valía
             // el press del frame exacto de fin de anim (ventana de 1 frame).
@@ -424,6 +517,15 @@ void updatePlayer(Player* p) {
         }
 
         case STATE_JUMPING: {
+            // B+C con el B un poco tarde: el salto recien empezado se
+            // convierte en el especial (antes de que el B arme la patada).
+            if (p->bcWindow > 0) {
+                p->bcWindow--;
+                if (!p->isJumpKicking && justPressed(joy, p->prevJoy, BUTTON_B)) {
+                    startSpecial(p);
+                    break;
+                }
+            }
             // jumpZ = altura VISUAL sobre el piso (crece al saltar, vuelve a
             // 0 al aterrizar). 'y' ya NO se toca acá: sigue siendo la lane
             // real de profundidad, libre de moverse con arriba/abajo.
@@ -705,9 +807,7 @@ void updatePlayer(Player* p) {
     // suelo, menos jumpZ (altura visual del salto, 0 si no está saltando).
     // Durante el ESPECIAL el sprite se dibuja unos px más arriba (el arte es
     // un saltito en el lugar) — offset solo visual, la Y lógica no cambia.
-    s16 drawY = p->y - PLAYER_FOOT_OFFSET - p->jumpZ;
-    if (p->state == STATE_ATTACKING && p->attackIsSpecial)
-        drawY -= PLAYER_SPECIAL_LIFT;
+    s16 drawY = p->y - PLAYER_FOOT_OFFSET - playerDrawZ(p);
     SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, drawY);
 
     // Prioridad por profundidad (Y-sorting estilo beat-em-up): quien tiene
@@ -727,6 +827,10 @@ static s16 absPS16(s16 v) {
 bool isPlayerAttackActive(const Player* p) {
     // Swing de ataque en curso. La pose congelada de la ventana de enlace
     // (anim terminada) ya NO pega: la hitbox vive solo durante la animación.
+    // El especial corre con la auto-animacion apagada (ver specialStep):
+    // pega mientras dura, el alcance de cada frame lo pone attackReachNow.
+    if (p->state == STATE_ATTACKING && p->attackIsSpecial)
+        return TRUE;
     if (p->state == STATE_ATTACKING)
         return !SPR_isAnimationDone(p->sprite);
     // Patada en salto: activa todo el tiempo que dura el vuelo con la patada
@@ -766,7 +870,7 @@ static s16 attackReachNow(const Player* p, s16 targetFeetY, s16 targetBodyH) {
     // Tope del frame del jugador TAL COMO SE DIBUJA: 'y' son los pies y jumpZ
     // lo levanta. Por eso saltar corre las franjas hacia arriba y una patada
     // en el aire deja de tocar al enemigo que quedo abajo.
-    s16 top  = p->y - PLAYER_FOOT_OFFSET - p->jumpZ;
+    s16 top  = p->y - PLAYER_FOOT_OFFSET - playerDrawZ(p);
     s16 tTop = targetFeetY - targetBodyH;   // tope del cuerpo del objetivo
 
     const s8* bands = playerAtkReach[p->charIndex][slot][f];
@@ -1075,6 +1179,9 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     p->invincible = PLAYER_KD_INVINCIBLE;       // intocable toda la secuencia
     p->kdSlide     = PLAYER_KD_SLIDE_SPEED;
     p->kdSlideTick = PLAYER_KD_SLIDE_DECAY;
+    // (26/09) El especial apaga la auto-animacion: si el derribo lo corta,
+    // hay que prenderla o la secuencia se queda congelada en el frame 0.
+    SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, FALSE);
     if (p->kdFront) {
         // De frente no hay frame de retroceso: la anim 13 YA es la caida
