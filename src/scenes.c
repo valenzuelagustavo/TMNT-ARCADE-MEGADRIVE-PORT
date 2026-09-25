@@ -90,21 +90,26 @@
 // HUD) para que TODAS las instancias de una misma variante (hasta 3 puertas,
 // 2 ascensores) apunten al mismo streaming en vez de cada una cargar su
 // propia copia -- ver SPR_addSpriteEx con SPR_FLAG_AUTO_VRAM_ALLOC y
-// SPR_FLAG_AUTO_TILE_UPLOAD apagados. Los recursos SPRITE (sparks,
-// spark_ascensor, sparks_2) se siguen usando solo como molde de tamaño.
+// SPR_FLAG_AUTO_TILE_UPLOAD apagados.
+//
+// (24/09) Las chispas del ASCENSOR y del PISO se veian rotas (las de las
+// puertas no). Los frames venian de un TILESET aparte, reordenados a mano
+// "por columna", y ese orden solo coincide con el del hardware si el frame
+// entra en UN sprite de 4x4 tiles como maximo -- el caso de las puertas.
+// spark_ascensor (5x3) y sparks_2 (8x5) rescomp las parte en 2 y 3 sprites
+// de hardware y ademas descarta los tiles vacios: 13 y 35 tiles, no 15 y 40.
+// Ahora la tira de frames ES el recurso SPRITE (level1.res) y se streamea
+// animations[0]->frames[f]->tileset: orden y cantidad los decide rescomp,
+// y el armado de sprites de hardware del frame 0 vale para todos (los frames
+// solo cambian indices de color, nunca la transparencia). Cada variante
+// cicla con SU cantidad de frames (el ascensor trae 3, las otras 4).
 #define SPARKS_SPRITE_TOP_Y  56    // Centrado verticalmente en la puerta (puerta va de 48 a 128)
 #define SPARKS_HALF_W        16    // 32px / 2
-#define SPARKS_FRAME_COUNT    4    // Frames de sparks_frames/sparks_2_frames/spark_ascensor_frames
 #define SPARKS_FRAME_SPEED    4    // Ticks entre cada frame (~6fps a 25fps, igual que antes)
-#define SPARKS_TILES_W        4    // 32px / 8 -- tamaño de sparks/door
-#define SPARKS_TILES_H        4
-#define SPARKS_TILES         (SPARKS_TILES_W * SPARKS_TILES_H)          // 16
-#define ELEV_SPARK_TILES_W    5    // 40px / 8 -- tamaño de spark_ascensor
-#define ELEV_SPARK_TILES_H    3
-#define ELEV_SPARK_TILES      (ELEV_SPARK_TILES_W * ELEV_SPARK_TILES_H)  // 15
-#define SPARKS2_TILES_W        8    // 64px / 8 -- tamaño de sparks_2
-#define SPARKS2_TILES_H        5
-#define SPARKS2_TILES         (SPARKS2_TILES_W * SPARKS2_TILES_H)        // 40
+// Tiles por frame = los que genero rescomp, NO ancho x alto (ver arriba).
+#define SPARKS_TILES      (sparks.maxNumTile)          // 16 (4x4, puertas)
+#define ELEV_SPARK_TILES  (spark_ascensor.maxNumTile)  // 13 (5x3 menos 2 vacios)
+#define SPARKS2_TILES     (sparks_2.maxNumTile)        // 35 (8x5 menos 5 vacios)
 
 // (15/09) Con 4 jugadores se APAGAN los sparks de las PUERTAS y el del PISO
 // (sparks_2), a pedido de Gustavo, para darle aire a las cuatro tortugas. El
@@ -121,13 +126,20 @@ static bool sparksDoorFloorOn = TRUE;
 static u16 sparksVramInd;      // Bloque fijo de VRAM de sparks (puertas)
 static u16 elevSparkVramInd;   // Bloque fijo de VRAM de spark_ascensor
 static u16 sparks2VramInd;     // Bloque fijo de VRAM de sparks_2
-static u16 sparksFrame;        // Frame actual, compartido por las 3 (0..3)
+static u16 sparksFrame;        // Contador compartido; cada variante hace % numFrame
 static u16 sparksTimer;        // Ticks hasta el próximo frame
 
 // Sube el frame 0 de las 3 tiras a sus bloques fijos de VRAM. Se llama una
 // vez al arrancar el nivel (junto con fireInit/hudInit); las instancias de
 // sprite se crean después apuntando a estos mismos índices (ver
 // SPR_addSpriteEx + SPR_setVRAMTileIndex más abajo).
+static void sparksLoadFrame(const SpriteDefinition* def, u16 vramInd,
+                            u16 counter, TransferMethod tm) {
+    const Animation* anim = def->animations[0];
+    const TileSet* ts = anim->frames[counter % anim->numFrame]->tileset;
+    VDP_loadTileData(ts->tiles, vramInd, ts->numTile, tm);
+}
+
 static void sparksStreamInit(u16 sparksInd, u16 elevInd, u16 sparks2Ind,
                              bool doorFloorOn) {
     sparksDoorFloorOn = doorFloorOn;
@@ -138,9 +150,9 @@ static void sparksStreamInit(u16 sparksInd, u16 elevInd, u16 sparks2Ind,
     sparksTimer = 0;
 
     if (!doorFloorOn) return;   // 4P: ningun bloque de spark esta reservado
-    VDP_loadTileData(spark_ascensor_frames.tiles,  elevSparkVramInd, ELEV_SPARK_TILES, DMA);
-    VDP_loadTileData(sparks_frames.tiles,         sparksVramInd,    SPARKS_TILES,     DMA);
-    VDP_loadTileData(sparks_2_frames.tiles,        sparks2VramInd,   SPARKS2_TILES,    DMA);
+    sparksLoadFrame(&spark_ascensor, elevSparkVramInd, 0, DMA);
+    sparksLoadFrame(&sparks,         sparksVramInd,    0, DMA);
+    sparksLoadFrame(&sparks_2,       sparks2VramInd,   0, DMA);
 }
 
 // Avanza el frame compartido de las 3 variantes. Sin SPR_addSprite de por
@@ -151,15 +163,14 @@ static void sparksStreamUpdate(void) {
     if (++sparksTimer < SPARKS_FRAME_SPEED) return;
     sparksTimer = 0;
 
-    sparksFrame = (sparksFrame + 1) & (SPARKS_FRAME_COUNT - 1);
+    // Ciclo de 12 = minimo comun multiplo de 3 (ascensor) y 4 (puertas/piso),
+    // asi ninguna de las dos pega un salto al dar la vuelta el contador.
+    if (++sparksFrame >= 12) sparksFrame = 0;
 
     if (!sparksDoorFloorOn) return;
-    VDP_loadTileData(spark_ascensor_frames.tiles + ((u32)sparksFrame * ELEV_SPARK_TILES * 8),
-                      elevSparkVramInd, ELEV_SPARK_TILES, DMA_QUEUE);
-    VDP_loadTileData(sparks_frames.tiles + ((u32)sparksFrame * SPARKS_TILES * 8),
-                      sparksVramInd, SPARKS_TILES, DMA_QUEUE);
-    VDP_loadTileData(sparks_2_frames.tiles + ((u32)sparksFrame * SPARKS2_TILES * 8),
-                      sparks2VramInd, SPARKS2_TILES, DMA_QUEUE);
+    sparksLoadFrame(&spark_ascensor, elevSparkVramInd, sparksFrame, DMA_QUEUE);
+    sparksLoadFrame(&sparks,         sparksVramInd,    sparksFrame, DMA_QUEUE);
+    sparksLoadFrame(&sparks_2,       sparks2VramInd,   sparksFrame, DMA_QUEUE);
 }
 
 // Crea una instancia de sparks/spark_ascensor/sparks_2 en modo MANUAL: sin
@@ -1665,6 +1676,7 @@ static const SoundTrack soundTracks[] = {
     { "CHAR SELECT",  music_charselect },
     { "FIGHT!",       music_boss },
     { "SCENE CLEAR",  music_scene_clear },
+    { "DOWNTOWN",     music_stage2_1 },
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 
@@ -2341,7 +2353,7 @@ SceneId showScene11() {
     const u16  barTiles     = (u16)((nPlSetup > 2) ? MAX_PLAYERS : 2)
                               * HUD_VRAM_PER_PLAYER;
     // (16/09) Con 4 jugadores NO va ningun spark: ni puertas, ni piso, ni
-    // ascensor. Sus tres bloques de VRAM de fondo (16+15+40 = 71 tiles) se los
+    // ascensor. Sus tres bloques de VRAM de fondo (16+13+35 = 64 tiles) se los
     // queda entero el motor de sprites.
     const u16  sparkTiles   = sparksFullOn
                               ? (SPARKS_TILES + ELEV_SPARK_TILES + SPARKS2_TILES)
@@ -2436,7 +2448,7 @@ SceneId showScene11() {
     VDP_setTextPalette(PAL1);
 
     p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
-    HudPlayer huds[MAX_PLAYERS];
+    static HudPlayer huds[MAX_PLAYERS];
     for (u8 k = 0; k < nPl; k++)
         hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
                       (u16)(hudVramFree + k * HUD_VRAM_PER_PLAYER));
@@ -2462,7 +2474,7 @@ SceneId showScene11() {
         sparksStreamInit(0, 0, 0, FALSE);   // 4P: ningun spark
 
     // --- Estado de continues por jugador (cuenta regresiva + selección) ---
-    ContPlayer conts[MAX_PLAYERS];
+    static ContPlayer conts[MAX_PLAYERS];
     for (u8 k = 0; k < MAX_PLAYERS; k++) {
         ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
         conts[k] = cz;
@@ -2502,7 +2514,7 @@ SceneId showScene11() {
     for (u16 i = 0; i < LEVEL1_SPAWN_COUNT; i++) spawnUsed[i] = FALSE;
 #endif  // ---- fin OLEADAS DESACTIVADAS ----
 
-    Enemy enemies[MAX_ENEMIES];
+    static Enemy enemies[MAX_ENEMIES];
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state = ENEMY_STATE_INACTIVE;
         enemies[i].sprite = NULL;
@@ -2516,7 +2528,7 @@ SceneId showScene11() {
     // robotCanBeHit son no-op en ese estado.
     // nRobots: cuantos salen de verdad en esta partida.
     const u8 nRobots = (nPlSetup > 2) ? LEVEL1_MAX_ROBOTS : nPlSetup;
-    Robot robots[LEVEL1_MAX_ROBOTS];
+    static Robot robots[LEVEL1_MAX_ROBOTS];
     for (u8 r = 0; r < LEVEL1_MAX_ROBOTS; r++) robotInit(&robots[r]);
 
     // --- Puertas: spawn points sobre los huecos "ACA" del fondo ---
@@ -3902,20 +3914,20 @@ SceneId showScene12() {
     VDP_setTextPalette(PAL1);
 
     p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
-    HudPlayer huds[MAX_PLAYERS];
+    static HudPlayer huds[MAX_PLAYERS];
     for (u8 k = 0; k < nPl; k++)
         hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
                       (u16)(hudVramFree + k * HUD_VRAM_PER_PLAYER));
 
     // --- Estado de continues por jugador (cuenta regresiva + selección) ---
-    ContPlayer conts[MAX_PLAYERS];
+    static ContPlayer conts[MAX_PLAYERS];
     for (u8 k = 0; k < MAX_PLAYERS; k++) {
         ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
         conts[k] = cz;
     }
 
     // --- Pool de enemigos ---
-    Enemy enemies[MAX_ENEMIES];
+    static Enemy enemies[MAX_ENEMIES];
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state = ENEMY_STATE_INACTIVE;
         enemies[i].sprite = NULL;
@@ -3934,7 +3946,14 @@ SceneId showScene12() {
     // Rocksteady en la puerta, QUIETO reproduciendo su IDLE + suena
     // say_your_p_sfx (~2.8s) · 99=pelea en curso (esperar victoria). La cápsula
     // queda congelada con la puerta abierta el resto del nivel.
-    Rocksteady boss;
+    // (25/09) STATIC a proposito (igual que huds/conts/enemies/robots aca y en
+    // showScene11): el stack de SGDK es de 2,5 KB (STACK_SIZE 0xA00) y estos
+    // locales solos ocupaban ~1,4 KB por escena. Con 2 jugadores el stack se
+    // pasaba y pisaba la marca de fin del heap (0xFFF5FE): MEM_pack, que
+    // corre en el SPR_initEx del final del nivel, quedaba en un bucle
+    // infinito -> juego colgado con Shredder en el aire. Todos se
+    // reinicializan a mano justo despues de declararse.
+    static Rocksteady boss;
     rocksteadyInit(&boss);
     rocksteadyBulletInit();
     u8      bossStage    = 0;

@@ -11,5 +11,7 @@ extern const SpriteDefinition shuriken_sprite;
 extern const SpriteDefinition tnt_sprite;
 extern const SpriteDefinition explosion_sprite;
 extern const SpriteDefinition lid_sprite;
+extern const SpriteDefinition bebop_boss;
+extern const SpriteDefinition bebop_shot_spr;
 
 #endif // _RES_ENEMIES_H_

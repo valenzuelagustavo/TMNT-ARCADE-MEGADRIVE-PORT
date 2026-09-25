@@ -93,7 +93,8 @@
 // sobre el arte -- cinco bocas de tormenta y un tirador de dinamita. Ver el
 // bloque "ENEMIGOS GUIONADOS" mas abajo.
 //
-// PENDIENTE A PROPOSITO: no hay musica de nivel, falta el VGM del Stage 2.
+// (24/09) Musica de nivel: "08 - Downtown (Stage 2-1)" (music_stage2_1).
+// Arranca con el fundido de entrada y la corta el tema del jefe.
 // ===========================================================================
 
 #include <genesis.h>
@@ -106,7 +107,8 @@
 #include "hud.h"
 #include "enemy.h"    // foot soldiers
 #include "bebop.h"    // jefe del nivel (24/09)
-#include "audio.h"    // music_scene_clear, music_boss, boss_scream_bebop_vo
+#include "meters_2_1.h" // parquimetros (25/09)
+#include "audio.h"    // music_stage2_1, music_scene_clear, music_boss, boss_scream_bebop_vo
 
 #ifndef IS_PAL_SYSTEM
 #define IS_PAL_SYSTEM IS_PALSYSTEM
@@ -321,6 +323,7 @@ extern u8 cantidadJugadores;
 // Fin del nivel: cuantos segundos queda la imagen congelada con el jingle.
 #define LVL21_CLEAR_SECS       5
 #define VOL_MUSIC_SCENE_CLEAR 90
+#define VOL_MUSIC_LEVEL2_1    90   // igual que el tema del 1-1 (VOL_MUSIC_LEVEL1)
 #define VOL_MUSIC_BOSS_2_1    90   // tema del jefe, igual que el de Rocksteady
 
 // (25/09) La camara ARRANCA corrida a la derecha (antes en 0) y las tortugas
@@ -589,11 +592,23 @@ static inline s16 absS16(s16 v) { return (v < 0) ? (s16)-v : v; }
 // posicion que tenia antes: si el movimiento completo no entra, se prueba solo
 // el eje X y despues solo el eje Y, de forma que caminar en diagonal contra el
 // borde de la vereda "resbale" en vez de frenarse en seco.
+// (25/09) Ademas de la tabla, las BASES de los parquimetros parados son
+// solidas para el que camina (saltando se los pasa por arriba). Si el
+// personaje YA estaba adentro de una base -- nacio ahi o lo empujo un golpe --
+// se ignoran los parquimetros para dejarlo salir: clampToWalk revierte, no
+// teletransporta, y sin esto quedaria clavado para siempre.
+static bool canStep(s16 fx, s16 fy, bool air, bool ignoreMeters) {
+    if (!walkable(fx, fy, air)) return FALSE;
+    if (!air && !ignoreMeters && metersBlock(fx, fy)) return FALSE;
+    return TRUE;
+}
+
 static void clampToWalk(s16* px, s16* py, s16 prevX, s16 prevY,
                         s16 footDx, bool air) {
-    if (walkable(*px + footDx, *py, air)) return;
-    if (walkable(*px + footDx, prevY, air)) { *py = prevY; return; }
-    if (walkable(prevX + footDx, *py, air)) { *px = prevX; return; }
+    bool free = air || metersBlock(prevX + footDx, prevY);
+    if (canStep(*px + footDx, *py, air, free)) return;
+    if (canStep(*px + footDx, prevY, air, free)) { *py = prevY; return; }
+    if (canStep(prevX + footDx, *py, air, free)) { *px = prevX; return; }
     *px = prevX;
     *py = prevY;
 }
@@ -767,7 +782,7 @@ SceneId showScene21() {
     VDP_setTextPalette(PAL1);
 
     p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
-    HudPlayer huds[MAX_PLAYERS];
+    static HudPlayer huds[MAX_PLAYERS];
     for (u8 k = 0; k < nPl; k++)
         hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
                       (u16)(hudVram + k * HUD_VRAM_PER_PLAYER));
@@ -795,6 +810,7 @@ SceneId showScene21() {
     mhReset();
     tntInit();
     lidInit();
+    metersInit();
     // --- Jefe (24/09) ------------------------------------------------------
     // Vive en el stack de la escena como todo lo demas; bebopInit ademas deja
     // el pool de disparos limpio.
@@ -827,6 +843,12 @@ SceneId showScene21() {
             SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
                             pls[k]->y - PLAYER_FOOT_OFFSET - pls[k]->jumpZ - cameraY);
     SPR_update();
+
+    // Musica del nivel. setLoopNumber(-1) SIEMPRE antes del play (el driver
+    // latchea el numero de loops en el play): la escena anterior puede haber
+    // dejado el driver en "una sola pasada".
+    XGM2_setLoopNumber(-1);
+    playMusicVol(music_stage2_1, VOL_MUSIC_LEVEL2_1);
 
     static const u16 black[64] = { 0 };
     PAL_setColors(0, black, 64, DMA);
@@ -1150,7 +1172,7 @@ SceneId showScene21() {
             for (u8 k = 0; k < nPl; k++) {
                 if (tntHitMask & (u8)(1 << k)) continue;
                 if (!playerCanBeHit(pls[k])) continue;
-                if (!tntBlastHits(getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                if (!tntBlastHits((s16)(getPlayerWorldX(pls[k]) + FOOT_DX), getPlayerY(pls[k]),
                                   PLAYER_BODY_HALF_W)) continue;
                 playerHitBars(pls[k], tntBlastX(), LVL21_TNT_DMG_BARS);
                 tntHitMask |= (u8)(1 << k);
@@ -1199,11 +1221,33 @@ SceneId showScene21() {
         for (u8 k = 0; k < nPl; k++) {
             if (!playerCanBeHit(pls[k])) continue;
             s16 lx = 0;
-            if (!lidHits(getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+            // (25/09) lidHits espera el CENTRO del jugador; se le pasaba el
+            // borde izquierdo del frame (getPlayerWorldX), 52 px corrido.
+            if (!lidHits((s16)(getPlayerWorldX(pls[k]) + FOOT_DX), getPlayerY(pls[k]),
                          PLAYER_BODY_HALF_W, &lx)) continue;
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                            SOUND_PCM_CH2, 15, FALSE, FALSE);
             damagePlayer(pls[k], lx);     // una barra, como pidio Gustavo
+        }
+
+        // --- Parquimetros (25/09) -------------------------------------------
+        // Un golpe de tortuga los arranca y salen volando en la direccion del
+        // golpe; volando MATAN a los foot soldiers que tocan (una vez por
+        // soldier). Parados, sus bases las frena clampToWalk.
+        if (metersPlayerHits(pls, nPl))
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+        metersUpdate(cameraX, cameraY);
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (!enemyCanBeHit(&enemies[i])) continue;
+            s8 owner = -1;
+            if (!metersHitEnemy(i, getEnemyCenterX(&enemies[i]),
+                                getEnemyCenterY(&enemies[i]),
+                                enemyBodyHalfW(&enemies[i]), &owner)) continue;
+            damageEnemy(&enemies[i], (s16)(enemies[i].hp > 0 ? enemies[i].hp : ENEMY_HP));
+            XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+            if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[owner], 1);
         }
 
         lvl21BgUpdate(cameraX, cameraY);
@@ -1317,6 +1361,7 @@ SceneId showScene21() {
         SYS_doVBlankProcess();
     }
     XGM2_stop();
+    XGM2_setLoopNumber(-1);   // el jingle lo dejo en 0: restaurar para lo que siga
 
     // Soltar lo que el guion pudiera haber dejado vivo: los proyectiles y las
     // tapas cerradas son estado de MODULO (static), no del stack, asi que si no
@@ -1324,6 +1369,7 @@ SceneId showScene21() {
     tntReleaseAll();
     lidReleaseAll();
     mhReleaseAll();
+    metersReleaseAll();
     bebopRelease(&bebop);      // el jefe y sus aros (tambien si el nivel se
                                // corta por game over en plena pelea)
     if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }

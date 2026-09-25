@@ -180,8 +180,16 @@ SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
 // Este recurso (sparks, un solo frame) se sigue usando SOLO como molde de
 // tamano para SPR_addSpriteEx (2x2... 4x4 tiles); sus propios tiles nunca
 // se suben a VRAM (auto-upload apagado).
-SPRITE sparks "sprites/sparks.png" 4 4 FAST 0
-TILESET sparks_frames "sprites/sparks_strip.png" NONE NONE
+// (24/09) La tira de frames ES el recurso SPRITE (1 animacion x N frames, sin
+// compresion, time 0 = el codigo maneja el frame). Antes era un SPRITE de un
+// frame usado como "molde" + un TILESET aparte con los frames reordenados a
+// mano por columna: eso solo coincide con lo que arma rescomp cuando el frame
+// entra en UN sprite de hardware (4x4 tiles, las puertas). spark_ascensor
+// (5x3) y sparks_2 (8x5) rescomp las parte en varios sprites de hardware y
+// descarta los tiles vacios (13 y 35 tiles, no 15 y 40) -> se veian rotas.
+// Ahora el codigo streamea animations[0]->frames[f]->tileset, en el orden y
+// con la cantidad exacta que decidio rescomp. Tiras: tools/gen_sparks_anim.py.
+SPRITE sparks "sprites/sparks_anim.png" 4 4 NONE 0
 
 // --- Puerta rompible (spawn point del nivel) ---
 // 40x80px = 5x10 tiles, UN solo frame (time 0). Se dibuja sobre cada hueco de
@@ -195,14 +203,13 @@ SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0
 // 40x24px (5x3 tiles), UN solo frame. Misma paleta que sparks (PAL2).
 // Se ubica detras de cada ascensor_door y queda fijo en el mundo. Streameado
 // igual que sparks (ver comentario arriba) -- molde de tamano nada mas.
-SPRITE spark_ascensor "sprites/spark_ascensor.png" 5 3 FAST 0
-TILESET spark_ascensor_frames "sprites/spark_ascensor_strip.png" NONE NONE
+// (24/09) 3 frames (el arte nuevo de spark_ascensor_strip.png), no 4.
+SPRITE spark_ascensor "sprites/spark_ascensor_anim.png" 5 3 NONE 0
 
 // --- Sparks 2: efecto decorativo fijo en X=330 ---
 // 64x36px... en rigor 64x40 (8x5 tiles), UN solo frame. Misma paleta que
 // sparks (PAL2). Streameado igual que sparks (ver comentario arriba).
-SPRITE sparks_2 "sprites/sparks_2.png" 8 5 FAST 0
-TILESET sparks_2_frames "sprites/sparks_2_strip.png" NONE NONE
+SPRITE sparks_2 "sprites/sparks_2_anim.png" 8 5 NONE 0
 
 // --- Puertas de ascensor (spawn animado) ---
 // 192x80px = spritesheet de 4 frames de 48x80 (6x10 tiles) -> animacion de

@@ -37,6 +37,13 @@ XGM2 music_credits   "music/00 - SanSenpai Credit.vgm"
 XGM2 music_ending    "music/07 - April is Kidnapped (Cutscene).vgm"
 XGM2 music_intro_arcade "music/01 - Opening Demo.vgm"
 
+// (24/09) Tema del Stage 2-1 (Downtown). 77,7 s con punto de loop a los 38,5 s
+// (loop de 39,2 s), asi que con XGM2_setLoopNumber(-1) repite solo. Trae un
+// bloque PCM de 7690 bytes (el mismo de bateria que los "con samples"), pero
+// NUNCA lo dispara: 0 comandos de start de stream (0x95), solo setup. O sea
+// que suena FM+PSG puro y no le pisa los canales PCM a los voice over.
+XGM2 music_stage2_1  "music/08 - Downtown (Stage 2-1).vgm"
+
 // Tema del jefe (Rocksteady). Arranca cuando se abre la puerta de la capsula
 // del taladro y se mantiene toda la pelea: el VGM trae punto de loop (32,5s de
 // duracion, loopSamples != 0), asi que con XGM2_setLoopNumber(-1) repite solo.
