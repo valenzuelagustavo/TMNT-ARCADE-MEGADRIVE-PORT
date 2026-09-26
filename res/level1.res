@@ -189,7 +189,12 @@ SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
 // descarta los tiles vacios (13 y 35 tiles, no 15 y 40) -> se veian rotas.
 // Ahora el codigo streamea animations[0]->frames[f]->tileset, en el orden y
 // con la cantidad exacta que decidio rescomp. Tiras: tools/gen_sparks_anim.py.
-SPRITE sparks "sprites/sparks_anim.png" 4 4 NONE 0
+// (26/09) Arte NUEVO de Gustavo (chamas-sheet.png, tools/gen_chamas.py): el
+// hueco ENTERO de la puerta rota -- marco, interior negro, llamas y piso --,
+// 7 frames de 40x80 (el arte son 33x79, exacto el hueco del fondo). El negro
+// del interior es opaco, asi que los 50 tiles estan llenos en todos los
+// frames y el streaming al bloque compartido sigue valiendo.
+SPRITE sparks "sprites/door_fire_gen.png" 5 10 NONE 0
 
 // --- Puerta rompible (spawn point del nivel) ---
 // 40x80px = 5x10 tiles, UN solo frame (time 0). Se dibuja sobre cada hueco de
@@ -209,7 +214,14 @@ SPRITE spark_ascensor "sprites/spark_ascensor_anim.png" 5 3 NONE 0
 // --- Sparks 2: efecto decorativo fijo en X=330 ---
 // 64x36px... en rigor 64x40 (8x5 tiles), UN solo frame. Misma paleta que
 // sparks (PAL2). Streameado igual que sparks (ver comentario arriba).
-SPRITE sparks_2 "sprites/sparks_2_anim.png" 8 5 NONE 0
+// (26/09) REEMPLAZADO por floor_fire (abajo): ya no se compila.
+
+// --- Fuego del piso (26/09): decorativo, en DOS puntos del suelo ---
+// Arte nuevo de chamas-sheet.png (tools/gen_chamas.py): 9 frames de 56x32
+// (7x4 tiles), PAL2. La llama cambia de forma en cada frame, asi que NO se
+// streamea como los sparks: es un sprite comun con auto-animacion, y cada
+// instancia se crea solo cuando esta cerca de camara (ver showScene11).
+SPRITE floor_fire "sprites/floor_fire_gen.png" 7 4 NONE 5
 
 // --- Puertas de ascensor (spawn animado) ---
 // 192x80px = spritesheet de 4 frames de 48x80 (6x10 tiles) -> animacion de

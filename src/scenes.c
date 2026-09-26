@@ -104,13 +104,18 @@
 // y el armado de sprites de hardware del frame 0 vale para todos (los frames
 // solo cambian indices de color, nunca la transparencia). Cada variante
 // cicla con SU cantidad de frames (el ascensor trae 3, las otras 4).
-#define SPARKS_SPRITE_TOP_Y  56    // Centrado verticalmente en la puerta (puerta va de 48 a 128)
-#define SPARKS_HALF_W        16    // 32px / 2
+// (26/09) Fuego NUEVO de la puerta (door_fire_gen.png, ver level1.res): el
+// arte son 33x79 y cubre el hueco ENTERO del fondo, que mide eso mismo y va
+// de x = centro-14 a centro+18 y de y = 49 a 127 (medido en los tres).
+#define SPARKS_SPRITE_TOP_Y  49    // tope del hueco
+#define SPARKS_LEFT_DX       14    // borde izquierdo del hueco = centro - 14
 #define SPARKS_FRAME_SPEED    4    // Ticks entre cada frame (~6fps a 25fps, igual que antes)
 // Tiles por frame = los que genero rescomp, NO ancho x alto (ver arriba).
 #define SPARKS_TILES      (sparks.maxNumTile)          // 16 (4x4, puertas)
 #define ELEV_SPARK_TILES  (spark_ascensor.maxNumTile)  // 13 (5x3 menos 2 vacios)
-#define SPARKS2_TILES     (sparks_2.maxNumTile)        // 35 (8x5 menos 5 vacios)
+// (26/09) sparks (puertas) pasa a 50 tiles (5x10, todos llenos). sparks_2
+// ya no existe: lo reemplaza floor_fire, que es un sprite comun (no se
+// streamea) -- su bloque de 35 tiles vuelve al motor de sprites.
 
 // (15/09) Con 4 jugadores se APAGAN los sparks de las PUERTAS y el del PISO
 // (sparks_2), a pedido de Gustavo, para darle aire a las cuatro tortugas. El
@@ -126,7 +131,6 @@ static bool sparksDoorFloorOn = TRUE;
 
 static u16 sparksVramInd;      // Bloque fijo de VRAM de sparks (puertas)
 static u16 elevSparkVramInd;   // Bloque fijo de VRAM de spark_ascensor
-static u16 sparks2VramInd;     // Bloque fijo de VRAM de sparks_2
 static u16 sparksFrame;        // Contador compartido; cada variante hace % numFrame
 static u16 sparksTimer;        // Ticks hasta el próximo frame
 
@@ -141,19 +145,16 @@ static void sparksLoadFrame(const SpriteDefinition* def, u16 vramInd,
     VDP_loadTileData(ts->tiles, vramInd, ts->numTile, tm);
 }
 
-static void sparksStreamInit(u16 sparksInd, u16 elevInd, u16 sparks2Ind,
-                             bool doorFloorOn) {
+static void sparksStreamInit(u16 sparksInd, u16 elevInd, bool doorFloorOn) {
     sparksDoorFloorOn = doorFloorOn;
     sparksVramInd    = sparksInd;
     elevSparkVramInd = elevInd;
-    sparks2VramInd   = sparks2Ind;
     sparksFrame = 0;
     sparksTimer = 0;
 
     if (!doorFloorOn) return;   // 4P: ningun bloque de spark esta reservado
     sparksLoadFrame(&spark_ascensor, elevSparkVramInd, 0, DMA);
     sparksLoadFrame(&sparks,         sparksVramInd,    0, DMA);
-    sparksLoadFrame(&sparks_2,       sparks2VramInd,   0, DMA);
 }
 
 // Avanza el frame compartido de las 3 variantes. Sin SPR_addSprite de por
@@ -164,14 +165,13 @@ static void sparksStreamUpdate(void) {
     if (++sparksTimer < SPARKS_FRAME_SPEED) return;
     sparksTimer = 0;
 
-    // Ciclo de 12 = minimo comun multiplo de 3 (ascensor) y 4 (puertas/piso),
-    // asi ninguna de las dos pega un salto al dar la vuelta el contador.
-    if (++sparksFrame >= 12) sparksFrame = 0;
+    // Ciclo de 21 = minimo comun multiplo de 3 (ascensor) y 7 (puertas,
+    // arte del 26/09), asi ninguna pega un salto al dar la vuelta el contador.
+    if (++sparksFrame >= 21) sparksFrame = 0;
 
     if (!sparksDoorFloorOn) return;
     sparksLoadFrame(&spark_ascensor, elevSparkVramInd, sparksFrame, DMA_QUEUE);
     sparksLoadFrame(&sparks,         sparksVramInd,    sparksFrame, DMA_QUEUE);
-    sparksLoadFrame(&sparks_2,       sparks2VramInd,   sparksFrame, DMA_QUEUE);
 }
 
 // Crea una instancia de sparks/spark_ascensor/sparks_2 en modo MANUAL: sin
@@ -2409,7 +2409,7 @@ SceneId showScene11() {
     // ascensor. Sus tres bloques de VRAM de fondo (16+13+35 = 64 tiles) se los
     // queda entero el motor de sprites.
     const u16  sparkTiles   = sparksFullOn
-                              ? (SPARKS_TILES + ELEV_SPARK_TILES + SPARKS2_TILES)
+                              ? (SPARKS_TILES + ELEV_SPARK_TILES)
                               : 0;
     SPR_initEx((u16)(TILE_FONT_INDEX - (bgUserTiles + barTiles + sparkTiles)));
 
@@ -2521,10 +2521,9 @@ SceneId showScene11() {
     if (sparksFullOn)
         sparksStreamInit(hudVramFree + barBlocks,
                          hudVramFree + barBlocks + SPARKS_TILES,
-                         hudVramFree + barBlocks + SPARKS_TILES + ELEV_SPARK_TILES,
                          TRUE);
     else
-        sparksStreamInit(0, 0, 0, FALSE);   // 4P: ningun spark
+        sparksStreamInit(0, 0, FALSE);      // 4P: ningun spark
 
     // --- Estado de continues por jugador (cuenta regresiva + selección) ---
     static ContPlayer conts[MAX_PLAYERS];
@@ -2600,13 +2599,26 @@ SceneId showScene11() {
     Sprite* sparkSpr[LEVEL1_DOOR_COUNT];
     for (u16 d = 0; d < LEVEL1_DOOR_COUNT; d++) sparkSpr[d] = NULL;
 
-    // --- Sparks 2: efecto decorativo fijo en el mundo ---
-    #define SPARKS2_WORLD_X  330
-    #define SPARKS2_WORLD_Y  154
-    // (15/09) Con 4 jugadores el spark del PISO no se crea (ver sparksDoorFloorOn).
-    Sprite* sparks2Spr = !sparksFullOn ? NULL : sparksAddSprite(&sparks_2, sparks2VramInd,
-                                         SPARKS2_WORLD_X, SPARKS2_WORLD_Y);
-    if (sparks2Spr) SPR_setDepth(sparks2Spr, -SPARKS2_WORLD_Y);
+    // --- Fuego del piso (26/09): decorativo, en DOS puntos del suelo ---
+    // Reemplaza a sparks_2. Sprite comun con auto-animacion (floor_fire, 9
+    // frames de 56x32): la llama cambia de forma en cada frame y no se puede
+    // streamear a un bloque compartido. Cada uno se crea al acercarse a la
+    // camara y se suelta al alejarse, asi en general solo paga uno (25 tiles
+    // como maximo). FLOOR_FIRE_X = centro del charco, FLOOR_FIRE_Y = su borde
+    // de abajo (coordenadas de mundo; el piso del 1-1 va de y 142 a 200).
+    // Van en la parte de ARRIBA del piso: de y=160 para abajo esta la banda
+    // del fuego de primer plano (BG_A, prioridad alta), que los tapaba casi
+    // enteros (probado con el y=194 de sparks_2). El primero queda en la X
+    // de sparks_2; el segundo, entre la escalera y la segunda puerta. Para
+    // moverlos alcanza con tocar estas tablas.
+    // (15/09) Con 4 jugadores no se crean (ver sparksDoorFloorOn).
+    #define FLOOR_FIRE_COUNT   2
+    #define FLOOR_FIRE_HALF_W  26     // el charco mide 51..53 px
+    #define FLOOR_FIRE_H       32
+    #define FLOOR_FIRE_MARGIN  64
+    static const s16 floorFireX[FLOOR_FIRE_COUNT] = { 362, 640 };
+    static const s16 floorFireY[FLOOR_FIRE_COUNT] = { 158, 152 };
+    Sprite* floorFireSpr[FLOOR_FIRE_COUNT] = { NULL, NULL };
 
     // --- Ascensores: 2 puertas animadas que se abren JUNTAS ---
     // elevPhase: 0=cerradas (esperando que ambas estén centradas) · 1=abriendo
@@ -2808,7 +2820,7 @@ SceneId showScene11() {
                     // ver sparksAddSprite -- ya no gasta VRAM propia).
                     if (sparksFullOn && !sparkSpr[d]) {
                         sparkSpr[d] = sparksAddSprite(&sparks, sparksVramInd,
-                                                      screenX - SPARKS_HALF_W, SPARKS_SPRITE_TOP_Y);
+                                                      screenX - SPARKS_LEFT_DX, SPARKS_SPRITE_TOP_Y);
                         if (sparkSpr[d]) SPR_setDepth(sparkSpr[d], SPR_MAX_DEPTH);
                     }
                 } else if (!nearScreen && doorSpr[d]) {
@@ -2824,7 +2836,7 @@ SceneId showScene11() {
             // y liberarlo cuando salga de cámara.
             if (sparkSpr[d]) {
                 if (nearScreen) {
-                    SPR_setPosition(sparkSpr[d], screenX - SPARKS_HALF_W, SPARKS_SPRITE_TOP_Y);
+                    SPR_setPosition(sparkSpr[d], screenX - SPARKS_LEFT_DX, SPARKS_SPRITE_TOP_Y);
                 } else {
                     SPR_releaseSprite(sparkSpr[d]);
                     sparkSpr[d] = NULL;
@@ -3447,9 +3459,23 @@ SceneId showScene11() {
         //     ascensores + sparks_2), ya NO toca CRAM -- ver sparksStreamUpdate.
         sparksStreamUpdate();
 
-        // 8c. Sparks 2: reposicionar sprite decorativo fijo en el mundo.
-        if (sparks2Spr)
-            SPR_setPosition(sparks2Spr, SPARKS2_WORLD_X - cameraX, SPARKS2_WORLD_Y);
+        // 8c. Fuego del piso: se crea cerca de camara, fijo en el mundo.
+        for (u16 ff = 0; ff < FLOOR_FIRE_COUNT && sparksFullOn; ff++) {
+            s16 fsx = floorFireX[ff] - cameraX;
+            bool near = (fsx > -FLOOR_FIRE_MARGIN) &&
+                        (fsx < SCREEN_PIXEL_WIDTH + FLOOR_FIRE_MARGIN);
+            if (near && !floorFireSpr[ff]) {
+                floorFireSpr[ff] = SPR_addSprite(&floor_fire, 0, 0,
+                                                 TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+                if (floorFireSpr[ff]) SPR_setDepth(floorFireSpr[ff], -floorFireY[ff]);
+            } else if (!near && floorFireSpr[ff]) {
+                SPR_releaseSprite(floorFireSpr[ff]);
+                floorFireSpr[ff] = NULL;
+            }
+            if (floorFireSpr[ff])
+                SPR_setPosition(floorFireSpr[ff], fsx - FLOOR_FIRE_HALF_W,
+                                floorFireY[ff] - FLOOR_FIRE_H);
+        }
 
         SPR_update();
         SYS_doVBlankProcess();
@@ -3471,7 +3497,8 @@ SceneId showScene11() {
     for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
         if (elevSparkSpr[ev]) { SPR_releaseSprite(elevSparkSpr[ev]); elevSparkSpr[ev] = NULL; }
     }
-    if (sparks2Spr) { SPR_releaseSprite(sparks2Spr); sparks2Spr = NULL; }
+    for (u16 ff = 0; ff < FLOOR_FIRE_COUNT; ff++)
+        if (floorFireSpr[ff]) { SPR_releaseSprite(floorFireSpr[ff]); floorFireSpr[ff] = NULL; }
     if (hurrySpr)   { SPR_releaseSprite(hurrySpr);   hurrySpr   = NULL; }
 
     // Restaurar atributos de texto por defecto para el resto de las escenas

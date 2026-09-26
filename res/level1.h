@@ -22,7 +22,7 @@ extern const SpriteDefinition iron_ball;
 extern const SpriteDefinition sparks;
 extern const SpriteDefinition door_lvl_1;
 extern const SpriteDefinition spark_ascensor;
-extern const SpriteDefinition sparks_2;
+extern const SpriteDefinition floor_fire;
 extern const SpriteDefinition ascensor_door;
 extern const SpriteDefinition robot_whip;
 extern const SpriteDefinition whip_waves;
