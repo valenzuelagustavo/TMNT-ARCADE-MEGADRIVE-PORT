@@ -6,7 +6,8 @@
 #include "player.h"
 
 // ===========================================================================
-// BEBOP — jefe del nivel 2-1 (la calle, frente al auto quemado)
+// BEBOP — jefe del nivel 2-1 (la calle, frente al auto quemado) y, desde el
+// 26/09, tambien de la Scene 4 (el garage; ver BebopArena)
 // ===========================================================================
 // Mismo patron que rocksteady.c: enemigo unico con maquina de estados propia,
 // que vive en el tramo final del nivel con la camara ya trabada en su tope
@@ -178,6 +179,23 @@
 #define BEBOP_FLASH_TICKS      8
 #define BEBOP_FLASH_CRIT_TICKS 3
 
+// --- ARENA (26/09) -----------------------------------------------------------
+// Con la Scene 4 Bebop dejo de ser solo del 2-1: todo lo que depende del
+// escenario (limites, franja caminable y la entrada) vive en una BebopArena.
+// bebopSpawn() usa la del 2-1 (las macros de arriba); el garage pasa la suya
+// con bebopSpawnArena().
+typedef s16 (*BebopLaneFn)(s16 worldX);
+typedef struct {
+    s16 xMin, xMax;          // CENTRO del cuerpo (mundo)
+    s16 laneTop, laneBot;    // tope de seguridad de la franja (pies)
+    BebopLaneFn topAt;       // franja real por X (NULL = laneTop/laneBot)
+    BebopLaneFn botAt;
+    s16 carX, carY;          // primer apoyo de la entrada (centro, pies)
+    s16 landX, landY;        // donde apoya y arranca la pelea
+    u8  startOnCar;          // TRUE: aparece YA parado en el apoyo (sin caida)
+    u16 carHold;             // frames en el apoyo (0 = BEBOP_CAR_HOLD)
+} BebopArena;
+
 typedef enum {
     BEBOP_INACTIVE = 0,
     BEBOP_FALL,        // cayendo hacia el auto
@@ -225,11 +243,14 @@ typedef struct {
     s16        fromX, fromY;  // origen de la parabola en curso (entrada)
     s16        cameraOffsetX;
     s16        cameraOffsetY;
+    const BebopArena* arena;  // (26/09) escenario de la pelea
 } Bebop;
 
 void bebopInit(Bebop* b);
-// Arranca la entrada: cae desde arriba hacia el techo del auto.
+// Arranca la entrada: cae desde arriba hacia el techo del auto (arena del 2-1).
 void bebopSpawn(Bebop* b);
+// Lo mismo en otra arena (la estructura tiene que vivir mientras dure la pelea).
+void bebopSpawnArena(Bebop* b, const BebopArena* arena);
 // Un frame de jefe: IA, animacion, proyectiles y golpes CONTRA los jugadores.
 void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY);
 // Golpe del jugador. Devuelve TRUE si el golpe lo mato.

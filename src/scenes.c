@@ -2390,14 +2390,14 @@ SceneId showScene21Title() {
 }
 
 // ---------------------------------------------------------------------------
-// 7 ter. Título de la SCENE 3 (26/09) — la cloaca
+// 7 ter. Títulos de la SCENE 3 (cloaca) y la SCENE 4 (garage) (26/09)
 // ---------------------------------------------------------------------------
 // Mismo tratamiento que los otros dos. La segunda línea es PROVISORIA: falta
-// confirmar el texto exacto del arcade para esta escena.
-// ---------------------------------------------------------------------------
+// confirmar el texto exacto del arcade para cada escena.
 #define SCENE3_TITLE_LINE2  "INTO THE SEWER!!"
+#define SCENE4_TITLE_LINE2  "THE PARKING GARAGE!!"
 
-SceneId showScene31Title() {
+static SceneId showStageTitle(const char* line1, const char* line2, SceneId next) {
     clearScene();
     while (JOY_readJoypad(JOY_1) & BUTTON_START)
         SYS_doVBlankProcess();
@@ -2407,15 +2407,14 @@ SceneId showScene31Title() {
     VDP_setTextPalette(PAL0);
     VDP_setBackgroundColor(0);
 
-    const char* line1 = "SCENE 3";
-    const char* line2 = SCENE3_TITLE_LINE2;
+    u16 col1 = (u16)((40 - strlen(line1)) / 2);
     u16 col2 = (u16)((40 - strlen(line2)) / 2);
 
     bool skipped;
-    skipped = drawTextTypewriter(line1, 16, 10, TITLE_CHAR_DELAY);
+    skipped = drawTextTypewriter(line1, col1, 10, TITLE_CHAR_DELAY);
     if (!skipped) skipped = drawTextTypewriter(line2, col2, 13, TITLE_CHAR_DELAY);
     if (skipped) {
-        VDP_drawText(line1, 16, 10);
+        VDP_drawText(line1, col1, 10);
         VDP_drawText(line2, col2, 13);
     }
 
@@ -2428,7 +2427,15 @@ SceneId showScene31Title() {
 
     VDP_loadFont(&font_default, DMA);
     clearScene();
-    return SCENE_3_1;
+    return next;
+}
+
+SceneId showScene31Title() {
+    return showStageTitle("SCENE 3", SCENE3_TITLE_LINE2, SCENE_3_1);
+}
+
+SceneId showScene41Title() {
+    return showStageTitle("SCENE 4", SCENE4_TITLE_LINE2, SCENE_4_1);
 }
 
 // ---------------------------------------------------------------------------

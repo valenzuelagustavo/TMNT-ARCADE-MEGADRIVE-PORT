@@ -20,14 +20,30 @@ static s16 clampS16b(s16 v, s16 lo, s16 hi) {
 // La calle no es un rectangulo: la vereda baja en diagonal. Se usa la MISMA
 // tabla que recorta a las tortugas, con un margen para que el jefe no quede
 // con los pies dentro de la pared.
-static s16 bebopClampLane(s16 cx, s16 lane) {
+static s16 lvl21Col(s16 cx) {
     s16 col = (s16)(cx / LVL21_LIM_STEP);
     if (col < 0) col = 0;
     if (col >= LVL21_LIM_COLS) col = LVL21_LIM_COLS - 1;
-    s16 top = (s16)lvl21WalkTop[col];
-    s16 bot = (s16)lvl21WalkBot[col];
-    if (top < BEBOP_LANE_TOP)    top = BEBOP_LANE_TOP;
-    if (bot > BEBOP_LANE_BOTTOM) bot = BEBOP_LANE_BOTTOM;
+    return col;
+}
+static s16 lvl21TopAt(s16 cx) { return (s16)lvl21WalkTop[lvl21Col(cx)]; }
+static s16 lvl21BotAt(s16 cx) { return (s16)lvl21WalkBot[lvl21Col(cx)]; }
+
+// La arena de siempre: el final de la calle del 2-1, frente al auto.
+static const BebopArena arena21 = {
+    BEBOP_X_MIN, BEBOP_X_MAX,
+    BEBOP_LANE_TOP, BEBOP_LANE_BOTTOM,
+    lvl21TopAt, lvl21BotAt,
+    BEBOP_CAR_X, BEBOP_CAR_Y,
+    BEBOP_LAND_X, BEBOP_LAND_Y,
+    FALSE, 0
+};
+
+static s16 bebopClampLane(const BebopArena* A, s16 cx, s16 lane) {
+    s16 top = A->topAt ? A->topAt(cx) : A->laneTop;
+    s16 bot = A->botAt ? A->botAt(cx) : A->laneBot;
+    if (top < A->laneTop) top = A->laneTop;
+    if (bot > A->laneBot) bot = A->laneBot;
     if (top > bot) top = bot;
     return clampS16b(lane, top, bot);
 }
@@ -274,10 +290,12 @@ void bebopInit(Bebop* b) {
     b->fromX = b->fromY = 0;
     b->cameraOffsetX = 0;
     b->cameraOffsetY = 0;
+    b->arena = &arena21;
     bebopShotInit();
 }
 
-void bebopSpawn(Bebop* b) {
+void bebopSpawnArena(Bebop* b, const BebopArena* arena) {
+    b->arena     = arena ? arena : &arena21;
     b->hp        = BEBOP_HP;
     b->dir       = -1;          // mira a la izquierda: los jugadores vienen de ahi
     b->hitsTaken = 0;
@@ -299,14 +317,26 @@ void bebopSpawn(Bebop* b) {
     // del jefe se carga recien ahora, cuando entra.
     PAL_setPalette(PAL3, bebopPal, DMA);
 
-    // Arranca la primera parabola: arriba y a la izquierda del auto.
-    b->fromX = (s16)(BEBOP_CAR_X + BEBOP_FALL_FROM_DX);
-    b->fromY = BEBOP_CAR_Y;
-    b->x     = (s16)(b->fromX - BEBOP_FRAME_W / 2);
-    b->y     = b->fromY;
-    b->z     = BEBOP_FALL_FROM_DZ;
-    b->state = BEBOP_FALL;
-    b->timer = BEBOP_FALL_TICKS;
+    const BebopArena* A = b->arena;
+    if (A->startOnCar) {
+        // Aparece ya parado en el apoyo (el ascensor del garage).
+        b->fromX = A->carX;
+        b->fromY = A->carY;
+        b->x     = (s16)(A->carX - BEBOP_FRAME_W / 2);
+        b->y     = A->carY;
+        b->z     = 0;
+        b->state = BEBOP_ON_CAR;
+        b->timer = A->carHold ? A->carHold : BEBOP_CAR_HOLD;
+    } else {
+        // Arranca la primera parabola: arriba y a la izquierda del auto.
+        b->fromX = (s16)(A->carX + BEBOP_FALL_FROM_DX);
+        b->fromY = A->carY;
+        b->x     = (s16)(b->fromX - BEBOP_FRAME_W / 2);
+        b->y     = b->fromY;
+        b->z     = BEBOP_FALL_FROM_DZ;
+        b->state = BEBOP_FALL;
+        b->timer = BEBOP_FALL_TICKS;
+    }
 
     // SPR_addSpriteSafe y no SPR_addSprite: a esta altura del nivel la VRAM de
     // sprites viene fragmentada por los soldiers que entraron y murieron, y el
@@ -314,9 +344,14 @@ void bebopSpawn(Bebop* b) {
     b->sprite = SPR_addSpriteSafe(&bebop_boss, 0, 0,
                                   TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
     if (b->sprite) {
-        bebopManual(b, BEBOP_ANIM_CHARGE, 1);   // pose recogida durante la caida
+        if (A->startOnCar) bebopManual(b, BEBOP_ANIM_IDLE, 0);
+        else               bebopManual(b, BEBOP_ANIM_CHARGE, 1);   // pose recogida
         bebopRender(b);
     }
+}
+
+void bebopSpawn(Bebop* b) {
+    bebopSpawnArena(b, &arena21);
 }
 
 bool bebopIsActive(const Bebop* b) {
@@ -521,16 +556,16 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         // Lineal en X y cuadratica en la altura: cae acelerando, que es como
         // se lee una caida de verdad.
         s16 gone = (s16)(total - done);
-        b->x = (s16)(b->fromX + ((BEBOP_CAR_X - b->fromX) * done) / total
+        b->x = (s16)(b->fromX + ((b->arena->carX - b->fromX) * done) / total
                      - BEBOP_FRAME_W / 2);
-        b->y = BEBOP_CAR_Y;
+        b->y = b->arena->carY;
         b->z = (s16)((BEBOP_FALL_FROM_DZ * gone * gone) / (total * total));
         b->dir = 1;
         if (b->timer > 0) b->timer--;
         if (b->timer == 0) {
             b->z = 0;
             b->state = BEBOP_ON_CAR;
-            b->timer = BEBOP_CAR_HOLD;
+            b->timer = b->arena->carHold ? b->arena->carHold : BEBOP_CAR_HOLD;
             bebopManual(b, BEBOP_ANIM_IDLE, 0);
         }
         break;
@@ -540,8 +575,8 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         b->dir = -1;                       // se da vuelta hacia las tortugas
         if (b->timer > 0) b->timer--;
         if (b->timer == 0) {
-            b->fromX = BEBOP_CAR_X;
-            b->fromY = BEBOP_CAR_Y;
+            b->fromX = b->arena->carX;
+            b->fromY = b->arena->carY;
             b->state = BEBOP_JUMP_DOWN;
             b->timer = BEBOP_JUMP_TICKS;
             bebopManual(b, BEBOP_ANIM_CHARGE, 1);
@@ -552,16 +587,16 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
     case BEBOP_JUMP_DOWN: {
         s16 total = BEBOP_JUMP_TICKS;
         s16 done  = (s16)(total - (s16)b->timer);
-        b->x = (s16)(b->fromX + ((BEBOP_LAND_X - b->fromX) * done) / total
+        b->x = (s16)(b->fromX + ((b->arena->landX - b->fromX) * done) / total
                      - BEBOP_FRAME_W / 2);
-        b->y = (s16)(b->fromY + ((BEBOP_LAND_Y - b->fromY) * done) / total);
+        b->y = (s16)(b->fromY + ((b->arena->landY - b->fromY) * done) / total);
         // Parabola de salto: sube y baja sobre la recta.
         b->z = (s16)((4 * BEBOP_JUMP_APEX * done * (total - done)) / (total * total));
         if (b->timer > 0) b->timer--;
         if (b->timer == 0) {
             b->z = 0;
-            b->x = (s16)(BEBOP_LAND_X - BEBOP_FRAME_W / 2);
-            b->y = BEBOP_LAND_Y;
+            b->x = (s16)(b->arena->landX - BEBOP_FRAME_W / 2);
+            b->y = b->arena->landY;
             b->cooldown = BEBOP_COOLDOWN;
             bebopToIdle(b);
         }
@@ -654,7 +689,7 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         }
         // Freno contra los extremos de la arena.
         if (b->timer == 0 ||
-            bebopGetCenterX(b) <= BEBOP_X_MIN || bebopGetCenterX(b) >= BEBOP_X_MAX) {
+            bebopGetCenterX(b) <= b->arena->xMin || bebopGetCenterX(b) >= b->arena->xMax) {
             b->cooldown = BEBOP_COOLDOWN;
             bebopToIdle(b);
         }
@@ -772,9 +807,9 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
     // tabla de la calle lo dejaria clavado, igual que a los foot soldiers).
     if (b->state != BEBOP_FALL && b->state != BEBOP_ON_CAR &&
         b->state != BEBOP_JUMP_DOWN) {
-        s16 c = clampS16b(bebopGetCenterX(b), BEBOP_X_MIN, BEBOP_X_MAX);
+        s16 c = clampS16b(bebopGetCenterX(b), b->arena->xMin, b->arena->xMax);
         b->x = (s16)(c - BEBOP_FRAME_W / 2);
-        b->y = bebopClampLane(c, b->y);
+        b->y = bebopClampLane(b->arena, c, b->y);
     }
 
     bebopRender(b);
