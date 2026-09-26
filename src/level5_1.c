@@ -14,7 +14,8 @@
 //     asi el cielo sigue por detras del HUD.
 //
 // CAMINABLE: la calzada, del borde de abajo del guardarrail al piso.
-// Sin jefe: el nivel se gana con las oleadas limpias al llegar al final.
+// Sin jefe: el nivel se gana con las oleadas limpias al llegar al final, y
+// sigue la Scene 6 (la segunda autopista).
 // Musica: todavia no hay tema de la autopista; suena el del 2-1.
 // ===========================================================================
 
@@ -66,7 +67,7 @@ static const StageLevel level51 = {
     .bossFeetX    = 2000,
     .music        = music_stage2_1,
     .musicVol     = 90,
-    .nextScene    = SCENE_GAME_OVER,   // (todavia no hay Scene 6)
+    .nextScene    = SCENE_6_1_TITLE,
 };
 
 SceneId showScene51() {
