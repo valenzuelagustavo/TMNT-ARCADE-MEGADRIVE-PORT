@@ -2138,6 +2138,7 @@ static bool drawTextTypewriter(const char* text, u16 x, u16 y, u16 delay) {
 // OJO 2 - INTERLINEADO: los glifos ocupan las 8 filas del tile, no tienen
 // margen. Dos lineas en filas consecutivas se tocan. Van todas de dos en dos
 // (2, 4, 6, ...): 13 lineas es el maximo que entra asi en las 28 filas.
+// (26/09) Ahora van en las IMPARES (1..27): 14 lineas.
 // ---------------------------------------------------------------------------
 #define CREDITS_CHAR_DELAY  2   // Más rápido que el título (hay mucho texto)
 #define SGDK_HOLD_SECS   4   // Segundos con el texto completo en pantalla
@@ -2154,21 +2155,25 @@ SceneId showSGDKIntro() {
     // Líneas centradas en las 40 columnas de pantalla: x = (40 - len) / 2
     static const struct { const char* text; u16 x; u16 y; } lines[] = {
         //   texto                                     x   y     len
-        { "CREDITS",                                  16,  2 },  //  7
+        // (26/09) 14 lineas en las filas impares 1..27 (antes 13 en 2..26)
+        // para que entre Ray Castello; el "(SEGA GENESIS...)" de SGDK paso a
+        // la misma linea que "CREATOR OF SGDK".
+        { "CREDITS",                                  16,  1 },  //  7
         // --- Equipo ---
-        { "GUSTAVO VALENZUELA",                       11,  4 },  // 18
-        { "LEAD DEVELOPER - PROGRAMMER (SGDK)",        3,  6 },  // 34
-        { "AND GRAPHICS ADAPTATION",                   8,  8 },  // 23
-        { "ROBSON RICARDO",                           13, 10 },  // 14
-        { "2D ASSETS - BACKGROUND ARTIST",             5, 12 },  // 29
-        { "STEPHANE DALLONGEVILLE",                    9, 14 },  // 22
-        { "CREATOR OF SGDK",                          12, 16 },  // 15
-        { "(SEGA GENESIS DEVELOPMENT KIT)",            5, 18 },  // 30
+        { "GUSTAVO VALENZUELA",                       11,  3 },  // 18
+        { "LEAD DEVELOPER - PROGRAMMER (SGDK)",        3,  5 },  // 34
+        { "AND GRAPHICS ADAPTATION",                   8,  7 },  // 23
+        { "ROBSON RICARDO",                           13,  9 },  // 14
+        { "2D ASSETS - BACKGROUND ARTIST",             5, 11 },  // 29
+        { "RAY CASTELLO",                             14, 13 },  // 12
+        { "PROGRAMMING - LEVELS AND BOSSES",           4, 15 },  // 31
+        { "STEPHANE DALLONGEVILLE",                    9, 17 },  // 22
+        { "CREATOR OF SGDK (SEGA GENESIS DEV KIT)",    1, 19 },  // 38
         // --- Ripeadores de sprites de la comunidad ---
-        { "SPRITE RIPS BY THE COMMUNITY",              6, 20 },  // 28
-        { "ENSCRIPTURE - NAPALM - MONFRIEZ",           4, 22 },  // 31
-        { "T0MISAURUS - SOMETHINGEVIL",                7, 24 },  // 26
-        { "EASTX - DEATHBRINGER",                     10, 26 },  // 20
+        { "SPRITE RIPS BY THE COMMUNITY",              6, 21 },  // 28
+        { "ENSCRIPTURE - NAPALM - MONFRIEZ",           4, 23 },  // 31
+        { "T0MISAURUS - SOMETHINGEVIL",                7, 25 },  // 26
+        { "EASTX - DEATHBRINGER",                     10, 27 },  // 20
     };
     const u16 numLines = sizeof(lines) / sizeof(lines[0]);
 
