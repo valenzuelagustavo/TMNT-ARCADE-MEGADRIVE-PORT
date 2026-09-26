@@ -921,6 +921,28 @@ bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
     return TRUE;
 }
 
+// (26/09) Objetivo que VUELA (la nave de Baxter): no tiene lane, asi que no
+// se aplica la tolerancia de profundidad. Solo cuenta el alcance del frame del
+// jugador a la ALTURA del objetivo (franjas [top..bot] de mundo contra el arte
+// tal como se dibuja, con el salto y el saltito del especial incluidos): la
+// tortuga en el piso le pega cuando la nave baja, y saltando cuando va alta.
+bool playerAttackHitsFlying(const Player* p, s16 targetCX, s16 top, s16 bot,
+                            s16 targetHalfW) {
+    if (!isPlayerAttackActive(p))
+        return FALSE;
+    s16 reach = attackReachNow(p, bot, (s16)(bot - top));
+    if (reach == PHB_NONE)
+        return FALSE;
+    reach += PLAYER_ATK_SLACK;
+    s16 pcx = p->x + PLAYER_SPRITE_W / 2;
+    s16 dx  = (p->dir >= 0) ? (targetCX - pcx) : (pcx - targetCX);
+    if (dx - targetHalfW > reach)
+        return FALSE;
+    if (dx + targetHalfW < -PLAYER_ATK_BACK)
+        return FALSE;
+    return TRUE;
+}
+
 bool isPlayerSpecialAttack(const Player* p) {
     return (p->state == STATE_ATTACKING && p->attackIsSpecial);
 }

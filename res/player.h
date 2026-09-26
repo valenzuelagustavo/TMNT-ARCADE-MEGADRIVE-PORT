@@ -479,6 +479,9 @@ bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
 // TRUE si el ataque en curso es el ESPECIAL (mata foot soldiers de un
 // golpe). Consultar junto con playerAttackHits para decidir el daño.
 bool isPlayerSpecialAttack(const Player* p);
+// Golpe contra un objetivo EN EL AIRE, sin lane (ver player.c).
+bool playerAttackHitsFlying(const Player* p, s16 targetCX, s16 top, s16 bot,
+                            s16 targetHalfW);
 // Altura VISUAL total sobre el piso: el salto (jumpZ) mas el saltito del
 // especial. Es lo que hay que restar a 'y' para dibujar la tortuga; los
 // niveles que reposicionan el sprite a mano (2-1, por la camara vertical)

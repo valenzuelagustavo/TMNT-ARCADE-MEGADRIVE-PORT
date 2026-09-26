@@ -27,8 +27,9 @@
 // piso del canal (LVL31_WALK_Y_MAX). Al final la vereda se corta en diagonal
 // y solo queda el canal.
 //
-// PENDIENTE (fase 4): Baxter como jefe al final. Por ahora el nivel se cierra
-// al llegar al fondo con las oleadas limpias. PAL3 queda libre para el.
+// JEFE: BAXTER STOCKMAN (baxter.c, portado del companero). Con las oleadas
+// limpias y la camara en el fondo, entra volando por la izquierda con el tema
+// de jefe; el nivel se gana cuando su nave explota. PAL3 es suya.
 // Musica: todavia no hay tema del sewer; suena el del 2-1 (Downtown).
 // ===========================================================================
 
@@ -42,6 +43,7 @@
 #include "hud.h"
 #include "enemy.h"
 #include "stage_bg.h"
+#include "baxter.h"            // jefe (fase 4)
 #include "pause_menu.h"
 #include "audio.h"
 
@@ -70,7 +72,8 @@ extern u8 cantidadJugadores;
 
 #define LVL31_START_X        40
 #define LVL31_CLEAR_SECS      5
-#define LVL31_END_FEET_X   1100     // pies del lider para cerrar el nivel
+#define LVL31_BOSS_FEET_X  1000     // pies del lider para que entre Baxter
+#define VOL_MUSIC_BOSS       90
 #define VOL_MUSIC_SEWER      90
 #define VOL_MUSIC_CLEAR      90
 
@@ -261,6 +264,11 @@ SceneId showScene31() {
     }
     u16 maxAlive = dosJugadores ? LVL31_MAX_ALIVE_2P : LVL31_MAX_ALIVE_1P;
 
+    static Baxter baxter;
+    baxterInit(&baxter);
+    baxterRatInitAll();
+    bool bossStarted = FALSE;
+
     // Oleadas: la que esta en curso, cuantos de ella ya entraron, y el tope
     // de camara mientras dure (-1 = libre).
     s16 waveIdx     = -1;       // ultima oleada disparada
@@ -354,7 +362,9 @@ SceneId showScene31() {
         }
         for (u8 k = 0; k < nPl; k++) hudPlayerUpdate(&huds[k]);
 
-        if (continueStepAll(conts, pls, huds, nPl, fps)) { allOut = TRUE; break; }
+        // Continues (con la nave de Baxter ya explotando no se evaluan).
+        if (baxter.state != BAXTER_DEAD && baxter.state != BAXTER_GONE &&
+            continueStepAll(conts, pls, huds, nPl, fps)) { allOut = TRUE; break; }
 
         // --- Oleadas --------------------------------------------------------
         u16 alive = 0;
@@ -462,14 +472,29 @@ SceneId showScene31() {
             }
         }
 
-        // --- Fin del nivel ---------------------------------------------------
-        // (Fase 4: aca entra Baxter.) Por ahora: todas las oleadas adentro y
-        // muertas, la camara en el fondo y el lider cerca de la salida.
-        if (waveIdx == (s16)WAVE_COUNT - 1 && waveSpawned >= waves[waveIdx].n &&
-            alive == 0 && cameraX >= LVL31_CAM_MAX_X &&
-            leadFeetX >= LVL31_END_FEET_X) {
-            win = TRUE;
-            running = FALSE;
+        // --- Jefe: Baxter ---------------------------------------------------
+        // Entra con todas las oleadas adentro y muertas, la camara en el
+        // fondo y el lider cerca de la salida. La camara ya no se mueve.
+        if (!bossStarted && waveIdx == (s16)WAVE_COUNT - 1 &&
+            waveSpawned >= waves[waveIdx].n && alive == 0 &&
+            cameraX >= LVL31_CAM_MAX_X && leadFeetX >= LVL31_BOSS_FEET_X) {
+            bossStarted = TRUE;
+            XGM2_setLoopNumber(-1);
+            playMusicVol(music_boss, VOL_MUSIC_BOSS);
+            baxterSpawn(&baxter, (s16)(cameraX + 16), (s16)(cameraX + SCREEN_W - 16),
+                        LVL31_WALK_Y_MIN, LVL31_WALK_Y_MAX);
+        }
+        if (bossStarted) {
+            baxterUpdate(&baxter, pls, nPl, cameraX);
+            baxterRatUpdateAll(pls, nPl, cameraX, walkTopAt);
+            s8 killer = -1;
+            if (baxterPlayerHits(&baxter, pls, nPl, &killer) && killer >= 0)
+                addPlayerScore(pls[(u8)killer], 5);
+            baxterRatPlayerHits(pls, nPl);
+            if (baxterIsGone(&baxter) && baxterRatAliveCount() == 0) {
+                win = TRUE;
+                running = FALSE;
+            }
         }
 
         // --- Fondo -----------------------------------------------------------
@@ -493,6 +518,7 @@ SceneId showScene31() {
     }
 
     shurikenReleaseAll();
+    baxterRelease(&baxter);
     VDP_setTextPriority(0);
     VDP_setTextPalette(PAL0);
     clearScene();          // tambien vuelve el scroll a modo plano
