@@ -30,6 +30,8 @@ typedef enum {
     SCENE_3_1,          // Nivel 3-1: la cloaca (sewer), arte del proyecto de Ray
     SCENE_4_1_TITLE,    // (26/09) "SCENE 4"
     SCENE_4_1,          // Nivel 4-1: el estacionamiento (garage), jefe Bebop
+    SCENE_5_1_TITLE,    // (26/09) "SCENE 5"
+    SCENE_5_1,          // Nivel 5-1: la autopista (freeway), skyline con parallax
     SCENE_GAME_OVER
 } SceneId;
 
@@ -55,6 +57,8 @@ SceneId showScene31Title();
 SceneId showScene31();
 SceneId showScene41Title();
 SceneId showScene41();
+SceneId showScene51Title();
+SceneId showScene51();
 SceneId showGameOver();
 
 // Arranca una pista con el volumen dado (XGM2 permite regular volumen en vivo).

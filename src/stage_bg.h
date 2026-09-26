@@ -29,11 +29,30 @@
 
 #define SBG_WIN_COLS  42      // columnas dibujadas: 40 visibles + scroll fino + 1
 
+// FORMATO ANCHO (26/09, freeway): el tilemap de un IMAGE de rescomp guarda el
+// indice en 11 bits, asi que un fondo con MAS de 2048 tiles unicos no se puede
+// describir con IMAGE (la ruta de la freeway tiene 2369). Para esos, el
+// generador del nivel arma sus propios BIN: los tiles (4bpp, como SGDK) y un
+// mapa u16 con el indice en los bits 0-11 y los flips corridos 2 bits a la
+// izquierda de donde los pone SGDK (H en el bit 13, V en el 14).
+#define SBG_RAW_INDEX_MASK  0x0FFF
+#define SBG_RAW_FLIP_SHIFT  2
+typedef struct {
+    const u32* tiles;
+    const u16* map;
+    u16        w, h;          // en tiles
+    const Palette* pal;       // 16 colores
+} SbgRaw;
+
 // img: IMAGE de rescomp (NONE). plane/pal: donde y con que paleta se dibuja.
 // vramBase/slots: bloque de VRAM del cache. camX: camara inicial (dibuja YA
 // la ventana, con DMA inmediato: llamar con la pantalla en negro).
 void sbgInit(const Image* img, VDPPlane plane, u16 pal, u16 vramBase,
              u16 slots, s16 camX);
+
+// Lo mismo con un fondo en formato ancho.
+void sbgInitRaw(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
+                u16 slots, s16 camX);
 
 // Trae las columnas que entraron y suelta las que salieron. Una vez por
 // frame, ANTES de fijar el scroll. Tambien funciona hacia atras.

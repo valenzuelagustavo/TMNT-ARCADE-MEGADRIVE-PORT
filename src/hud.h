@@ -74,6 +74,11 @@ typedef struct {
 // (17/09) YA NO crea los retratos: durante la partida no van.
 void hudInit(void);
 
+// (26/09) Plano donde van los tiles del HUD (barra, vidas). BG_A por defecto;
+// los niveles con capa lejana lo pasan a BG_B. clearScene lo vuelve a BG_A.
+// El texto (puntaje, CONTINUE) sigue a VDP_setTextPlane: el nivel fija los dos.
+void hudSetPlane(VDPPlane plane);
+
 // Solo para la pantalla de SELECCION DE PERSONAJE, que si los quiere fijos.
 void hudInitPortraits(void);
 

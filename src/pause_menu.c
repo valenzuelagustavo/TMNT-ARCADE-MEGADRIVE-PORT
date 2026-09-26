@@ -25,6 +25,11 @@
 //
 // El tilemap de BG_A debajo del recuadro tambien se lee de VRAM y se repone
 // al cerrar, asi que no importa que haya ahi.
+//
+// (26/09) BG_A puede estar scrolleado (los caños de la cloaca, la ruta de la
+// freeway): al abrir se lee el H-scroll de la fila del recuadro y se busca la
+// columna del PLANO que cae en la columna 8 de la pantalla. Todas las
+// escrituras envuelven en las 64 columnas del plano.
 // ===========================================================================
 
 #define SOLID_TILE      (TILE_SYSTEM_INDEX + 1)
@@ -47,6 +52,7 @@ static const PauseRow levelRows[] = {
     { "SCENE 2", 1, { "2-1" },        { SCENE_2_1 } },
     { "SCENE 3", 1, { "3-1" },        { SCENE_3_1 } },
     { "SCENE 4", 1, { "4-1" },        { SCENE_4_1 } },
+    { "SCENE 5", 1, { "5-1" },        { SCENE_5_1 } },
 };
 #define LEVEL_ROWS  ((u16)(sizeof(levelRows) / sizeof(levelRows[0])))
 #define ITEMS       ((u16)(LEVEL_ROWS + 1))   // item 0 = SEGUIR
@@ -78,20 +84,47 @@ static void vramRead(u16 addr, u16* dst, u16 nWords) {
     while (nWords--) *dst++ = *data;
 }
 
+static u16 boxCol;      // columna del PLANO donde arranca el recuadro
+
+// Columna de BG_A que se ve en la columna PAUSE_BOX_COL de la pantalla.
+// (Llamar con las interrupciones cortadas: usa el puerto de datos.)
+static u16 findBoxCol(void) {
+    u16 addr = VDP_getHScrollTableAddress();
+    if (VDP_getHorizontalScrollingMode() != HSCROLL_PLANE)
+        addr = (u16)(addr + PAUSE_BOX_ROW * 8 * 4);   // 8 lineas x (A,B) por fila
+    u16 w;
+    vramRead(addr, &w, 1);
+    s16 sc = (s16)((s16)(w << 6) >> 6);               // 10 bits con signo
+    s16 px = (s16)(PAUSE_BOX_COL * 8 - sc);
+    return (u16)(((px + 4) >> 3) & 63);
+}
+
+static inline u16 planeCol(u16 relX) { return (u16)((boxCol + relX) & 63); }
+
+static void boxFill(u16 relX, u16 relY, u16 w, u16 attr) {
+    for (u16 i = 0; i < w; i++)
+        VDP_setTileMapXY(BG_A, attr, planeCol((u16)(relX + i)),
+                         (u16)(PAUSE_BOX_ROW + relY));
+}
+
 static void saveUnderBox(void) {
     VDP_waitDMACompletion();
     SYS_disableInts();
     VDP_setAutoInc(2);
+    boxCol = findBoxCol();
     for (u16 r = 0; r < PAUSE_BOX_H; r++)
-        vramRead(VDP_getPlaneAddress(BG_A, PAUSE_BOX_COL, (u16)(PAUSE_BOX_ROW + r)),
-                 &savedMap[r * PAUSE_BOX_W], PAUSE_BOX_W);
+        for (u16 c = 0; c < PAUSE_BOX_W; c++)
+            vramRead(VDP_getPlaneAddress(BG_A, planeCol(c), (u16)(PAUSE_BOX_ROW + r)),
+                     &savedMap[r * PAUSE_BOX_W + c], 1);
     vramRead((u16)(SOLID_TILE * 32), (u16*) savedSolid, 16);
     SYS_enableInts();
 }
 
 static void restoreUnderBox(void) {
-    VDP_setTileMapDataRect(BG_A, savedMap, PAUSE_BOX_COL, PAUSE_BOX_ROW,
-                           PAUSE_BOX_W, PAUSE_BOX_H, PAUSE_BOX_W, CPU);
+    for (u16 r = 0; r < PAUSE_BOX_H; r++)
+        for (u16 c = 0; c < PAUSE_BOX_W; c++)
+            VDP_setTileMapXY(BG_A, savedMap[r * PAUSE_BOX_W + c], planeCol(c),
+                             (u16)(PAUSE_BOX_ROW + r));
     VDP_loadTileData(savedSolid, SOLID_TILE, 1, CPU);
     VDP_loadTileData(hud_font.tiles, TILE_FONT_INDEX, hud_font.numTile, CPU);
 }
@@ -132,13 +165,12 @@ static void opaqueFont(u8 bg) {
 // ---------------------------------------------------------------------------
 #if DEV_LEVEL_SELECT
 static void boxClear(u16 relX, u16 relY, u16 w) {
-    VDP_fillTileMapRect(BG_A, solidAttr, (u16)(PAUSE_BOX_COL + relX),
-                        (u16)(PAUSE_BOX_ROW + relY), w, 1);
+    boxFill(relX, relY, w, solidAttr);
 }
 #endif
 
 static void boxText(const char* s, u16 relX, u16 relY) {
-    u16 x = (u16)(PAUSE_BOX_COL + relX);
+    u16 x = relX;
     u16 y = (u16)(PAUSE_BOX_ROW + relY);
     while (*s) {
         char ch = *s++;
@@ -146,7 +178,7 @@ static void boxText(const char* s, u16 relX, u16 relY) {
               ? solidAttr
               : TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE,
                                TILE_FONT_INDEX + (u16)((u8) ch - 32));
-        VDP_setTileMapXY(BG_A, t, x++, y);
+        VDP_setTileMapXY(BG_A, t, planeCol(x++), y);
     }
 }
 
@@ -221,8 +253,7 @@ SceneId pausePoll(Player** pls, u8 nPl) {
     opaqueFont(bg);
     solidAttr = TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, SOLID_TILE);
 
-    VDP_fillTileMapRect(BG_A, solidAttr, PAUSE_BOX_COL, PAUSE_BOX_ROW,
-                        PAUSE_BOX_W, PAUSE_BOX_H);
+    for (u16 r = 0; r < PAUSE_BOX_H; r++) boxFill(0, r, PAUSE_BOX_W, solidAttr);
     SceneId result = PAUSE_NO_JUMP;
 
 #if DEV_LEVEL_SELECT

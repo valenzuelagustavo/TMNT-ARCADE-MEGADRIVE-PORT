@@ -438,6 +438,7 @@ void clearSceneEx(bool keepAudio) {
     VDP_setVerticalScroll(BG_A, 0);
     VDP_setVerticalScroll(BG_B, 0);
     VDP_setBackgroundColor(0);
+    hudSetPlane(BG_A);
     SYS_doVBlankProcess();
 }
 
@@ -967,11 +968,16 @@ static void hpBarSetFrame(u16 barVram, u8 frame) {
 
 // Inicializa el bloque de barra de un jugador: carga el frame lleno a VRAM y
 // dibuja su tilemap 4x2 en BG_A (prioridad alta, PAL1) dentro del marco.
+// (26/09) Plano del HUD: BG_A salvo en los niveles con capa lejana (freeway),
+// donde BG_A es la ruta y el HUD va en BG_B (prioridad alta, filas 0-3 fijas).
+static VDPPlane hudPlane = BG_A;
+void hudSetPlane(VDPPlane plane) { hudPlane = plane; }
+
 static void hpBarInit(u16 barVram, u16 baseCol) {
     VDP_loadTileData(hp_bar.tiles, barVram, HPBAR_FRAME_TILES, DMA);
     // fillTileMapRectInc incrementa el índice tile a tile (fila por fila), el
     // mismo orden en que quedan los tiles de cada frame en el tileset.
-    VDP_fillTileMapRectInc(BG_A,
+    VDP_fillTileMapRectInc(hudPlane,
                            TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, barVram),
                            baseCol + HUD_BAR_COL, HUD_BAR_ROW,
                            HPBAR_FRAME_TILES_W, HPBAR_FRAME_TILES_H);
@@ -989,7 +995,7 @@ static void hudLivesSetDigit(u16 vram, u8 ch, u8 d) {
 }
 static void hudLivesInit(u16 vram, u16 baseCol, u8 ch) {
     VDP_loadTileData(hudLivesTiles(ch, 0), vram, HUDLIVES_TILES, DMA);
-    VDP_fillTileMapRectInc(BG_A,
+    VDP_fillTileMapRectInc(hudPlane,
                            TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, vram),
                            baseCol + HUD_LIVES_COL, HUD_LIVES_ROW,
                            HUDLIVES_TILES_W, HUDLIVES_TILES_H);
@@ -998,7 +1004,7 @@ static void hudLivesInit(u16 vram, u16 baseCol, u8 ch) {
 // Borra el contenido dinámico del HUD de un bloque (barra + vidas + puntaje).
 // Lo usa el marco vacío del P2 en 1 jugador.
 static void hudClearBlock(u16 baseCol) {
-    VDP_clearTileMapRect(BG_A, baseCol + 1, HUD_SCORE_ROW, HUD_TILE_W - 2, 3);
+    VDP_clearTileMapRect(hudPlane, baseCol + 1, HUD_SCORE_ROW, HUD_TILE_W - 2, 3);
 }
 
 // Prepara el HUD de un jugador. Llamar DESPUÉS de initPlayer (PAL1 cargada) y
@@ -2390,12 +2396,13 @@ SceneId showScene21Title() {
 }
 
 // ---------------------------------------------------------------------------
-// 7 ter. Títulos de la SCENE 3 (cloaca) y la SCENE 4 (garage) (26/09)
+// 7 ter. Títulos de las SCENE 3 (cloaca), 4 (garage) y 5 (freeway) (26/09)
 // ---------------------------------------------------------------------------
 // Mismo tratamiento que los otros dos. La segunda línea es PROVISORIA: falta
 // confirmar el texto exacto del arcade para cada escena.
 #define SCENE3_TITLE_LINE2  "INTO THE SEWER!!"
 #define SCENE4_TITLE_LINE2  "THE PARKING GARAGE!!"
+#define SCENE5_TITLE_LINE2  "HIT THE FREEWAY!!"
 
 static SceneId showStageTitle(const char* line1, const char* line2, SceneId next) {
     clearScene();
@@ -2436,6 +2443,10 @@ SceneId showScene31Title() {
 
 SceneId showScene41Title() {
     return showStageTitle("SCENE 4", SCENE4_TITLE_LINE2, SCENE_4_1);
+}
+
+SceneId showScene51Title() {
+    return showStageTitle("SCENE 5", SCENE5_TITLE_LINE2, SCENE_5_1);
 }
 
 // ---------------------------------------------------------------------------

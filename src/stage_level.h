@@ -4,6 +4,7 @@
 #include <genesis.h>
 #include "scenes.h"
 #include "player.h"
+#include "stage_bg.h"
 
 // ===========================================================================
 // STAGE_LEVEL — nivel generico de scroll horizontal (26/09)
@@ -21,6 +22,10 @@
 //   - Franja caminable: tope por columna de 8 px (tabla del nivel) y un piso.
 //   - Tortugas 1..4, HUD, P2 que se suma, continues, pausa, especial.
 //   - Oleadas de foot soldiers con camara bloqueada hasta limpiarlas.
+//   - (26/09, freeway) Variante con CAPA LEJANA: si el nivel trae 'far', el
+//     fondo streameado va en BG_A (baja prioridad, indice 0 transparente) y
+//     la capa lejana en BG_B con parallax y PAL3; el HUD y el texto pasan a
+//     BG_B (filas 0-3 fijas, prioridad alta). No admite primer plano.
 //   - Al final, el jefe: el nivel lo arranca con bossStart cuando las
 //     oleadas estan limpias y la camara llego al fondo, y lo actualiza con
 //     bossUpdate hasta que devuelve TRUE (derrotado y ya fuera de escena).
@@ -37,8 +42,13 @@ typedef struct {
 
 typedef struct {
     // --- Escenario ---
-    const Image*  bg;           // IMAGE NONE (se streamea)
+    const Image*  bg;           // IMAGE NONE (se streamea), o NULL si va bgRaw
+    const SbgRaw* bgRaw;        // fondo en formato ancho (> 2048 tiles), o NULL
     const Image*  fg;           // IMAGE NONE, o NULL
+    const Image*  far;          // capa lejana (entera en VRAM, PAL3), o NULL
+    u16           farDiv;       // parallax: la capa lejana anda camX / farDiv
+    u16           farRowShift;  // filas de la capa lejana que se saltean arriba
+    u16           backdrop;     // indice de CRAM del color de fondo (0 = PAL0[0])
     u16           bgSlots;      // cache del fondo (>= peor caso en 42 columnas)
     s16           levelW;       // ancho en px
     const u8*     walkTop;      // tope caminable por columna de 8 px

@@ -4,11 +4,12 @@
 // STAGE_BG — ver stage_bg.h
 // ===========================================================================
 
-#define SBG_MAX_TILES   2048          // tope del tileset de ROM (indice de 11 bits)
+#define SBG_MAX_TILES   3072          // tope del tileset de ROM (formato ancho: 12 bits)
 #define SBG_MAX_SLOTS    768
 #define SBG_NONE      0xFFFF
 
-static const Image* sbgImg;
+static const u32*   sbgTiles;
+static bool         sbgWide;          // mapa en formato ancho (ver SbgRaw)
 static const u16*   sbgMap;
 static u16          sbgMapW, sbgMapH;
 static VDPPlane     sbgPlane;
@@ -45,7 +46,7 @@ static u16 slotAcquire(u16 tile) {
     // sumo 28 tiles y meterlos en la cola de DMA la desbordaria (el motor de
     // sprites tambien la usa). Escribir VRAM en pleno cuadro es legal en el
     // Mega Drive, solo mas lento.
-    VDP_loadTileData(sbgImg->tileset->tiles + (u32)tile * 8, sbgVram + s, 1, upTm);
+    VDP_loadTileData(sbgTiles + (u32)tile * 8, sbgVram + s, 1, upTm);
     return s;
 }
 
@@ -59,16 +60,24 @@ static void slotRelease(u16 tile) {
     used--;
 }
 
+// Indice y flips de una celda del mapa, en los dos formatos.
+static inline u16 cellTile(u16 e) { return sbgWide ? (u16)(e & SBG_RAW_INDEX_MASK)
+                                                   : (u16)(e & TILE_INDEX_MASK); }
+static inline u16 cellFlip(u16 e) {
+    return sbgWide ? (u16)((e >> SBG_RAW_FLIP_SHIFT) & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
+                   : (u16)(e & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK));
+}
+
 static void colLoad(s16 col) {
     u16 rows = (sbgMapH < 32) ? sbgMapH : 32;
     for (u16 r = 0; r < rows; r++) {
         u16 v = 0;
         if (col >= 0 && col < (s16)sbgMapW) {
             u16 e    = sbgMap[(u32)r * sbgMapW + (u16)col];
-            u16 tile = e & TILE_INDEX_MASK;
+            u16 tile = cellTile(e);
             u16 s    = (tile < SBG_MAX_TILES) ? slotAcquire(tile) : SBG_NONE;
             if (s != SBG_NONE)
-                v = (u16)((e & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
+                v = (u16)(cellFlip(e)
                           | TILE_ATTR(sbgPal, FALSE, FALSE, FALSE) | (sbgVram + s));
         }
         colBuf[r] = v;
@@ -80,17 +89,34 @@ static void colUnload(s16 col) {
     if (col < 0 || col >= (s16)sbgMapW) return;
     u16 rows = (sbgMapH < 32) ? sbgMapH : 32;
     for (u16 r = 0; r < rows; r++) {
-        u16 tile = sbgMap[(u32)r * sbgMapW + (u16)col] & TILE_INDEX_MASK;
+        u16 tile = cellTile(sbgMap[(u32)r * sbgMapW + (u16)col]);
         if (tile < SBG_MAX_TILES) slotRelease(tile);
     }
 }
 
+static void sbgStart(VDPPlane plane, u16 pal, u16 vramBase, u16 slots, s16 camX);
+
 void sbgInit(const Image* img, VDPPlane plane, u16 pal, u16 vramBase,
              u16 slots, s16 camX) {
-    sbgImg   = img;
+    sbgTiles = img->tileset->tiles;
+    sbgWide  = FALSE;
     sbgMap   = img->tilemap->tilemap;
     sbgMapW  = img->tilemap->w;
     sbgMapH  = img->tilemap->h;
+    sbgStart(plane, pal, vramBase, slots, camX);
+}
+
+void sbgInitRaw(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
+                u16 slots, s16 camX) {
+    sbgTiles = raw->tiles;
+    sbgWide  = TRUE;
+    sbgMap   = raw->map;
+    sbgMapW  = raw->w;
+    sbgMapH  = raw->h;
+    sbgStart(plane, pal, vramBase, slots, camX);
+}
+
+static void sbgStart(VDPPlane plane, u16 pal, u16 vramBase, u16 slots, s16 camX) {
     sbgPlane = plane;
     sbgPal   = pal;
     sbgVram  = vramBase;

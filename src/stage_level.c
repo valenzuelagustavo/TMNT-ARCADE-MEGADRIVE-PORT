@@ -63,7 +63,7 @@ static void clampWalk(s16* x, s16* y, s16 px, s16 py, s16 footDx) {
 // ---------------------------------------------------------------------------
 static u16 fgVram;
 static s16 fgColRight, fgColLeft;
-static u16 fgBuf[STAGE_ROWS];
+static u16 fgBuf[32];
 
 static void fgDrawCol(s16 col) {
     const TileMap* tm = cur->fg->tilemap;
@@ -92,13 +92,40 @@ static void fgUpdate(s16 camX) {
     if (fgColRight > wantR) fgColRight = wantR;
 }
 
+// Capa lejana (BG_B, PAL3, baja prioridad): entera en VRAM, filas 4-27 del
+// plano (0-3 son del HUD), envuelve cada farW columnas.
+static void farDraw(u16 vram) {
+    const TileMap* tm = cur->far->tilemap;
+    for (u16 r = STAGE_HUD_ROWS; r < STAGE_ROWS; r++) {
+        u16 sr = (u16)(r + cur->farRowShift);
+        for (u16 c = 0; c < 64; c++) {
+            u16 v = 0;
+            if (sr < tm->h) {
+                u16 e = tm->tilemap[(u32)sr * tm->w + (c % tm->w)];
+                v = (u16)((e & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
+                          | TILE_ATTR(PAL3, FALSE, FALSE, FALSE)
+                          | (vram + (e & TILE_INDEX_MASK)));
+            }
+            fgBuf[c & 31] = v;
+            if ((c & 31) == 31)
+                VDP_setTileMapDataRect(BG_B, fgBuf, (u16)(c - 31), r, 32, 1, 32, CPU);
+        }
+    }
+}
+
 // Scroll por fila de tile. static: van por DMA_QUEUE.
 static s16 scrA[STAGE_ROWS], scrB[STAGE_ROWS];
 
 static void applyScroll(s16 camX, TransferMethod tm) {
+    s16 farX = cur->far ? (s16)-(camX / (s16)(cur->farDiv ? cur->farDiv : 1)) : 0;
     for (u16 r = 0; r < STAGE_ROWS; r++) {
-        scrB[r] = (s16)-camX;
-        scrA[r] = (r < STAGE_HUD_ROWS) ? 0 : (s16)-camX;
+        if (cur->far) {
+            scrA[r] = (s16)-camX;
+            scrB[r] = (r < STAGE_HUD_ROWS) ? 0 : farX;
+        } else {
+            scrB[r] = (s16)-camX;
+            scrA[r] = (r < STAGE_HUD_ROWS) ? 0 : (s16)-camX;
+        }
     }
     VDP_setHorizontalScrollTile(BG_A, 0, scrA, STAGE_ROWS, tm);
     VDP_setHorizontalScrollTile(BG_B, 0, scrB, STAGE_ROWS, tm);
@@ -130,7 +157,10 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     const u8  nPlSetup  = numJugadores();
     const u16 barBlocks = (u16)((nPlSetup > 2) ? MAX_PLAYERS : 2) * HUD_VRAM_PER_PLAYER;
-    const u16 fgTiles   = L->fg ? L->fg->tileset->numTile : 0;
+    // En la variante con capa lejana, su tileset ocupa el lugar del primer plano.
+    const Image* extra  = L->far ? L->far : L->fg;
+    const u16 fgTiles   = extra ? extra->tileset->numTile : 0;
+    const VDPPlane hudPl = L->far ? BG_B : BG_A;
     const s16 camMaxX   = (s16)(L->levelW - SCREEN_W);
 
     // VRAM: HUD | primer plano | cache del fondo | sprites.
@@ -144,7 +174,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     VDP_setVerticalScroll(BG_B, 0);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
-    VDP_setBackgroundColor(0);      // PAL0[0]: los rips lo usan como color
+    VDP_setBackgroundColor((u8)L->backdrop);   // 0 = PAL0[0]: los rips lo usan como color
 
     u8   nPl = nPlSetup;
     bool dosJugadores = (nPl >= 2);
@@ -152,13 +182,20 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     u16 hudVram = TILE_USER_INDEX;
     fgVram = (u16)(TILE_USER_INDEX + barBlocks);
-    if (L->fg) VDP_loadTileSet(L->fg->tileset, fgVram, DMA);
-    sbgInit(L->bg, BG_B, PAL0, (u16)(fgVram + fgTiles), L->bgSlots, cameraX);
+    if (extra) VDP_loadTileSet(extra->tileset, fgVram, DMA);
+    if (L->far) farDraw(fgVram);
+    if (L->bgRaw)
+        sbgInitRaw(L->bgRaw, L->far ? BG_A : BG_B, PAL0, (u16)(fgVram + fgTiles),
+                   L->bgSlots, cameraX);
+    else
+        sbgInit(L->bg, L->far ? BG_A : BG_B, PAL0, (u16)(fgVram + fgTiles),
+                L->bgSlots, cameraX);
     fgColLeft  = 0;
     fgColRight = -1;
     fgUpdate(cameraX);
     applyScroll(cameraX, DMA);
 
+    hudSetPlane(hudPl);
     hudInit();
 
     Player p1, p2, p3, p4;
@@ -178,7 +215,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     }
 
     VDP_loadFont(&hud_font, DMA);
-    VDP_setTextPlane(BG_A);
+    VDP_setTextPlane(hudPl);
     VDP_setTextPriority(1);
     VDP_setTextPalette(PAL1);
 
@@ -211,10 +248,10 @@ SceneId stageLevelRun(const StageLevel* L) {
     // PAL3 en negro (la carga el jefe al entrar).
     u16 target[64];
     for (u16 i = 0; i < 16; i++) {
-        target[i]      = L->bg->palette->data[i];
+        target[i]      = L->bgRaw ? L->bgRaw->pal->data[i] : L->bg->palette->data[i];
         target[16 + i] = leo_player.palette->data[i];
         target[32 + i] = foot_soldier.palette->data[i];
-        target[48 + i] = 0;
+        target[48 + i] = L->far ? L->far->palette->data[i] : 0;
     }
     for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);   // coloca los sprites
     SPR_update();
@@ -447,7 +484,8 @@ SceneId stageLevelRun(const StageLevel* L) {
     if (L->bossRelease) L->bossRelease();
     VDP_setTextPriority(0);
     VDP_setTextPalette(PAL0);
-    clearScene();          // tambien vuelve el scroll a modo plano
+    VDP_setTextPlane(BG_A);
+    clearScene();          // tambien vuelve el scroll a modo plano y el HUD a BG_A
     cur = NULL;
     if (jump != PAUSE_NO_JUMP) return jump;
     if (win && !allOut) return L->nextScene;

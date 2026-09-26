@@ -15,6 +15,7 @@
 // con dos tortugas la VRAM de sprites no da para los dos jefes juntos; por
 // ahora va solo Bebop, como en la version de Ray.
 // Musica: todavia no hay tema del garage; suena el del 2-1 (Downtown).
+// Al ganar: Scene 5 (la autopista).
 // ===========================================================================
 
 #include <genesis.h>
@@ -119,7 +120,7 @@ static const StageLevel level41 = {
     .bossUpdate   = bossUpdate41,
     .bossDying    = bossDying41,
     .bossRelease  = bossRelease41,
-    .nextScene    = SCENE_GAME_OVER,   // (todavia no hay Scene 5)
+    .nextScene    = SCENE_5_1_TITLE,
 };
 
 SceneId showScene41() {
