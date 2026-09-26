@@ -45,6 +45,7 @@ typedef struct {
 static const PauseRow levelRows[] = {
     { "SCENE 1", 2, { "1-1", "1-2" }, { SCENE_1_1, SCENE_1_2 } },
     { "SCENE 2", 1, { "2-1" },        { SCENE_2_1 } },
+    { "SCENE 3", 1, { "3-1" },        { SCENE_3_1 } },
 };
 #define LEVEL_ROWS  ((u16)(sizeof(levelRows) / sizeof(levelRows[0])))
 #define ITEMS       ((u16)(LEVEL_ROWS + 1))   // item 0 = SEGUIR

@@ -26,6 +26,8 @@ typedef enum {
     SCENE_ENDING,       // Cutscene: Shredder rapta a April y sale por la ventana
     SCENE_2_1_TITLE,    // "SCENE 2 / C'MON, AFTER THAT SHREDDER CREEP!!"
     SCENE_2_1,          // Nivel 2-1: la calle (recorrido en L)
+    SCENE_3_1_TITLE,    // (26/09) "SCENE 3"
+    SCENE_3_1,          // Nivel 3-1: la cloaca (sewer), arte del proyecto de Ray
     SCENE_GAME_OVER
 } SceneId;
 
@@ -47,6 +49,8 @@ SceneId showScene12();
 SceneId showEnding();
 SceneId showScene21Title();
 SceneId showScene21();
+SceneId showScene31Title();
+SceneId showScene31();
 SceneId showGameOver();
 
 // Arranca una pista con el volumen dado (XGM2 permite regular volumen en vivo).

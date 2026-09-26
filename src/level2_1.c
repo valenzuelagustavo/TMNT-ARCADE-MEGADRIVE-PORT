@@ -1470,7 +1470,13 @@ SceneId showScene21() {
                                // corta por game over en plena pelea)
     if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }
 
+    // (26/09) Ganado (Bebop cayo): las vidas y el puntaje siguen en la
+    // Scene 3. Por game over (todos fuera) se va a GAME OVER como siempre.
+    bool won = (jump == PAUSE_NO_JUMP && !allOut);
+    if (won)
+        for (u8 k = 0; k < nPl; k++) playerPersistSave(pls[k]);
+
     clearScene();
     if (jump != PAUSE_NO_JUMP) return jump;
-    return SCENE_GAME_OVER;   // y showGameOver() vuelve al logo de SEGA
+    return won ? SCENE_3_1_TITLE : SCENE_GAME_OVER;
 }

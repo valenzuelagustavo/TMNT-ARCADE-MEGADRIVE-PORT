@@ -2385,6 +2385,48 @@ SceneId showScene21Title() {
 }
 
 // ---------------------------------------------------------------------------
+// 7 ter. Título de la SCENE 3 (26/09) — la cloaca
+// ---------------------------------------------------------------------------
+// Mismo tratamiento que los otros dos. La segunda línea es PROVISORIA: falta
+// confirmar el texto exacto del arcade para esta escena.
+// ---------------------------------------------------------------------------
+#define SCENE3_TITLE_LINE2  "INTO THE SEWER!!"
+
+SceneId showScene31Title() {
+    clearScene();
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    VDP_loadFont(&title_font, DMA);
+    PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPalette(PAL0);
+    VDP_setBackgroundColor(0);
+
+    const char* line1 = "SCENE 3";
+    const char* line2 = SCENE3_TITLE_LINE2;
+    u16 col2 = (u16)((40 - strlen(line2)) / 2);
+
+    bool skipped;
+    skipped = drawTextTypewriter(line1, 16, 10, TITLE_CHAR_DELAY);
+    if (!skipped) skipped = drawTextTypewriter(line2, col2, 13, TITLE_CHAR_DELAY);
+    if (skipped) {
+        VDP_drawText(line1, 16, 10);
+        VDP_drawText(line2, col2, 13);
+    }
+
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 2;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SYS_doVBlankProcess();
+    }
+
+    VDP_loadFont(&font_default, DMA);
+    clearScene();
+    return SCENE_3_1;
+}
+
+// ---------------------------------------------------------------------------
 // 8. Nivel 1 — fondo scrolleable + fuego en primer plano + jugador
 // ---------------------------------------------------------------------------
 SceneId showScene11() {
