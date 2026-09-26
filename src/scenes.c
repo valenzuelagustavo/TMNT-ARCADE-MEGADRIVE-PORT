@@ -977,14 +977,18 @@ static void hpBarInit(u16 barVram, u16 baseCol) {
                            HPBAR_FRAME_TILES_W, HPBAR_FRAME_TILES_H);
 }
 
-// Vidas: el dígito verde de 8x16, mismo streaming que la barra.
-static void hudLivesSetDigit(u16 vram, u8 d) {
+// Vidas: dígito de 8x16, mismo streaming que la barra. (26/09) En el color
+// de la bandana de cada tortuga (lives_digits_turtles, ver level1.res).
+static const u32* hudLivesTiles(u8 ch, u8 d) {
     if (d > 9) d = 9;
-    VDP_loadTileData(lives_digits.tiles + (u32)d * HUDLIVES_TILES * 8,
-                     vram, HUDLIVES_TILES, DMA_QUEUE);
+    if (ch > 3) return lives_digits.tiles + (u32)d * HUDLIVES_TILES * 8;
+    return lives_digits_turtles.tiles + (u32)(ch * 10 + d) * HUDLIVES_TILES * 8;
 }
-static void hudLivesInit(u16 vram, u16 baseCol) {
-    VDP_loadTileData(lives_digits.tiles, vram, HUDLIVES_TILES, DMA);
+static void hudLivesSetDigit(u16 vram, u8 ch, u8 d) {
+    VDP_loadTileData(hudLivesTiles(ch, d), vram, HUDLIVES_TILES, DMA_QUEUE);
+}
+static void hudLivesInit(u16 vram, u16 baseCol, u8 ch) {
+    VDP_loadTileData(hudLivesTiles(ch, 0), vram, HUDLIVES_TILES, DMA);
     VDP_fillTileMapRectInc(BG_A,
                            TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, vram),
                            baseCol + HUD_LIVES_COL, HUD_LIVES_ROW,
@@ -1009,7 +1013,7 @@ void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram) {
     h->lastScore  = -1;
     hudClearBlock(baseCol);
     hpBarInit(barVram, baseCol);
-    hudLivesInit(h->livesVram, baseCol);
+    hudLivesInit(h->livesVram, baseCol, pl->charIndex);
 }
 
 // Redibuja SOLO los elementos que cambiaron. Llamar una vez por frame.
@@ -1026,11 +1030,12 @@ void hudPlayerUpdate(HudPlayer* h) {
         h->lastHealth = hp;
     }
 
-    // (17/09) Las vidas son un DÍGITO VERDE pegado a la barra, como el arcade
+    // (17/09) Las vidas son un DÍGITO pegado a la barra, como el arcade
     // (antes era un "x3" con la fuente del HUD). El tope de OPCIONES es 7, así
     // que un dígito alcanza y sobra.
     if (lives != h->lastLives) {
-        hudLivesSetDigit(h->livesVram, (u8)((lives < 0) ? 0 : lives));
+        hudLivesSetDigit(h->livesVram, h->pl->charIndex,
+                         (u8)((lives < 0) ? 0 : lives));
         h->lastLives = lives;
     }
 

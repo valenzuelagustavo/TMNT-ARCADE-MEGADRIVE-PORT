@@ -108,6 +108,13 @@ TILESET hp_bar "sprites/hp_bar.png" NONE NONE
 // jugador y un DMA cuando cambia el numero. digito N -> tiles [N*2 .. N*2+1].
 TILESET lives_digits "images/hud/lives_digits.png" NONE NONE
 
+// (26/09) Los digitos de vidas ahora van en el COLOR DE CADA TORTUGA (arte del
+// proyecto del companero, tools/gen_lives_digits_turtles.py): 4 x 10 digitos
+// de 8x16 apilados en orden de charIndex (Leo, Mike, Don, Raph), en PAL1.
+// Digito d de la tortuga t -> tiles [(t*10 + d) * 2 .. +1]. lives_digits (el
+// verde) queda para el caso de un charIndex fuera de rango.
+TILESET lives_digits_turtles "images/hud/lives_digits_turtles.png" NONE NONE
+
 // --- Fuente arcade para el titulo del nivel (solo ASCII en este bloque) ---
 // 95 tiles de 8x8 en orden ASCII (32..126) -> compatible con VDP_loadFont.
 // TILESET (tiles) + PALETTE (blanco/azul) exportados del mismo PNG.

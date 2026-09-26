@@ -12,6 +12,7 @@ extern const SpriteDefinition hud_4p;
 extern const SpriteDefinition turtle_portrait;
 extern const TileSet hp_bar;
 extern const TileSet lives_digits;
+extern const TileSet lives_digits_turtles;
 extern const TileSet title_font;
 extern const Palette title_font_pal;
 extern const TileSet hud_font;
