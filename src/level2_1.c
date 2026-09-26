@@ -662,6 +662,61 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 // La tapa cerrada existe SOLO mientras la boca esta cerca de camara. Son 12
 // tiles cada una y con las distancias de la tabla nunca hay mas de dos armadas
 // a la vez, pero igual no tiene sentido pagarlas durante todo el nivel.
+// ---------------------------------------------------------------------------
+// TV de la vidriera "ELECTRONICS" (26/09)
+// ---------------------------------------------------------------------------
+// Arte del proyecto del companero: 4 frames de 56x48 que tapan EXACTO la
+// pantalla azul oscura del televisor del fondo (mundo 480,72; medido contra
+// "Stage 2-_16_colors_v2.png"). April hablando y Shredder que interrumpe.
+//
+// Paleta: la propia del sprite, en PAL3. En el 2-1 esa linea es la del jefe,
+// pero Bebop recien aparece al final (bebopSpawn carga la suya), y para
+// entonces la tele quedo muy atras.
+//
+// VRAM: son 42 tiles de sprites y el presupuesto del nivel esta hecho a la
+// medida de 2 tortugas + 2 soldiers (ver SPR_initEx). La tele es decorado:
+// solo se crea si, despues de crearla, siguen entrando los soldiers que
+// todavia pueden aparecer; y si un spawn se queda sin lugar, se suelta antes
+// (ver tvUpdate / tvYield). Asi nunca le saca el lugar a un enemigo.
+#define LVL21_TV_X       480
+#define LVL21_TV_Y        72
+#define LVL21_TV_W        56
+#define LVL21_TV_MARGIN   32
+
+static Sprite* tvSpr;
+
+static u16 soldierMaxTiles(void) {
+    u16 a = foot_soldier.maxNumTile, b = foot_soldier_orange.maxNumTile;
+    return (a > b) ? a : b;
+}
+
+// Suelta la tele si al proximo soldier no le alcanza la VRAM de sprites.
+static void tvYield(u16 alive, u16 maxAlive) {
+    if (!tvSpr || alive >= maxAlive) return;
+    if (SPR_getLargestFreeVRAMBlock() >= soldierMaxTiles()) return;
+    SPR_releaseSprite(tvSpr);
+    tvSpr = NULL;
+}
+
+static void tvUpdate(s16 camX, s16 camY, u16 alive, u16 maxAlive, bool allow) {
+    s16 sx = (s16)(LVL21_TV_X - camX);
+    bool near = allow && sx > -(LVL21_TV_W + LVL21_TV_MARGIN) &&
+                sx < (s16)(SCREEN_PIXEL_WIDTH + LVL21_TV_MARGIN);
+    if (near && !tvSpr) {
+        u16 need = tv_april.maxNumTile;
+        if (alive < maxAlive) need += (u16)((maxAlive - alive) * soldierMaxTiles());
+        if (SPR_getFreeVRAM() >= need &&
+            SPR_getLargestFreeVRAMBlock() >= tv_april.maxNumTile) {
+            tvSpr = SPR_addSprite(&tv_april, 0, 0, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+            if (tvSpr) SPR_setDepth(tvSpr, SPR_MAX_DEPTH);
+        }
+    } else if (!near && tvSpr) {
+        SPR_releaseSprite(tvSpr);
+        tvSpr = NULL;
+    }
+    if (tvSpr) SPR_setPosition(tvSpr, sx, (s16)(LVL21_TV_Y - camY));
+}
+
 static void mhReset(void) {
     for (u16 i = 0; i < LVL21_MANHOLES; i++) {
         mhState[i] = MH_DORMANT;
@@ -816,6 +871,7 @@ SceneId showScene21() {
     // los dos proyectiles en OFF (son estado de modulo, no del stack: si una
     // partida anterior murio con algo en el aire hay que limpiarlo).
     mhReset();
+    tvSpr = NULL;     // la tele se crea sola al acercarse (tvUpdate)
     tntInit();
     lidInit();
     metersInit();
@@ -841,7 +897,9 @@ SceneId showScene21() {
         // queda entera. Se carga desde el fade y no al aparecer el jefe: son
         // 16 colores que no molestan a nadie mientras no haya nada dibujado
         // con PAL3.
-        target[48 + i] = bebop_boss.palette->data[i];
+        // (26/09) Hasta que aparece Bebop, PAL3 es de la TV de la vidriera
+        // (tv_april); bebopSpawn carga la del jefe al entrar.
+        target[48 + i] = tv_april.palette->data[i];
     }
     // Colocar los sprites en pantalla ANTES del fundido: updatePlayer solo
     // sabe de cameraX, asi que el desplazamiento vertical de la camara hay que
@@ -1011,6 +1069,7 @@ SceneId showScene21() {
         u16 alive = 0;
         for (u16 i = 0; i < MAX_ENEMIES; i++)
             if (enemies[i].state != ENEMY_STATE_INACTIVE) alive++;
+        tvYield(alive, maxAlive);   // la tele no le quita lugar a un spawn
 
         // --- Guion de enemigos (19/09) -------------------------------------
         // El lider en X es el que dispara los eventos: se mide sobre los PIES,
@@ -1081,6 +1140,7 @@ SceneId showScene21() {
 
         // Tapas cerradas de las bocas que todavia no salieron.
         mhUpdateLids(cameraX, cameraY);
+        tvUpdate(cameraX, cameraY, alive, maxAlive, !bossStarted);
 
         separateEnemies(enemies, MAX_ENEMIES);
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -1405,6 +1465,7 @@ SceneId showScene21() {
     lidReleaseAll();
     mhReleaseAll();
     metersReleaseAll();
+    if (tvSpr) { SPR_releaseSprite(tvSpr); tvSpr = NULL; }
     bebopRelease(&bebop);      // el jefe y sus aros (tambien si el nivel se
                                // corta por game over en plena pelea)
     if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }

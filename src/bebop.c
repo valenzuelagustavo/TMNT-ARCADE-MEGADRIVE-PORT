@@ -295,6 +295,9 @@ void bebopSpawn(Bebop* b) {
     b->armored   = 0;
     b->armorTimer = 0;
     bebopBuildPalettes();
+    // (26/09) PAL3 la venia usando la TV de la vidriera del 2-1: la paleta
+    // del jefe se carga recien ahora, cuando entra.
+    PAL_setPalette(PAL3, bebopPal, DMA);
 
     // Arranca la primera parabola: arriba y a la izquierda del auto.
     b->fromX = (s16)(BEBOP_CAR_X + BEBOP_FALL_FROM_DX);
