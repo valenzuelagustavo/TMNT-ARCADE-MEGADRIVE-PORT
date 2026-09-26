@@ -12,7 +12,8 @@
 // version de Ray.
 //
 // CAMINABLE: la calzada, del borde de abajo del guardarrail al piso.
-// Sin jefe: el nivel se gana con las oleadas limpias al llegar al final.
+// Sin jefe: el nivel se gana con las oleadas limpias al llegar al final, y
+// sigue la Scene 7 (la fabrica).
 // Musica: todavia no hay tema propio; suena el del 2-1.
 // ===========================================================================
 
@@ -61,7 +62,7 @@ static const StageLevel level61 = {
     .bossFeetX    = 6280,
     .music        = music_stage2_1,
     .musicVol     = 90,
-    .nextScene    = SCENE_GAME_OVER,   // (todavia no hay Scene 7)
+    .nextScene    = SCENE_7_1_TITLE,
 };
 
 SceneId showScene61() {
