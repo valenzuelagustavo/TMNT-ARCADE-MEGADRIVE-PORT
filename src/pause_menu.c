@@ -38,7 +38,6 @@
 // --- Tabla de niveles ------------------------------------------------------
 // Una fila por "SCENE" del arcade; en cada una, sus subniveles. Para sumar un
 // nivel: agregarlo aca (hasta 3 subniveles por fila).
-#if DEV_LEVEL_SELECT
 #define MAX_SUB 3
 typedef struct {
     const char* name;
@@ -70,7 +69,6 @@ static const PauseRow levelRows[] = {
 #define COL_NAME    1
 #define COL_SUB0    11
 #define SUB_STEP    4
-#endif
 
 static u16  prevJoy;
 static u16  solidAttr;
@@ -167,11 +165,9 @@ static void opaqueFont(u8 bg) {
 // ---------------------------------------------------------------------------
 // Dibujo
 // ---------------------------------------------------------------------------
-#if DEV_LEVEL_SELECT
 static void boxClear(u16 relX, u16 relY, u16 w) {
     boxFill(relX, relY, w, solidAttr);
 }
-#endif
 
 static void boxText(const char* s, u16 relX, u16 relY) {
     u16 x = relX;
@@ -192,7 +188,6 @@ static void boxTextCentered(const char* s, u16 relY) {
     boxText(s, (u16)((PAUSE_BOX_W - textLen(s)) / 2), relY);
 }
 
-#if DEV_LEVEL_SELECT
 static u16 selItem;     // 0 = SEGUIR, 1.. = fila de levelRows
 static u8  selSub;
 static u16 firstItem;   // primer item visible (scroll)
@@ -227,18 +222,23 @@ static void clampSub(void) {
     u8 n = levelRows[selItem - 1].n;
     if (selSub >= n) selSub = (u8)(n - 1);
 }
-#endif
 
 // ---------------------------------------------------------------------------
 // API
 // ---------------------------------------------------------------------------
+// (27/09) El selector solo existe si en la pantalla de cantidad de jugadores
+// se ingreso el codigo Konami (ver showPlayerSelect). Dura hasta apagar o
+// resetear la consola.
+static bool levelSelectOn = FALSE;
+
+void pauseSetLevelSelect(bool on) { levelSelectOn = on; }
+bool pauseLevelSelect(void)       { return levelSelectOn; }
+
 void pauseReset(void) {
     prevJoy = JOY_readJoypad(playerJoy(0));
-#if DEV_LEVEL_SELECT
     selItem = 0;
     selSub = 0;
     firstItem = 0;
-#endif
 }
 
 SceneId pausePoll(Player** pls, u8 nPl) {
@@ -260,18 +260,19 @@ SceneId pausePoll(Player** pls, u8 nPl) {
     for (u16 r = 0; r < PAUSE_BOX_H; r++) boxFill(0, r, PAUSE_BOX_W, solidAttr);
     SceneId result = PAUSE_NO_JUMP;
 
-#if DEV_LEVEL_SELECT
-    boxTextCentered("PAUSA", ROW_TITLE);
-    boxTextCentered("START: ELEGIR", ROW_HINT);
-    // Arranca siempre en SEGUIR: START, START sale de la pausa.
-    selItem = 0;
-    selSub = 0;
-    firstItem = 0;
-    drawItems(FALSE);
-#else
-    boxTextCentered("PAUSA", 2);
-    boxTextCentered("START: SEGUIR", 5);
-#endif
+    const bool withSelect = levelSelectOn;
+    if (withSelect) {
+        boxTextCentered("PAUSA", ROW_TITLE);
+        boxTextCentered("START: ELEGIR", ROW_HINT);
+        // Arranca siempre en SEGUIR: START, START sale de la pausa.
+        selItem = 0;
+        selSub = 0;
+        firstItem = 0;
+        drawItems(FALSE);
+    } else {
+        boxTextCentered("PAUSA", 2);
+        boxTextCentered("START: SEGUIR", 5);
+    }
 
     u16 blink = 0;
     bool blinkOff = FALSE;
@@ -281,7 +282,10 @@ SceneId pausePoll(Player** pls, u8 nPl) {
         u16 hit = (u16)(joy & ~prevJoy);
         prevJoy = joy;
 
-#if DEV_LEVEL_SELECT
+        if (!withSelect) {
+            if (hit & BUTTON_START) break;
+            continue;
+        }
         bool moved = FALSE;
         if ((hit & BUTTON_UP) && selItem > 0)               { selItem--; moved = TRUE; }
         if ((hit & BUTTON_DOWN) && selItem + 1 < ITEMS)     { selItem++; moved = TRUE; }
@@ -305,10 +309,6 @@ SceneId pausePoll(Player** pls, u8 nPl) {
             if (selItem > 0) result = levelRows[selItem - 1].scene[selSub];
             break;
         }
-#else
-        (void) blink; (void) blinkOff;
-        if (hit & BUTTON_START) break;
-#endif
     }
 
     // --- Cerrar --------------------------------------------------------------

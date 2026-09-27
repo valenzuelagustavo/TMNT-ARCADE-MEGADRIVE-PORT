@@ -12,7 +12,7 @@
 // Todo queda congelado tal cual (no se llama a SPR_update ni a la logica) y la
 // musica se pausa. En el medio de la pantalla aparece un recuadro:
 //
-//   DEV_LEVEL_SELECT = 1 (desarrollo)      DEV_LEVEL_SELECT = 0 (release)
+//   con el codigo Konami                   sin el codigo
 //   ------------------------------        ------------------------------
 //             PAUSA                                   PAUSA
 //     SEGUIR
@@ -24,6 +24,11 @@
 //   SEGUIR (o B/C en cualquier fila) vuelve al juego; START sobre un subnivel
 //   corta el nivel actual y salta a ese (empezandolo de cero, con vidas y
 //   barra llenas y el puntaje que se traia).
+//
+// (27/09) El SELECTOR solo aparece si en la pantalla de cantidad de jugadores
+// se ingreso el codigo Konami (arriba, arriba, abajo, abajo, izquierda,
+// derecha, izquierda, derecha, B, A; suena "Cowabunga!"). Sin el codigo la
+// pausa es la simple. Queda activo hasta apagar o resetear la consola.
 //
 // NO pisa el continue: si el jugador 1 esta en game over (mostrando
 // CONTINUE?), su START es del continue y la pausa no se abre. Los mandos 2-4
@@ -40,8 +45,6 @@
 //         ...
 // ===========================================================================
 
-#define DEV_LEVEL_SELECT   1      // 0 en la version que se libere: solo pausa
-
 #define PAUSE_NO_JUMP      ((SceneId)0xFF)
 
 // Recuadro en BG_A, en tiles de PANTALLA. Filas 12..19: entre el humo del
@@ -52,6 +55,11 @@
 #define PAUSE_BOX_ROW      12
 #define PAUSE_BOX_W        24
 #define PAUSE_BOX_H        8
+
+// Activa / consulta el selector de niveles (lo prende el codigo Konami en
+// showPlayerSelect).
+void pauseSetLevelSelect(bool on);
+bool pauseLevelSelect(void);
 
 // Olvida el START que venga apretado de la escena anterior. Llamar una vez,
 // justo antes del bucle principal del nivel.

@@ -1507,6 +1507,16 @@ static const u16 secretSeq[SECRET_LEN] = {
 };
 static bool secret4P = FALSE;
 
+// (27/09) CODIGO KONAMI: prende el selector de niveles de la pausa (ver
+// pause_menu.h). Arriba y abajo tambien mueven el cursor del menu, no
+// importa: lo que cuenta es la secuencia. B y A no hacen nada en este menu.
+#define KONAMI_LEN  10
+static const u16 konamiSeq[KONAMI_LEN] = {
+    BUTTON_UP,   BUTTON_UP,    BUTTON_DOWN, BUTTON_DOWN,
+    BUTTON_LEFT, BUTTON_RIGHT, BUTTON_LEFT, BUTTON_RIGHT,
+    BUTTON_B,    BUTTON_A
+};
+
 // Filas del menu segun este desbloqueado o no.
 #define MENU_ROW0        22   // sin el secreto: 22, 24, 26
 #define MENU_ROW0_4P     20   // con el secreto: 20, 22, 24, 26
@@ -1581,6 +1591,7 @@ SceneId showPlayerSelect() {
     u8  selectedOption = 0;
     u16 prev = 0;
     u8  secretStep = 0;   // progreso dentro de secretSeq
+    u16 konamiLast[KONAMI_LEN] = { 0 };   // ultimas entradas (la mas nueva al final)
 
     // Modo ATRACTO: si nadie toca nada durante PLAYER_SELECT_IDLE_SECS, la
     // pantalla se va sola a los perfiles de las tortugas (SCENE_PROFILES), que
@@ -1621,6 +1632,33 @@ SceneId showPlayerSelect() {
                     XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
                                    SOUND_PCM_CH2, 15, FALSE, FALSE);
                     menuDraw4P(TRUE);
+                }
+            }
+        }
+
+        // --- Codigo Konami: selector de niveles en la pausa ---
+        // Una entrada por frame; se guardan las ultimas 10 y se comparan con
+        // la secuencia (asi "arriba, arriba, arriba, abajo..." tambien vale:
+        // cuentan las ultimas).
+        if (!pauseLevelSelect()) {
+            u16 in = 0;
+            if      (justPressedJoy(value, prev, BUTTON_UP))    in = BUTTON_UP;
+            else if (justPressedJoy(value, prev, BUTTON_DOWN))  in = BUTTON_DOWN;
+            else if (justPressedJoy(value, prev, BUTTON_LEFT))  in = BUTTON_LEFT;
+            else if (justPressedJoy(value, prev, BUTTON_RIGHT)) in = BUTTON_RIGHT;
+            else if (justPressedJoy(value, prev, BUTTON_B))     in = BUTTON_B;
+            else if (justPressedJoy(value, prev, BUTTON_A))     in = BUTTON_A;
+            if (in) {
+                bool match = TRUE;
+                for (u16 i = 0; i < KONAMI_LEN - 1; i++) {
+                    konamiLast[i] = konamiLast[i + 1];
+                    if (konamiLast[i] != konamiSeq[i]) match = FALSE;
+                }
+                konamiLast[KONAMI_LEN - 1] = in;
+                if (match && in == konamiSeq[KONAMI_LEN - 1]) {
+                    pauseSetLevelSelect(TRUE);
+                    XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
                 }
             }
         }
