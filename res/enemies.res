@@ -93,7 +93,9 @@ SPRITE foot_soldier_white "sprites/foot_soldier_white_gen.png" 13 13 FAST 8
 
 // Shuriken: proyectil del foot soldier naranja. 16x16px = 2x2 tiles.
 // Misma paleta que el naranja (PAL3). Se crea/destruye en runtime.
-SPRITE shuriken_sprite "sprites/shuriken.png" 2 2 FAST 0
+// (27/09) TRES frames que giran en loop (time 4 = 15 fps): la tira
+// shuriken_anim.png la arma tools/gen_shuriken.py con shuriken1..3.png.
+SPRITE shuriken_sprite "sprites/shuriken_anim.png" 2 2 FAST 4
 
 // --- Dinamita del foot soldier morado (18/09) --------------------------------
 // TNT: el cartucho que tira con la anim [16]. 192x24 = 8 frames de 24x24px

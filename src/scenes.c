@@ -2444,7 +2444,7 @@ SceneId showScene21Title() {
 #define SCENE5_TITLE_LINE2  "HIT THE FREEWAY!!"
 #define SCENE6_TITLE_LINE2  "SKATE THE HIGHWAY!!"
 #define SCENE7_TITLE_LINE2  "INTO THE FACTORY!!"
-#define SCENE8_TITLE_LINE2  "THE TECHNODROME!!"
+#define SCENE8_TITLE_LINE2  "WE GOTTA FIND THE TECHNODROME!"   // (27/09) texto de Gustavo
 #define SCENE9_TITLE_LINE2  "SHOWDOWN WITH SHREDDER!!"
 
 static SceneId showStageTitle(const char* line1, const char* line2, SceneId next) {
