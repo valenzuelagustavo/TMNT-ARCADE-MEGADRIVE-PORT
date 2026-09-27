@@ -4466,10 +4466,24 @@ SceneId showScene12() {
                     if (++bossTimer >= 30) { bossStage = 1; bossTimer = 0; }
                     break;
                 case 1:   // la cápsula emerge del piso (frames 0..6) + temblor
-                    if (bossTimer == 0 && capsulaSpr) {
+                    // (27/09) SOLO al entrar al stage (capsulaFrame == 0). Antes
+                    // la condicion era solo "bossTimer == 0", pero bossTimer
+                    // vuelve a 0 cada CAPSULA_FRAME_TICKS al avanzar de frame:
+                    // al frame siguiente se volvia a poner el FRAME 0 (casi
+                    // vacio, la puntita del taladro). La capsula mostraba el
+                    // frame bueno 1 solo frame de cada 23 -> el parpadeo
+                    // durante la emergencia (quieta, en el stage 2, ya no
+                    // pasaba por aca). Ademas reiniciaba el sonido del taladro
+                    // cada 23 frames; ahora suena entero y, si termina o lo
+                    // pisa otro sonido del canal (un golpe), se relanza al
+                    // cambiar de frame. El de la puerta (stage 2) lo corta.
+                    if (bossTimer == 0 && capsulaFrame == 0 && capsulaSpr) {
                         SPR_setVisibility(capsulaSpr, VISIBLE);
                         SPR_setAnimAndFrame(capsulaSpr, 0, 0);
                         XGM2_stop();   // cortar la música de fondo durante la secuencia
+                        XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx),
+                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    } else if (bossTimer == 0 && !XGM2_isPlayingPCM(SOUND_PCM_CH2_MSK)) {
                         XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx),
                                        SOUND_PCM_CH2, 15, FALSE, FALSE);
                     }
