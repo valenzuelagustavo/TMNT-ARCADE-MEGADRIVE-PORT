@@ -1464,7 +1464,8 @@ SceneId showScene21() {
                 enemies[i].state  = ENEMY_STATE_INACTIVE;
             }
             lidReleaseAll();
-            tntInit();
+            tntReleaseAll();   // (27/09) tntInit solo ponia NULL: si habia una
+                               // dinamita en el aire su sprite quedaba huerfano
             XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
                            SOUND_PCM_CH2, 15, FALSE, FALSE);
             playMusicVol(music_boss, VOL_MUSIC_BOSS_2_1);

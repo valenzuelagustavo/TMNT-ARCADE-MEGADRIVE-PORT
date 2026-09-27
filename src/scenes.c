@@ -409,6 +409,8 @@ static u8 continuesLeft = 3;
 // keepAudio = TRUE: no detiene la música (para transiciones con música continua,
 //                    p.ej. nivel 2 → ending).
 // ---------------------------------------------------------------------------
+static void hudForgetSprites(void);
+
 void clearSceneEx(bool keepAudio) {
     PAL_fadeOutAll(20, FALSE);
     while(PAL_isDoingFade()) {
@@ -416,6 +418,7 @@ void clearSceneEx(bool keepAudio) {
     }
     if (!keepAudio) XGM2_stop();
     SPR_reset();
+    hudForgetSprites();   // (27/09) SPR_reset ya los libero: olvidar los punteros
     // Vaciar YA la tabla de sprites del VDP: SPR_reset() limpia el estado
     // interno del motor (y los tiles del region de sprites) pero NO pisa la
     // SAT en VRAM hasta el proximo SPR_update. Sin este flush, los sprites de
@@ -843,6 +846,27 @@ static Sprite* hud4Spr[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
 // juego usa 0=Leo 1=Mike 2=Don 3=Raph: esta tabla traduce.
 static const u8 hudAnimForChar[] = { 0, 3, 2, 1 };
 
+// (27/09) CUELGUE "ILLEGAL INSTRUCTION" en el 2-1 tras un continue.
+// Estos punteros son STATIC y sobreviven a la escena, pero sus sprites NO:
+// SPR_reset (clearScene) y SPR_initEx sueltan TODO el pool de sprites. La
+// seleccion de personaje crea los retratos (hudInitPortraits) y nunca los
+// soltaba a mano, asi que portraitSpr1 (y el 2 en 2P) quedaban apuntando al
+// pool VIEJO. En el primer continue de la partida, hudPortraitShow(0) veia
+// el puntero "no NULL", no creaba nada y hacia SPR_setAnim sobre memoria que
+// ahora es de OTRO sprite; al confirmar, hudPortraitHide(0) hacia
+// SPR_releaseSprite de esa direccion: soltaba un sprite ajeno (p.ej. el de la
+// tortuga -> "el P1 desaparecio") o metia una direccion corrida en el pool.
+// Despues dos objetos compartian el mismo Sprite, uno le pisaba los campos al
+// otro y SPR_update terminaba saltando a un onFrameChange basura.
+// Regla: todo Sprite* static se olvida (NULL) cuando se resetea el motor.
+static void hudForgetSprites(void) {
+    hudSprite1   = NULL;
+    hudSprite2   = NULL;
+    portraitSpr1 = NULL;
+    portraitSpr2 = NULL;
+    for (u8 k = 0; k < MAX_PLAYERS; k++) hud4Spr[k] = NULL;
+}
+
 // Crea los marcos del HUD y los retratos de tortuga como sprites de alto
 // nivel. En 1 jugador solo se crean los de P1. No consume VRAM de planos
 // (los tiles viven en el area de sprites del motor, SPR_initEx). Los sprites
@@ -855,6 +879,9 @@ u16 hudPlayerCol(u8 k) {
 }
 
 void hudInit(void) {
+    // hudInit va siempre despues del SPR_initEx de la escena: cualquier
+    // puntero que quedara de antes es invalido (ver hudForgetSprites).
+    hudForgetSprites();
     // (17/09) Los marcos bajan HUD_FRAME_Y (4px) para que el interior caiga
     // sobre la grilla de tiles -- ver la nota larga en hud.h -- y los RETRATOS
     // ya no se crean: el HUD de partida va limpio, como el arcade. Vuelven a
