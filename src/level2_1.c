@@ -523,8 +523,15 @@ static void lvl21BgUpdate(s16 camX, s16 camY) {
             if (c >= 0) lvl21DrawCell(c, planeRow);
     }
 
-    VDP_setHorizontalScroll(BG_B, -camX);
-    VDP_setVerticalScroll(BG_B, camY);
+    // (27/09) PARPADEO ARRIBA: el scroll se escribia en el acto, en pleno
+    // cuadro. Las lineas que el VDP ya habia dibujado quedaban con el valor
+    // del frame anterior y el resto con el nuevo: mientras la camara se mueve,
+    // la franja de arriba del fondo "salta" un frame atrasada. Es el mismo
+    // problema que resolvio Ray en su version de esta calle (bgUpdate3, en su
+    // scenes.c): el scroll va a la cola y se aplica en el VBlank, junto con
+    // los tiles y los sprites de ese frame.
+    VDP_setHorizontalScrollVSync(BG_B, -camX);
+    VDP_setVerticalScrollVSync(BG_B, camY);
 }
 
 // ---------------------------------------------------------------------------
@@ -678,12 +685,25 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 // solo se crea si, despues de crearla, siguen entrando los soldiers que
 // todavia pueden aparecer; y si un spawn se queda sin lugar, se suelta antes
 // (ver tvUpdate / tvYield). Asi nunca le saca el lugar a un enemigo.
+//
+// (27/09, Gustavo) UNA SOLA VEZ: la tele se prende cuando una tortuga (el
+// centro de su cuerpo) llega a 2 tiles en X del televisor, pasa los 4 frames
+// una vez (April, April, April, Shredder) y el sprite se suelta para siempre:
+// queda la pantalla apagada del fondo. Si al llegar no hay VRAM, se prende
+// en cuanto la haya (mientras siga en pantalla); si un spawn la desaloja a
+// mitad de camino, no vuelve.
 #define LVL21_TV_X       480
 #define LVL21_TV_Y        72
 #define LVL21_TV_W        56
 #define LVL21_TV_MARGIN   32
+#define LVL21_TV_NEAR     16      // 2 tiles en X desde el borde del televisor
+#define LVL21_TV_FRAMES    4
+#define LVL21_TV_TICKS    30      // ticks por frame (el time del .res)
 
+typedef enum { TV_OFF, TV_PENDING, TV_PLAYING, TV_DONE } TvState;
 static Sprite* tvSpr;
+static TvState tvState;
+static u16     tvTick;
 
 static u16 soldierMaxTiles(void) {
     u16 a = foot_soldier.maxNumTile, b = foot_soldier_orange.maxNumTile;
@@ -691,30 +711,66 @@ static u16 soldierMaxTiles(void) {
 }
 
 // Suelta la tele si al proximo soldier no le alcanza la VRAM de sprites.
+static void tvRelease(void) {
+    if (tvSpr) { SPR_releaseSprite(tvSpr); tvSpr = NULL; }
+}
+
 static void tvYield(u16 alive, u16 maxAlive) {
     if (!tvSpr || alive >= maxAlive) return;
     if (SPR_getLargestFreeVRAMBlock() >= soldierMaxTiles()) return;
-    SPR_releaseSprite(tvSpr);
-    tvSpr = NULL;
+    tvRelease();
+    tvState = TV_DONE;
 }
 
-static void tvUpdate(s16 camX, s16 camY, u16 alive, u16 maxAlive, bool allow) {
+static void tvUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, u16 alive, u16 maxAlive,
+                     bool allow) {
+    if (tvState == TV_DONE) return;
     s16 sx = (s16)(LVL21_TV_X - camX);
-    bool near = allow && sx > -(LVL21_TV_W + LVL21_TV_MARGIN) &&
-                sx < (s16)(SCREEN_PIXEL_WIDTH + LVL21_TV_MARGIN);
-    if (near && !tvSpr) {
+
+    // Disparo: alguna tortuga en juego a 2 tiles (o menos) del televisor.
+    if (tvState == TV_OFF) {
+        for (u8 k = 0; k < nPl; k++) {
+            if (isPlayerGameOver(pls[k])) continue;
+            s16 cx = (s16)(pls[k]->x + PLAYER_SPRITE_W / 2);
+            if (cx >= LVL21_TV_X - LVL21_TV_NEAR &&
+                cx <= LVL21_TV_X + LVL21_TV_W + LVL21_TV_NEAR) {
+                tvState = TV_PENDING;
+                break;
+            }
+        }
+    }
+
+    if (tvState == TV_PENDING) {
+        bool onScreen = sx > -(LVL21_TV_W + LVL21_TV_MARGIN) &&
+                        sx < (s16)(SCREEN_PIXEL_WIDTH + LVL21_TV_MARGIN);
+        if (!allow || !onScreen) { tvState = TV_DONE; return; }   // se la perdio
         u16 need = tv_april.maxNumTile;
         if (alive < maxAlive) need += (u16)((maxAlive - alive) * soldierMaxTiles());
         if (SPR_getFreeVRAM() >= need &&
             SPR_getLargestFreeVRAMBlock() >= tv_april.maxNumTile) {
             tvSpr = SPR_addSprite(&tv_april, 0, 0, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
-            if (tvSpr) SPR_setDepth(tvSpr, SPR_MAX_DEPTH);
+            if (tvSpr) {
+                SPR_setDepth(tvSpr, SPR_MAX_DEPTH);
+                SPR_setAutoAnimation(tvSpr, FALSE);     // los frames van a mano
+                SPR_setAnimAndFrame(tvSpr, 0, 0);
+                tvTick = 0;
+                tvState = TV_PLAYING;
+            }
         }
-    } else if (!near && tvSpr) {
-        SPR_releaseSprite(tvSpr);
-        tvSpr = NULL;
     }
-    if (tvSpr) SPR_setPosition(tvSpr, sx, (s16)(LVL21_TV_Y - camY));
+
+    if (tvState == TV_PLAYING) {
+        if (!tvSpr) { tvState = TV_DONE; return; }
+        u16 f = (u16)(tvTick / LVL21_TV_TICKS);
+        if (f >= LVL21_TV_FRAMES) {                     // termino: se va para siempre
+            tvRelease();
+            tvState = TV_DONE;
+            return;
+        }
+        SPR_setFrame(tvSpr, (s16)f);
+        tvTick++;
+        SPR_setPosition(tvSpr, sx, (s16)(LVL21_TV_Y - camY));
+    }
 }
 
 static void mhReset(void) {
@@ -763,6 +819,12 @@ static void mhUpdateLids(s16 camX, s16 camY) {
 // ===========================================================================
 SceneId showScene21() {
     clearScene();
+
+    // (27/09) Cola de DMA mas larga, como en la version de Ray (stInit en su
+    // scenes.c): con la cola por defecto (80) el goteo del fondo + los sprites
+    // + el scroll pueden llenarla, y lo que no entra se DESCARTA (tiles que no
+    // llegan). Cambiar el tamano vacia la cola: va antes de encolar nada.
+    DMA_setMaxQueueSize(192);
 
     // Presupuesto de VRAM de sprites. Con planos de 64x32 el area de usuario va
     // de TILE_USER_INDEX (16) a TILE_FONT_INDEX (1440); de ahi salen, en este
@@ -871,7 +933,9 @@ SceneId showScene21() {
     // los dos proyectiles en OFF (son estado de modulo, no del stack: si una
     // partida anterior murio con algo en el aire hay que limpiarlo).
     mhReset();
-    tvSpr = NULL;     // la tele se crea sola al acercarse (tvUpdate)
+    tvSpr = NULL;     // la tele se prende una vez al acercarse (tvUpdate)
+    tvState = TV_OFF;
+    tvTick = 0;
     tntInit();
     lidInit();
     metersInit();
@@ -1140,7 +1204,7 @@ SceneId showScene21() {
 
         // Tapas cerradas de las bocas que todavia no salieron.
         mhUpdateLids(cameraX, cameraY);
-        tvUpdate(cameraX, cameraY, alive, maxAlive, !bossStarted);
+        tvUpdate(pls, nPl, cameraX, cameraY, alive, maxAlive, !bossStarted);
 
         separateEnemies(enemies, MAX_ENEMIES);
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -1465,7 +1529,7 @@ SceneId showScene21() {
     lidReleaseAll();
     mhReleaseAll();
     metersReleaseAll();
-    if (tvSpr) { SPR_releaseSprite(tvSpr); tvSpr = NULL; }
+    tvRelease();
     bebopRelease(&bebop);      // el jefe y sus aros (tambien si el nivel se
                                // corta por game over en plena pelea)
     if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }
@@ -1477,6 +1541,7 @@ SceneId showScene21() {
         for (u8 k = 0; k < nPl; k++) playerPersistSave(pls[k]);
 
     clearScene();
+    DMA_setMaxQueueSizeToDefault();
     if (jump != PAUSE_NO_JUMP) return jump;
     return won ? SCENE_3_1_TITLE : SCENE_GAME_OVER;
 }

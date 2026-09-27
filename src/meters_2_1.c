@@ -62,6 +62,10 @@ bool metersBlock(s16 fx, s16 fy) {
     return FALSE;
 }
 
+// Celda grande espejada? El arte mira como un golpe hacia la izquierda: se
+// espeja cuando sale volando a la derecha (dir > 0).
+#define METER_FLIPPED(dir)  ((bool)((dir) > 0))
+
 bool metersPlayerHits(Player** pls, u8 nPl) {
     bool any = FALSE;
     for (u16 i = 0; i < METERS_COUNT; i++) {
@@ -74,9 +78,10 @@ bool metersPlayerHits(Player** pls, u8 nPl) {
             // se decide por el LADO en que esta la tortuga, no por hacia donde
             // mira. Con el facing, un golpe que conectaba de espaldas (el giro
             // del especial, o los 12 px de tolerancia hacia atras) lo mandaba
-            // hacia la tortuga y con el flip al reves. El arte del sheet es el
-            // de un golpe HACIA LA DERECHA (cabeza atras, base adelante); para
-            // la izquierda se espeja.
+            // hacia la tortuga y con el flip al reves. (27/09) Gustavo: el flip
+            // estaba invertido; el arte del sheet es el de un golpe HACIA LA
+            // IZQUIERDA, asi que se espeja cuando sale volando a la DERECHA
+            // (ver METER_FLIPPED).
             {
                 s16 pcx = (s16)(pls[k]->x + PLAYER_SPRITE_W / 2);
                 if (meters[i].x > pcx)      meters[i].dir = 1;
@@ -94,7 +99,7 @@ bool metersPlayerHits(Player** pls, u8 nPl) {
             if (meters[i].sprite) {
                 SPR_setAutoAnimation(meters[i].sprite, FALSE);
                 SPR_setAnimAndFrame(meters[i].sprite, 0, 0);
-                SPR_setHFlip(meters[i].sprite, (bool)(meters[i].dir < 0));
+                SPR_setHFlip(meters[i].sprite, METER_FLIPPED(meters[i].dir));
             }
             any = TRUE;
             break;
@@ -166,8 +171,8 @@ void metersUpdate(s16 camX, s16 camY) {
         // Golpeado o volando: celda grande. Con HFlip el palo queda en
         // METER_FLY_W - METER_FLY_PX desde el borde izquierdo.
         if (meters[i].sprite) {
-            s16 px = (meters[i].dir < 0) ? (s16)(METER_FLY_W - METER_FLY_PX)
-                                         : METER_FLY_PX;
+            s16 px = METER_FLIPPED(meters[i].dir) ? (s16)(METER_FLY_W - METER_FLY_PX)
+                                                  : METER_FLY_PX;
             SPR_setPosition(meters[i].sprite, (s16)(sx - px),
                             (s16)(meterY[i] - METER_FOOT_OFFSET - camY));
             SPR_setDepth(meters[i].sprite, (s16)(-meterY[i]));
