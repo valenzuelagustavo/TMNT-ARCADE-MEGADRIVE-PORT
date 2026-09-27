@@ -116,6 +116,15 @@ int main()
         case SCENE_8_1:
             currentScene = showScene81();
             break;
+        case SCENE_9_1_TITLE:
+            currentScene = showScene91Title();
+            break;
+        case SCENE_9_1:
+            currentScene = showScene91();
+            break;
+        case SCENE_THE_END:
+            currentScene = showTheEnd();
+            break;
         case SCENE_GAME_OVER:
             currentScene = showGameOver();
             break;

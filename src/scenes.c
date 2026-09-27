@@ -2396,8 +2396,8 @@ SceneId showScene21Title() {
 }
 
 // ---------------------------------------------------------------------------
-// 7 ter. Títulos de las SCENE 3 a 8 (cloaca, garage, freeway, skate,
-// fabrica, Technodrome) (26-27/09)
+// 7 ter. Títulos de las SCENE 3 a 9 (cloaca, garage, freeway, skate,
+// fabrica, Technodrome, sala final) (26-27/09)
 // ---------------------------------------------------------------------------
 // Mismo tratamiento que los otros dos. La segunda línea es PROVISORIA: falta
 // confirmar el texto exacto del arcade para cada escena.
@@ -2407,6 +2407,7 @@ SceneId showScene21Title() {
 #define SCENE6_TITLE_LINE2  "SKATE THE HIGHWAY!!"
 #define SCENE7_TITLE_LINE2  "INTO THE FACTORY!!"
 #define SCENE8_TITLE_LINE2  "THE TECHNODROME!!"
+#define SCENE9_TITLE_LINE2  "SHOWDOWN WITH SHREDDER!!"
 
 static SceneId showStageTitle(const char* line1, const char* line2, SceneId next) {
     clearScene();
@@ -2463,6 +2464,56 @@ SceneId showScene71Title() {
 
 SceneId showScene81Title() {
     return showStageTitle("SCENE 8", SCENE8_TITLE_LINE2, SCENE_8_1);
+}
+
+SceneId showScene91Title() {
+    return showStageTitle("SCENE 9", SCENE9_TITLE_LINE2, SCENE_9_1);
+}
+
+// ---------------------------------------------------------------------------
+// 7 quater. Pantalla FINAL (27/09): despues de vencer a Shredder. Mismo
+// tratamiento que los titulos; los textos son PROVISORIOS. Despues, los
+// creditos del equipo (SCENE_SGDK), los del soundtrack y de vuelta a la intro.
+// ---------------------------------------------------------------------------
+#define THE_END_LINE1  "CONGRATULATIONS!!"
+#define THE_END_LINE2  "APRIL IS SAFE AGAIN."
+#define THE_END_LINE3  "THE END"
+#define THE_END_SECS   8
+
+SceneId showTheEnd() {
+    clearScene();
+    while (JOY_readJoypad(JOY_1) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    VDP_loadFont(&title_font, DMA);
+    PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPalette(PAL0);
+    VDP_setBackgroundColor(0);
+
+    const char* lines[3] = { THE_END_LINE1, THE_END_LINE2, THE_END_LINE3 };
+    static const u16 rows[3] = { 9, 12, 17 };
+    bool skipped = FALSE;
+    for (u16 i = 0; i < 3 && !skipped; i++)
+        skipped = drawTextTypewriter(lines[i], (u16)((40 - strlen(lines[i])) / 2), rows[i],
+                                     TITLE_CHAR_DELAY);
+    if (skipped)
+        for (u16 i = 0; i < 3; i++)
+            VDP_drawText(lines[i], (u16)((40 - strlen(lines[i])) / 2), rows[i]);
+
+    XGM2_setLoopNumber(0);
+    playMusicVol(music_ending, 90);
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * THE_END_SECS;
+    while (timer > 0) {
+        timer--;
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SYS_doVBlankProcess();
+    }
+    XGM2_stop();
+    XGM2_setLoopNumber(-1);
+
+    VDP_loadFont(&font_default, DMA);
+    clearScene();
+    return SCENE_SGDK;
 }
 
 // ---------------------------------------------------------------------------

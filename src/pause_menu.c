@@ -56,6 +56,7 @@ static const PauseRow levelRows[] = {
     { "SCENE 6", 1, { "6-1" },        { SCENE_6_1 } },
     { "SCENE 7", 1, { "7-1" },        { SCENE_7_1 } },
     { "SCENE 8", 1, { "8-1" },        { SCENE_8_1 } },
+    { "SCENE 9", 1, { "9-1" },        { SCENE_9_1 } },
 };
 #define LEVEL_ROWS  ((u16)(sizeof(levelRows) / sizeof(levelRows[0])))
 #define ITEMS       ((u16)(LEVEL_ROWS + 1))   // item 0 = SEGUIR

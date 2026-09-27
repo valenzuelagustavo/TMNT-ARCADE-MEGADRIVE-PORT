@@ -571,6 +571,6 @@ SceneId showScene81() {
     VDP_setTextPlane(BG_A);
     clearScene();          // tambien vuelve el scroll a modo plano
     if (jump != PAUSE_NO_JUMP) return jump;
-    if (win && !allOut) return SCENE_GAME_OVER;   // (todavia no hay Scene 9)
+    if (win && !allOut) return SCENE_9_1_TITLE;
     return SCENE_GAME_OVER;
 }

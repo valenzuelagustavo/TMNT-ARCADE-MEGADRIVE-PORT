@@ -38,6 +38,9 @@ typedef enum {
     SCENE_7_1,          // Nivel 7-1: la fabrica, jefe Granitor
     SCENE_8_1_TITLE,    // (27/09) "SCENE 8"
     SCENE_8_1,          // Nivel 8-1: el Technodrome (ascensor en diagonal), jefe Traag
+    SCENE_9_1_TITLE,    // (27/09) "SCENE 9"
+    SCENE_9_1,          // Nivel 9-1: la sala del portal, pelea final con Shredder
+    SCENE_THE_END,      // (27/09) Pantalla final -> creditos del equipo (SCENE_SGDK)
     SCENE_GAME_OVER
 } SceneId;
 
@@ -71,6 +74,9 @@ SceneId showScene71Title();
 SceneId showScene71();
 SceneId showScene81Title();
 SceneId showScene81();
+SceneId showScene91Title();
+SceneId showScene91();
+SceneId showTheEnd();
 SceneId showGameOver();
 
 // Arranca una pista con el volumen dado (XGM2 permite regular volumen en vivo).
