@@ -9,7 +9,7 @@
 //
 // JEFE: el TENIENTE GRANITOR (granitor.c, portado del companero). Con las
 // oleadas limpias y la camara en el fondo entra caminando por la derecha; el
-// nivel se gana cuando se desarma. PAL3 es suya.
+// nivel se gana cuando se desarma (y sigue la Scene 8). PAL3 es suya.
 // Musica: todavia no hay tema de la fabrica; suena el del 2-1.
 // ===========================================================================
 
@@ -90,7 +90,7 @@ static const StageLevel level71 = {
     .bossUpdate   = bossUpdate71,
     .bossDying    = bossDying71,
     .bossRelease  = bossRelease71,
-    .nextScene    = SCENE_GAME_OVER,   // (todavia no hay Scene 8)
+    .nextScene    = SCENE_8_1_TITLE,
 };
 
 SceneId showScene71() {

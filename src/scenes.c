@@ -2396,8 +2396,8 @@ SceneId showScene21Title() {
 }
 
 // ---------------------------------------------------------------------------
-// 7 ter. Títulos de las SCENE 3 a 7 (cloaca, garage, freeway, skate,
-// fabrica) (26/09)
+// 7 ter. Títulos de las SCENE 3 a 8 (cloaca, garage, freeway, skate,
+// fabrica, Technodrome) (26-27/09)
 // ---------------------------------------------------------------------------
 // Mismo tratamiento que los otros dos. La segunda línea es PROVISORIA: falta
 // confirmar el texto exacto del arcade para cada escena.
@@ -2406,6 +2406,7 @@ SceneId showScene21Title() {
 #define SCENE5_TITLE_LINE2  "HIT THE FREEWAY!!"
 #define SCENE6_TITLE_LINE2  "SKATE THE HIGHWAY!!"
 #define SCENE7_TITLE_LINE2  "INTO THE FACTORY!!"
+#define SCENE8_TITLE_LINE2  "THE TECHNODROME!!"
 
 static SceneId showStageTitle(const char* line1, const char* line2, SceneId next) {
     clearScene();
@@ -2458,6 +2459,10 @@ SceneId showScene61Title() {
 
 SceneId showScene71Title() {
     return showStageTitle("SCENE 7", SCENE7_TITLE_LINE2, SCENE_7_1);
+}
+
+SceneId showScene81Title() {
+    return showStageTitle("SCENE 8", SCENE8_TITLE_LINE2, SCENE_8_1);
 }
 
 // ---------------------------------------------------------------------------

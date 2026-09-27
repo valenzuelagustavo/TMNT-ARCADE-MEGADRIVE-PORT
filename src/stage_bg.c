@@ -149,3 +149,90 @@ void sbgUpdate(s16 camX) {
 }
 
 u16 sbgUsed(void) { return used; }
+
+// ---------------------------------------------------------------------------
+// 2D (27/09, Technodrome): ventana de SBG_WIN_COLS x SBG_WIN_ROWS celdas que
+// sigue a la camara en X e Y. El plano es el circular de 64x32: la celda de
+// mundo (c, r) va en (c & 63, r & 31). Una columna nueva trae las filas de la
+// ventana y una fila nueva las columnas; se sueltan igual. El indice 0 del
+// mapa es el VACIO: no ocupa slot y se dibuja con el tile 0 (transparente).
+// ---------------------------------------------------------------------------
+static s16 rowTop, rowBot;            // ventana de filas de MUNDO dibujadas
+
+static u16 cellAttr2(s16 col, s16 row) {
+    if (col < 0 || row < 0 || col >= (s16)sbgMapW || row >= (s16)sbgMapH) return 0;
+    u16 e    = sbgMap[(u32)row * sbgMapW + (u16)col];
+    u16 tile = cellTile(e);
+    if (tile == 0 || tile >= SBG_MAX_TILES) return 0;
+    u16 s = slotAcquire(tile);
+    if (s == SBG_NONE) return 0;
+    return (u16)(cellFlip(e) | TILE_ATTR(sbgPal, FALSE, FALSE, FALSE) | (sbgVram + s));
+}
+
+static void cellDrop2(s16 col, s16 row) {
+    if (col < 0 || row < 0 || col >= (s16)sbgMapW || row >= (s16)sbgMapH) return;
+    u16 tile = cellTile(sbgMap[(u32)row * sbgMapW + (u16)col]);
+    if (tile == 0 || tile >= SBG_MAX_TILES) return;
+    slotRelease(tile);
+}
+
+static void colLoad2(s16 col) {
+    for (s16 r = rowTop; r <= rowBot; r++)
+        VDP_setTileMapXY(sbgPlane, cellAttr2(col, r), (u16)(col & 63), (u16)(r & 31));
+}
+static void colUnload2(s16 col) {
+    for (s16 r = rowTop; r <= rowBot; r++) cellDrop2(col, r);
+}
+static void rowLoad2(s16 row) {
+    for (s16 c = colLeft; c <= colRight; c++)
+        VDP_setTileMapXY(sbgPlane, cellAttr2(c, row), (u16)(c & 63), (u16)(row & 31));
+}
+static void rowUnload2(s16 row) {
+    for (s16 c = colLeft; c <= colRight; c++) cellDrop2(c, row);
+}
+
+void sbgInitRaw2D(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
+                  u16 slots, s16 camX, s16 camY) {
+    sbgTiles = raw->tiles;
+    sbgWide  = TRUE;
+    sbgMap   = raw->map;
+    sbgMapW  = raw->w;
+    sbgMapH  = raw->h;
+    sbgPlane = plane;
+    sbgPal   = pal;
+    sbgVram  = vramBase;
+    sbgSlots = (slots > SBG_MAX_SLOTS) ? SBG_MAX_SLOTS : slots;
+
+    for (u16 i = 0; i < SBG_MAX_TILES; i++) tileSlot[i] = SBG_NONE;
+    freeTop = 0;
+    for (u16 s = sbgSlots; s > 0; s--) {
+        slotRef[s - 1] = 0;
+        freeStack[freeTop++] = (u16)(s - 1);
+    }
+    used = 0;
+
+    upTm     = DMA;
+    colLeft  = (s16)(camX >> 3);
+    colRight = (s16)(colLeft + SBG_WIN_COLS - 1);
+    rowTop   = (s16)(camY >> 3);
+    rowBot   = (s16)(rowTop + SBG_WIN_ROWS - 1);
+    for (s16 c = colLeft; c <= colRight; c++) colLoad2(c);
+    upTm     = CPU;
+}
+
+void sbgUpdate2D(s16 camX, s16 camY) {
+    s16 wantL = (s16)(camX >> 3);
+    s16 wantR = (s16)(wantL + SBG_WIN_COLS - 1);
+    s16 wantT = (s16)(camY >> 3);
+    s16 wantB = (s16)(wantT + SBG_WIN_ROWS - 1);
+    // Primero soltar lo que salio, despues traer lo que entro (el pico nunca
+    // pasa de la ventana). Las columnas usan las filas actuales y viceversa.
+    while (colLeft < wantL)  colUnload2(colLeft++);
+    while (colRight > wantR) colUnload2(colRight--);
+    while (rowTop < wantT)   rowUnload2(rowTop++);
+    while (rowBot > wantB)   rowUnload2(rowBot--);
+    while (colRight < wantR) colLoad2(++colRight);
+    while (colLeft > wantL)  colLoad2(--colLeft);
+    while (rowBot < wantB)   rowLoad2(++rowBot);
+    while (rowTop > wantT)   rowLoad2(--rowTop);
+}

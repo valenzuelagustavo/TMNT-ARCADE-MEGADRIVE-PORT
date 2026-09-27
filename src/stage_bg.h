@@ -28,6 +28,7 @@
 // ===========================================================================
 
 #define SBG_WIN_COLS  42      // columnas dibujadas: 40 visibles + scroll fino + 1
+#define SBG_WIN_ROWS  29      // (2D) filas dibujadas: 28 visibles + scroll fino
 
 // FORMATO ANCHO (26/09, freeway): el tilemap de un IMAGE de rescomp guarda el
 // indice en 11 bits, asi que un fondo con MAS de 2048 tiles unicos no se puede
@@ -53,6 +54,14 @@ void sbgInit(const Image* img, VDPPlane plane, u16 pal, u16 vramBase,
 // Lo mismo con un fondo en formato ancho.
 void sbgInitRaw(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
                 u16 slots, s16 camX);
+
+// (27/09) Variante 2D (Technodrome): la ventana sigue a la camara en X e Y
+// sobre un plano circular de 64x32. Mapa en formato ancho; el indice 0 es el
+// vacio (tile 0, transparente, no ocupa cache). Una instancia por vez: no se
+// mezcla con sbgInit/sbgInitRaw.
+void sbgInitRaw2D(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
+                  u16 slots, s16 camX, s16 camY);
+void sbgUpdate2D(s16 camX, s16 camY);
 
 // Trae las columnas que entraron y suelta las que salieron. Una vez por
 // frame, ANTES de fijar el scroll. Tambien funciona hacia atras.
