@@ -1017,6 +1017,9 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     e->hp -= dmg;
     if (e->hp <= 0) {
         e->state = ENEMY_STATE_DEAD;
+        e->deathDir = 0;             // sin empuje salvo que lo pida enemyDeathPush
+        e->deathSpeed = 0;
+        e->deathTick = 0;
         e->timer = enemyExplodeTime(e);
         enemyRestartAnim(e, enemyAnimExplode(e), FALSE);
         return TRUE;
@@ -1028,6 +1031,15 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     e->invincible = ENEMY_INVINCIBLE;
     enemyRestartAnim(e, enemyAnimHit(e), FALSE);
     return TRUE;
+}
+
+void enemyDeathPush(Enemy* e, s16 fromX, s8 facing, bool special) {
+    if (e->state != ENEMY_STATE_DEAD) return;
+    s16 cx = getEnemyCenterX(e);
+    s8 dir = (cx > fromX) ? 1 : (cx < fromX) ? -1 : ((facing >= 0) ? 1 : -1);
+    e->deathDir   = dir;
+    e->deathSpeed = special ? ENEMY_DEATH_PUSH_SPECIAL : ENEMY_DEATH_PUSH;
+    e->deathTick  = 0;
 }
 
 bool enemyCanBeHit(const Enemy* e) {
@@ -1099,7 +1111,16 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     u16 explodeTime = enemyExplodeTime(e);
 
     if (e->state == ENEMY_STATE_DEAD) {
-        // Sin empuje: muere EN EL LUGAR (igual que HURT, sin retroceso en X).
+        // (27/09) Empuje de la muerte (ver ENEMY_DEATH_PUSH): se desliza
+        // frenando, dentro de los limites del nivel.
+        if (e->deathDir && e->deathSpeed) {
+            e->x = clampS16((s16)(e->x + e->deathDir * e->deathSpeed),
+                            enemyMinX(e), enemyMaxX(e));
+            if (++e->deathTick >= ENEMY_DEATH_PUSH_STEP) {
+                e->deathTick = 0;
+                e->deathSpeed--;
+            }
+        }
         if (e->timer > 0) {
             e->timer--;
             if (e->timer == 0) {

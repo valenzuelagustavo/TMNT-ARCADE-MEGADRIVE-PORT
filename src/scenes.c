@@ -3488,6 +3488,9 @@ SceneId showScene11() {
                 if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
                     addPlayerScore(attacker, 1);
+                    // (27/09) El golpe que lo mata lo lanza (ver ENEMY_DEATH_PUSH).
+                    enemyDeathPush(&enemies[i], (s16)(attacker->x + PLAYER_SPRITE_W / 2),
+                                   getPlayerDir(attacker), isPlayerSpecialAttack(attacker));
                 }
             }
         }
@@ -4840,6 +4843,9 @@ SceneId showScene12() {
                 if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
                     addPlayerScore(attacker, 1);
+                    // (27/09) El golpe que lo mata lo lanza (ver ENEMY_DEATH_PUSH).
+                    enemyDeathPush(&enemies[i], (s16)(attacker->x + PLAYER_SPRITE_W / 2),
+                                   getPlayerDir(attacker), isPlayerSpecialAttack(attacker));
                 }
             }
         }

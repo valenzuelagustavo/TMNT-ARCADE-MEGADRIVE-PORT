@@ -509,6 +509,9 @@ SceneId showScene81() {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                                    SOUND_PCM_CH3, 15, FALSE, FALSE);
                     addPlayerScore(att, 1);
+                    // (27/09) El golpe que lo mata lo lanza (ver ENEMY_DEATH_PUSH).
+                    enemyDeathPush(&enemies[i], (s16)(att->x + PLAYER_SPRITE_W / 2),
+                                   getPlayerDir(att), isPlayerSpecialAttack(att));
                 }
             }
         }

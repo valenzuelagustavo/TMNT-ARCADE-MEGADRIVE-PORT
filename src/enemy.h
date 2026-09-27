@@ -304,9 +304,17 @@
 
 // Muerte con explosión (anim 5 = 4 frames x 8) y rotura de puerta al spawnear
 // (anim 7: se reproduce desde el 2do frame → quedan 4 frames x 8).
-// Sin retroceso: el enemigo muere (y se golpea) EN EL LUGAR, sin desplazarse
-// en X — se eliminó el knockback de HURT y el empuje de la muerte.
+// Sin retroceso en HURT: el golpe comun no lo mueve en X.
+// (27/09) LA MUERTE SI: termino medio entre morir en el lugar (lo nuestro) y
+// el empuje de Ray (4 px/frame durante toda la explosion, ~190 px). El golpe
+// que lo mata lo lanza alejandolo de la tortuga: arranca a
+// ENEMY_DEATH_PUSH px/frame y baja 1 cada ENEMY_DEATH_PUSH_STEP frames
+// (5+4+3+2+1 = 15 x 4 = 60 px, y quieto el resto de la explosion). El
+// especial lo lanza un poco mas lejos (ENEMY_DEATH_PUSH_SPECIAL: 84 px).
 #define ENEMY_EXPLODE_TIME     48   // Muerte: 6 frames x 8 ticks
+#define ENEMY_DEATH_PUSH        5   // px/frame iniciales del empuje de la muerte
+#define ENEMY_DEATH_PUSH_SPECIAL 6
+#define ENEMY_DEATH_PUSH_STEP   4   // frames entre cada px/frame que pierde
 #define ENEMY_BREAK_DOOR_TIME  32
 // Spawn desde ascensor: sólo los 2 últimos frames de BREAK_DOOR (índices 3-4).
 #define ENEMY_ELEV_SPAWN_TIME  16
@@ -484,6 +492,10 @@ typedef struct {
                               // WHITE_FALL_GRAV_DIV): cuenta frames y solo
                               // acelera 1 de cada N, para que la caida del
                               // espadazo aereo no sea una plomada.
+    // --- Empuje de la muerte (27/09) ---
+    s8          deathDir;     // hacia donde lo lanza el golpe (0 = en el lugar)
+    u8          deathSpeed;   // px/frame actuales (van bajando)
+    u8          deathTick;
 } Enemy;
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
@@ -559,6 +571,10 @@ void setEnemyCamera(Enemy* e, s16 camX);
 void setEnemyBounds(Enemy* e, s16 laneTop, s16 laneBottom,
                     s16 wallXTop, s16 wallXBottom, s16 levelW);
 bool damageEnemy(Enemy* e, s16 dmg);
+// (27/09) Llamar despues del golpe de una tortuga que lo MATO: lo lanza
+// alejandolo de 'fromX' (el centro de la tortuga; si coinciden, hacia donde
+// ella mira). 'special' = el especial, que lo lanza mas lejos.
+void enemyDeathPush(Enemy* e, s16 fromX, s8 facing, bool special);
 bool enemyCanBeHit(const Enemy* e);
 s16  getEnemyCenterX(const Enemy* e);
 s16  getEnemyCenterY(const Enemy* e);
