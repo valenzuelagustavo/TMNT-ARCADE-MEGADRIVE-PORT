@@ -64,6 +64,9 @@ bool pauseLevelSelect(void);
 // Olvida el START que venga apretado de la escena anterior. Llamar una vez,
 // justo antes del bucle principal del nivel.
 void pauseReset(void);
+// (29/09) Scroll vertical de BG_A en px (0 = ninguno), para que el recuadro de
+// la pausa caiga en su lugar de pantalla. Lo actualiza stage_level.
+void pauseSetVScroll(s16 px);
 
 // Llamar al PRINCIPIO de cada frame del nivel (antes de los continues). Si
 // no se pulso START, vuelve enseguida con PAUSE_NO_JUMP. Si se pulso, se

@@ -9,7 +9,9 @@
 // cache se llenaba y las celdas sin lugar salian NEGRAS (slotAcquire), que
 // eran los bloques negros del sewer. OJO: bgSlots de un nivel por encima de
 // este tope se recorta en silencio.
-#define SBG_MAX_SLOTS    832
+// (29/09) 832 -> 896: con la camara vertical la cloaca dibuja 32 filas y su
+// peor caso sube a 861 (bgSlots 864).
+#define SBG_MAX_SLOTS    896
 #define SBG_NONE      0xFFFF
 
 static const u32*   sbgTiles;

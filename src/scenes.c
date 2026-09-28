@@ -440,6 +440,10 @@ void clearSceneEx(bool keepAudio) {
     VDP_setHorizontalScroll(BG_B, 0);
     VDP_setVerticalScroll(BG_A, 0);
     VDP_setVerticalScroll(BG_B, 0);
+    // (29/09) Sin plano WINDOW (la cloaca lo usa para el HUD con la camara
+    // vertical): VPos 0 arriba = apagado.
+    VDP_setWindowVPos(FALSE, 0);
+    VDP_setWindowHPos(FALSE, 0);
     VDP_setBackgroundColor(0);
     hudSetPlane(BG_A);
     SYS_doVBlankProcess();

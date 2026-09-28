@@ -57,6 +57,18 @@ typedef struct {
     const SpriteDefinition* fgTop;
     const s16*    fgTopX;
     u16           fgTopN;
+    // (29/09) fgTopF != NULL: fgTop trae un frame por columna DISTINTA y
+    // fgTopF[i] dice cual usa la columna i. Los tiles de cada frame se cargan
+    // UNA vez (fgTopFrames frames, VRAM de planos) y los sprites los comparten.
+    const u8*     fgTopF;
+    u16           fgTopFrames;
+    // (29/09) CAMARA VERTICAL. camYMin < 0: el fondo (y el primer plano) tiene
+    // -camYMin px mas ARRIBA de la y = 0 del mundo (fila 0 de la imagen =
+    // y camYMin) y la camara sube hasta ahi siguiendo a las tortugas. Alto de
+    // la imagen: 224 - camYMin (maximo 256 = el plano de 32 filas). El HUD pasa
+    // al plano WINDOW (filas 0-3), asi BG_A puede scrollear en vertical entero.
+    // 0 = sin camara vertical (como siempre).
+    s16           camYMin;
     const Image*  far;          // capa lejana (entera en VRAM, PAL3), o NULL
     u16           farDiv;       // parallax: la capa lejana anda camX / farDiv
     u16           farRowShift;  // filas de la capa lejana que se saltean arriba

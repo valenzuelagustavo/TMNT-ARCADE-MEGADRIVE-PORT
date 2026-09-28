@@ -83,7 +83,7 @@ static void ratSetAnim(BaxterRat* r, u8 a, bool loop) {
 static void ratRender(BaxterRat* r, s16 camX) {
     if (!r->sprite) return;
     SPR_setHFlip(r->sprite, (r->dir < 0));
-    SPR_setPosition(r->sprite, r->x - camX - RAT_FRAME_W / 2, r->y - 36 - r->z);
+    SPR_setPosition(r->sprite, r->x - camX - RAT_FRAME_W / 2, r->y - 36 - r->z - stageCamY);
     SPR_setDepth(r->sprite, -(r->y));
 }
 
@@ -99,7 +99,7 @@ static void ratStartBoom(BaxterRat* r, s16 camX) {
     if (r->boomSprite) {
         SPR_setAutoAnimation(r->boomSprite, FALSE);
         SPR_setAnimAndFrame(r->boomSprite, 0, 0);
-        SPR_setPosition(r->boomSprite, r->x - camX - 16, r->y - 36);
+        SPR_setPosition(r->boomSprite, r->x - camX - 16, r->y - 36 - stageCamY);
         SPR_setDepth(r->boomSprite, -(r->y));
     }
 }
@@ -285,7 +285,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                 }
             }
             if (r->boomSprite)
-                SPR_setPosition(r->boomSprite, r->x - camX - 16, r->y - 36);
+                SPR_setPosition(r->boomSprite, r->x - camX - 16, r->y - 36 - stageCamY);
             if (++r->timer > 44) {
                 if (r->boomSprite) { SPR_releaseSprite(r->boomSprite); r->boomSprite = NULL; }
                 r->state = RAT_INACTIVE;
@@ -531,7 +531,7 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
             if (b->boomSprite) SPR_setFrame(b->boomSprite, b->boomFrame);
         }
         if (b->boomSprite)
-            SPR_setPosition(b->boomSprite, b->x - camX - BAXTER_FRAME_W / 2, b->y);
+            SPR_setPosition(b->boomSprite, b->x - camX - BAXTER_FRAME_W / 2, b->y - stageCamY);
         return;
 
     default:
@@ -560,7 +560,7 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
     }
     b->anim = want;
     SPR_setHFlip(b->sprite, TRUE);
-    SPR_setPosition(b->sprite, b->x - camX - BAXTER_FRAME_W / 2, b->y);
+    SPR_setPosition(b->sprite, b->x - camX - BAXTER_FRAME_W / 2, b->y - stageCamY);
     SPR_setDepth(b->sprite, SPR_MIN_DEPTH);      // por encima de ratas y tortugas
 }
 

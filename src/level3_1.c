@@ -46,7 +46,7 @@
 static const SbgRaw sewer31 = {
     (const u32*) bg_sewer_tiles,
     (const u16*) bg_sewer_map,
-    LVL31_W / 8, 28,
+    LVL31_W / 8, 32,        // (29/09) 32 filas: el fondo entero hasta la fila 255
     &pal_sewer,
 };
 
@@ -129,10 +129,15 @@ static void swWaterUpdate(void) {
 }
 
 static u16 swWater[MAX_PLAYERS];
+// (29/09) Con el jefe no salen misiles nuevos (los que ya estan terminan):
+// ademas de no meterse en la pelea, la VRAM de sprites no da para las dos
+// cosas desde que la camara vertical agrando el cache del fondo.
+static bool swBoss;
 static struct { Sprite* spr; s16 x, lane, z; s8 dir; bool rising; } swMis[SW_MIS_MAX];
 static struct { Sprite* spr; s16 x, lane; u8 frame, tick; } swBoom[SW_MIS_MAX];
 
 static void swInit(void) {
+    swBoss       = FALSE;
     swWaterTick  = 0;
     swWaterPhase = 0;
     for (u16 i = 0; i < MAX_PLAYERS; i++) swWater[i] = 0;
@@ -164,7 +169,7 @@ static void swFire(const Player* p, s16 camX) {
         swMis[i].dir  = dir;
         swMis[i].z    = SW_MIS_Z0;
         swMis[i].rising = TRUE;
-        SPR_setPosition(s, (s16)(x - camX - 32), (s16)(swMis[i].lane - SW_MIS_Z0 - 16));
+        SPR_setPosition(s, (s16)(x - camX - 32), (s16)(swMis[i].lane - SW_MIS_Z0 - 16 - stageCamY));
         return;
     }
 }
@@ -198,7 +203,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
         const Player* p = pls[k];
         if (isPlayerGameOver(p) || !p->sprite) { swWater[k] = 0; continue; }
         s16 y = getPlayerY(p);
-        if (y >= LVL31_LEDGE_BOT) {
+        if (y >= LVL31_LEDGE_BOT && !swBoss) {
             if (++swWater[k] >= period) { swWater[k] = 0; swFire(p, camX); }
         } else if (y <= LVL31_LEDGE_TOP) {
             swWater[k] = 0;                 // arriba de la vereda: se corta
@@ -212,7 +217,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
             swMis[i].z += SW_MIS_RISE;
             if (swMis[i].z >= SW_MIS_Z) { swMis[i].z = SW_MIS_Z; swMis[i].rising = FALSE; }
             SPR_setPosition(swMis[i].spr, (s16)(swMis[i].x - camX - 32),
-                            (s16)(swMis[i].lane - swMis[i].z - 16));
+                            (s16)(swMis[i].lane - swMis[i].z - 16 - stageCamY));
             SPR_setDepth(swMis[i].spr, (s16)(-(swMis[i].lane) - 1));
             continue;
         }
@@ -243,7 +248,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
             continue;
         }
         SPR_setPosition(swMis[i].spr, (s16)(swMis[i].x - camX - 32),
-                        (s16)(swMis[i].lane - swMis[i].z - 16));
+                        (s16)(swMis[i].lane - swMis[i].z - 16 - stageCamY));
         SPR_setDepth(swMis[i].spr, (s16)(-(swMis[i].lane) - 1));
     }
 
@@ -260,7 +265,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
             SPR_setFrame(swBoom[i].spr, swBoom[i].frame);
         }
         SPR_setPosition(swBoom[i].spr, (s16)(swBoom[i].x - camX - 16),
-                        (s16)(swBoom[i].lane - SW_MIS_Z - 16));
+                        (s16)(swBoom[i].lane - SW_MIS_Z - 16 - stageCamY));
         SPR_setDepth(swBoom[i].spr, (s16)(-(swBoom[i].lane) - 2));
     }
 }
@@ -277,6 +282,7 @@ static void bossInit31(void) {
 
 static void bossStart31(s16 camX, s16 levelW) {
     (void)levelW;
+    swBoss = TRUE;
     baxterSpawn(&baxter, (s16)(camX + 16), (s16)(camX + SCREEN_W - 16), 96, 216);
 }
 
@@ -304,7 +310,10 @@ static const StageLevel level31 = {
     .fgTop        = &sewer_fg_top,  // los caños siguen en la franja del HUD
     .fgTopX       = lvl31FgTopX,
     .fgTopN       = LVL31_FGTOP_N,
-    .bgSlots      = 800,            // >= 796, el peor caso medido
+    .fgTopF       = lvl31FgTopF,    // frames compartidos (6 columnas distintas)
+    .fgTopFrames  = LVL31_FGTOP_FRAMES,
+    .camYMin      = -32,            // (29/09) la camara sube 32 px: se ve el techo
+    .bgSlots      = 864,            // >= 861, el peor caso medido (fondo de 32 filas)
     .levelW       = LVL31_W,
     .walkTop      = lvl31WalkTop,
     .walkCols     = LVL31_COLS,

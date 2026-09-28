@@ -88,6 +88,13 @@ static void vramRead(u16 addr, u16* dst, u16 nWords) {
 
 static u16 boxCol;      // columna del PLANO donde arranca el recuadro
 
+// (29/09) Scroll VERTICAL de BG_A (la cloaca sube la camara): el recuadro se
+// corre esas filas del plano para seguir cayendo en PAUSE_BOX_ROW de pantalla
+// (con un scroll que no es multiplo de 8 queda corrido esos pocos px).
+static u16 vsRows;
+void pauseSetVScroll(s16 px) { vsRows = (u16)(((px < 0 ? 0 : px) + 4) >> 3); }
+static inline u16 boxRow(u16 relY) { return (u16)((PAUSE_BOX_ROW + vsRows + relY) & 31); }
+
 // Columna de BG_A que se ve en la columna PAUSE_BOX_COL de la pantalla.
 // (Llamar con las interrupciones cortadas: usa el puerto de datos.)
 static u16 findBoxCol(void) {
@@ -106,7 +113,7 @@ static inline u16 planeCol(u16 relX) { return (u16)((boxCol + relX) & 63); }
 static void boxFill(u16 relX, u16 relY, u16 w, u16 attr) {
     for (u16 i = 0; i < w; i++)
         VDP_setTileMapXY(BG_A, attr, planeCol((u16)(relX + i)),
-                         (u16)(PAUSE_BOX_ROW + relY));
+                         boxRow(relY));
 }
 
 static void saveUnderBox(void) {
@@ -116,7 +123,7 @@ static void saveUnderBox(void) {
     boxCol = findBoxCol();
     for (u16 r = 0; r < PAUSE_BOX_H; r++)
         for (u16 c = 0; c < PAUSE_BOX_W; c++)
-            vramRead(VDP_getPlaneAddress(BG_A, planeCol(c), (u16)(PAUSE_BOX_ROW + r)),
+            vramRead(VDP_getPlaneAddress(BG_A, planeCol(c), boxRow(r)),
                      &savedMap[r * PAUSE_BOX_W + c], 1);
     vramRead((u16)(SOLID_TILE * 32), (u16*) savedSolid, 16);
     SYS_enableInts();
@@ -126,7 +133,7 @@ static void restoreUnderBox(void) {
     for (u16 r = 0; r < PAUSE_BOX_H; r++)
         for (u16 c = 0; c < PAUSE_BOX_W; c++)
             VDP_setTileMapXY(BG_A, savedMap[r * PAUSE_BOX_W + c], planeCol(c),
-                             (u16)(PAUSE_BOX_ROW + r));
+                             boxRow(r));
     VDP_loadTileData(savedSolid, SOLID_TILE, 1, CPU);
     VDP_loadTileData(hud_font.tiles, TILE_FONT_INDEX, hud_font.numTile, CPU);
 }
@@ -171,7 +178,7 @@ static void boxClear(u16 relX, u16 relY, u16 w) {
 
 static void boxText(const char* s, u16 relX, u16 relY) {
     u16 x = relX;
-    u16 y = (u16)(PAUSE_BOX_ROW + relY);
+    u16 y = boxRow(relY);
     while (*s) {
         char ch = *s++;
         u16 t = (ch == ' ')

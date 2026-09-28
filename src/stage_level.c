@@ -35,6 +35,46 @@ extern u8 cantidadJugadores;
 
 static const StageLevel* cur;       // el nivel en curso
 
+// (29/09) Camara vertical: ver camYMin en stage_level.h. stageCamY (player.h)
+// es la que restan al dibujar todos los sprites del mundo.
+#define STAGE_CAMY_FEET_TOP  128    // la tortuga mas alta, a esta Y de pantalla
+#define STAGE_CAMY_FEET_BOT  216    // la mas baja, nunca por debajo de esta
+#define STAGE_CAMY_SPEED       1    // px por frame
+static inline bool camYOn(void) { return cur && cur->camYMin < 0; }
+
+// A donde quiere ir la camara: la tortuga mas ALTA (menor Y de pies) cerca de
+// STAGE_CAMY_FEET_TOP en pantalla -- arriba de la vereda se ve el techo --,
+// sin dejar a la mas BAJA por debajo de STAGE_CAMY_FEET_BOT.
+static s16 camYTarget(Player** pls, u8 nPl) {
+    s16 top = 0x7FFF, bot = -0x7FFF;
+    for (u8 k = 0; k < nPl; k++) {
+        if (isPlayerGameOver(pls[k]) || !pls[k]->sprite) continue;
+        s16 y = pls[k]->y;
+        if (y < top) top = y;
+        if (y > bot) bot = y;
+    }
+    if (top == 0x7FFF) return stageCamY;
+    s16 t = (s16)(top - STAGE_CAMY_FEET_TOP);
+    s16 need = (s16)(bot - STAGE_CAMY_FEET_BOT);
+    if (t < need) t = need;
+    if (t < cur->camYMin) t = cur->camYMin;
+    if (t > 0) t = 0;
+    return t;
+}
+
+// Scroll vertical de los dos planos: la fila de la imagen que queda arriba.
+static void camYApply(bool now) {
+    s16 vs = (s16)(stageCamY - cur->camYMin);
+    if (now) {
+        VDP_setVerticalScroll(BG_A, vs);
+        VDP_setVerticalScroll(BG_B, vs);
+    } else {
+        VDP_setVerticalScrollVSync(BG_A, vs);
+        VDP_setVerticalScrollVSync(BG_B, vs);
+    }
+    pauseSetVScroll(vs);
+}
+
 // ---------------------------------------------------------------------------
 // Caminable
 // ---------------------------------------------------------------------------
@@ -140,7 +180,10 @@ static u16 fgBuf[32];
 
 static void fgDrawCol(s16 col) {
     const TileMap* tm = cur->fg->tilemap;
-    for (u16 r = STAGE_HUD_ROWS; r < STAGE_ROWS; r++) {
+    // Con camara vertical el HUD va en WINDOW: se dibujan TODAS las filas.
+    const u16 r0 = camYOn() ? 0 : STAGE_HUD_ROWS;
+    const u16 r1 = camYOn() ? 32 : STAGE_ROWS;
+    for (u16 r = r0; r < r1; r++) {
         u16 v = 0;
         if (col >= 0 && col < (s16)tm->w && r < tm->h) {
             u16 e   = tm->tilemap[(u32)r * tm->w + (u16)col];
@@ -149,10 +192,9 @@ static void fgDrawCol(s16 col) {
                 v = (u16)((e & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
                           | TILE_ATTR(PAL0, TRUE, FALSE, FALSE) | (fgVram + idx));
         }
-        fgBuf[r - STAGE_HUD_ROWS] = v;
+        fgBuf[r - r0] = v;
     }
-    VDP_setTileMapDataRect(BG_A, fgBuf, (u16)(col & 63), STAGE_HUD_ROWS,
-                           1, STAGE_ROWS - STAGE_HUD_ROWS, 1, CPU);
+    VDP_setTileMapDataRect(BG_A, fgBuf, (u16)(col & 63), r0, 1, (u16)(r1 - r0), 1, CPU);
 }
 
 static void fgUpdate(s16 camX) {
@@ -171,15 +213,44 @@ static void fgUpdate(s16 camX) {
 #define STAGE_FGTOP_MAX 16
 static Sprite* fgTopSpr[STAGE_FGTOP_MAX];
 
-static void fgTopInit(void) {
+// Tiles por frame de fgTop (todos los frames miden lo mismo).
+static u16 fgTopTilesPerFrame(void) {
+    return (u16)((cur->fgTop->w >> 3) * (cur->fgTop->h >> 3));
+}
+// VRAM de planos que piden los frames compartidos de fgTop (0 si no hay).
+static u16 fgTopSharedTiles(const StageLevel* L) {
+    if (!L->fgTop || !L->fgTopF) return 0;
+    return (u16)(L->fgTopFrames * ((L->fgTop->w >> 3) * (L->fgTop->h >> 3)));
+}
+
+static void fgTopInit(u16 sharedVram) {
     for (u16 i = 0; i < STAGE_FGTOP_MAX; i++) fgTopSpr[i] = NULL;
     if (!cur->fgTop) return;
+    const u16 tpf = fgTopTilesPerFrame();
+    if (cur->fgTopF) {
+        // Cada frame DISTINTO se carga una sola vez; los sprites apuntan ahi.
+        const Animation* an = cur->fgTop->animations[0];
+        for (u16 f = 0; f < cur->fgTopFrames && f < an->numFrame; f++)
+            VDP_loadTileSet(an->frames[f]->tileset, (u16)(sharedVram + f * tpf), DMA);
+    }
     for (u16 i = 0; i < cur->fgTopN && i < STAGE_FGTOP_MAX; i++) {
-        // Prioridad BAJA: el texto del HUD (BG_A, prioridad alta) queda encima.
-        Sprite* s = SPR_addSprite(cur->fgTop, 0, 0, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
-        if (!s) continue;
-        SPR_setAutoAnimation(s, FALSE);
-        SPR_setAnimAndFrame(s, 0, (s16)i);
+        // Prioridad BAJA: el texto del HUD (prioridad alta) queda encima.
+        Sprite* s;
+        if (cur->fgTopF) {
+            u16 f = cur->fgTopF[i];
+            s = SPR_addSpriteEx(cur->fgTop, 0, 0,
+                                TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE,
+                                               (u16)(sharedVram + f * tpf)),
+                                SPR_FLAG_AUTO_VISIBILITY);
+            if (!s) continue;
+            SPR_setAutoAnimation(s, FALSE);
+            SPR_setAnimAndFrame(s, 0, (s16)f);
+        } else {
+            s = SPR_addSprite(cur->fgTop, 0, 0, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+            if (!s) continue;
+            SPR_setAutoAnimation(s, FALSE);
+            SPR_setAnimAndFrame(s, 0, (s16)i);
+        }
         SPR_setDepth(s, SPR_MIN_DEPTH + 1);
         SPR_setVisibility(s, HIDDEN);
         fgTopSpr[i] = s;
@@ -194,7 +265,8 @@ static void fgTopUpdate(s16 camX) {
         s16 sx = (s16)(cur->fgTopX[i] - camX);
         bool vis = (sx > -8) && (sx < SCREEN_W);
         SPR_setVisibility(s, vis ? VISIBLE : HIDDEN);
-        if (vis) SPR_setPosition(s, sx, 0);
+        // Con camara vertical el frame arranca en la fila 0 de la imagen.
+        if (vis) SPR_setPosition(s, sx, camYOn() ? (s16)(cur->camYMin - stageCamY) : 0);
     }
 }
 
@@ -230,7 +302,7 @@ static void applyScroll(s16 camX, TransferMethod tm) {
             scrB[r] = (r < STAGE_HUD_ROWS) ? 0 : farX;
         } else {
             scrB[r] = (s16)-camX;
-            scrA[r] = (r < STAGE_HUD_ROWS) ? 0 : (s16)-camX;
+            scrA[r] = (r < STAGE_HUD_ROWS && !camYOn()) ? 0 : (s16)-camX;
         }
     }
     VDP_setHorizontalScrollTile(BG_A, 0, scrA, STAGE_ROWS, tm);
@@ -276,12 +348,14 @@ SceneId stageLevelRun(const StageLevel* L) {
     // En la variante con capa lejana, su tileset ocupa el lugar del primer plano.
     const Image* extra  = L->far ? L->far : L->fg;
     const u16 fgTiles   = extra ? extra->tileset->numTile : 0;
-    const VDPPlane hudPl = L->far ? BG_B : BG_A;
+    const u16 topTiles  = fgTopSharedTiles(L);
+    const VDPPlane hudPl = L->far ? BG_B : (L->camYMin < 0 ? WINDOW : BG_A);
     const s16 camMaxX   = (s16)(L->levelW - SCREEN_W);
 
     // VRAM: HUD | primer plano | cache del fondo | sprites.
     SPR_initEx((u16)(TILE_FONT_INDEX - (TILE_USER_INDEX + barBlocks + fgTiles
-                                        + L->bgSlots)));
+                                        + topTiles + L->bgSlots)));
+    stageCamY = 0;
 
     VDP_setScreenWidth320();
     VDP_setPlaneSize(64, 32, TRUE);
@@ -290,6 +364,12 @@ SceneId stageLevelRun(const StageLevel* L) {
     VDP_setVerticalScroll(BG_B, 0);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
+    if (L->camYMin < 0) {
+        // HUD en WINDOW: las 4 filas de arriba, fijas, tapando a BG_A.
+        VDP_clearPlane(WINDOW, TRUE);
+        VDP_setWindowHPos(FALSE, 0);
+        VDP_setWindowVPos(FALSE, STAGE_HUD_ROWS);
+    }
     VDP_setBackgroundColor((u8)L->backdrop);   // 0 = PAL0[0]: los rips lo usan como color
 
     u8   nPl = nPlSetup;
@@ -301,11 +381,11 @@ SceneId stageLevelRun(const StageLevel* L) {
     if (extra) VDP_loadTileSet(extra->tileset, fgVram, DMA);
     if (L->far) farDraw(fgVram);
     if (L->bgRaw)
-        sbgInitRaw(L->bgRaw, L->far ? BG_A : BG_B, PAL0, (u16)(fgVram + fgTiles),
-                   L->bgSlots, cameraX);
+        sbgInitRaw(L->bgRaw, L->far ? BG_A : BG_B, PAL0,
+                   (u16)(fgVram + fgTiles + topTiles), L->bgSlots, cameraX);
     else
-        sbgInit(L->bg, L->far ? BG_A : BG_B, PAL0, (u16)(fgVram + fgTiles),
-                L->bgSlots, cameraX);
+        sbgInit(L->bg, L->far ? BG_A : BG_B, PAL0,
+                (u16)(fgVram + fgTiles + topTiles), L->bgSlots, cameraX);
     fgColLeft  = 0;
     fgColRight = -1;
     fgUpdate(cameraX);
@@ -313,8 +393,7 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     hudSetPlane(hudPl);
     hudInit();
-    fgTopInit();
-    fgTopUpdate(cameraX);
+    fgTopInit((u16)(fgVram + fgTiles));
 
     Player p1, p2, p3, p4;
     Player* pls[MAX_PLAYERS] = { &p1, &p2, &p3, &p4 };
@@ -376,6 +455,15 @@ SceneId stageLevelRun(const StageLevel* L) {
         target[48 + i] = L->far ? L->far->palette->data[i] : 0;
     }
     for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);   // coloca los sprites
+    if (camYOn()) {
+        stageCamY = camYTarget(pls, nPl);
+        camYApply(TRUE);
+        for (u8 k = 0; k < nPl; k++)
+            if (pls[k]->sprite)
+                SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
+                                pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - stageCamY);
+        fgTopUpdate(cameraX);
+    }
     SPR_update();
 
     XGM2_setLoopNumber(-1);
@@ -421,6 +509,13 @@ SceneId stageLevelRun(const StageLevel* L) {
             if (nc > camMaxX) nc = camMaxX;
             if (nc > cameraX) cameraX = nc;
         }
+        // (29/09) Camara vertical: se acerca de a STAGE_CAMY_SPEED px.
+        if (camYOn()) {
+            s16 t = camYTarget(pls, nPl);
+            if (stageCamY < t) stageCamY = (s16)((t - stageCamY > STAGE_CAMY_SPEED) ? stageCamY + STAGE_CAMY_SPEED : t);
+            else if (stageCamY > t) stageCamY = (s16)((stageCamY - t > STAGE_CAMY_SPEED) ? stageCamY - STAGE_CAMY_SPEED : t);
+            camYApply(FALSE);
+        }
         for (u8 k = 0; k < nPl; k++) {
             setPlayerCamera(pls[k], cameraX);
             setPlayerLeftBound(pls[k], cameraX);
@@ -429,7 +524,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             // del movimiento de camara de este frame: se lo reubica.
             if (pls[k]->sprite)
                 SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
-                                pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]));
+                                pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - stageCamY);
         }
 
         // --- P2 que se suma en plena partida --------------------------------
@@ -479,6 +574,17 @@ SceneId stageLevelRun(const StageLevel* L) {
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
                 if (i >= MAX_ENEMIES) break;
+                // (29/09) Sin VRAM de sprites para su sheet, espera (con la
+                // camara vertical de la cloaca el presupuesto quedo justo): un
+                // soldier sin sprite no se puede animar.
+                {
+                    u8 ty = w->type[waveSpawned];
+                    const SpriteDefinition* def =
+                        (ty == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? &foot_soldier_orange :
+                        (ty == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? &foot_soldier_white  :
+                                                                 &foot_soldier;
+                    if (SPR_getLargestFreeVRAMBlock() < def->maxNumTile) break;
+                }
                 eStepZ[i] = 0;
                 spawnWaveEnemy(&enemies[i], w->type[waveSpawned],
                                w->side[waveSpawned], cameraX);
@@ -501,7 +607,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             ledgeEnemy(e, i, prevEY);
             if (e->sprite)
                 SPR_setPosition(e->sprite, e->x - cameraX,
-                                e->y - e->footOffset - e->jumpZ - eStepZ[i]);
+                                e->y - e->footOffset - e->jumpZ - eStepZ[i] - stageCamY);
         }
 
         // Golpe del jugador al soldier.
@@ -620,6 +726,8 @@ SceneId stageLevelRun(const StageLevel* L) {
     VDP_setTextPalette(PAL0);
     VDP_setTextPlane(BG_A);
     clearScene();          // tambien vuelve el scroll a modo plano y el HUD a BG_A
+    stageCamY = 0;
+    pauseSetVScroll(0);
     cur = NULL;
     if (jump != PAUSE_NO_JUMP) return jump;
     if (win && !allOut) return L->nextScene;

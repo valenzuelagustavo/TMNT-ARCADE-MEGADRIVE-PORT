@@ -524,6 +524,11 @@ s16  getPlayerJumpZ(const Player* p);
 // La usa el nivel 2-1 para bajar de la cornisa de los portones.
 void playerFallTo(Player* p, s16 newFeetY);
 
+// (29/09) Camara VERTICAL de los niveles de stage_level (la cloaca): todo lo
+// que se dibuja en coordenadas de mundo resta esto en Y (pantalla = y - esto).
+// 0 en todos los demas niveles. Ver camYMin en stage_level.h.
+extern s16 stageCamY;
+
 // Devuelve la dirección de la mirada (-1 izquierda, +1 derecha)
 s8   getPlayerDir(const Player* p);
 

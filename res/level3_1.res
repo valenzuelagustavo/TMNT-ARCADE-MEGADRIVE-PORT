@@ -1,28 +1,29 @@
 // =============================================================================
-// level3_1.res  Scene 3: la cloaca (sewer) -- 26/09, fondo nuevo el 28/09
+// level3_1.res  Scene 3: la cloaca (sewer) -- 26/09, fondo nuevo el 28-29/09
 // =============================================================================
-// Arte: "Arcade - Teenage Mutant Ninja Turtles - Backgrounds - Stage 3.png"
-// (la hoja que trajo Gustavo). tools/gen_level3_1_bg.py saca de ahi:
+// Fuentes: bg_sewer.png y bg_sewer_fg.png (las exporta Gustavo, 1252x288, las
+// dos capas del arcade). tools/gen_level3_1_bg.py las prepara (*_md.png, los
+// .bin y la tira de caños de arriba). Ver el encabezado del script.
 //
 // pal_sewer / bg_sewer_tiles / bg_sewer_map
-//             El fondo, 1248x224, 15 colores. Tiene 2253 tiles unicos (el agua
-//             nueva es mucho mas rica que la de Ray): NO entra en el indice de
-//             11 bits de un IMAGE, va en el formato ancho de stage_bg.c y se
-//             streamea por columnas. Peor caso en 42 columnas: 796 tiles.
-//             PAL0. El indice 0 (sin usar en el fondo) quedo en negro.
-// bg_sewer_fg Los caños que pasan por DELANTE (74 tiles): entran enteros y se
-//             dibujan en BG_A con prioridad alta. Misma paleta (PAL0), el
-//             indice 0 transparente. Alineados con el fondo como en la hoja.
+//             El fondo, filas 0..255 (1248x256 = 156x32 tiles): la camara sube
+//             32 px sobre el recorte viejo (camYMin en level3_1.c). 2450 tiles
+//             unicos: NO entra en un IMAGE, va en el formato ancho de
+//             stage_bg.c y se streamea por columnas. Peor caso en 42
+//             columnas: 861. PAL0, con el agua animada (indices 1 y 14).
+// bg_sewer_fg Los caños que pasan por DELANTE, mismas 256 filas: entran
+//             enteros y se dibujan en BG_A con prioridad alta. PAL0, el
+//             indice 0 transparente.
+// sewer_fg_top Lo de los caños que puede quedar DEBAJO DEL HUD (filas 0..63;
+//             el HUD va en el plano WINDOW): 6 frames de 8x64, uno por
+//             columna distinta; stage_level carga sus tiles una sola vez y
+//             los 9 sprites (src/level3_1_fgtop.h) los comparten.
 // =============================================================================
-PALETTE pal_sewer      "images/lvl_3_sewer/bg_sewer.png"
+PALETTE pal_sewer      "images/lvl_3_sewer/bg_sewer_md.png"
 BIN     bg_sewer_tiles "images/lvl_3_sewer/bg_sewer_tiles.bin" 2 2 0 NONE
 BIN     bg_sewer_map   "images/lvl_3_sewer/bg_sewer_map.bin"   2 2 0 NONE
-IMAGE   bg_sewer_fg    "images/lvl_3_sewer/bg_sewer_fg.png"    NONE ALL
-
-// (28/09) Lo del primer plano que cae en la franja del HUD (filas 0-3, que en
-// BG_A no scrollean): 9 frames de 8x32, uno por columna, que stage_level
-// muestra como sprites (fgTop). Sus X de mundo: src/level3_1_fgtop.h.
-SPRITE  sewer_fg_top   "images/lvl_3_sewer/sewer_fg_top.png"   1 4 NONE 0
+IMAGE   bg_sewer_fg    "images/lvl_3_sewer/bg_sewer_fg_md.png" NONE ALL
+SPRITE  sewer_fg_top   "images/lvl_3_sewer/sewer_fg_top.png"   1 8 NONE 0
 
 // (29/09) Misil que sale del AGUA cuando una tortuga camina por el canal, y
 // su explosion. Arte de Traag (traag_missil / traag_explosao) remapeado a la

@@ -373,7 +373,7 @@ void shurikenUpdate(s16 camX) {
         if (shurikens[i].sprite)
             SPR_setPosition(shurikens[i].sprite,
                             shurikens[i].x - shurikens[i].cameraOffsetX,
-                            shurikens[i].y - ENEMY_FOOT_OFFSET_ORANGE + 40);
+                            shurikens[i].y - ENEMY_FOOT_OFFSET_ORANGE + 40 - stageCamY);
     }
 }
 
@@ -1146,7 +1146,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 return;
             }
         }
-        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ);
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
         return;
     }
 
@@ -1215,7 +1215,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             SPR_setAutoAnimation(e->sprite, TRUE);
         }
         SPR_setHFlip(e->sprite, (e->dir < 0));
-        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ);
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
         SPR_setDepth(e->sprite, -(e->y));
         return;
     }
@@ -1702,7 +1702,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     }
 
     SPR_setHFlip(e->sprite, (e->dir < 0));
-    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ);
+    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
     SPR_setDepth(e->sprite, -(e->y));
 }
 

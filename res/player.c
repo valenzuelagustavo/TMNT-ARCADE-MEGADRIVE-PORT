@@ -2,6 +2,8 @@
 #include "player_hitbox.h"   // playerAtkReach: alcance por frame medido sobre el arte
 #include "audio.h"
 
+s16 stageCamY = 0;   // ver player.h
+
 // ===========================================================================
 // MÓDULO DE JUGADOR — MULTI-INSTANCIA
 // ===========================================================================
@@ -804,7 +806,7 @@ void updatePlayer(Player* p) {
     // Durante el ESPECIAL el sprite se dibuja unos px más arriba (el arte es
     // un saltito en el lugar) — offset solo visual, la Y lógica no cambia.
     s16 drawY = p->y - PLAYER_FOOT_OFFSET - playerDrawZ(p);
-    SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, drawY);
+    SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, drawY - stageCamY);
 
     // Prioridad por profundidad (Y-sorting estilo beat-em-up): quien tiene
     // mayor Y de pies está MÁS CERCA de la cámara y debe dibujarse adelante.
@@ -1371,7 +1373,7 @@ static void playerRenderAt(Player* p) {
     // pero el juego sigue.
     if (!p->sprite) return;
 
-    SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, p->y - PLAYER_FOOT_OFFSET);
+    SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, p->y - PLAYER_FOOT_OFFSET - stageCamY);
     SPR_setDepth(p->sprite, -(p->y));
 }
 
