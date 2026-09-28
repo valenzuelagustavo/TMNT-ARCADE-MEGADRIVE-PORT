@@ -19,10 +19,14 @@
 #   bg_sewer_map.bin     mucho mas rica que la de Ray): NO entra en el indice
 #                        de 11 bits de un IMAGE -> formato ancho de stage_bg.c
 #                        (ver tools/stage_raw.py).
-#   bg_sewer_fg.png      1248x224, los caños. Se ubican EXACTO donde los tenia
-#                        Ray (verificado pixel a pixel contra su bg_sewer_fg):
-#                        filas 314..537 de la hoja y 127 px mas a la izquierda
-#                        que en la hoja. Para moverlos: FG_DX / FG_ROW0.
+#   bg_sewer_fg.png      1248x224, los caños. (28/09, 2da pasada) Van ALINEADOS
+#                        con el fondo como estan en la hoja: misma X y el mismo
+#                        recorte vertical (filas 344..567 = 312 + 32). Asi los
+#                        caños horizontales quedan contra la pared y los codos
+#                        de las bajadas justo en el borde del escalon. La
+#                        ubicacion de Ray (127 px a la izquierda y 30 px mas
+#                        abajo) los dejaba cruzando la vereda. Para moverlos:
+#                        FG_DX / FG_ROW0.
 #
 # La paleta es la de la hoja con el indice 0 en NEGRO (el fondo no lo usa;
 # asi el color de fondo del VDP, PAL0[0], no es magenta). En el primer plano
@@ -43,8 +47,8 @@ SRC = os.path.join(D, 'Arcade - Teenage Mutant Ninja Turtles - Backgrounds - Sta
 
 W, H = 1248, 224
 BG_ROW0 = 44          # hoja: fila 12 (arranque del fondo) + 32 de recorte
-FG_ROW0 = 314         # hoja: fila 312 (arranque del primer plano) + 2
-FG_DX = 127           # los caños van 127 px mas a la izquierda que en la hoja
+FG_ROW0 = 344         # hoja: fila 312 (arranque del primer plano) + 32, como el fondo
+FG_DX = 0             # misma X que en la hoja
 
 
 def paletted(img, pal):

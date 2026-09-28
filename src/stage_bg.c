@@ -5,7 +5,11 @@
 // ===========================================================================
 
 #define SBG_MAX_TILES   3072          // tope del tileset de ROM (formato ancho: 12 bits)
-#define SBG_MAX_SLOTS    768
+// (28/09) 768 -> 832: la cloaca nueva pide 800 (peor caso 796). Con 768 el
+// cache se llenaba y las celdas sin lugar salian NEGRAS (slotAcquire), que
+// eran los bloques negros del sewer. OJO: bgSlots de un nivel por encima de
+// este tope se recorta en silencio.
+#define SBG_MAX_SLOTS    832
 #define SBG_NONE      0xFFFF
 
 static const u32*   sbgTiles;

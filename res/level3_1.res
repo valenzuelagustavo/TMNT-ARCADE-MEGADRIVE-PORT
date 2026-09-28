@@ -12,7 +12,7 @@
 //             PAL0. El indice 0 (sin usar en el fondo) quedo en negro.
 // bg_sewer_fg Los caños que pasan por DELANTE (74 tiles): entran enteros y se
 //             dibujan en BG_A con prioridad alta. Misma paleta (PAL0), el
-//             indice 0 transparente. Misma posicion que tenian los de Ray.
+//             indice 0 transparente. Alineados con el fondo como en la hoja.
 // =============================================================================
 PALETTE pal_sewer      "images/lvl_3_sewer/bg_sewer.png"
 BIN     bg_sewer_tiles "images/lvl_3_sewer/bg_sewer_tiles.bin" 2 2 0 NONE
