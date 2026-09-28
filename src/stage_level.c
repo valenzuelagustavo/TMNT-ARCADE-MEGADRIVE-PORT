@@ -158,6 +158,39 @@ static void fgUpdate(s16 camX) {
     if (fgColRight > wantR) fgColRight = wantR;
 }
 
+// Tramos del primer plano en la franja del HUD (filas 0-3), como sprites de
+// 8x32 que scrollean con la camara. Fuera de pantalla se ocultan (una X muy
+// negativa da la vuelta en la VDP).
+#define STAGE_FGTOP_MAX 16
+static Sprite* fgTopSpr[STAGE_FGTOP_MAX];
+
+static void fgTopInit(void) {
+    for (u16 i = 0; i < STAGE_FGTOP_MAX; i++) fgTopSpr[i] = NULL;
+    if (!cur->fgTop) return;
+    for (u16 i = 0; i < cur->fgTopN && i < STAGE_FGTOP_MAX; i++) {
+        // Prioridad BAJA: el texto del HUD (BG_A, prioridad alta) queda encima.
+        Sprite* s = SPR_addSprite(cur->fgTop, 0, 0, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        if (!s) continue;
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, 0, (s16)i);
+        SPR_setDepth(s, SPR_MIN_DEPTH + 1);
+        SPR_setVisibility(s, HIDDEN);
+        fgTopSpr[i] = s;
+    }
+    hudFramesToFront();
+}
+
+static void fgTopUpdate(s16 camX) {
+    for (u16 i = 0; i < STAGE_FGTOP_MAX; i++) {
+        Sprite* s = fgTopSpr[i];
+        if (!s) continue;
+        s16 sx = (s16)(cur->fgTopX[i] - camX);
+        bool vis = (sx > -8) && (sx < SCREEN_W);
+        SPR_setVisibility(s, vis ? VISIBLE : HIDDEN);
+        if (vis) SPR_setPosition(s, sx, 0);
+    }
+}
+
 // Capa lejana (BG_B, PAL3, baja prioridad): entera en VRAM, filas 4-27 del
 // plano (0-3 son del HUD), envuelve cada farW columnas.
 static void farDraw(u16 vram) {
@@ -264,6 +297,8 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     hudSetPlane(hudPl);
     hudInit();
+    fgTopInit();
+    fgTopUpdate(cameraX);
 
     Player p1, p2, p3, p4;
     Player* pls[MAX_PLAYERS] = { &p1, &p2, &p3, &p4 };
@@ -538,6 +573,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         // --- Fondo -----------------------------------------------------------
         sbgUpdate(cameraX);
         fgUpdate(cameraX);
+        fgTopUpdate(cameraX);
         applyScroll(cameraX, DMA_QUEUE);
 
         SPR_update();

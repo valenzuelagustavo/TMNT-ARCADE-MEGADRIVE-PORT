@@ -50,6 +50,13 @@ typedef struct {
     const Image*  bg;           // IMAGE NONE (se streamea), o NULL si va bgRaw
     const SbgRaw* bgRaw;        // fondo en formato ancho (> 2048 tiles), o NULL
     const Image*  fg;           // IMAGE NONE, o NULL
+    // (28/09) El primer plano en BG_A NO se dibuja en las filas 0-3 (son del
+    // HUD y no scrollean). Lo que caiga ahi va como SPRITES de 8x32: un
+    // frame de fgTop por columna de tile, en la X de mundo fgTopX[i]. NULL/0
+    // = nada. Van delante de los personajes y detras de los marcos del HUD.
+    const SpriteDefinition* fgTop;
+    const s16*    fgTopX;
+    u16           fgTopN;
     const Image*  far;          // capa lejana (entera en VRAM, PAL3), o NULL
     u16           farDiv;       // parallax: la capa lejana anda camX / farDiv
     u16           farRowShift;  // filas de la capa lejana que se saltean arriba

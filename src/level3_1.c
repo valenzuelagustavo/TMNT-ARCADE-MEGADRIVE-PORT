@@ -30,6 +30,7 @@
 #include "scenes.h"
 #include "level3_1.h"          // pal_sewer, bg_sewer_tiles/map, bg_sewer_fg (rescomp)
 #include "level3_1_limits.h"   // lvl31WalkTop (generado)
+#include "level3_1_fgtop.h"    // lvl31FgTopX (generado, tools/gen_level3_1_bg.py)
 #include "stage_level.h"
 #include "enemy.h"             // ENEMY_TYPE_*
 #include "baxter.h"
@@ -98,6 +99,9 @@ static void bossRelease31(void) {
 static const StageLevel level31 = {
     .bgRaw        = &sewer31,
     .fg           = &bg_sewer_fg,
+    .fgTop        = &sewer_fg_top,  // los caños siguen en la franja del HUD
+    .fgTopX       = lvl31FgTopX,
+    .fgTopN       = LVL31_FGTOP_N,
     .bgSlots      = 800,            // >= 796, el peor caso medido
     .levelW       = LVL31_W,
     .walkTop      = lvl31WalkTop,

@@ -27,6 +27,13 @@
 #                        ubicacion de Ray (127 px a la izquierda y 30 px mas
 #                        abajo) los dejaba cruzando la vereda. Para moverlos:
 #                        FG_DX / FG_ROW0.
+#   sewer_fg_top.png     (28/09) Lo del primer plano que cae en las filas 0-3
+#   src/level3_1_fgtop.h (la franja del HUD, que en BG_A no scrollea): una
+#                        tira de frames de 8x32, uno por columna de tile con
+#                        algo dibujado, y la X de mundo de cada uno. stage_level
+#                        los muestra como sprites (ver fgTop en stage_level.h).
+#                        Sin esto las bajadas de los caños arrancaban recien
+#                        debajo del HUD y parecian mas bajas que el nivel.
 #
 # La paleta es la de la hoja con el indice 0 en NEGRO (el fondo no lo usa;
 # asi el color de fondo del VDP, PAL0[0], no es magenta). En el primer plano
@@ -71,6 +78,25 @@ def main():
     # crop() fuera de la hoja rellena con 0 (transparente).
     fg = paletted(src.crop((FG_DX, FG_ROW0, FG_DX + W, FG_ROW0 + H)), pal)
     fg.save(os.path.join(D, 'bg_sewer_fg.png'), transparency=0)
+
+    # Tramos del primer plano en la franja del HUD (filas de tile 0-3).
+    TOP = 32
+    cols = [c for c in range(W // 8)
+            if any(fg.getpixel((c * 8 + x, y)) for x in range(8) for y in range(TOP))]
+    top = Image.new('P', (8 * max(1, len(cols)), TOP), 0)
+    top.putpalette(pal)
+    for i, c in enumerate(cols):
+        top.paste(fg.crop((c * 8, 0, c * 8 + 8, TOP)), (i * 8, 0))
+    top.save(os.path.join(D, 'sewer_fg_top.png'), transparency=0)
+    with open(os.path.join(ROOT, 'src', 'level3_1_fgtop.h'), 'w') as f:
+        f.write('// GENERADO por tools/gen_level3_1_bg.py -- NO EDITAR A MANO\n')
+        f.write('// Tramos del primer plano en la franja del HUD (ver fgTop en stage_level.h).\n')
+        f.write('#ifndef _LEVEL3_1_FGTOP_H_\n#define _LEVEL3_1_FGTOP_H_\n')
+        f.write('#define LVL31_FGTOP_N %d\n' % len(cols))
+        f.write('static const s16 lvl31FgTopX[LVL31_FGTOP_N] = { %s };\n'
+                % ', '.join(str(c * 8) for c in cols))
+        f.write('#endif\n')
+    print('sewer_fg_top: %d columnas en la franja del HUD' % len(cols))
 
     n, worst = stage_raw.build(os.path.join(D, 'bg_sewer.png'), D, 'bg_sewer')
     print('bg_sewer: %d tiles, peor caso %d (bgSlots de level3_1.c tiene que ser >=)'

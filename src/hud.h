@@ -82,6 +82,13 @@ void hudSetPlane(VDPPlane plane);
 // Solo para la pantalla de SELECCION DE PERSONAJE, que si los quiere fijos.
 void hudInitPortraits(void);
 
+// (28/09) Marcos y retratos del HUD POR DELANTE de todos los sprites (depth
+// SPR_MIN_DEPTH). Por defecto van detras (depth maximo, el de SGDK). Lo usa
+// el sewer, que dibuja un pedazo del primer plano como sprites en la franja
+// del HUD: los caños tienen que pasar por detras de los marcos. Vale hasta
+// el proximo hudInit/clearScene.
+void hudFramesToFront(void);
+
 // Prepara el HUD de un jugador. Llamar DESPUES de initPlayer (PAL1 cargada) y
 // de fijar paleta/plano de texto. 'barVram' apunta a un bloque de
 // HPBAR_FRAME_TILES + HUDLIVES_TILES tiles: barra primero, digito despues.

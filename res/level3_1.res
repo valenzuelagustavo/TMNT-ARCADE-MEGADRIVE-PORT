@@ -18,3 +18,8 @@ PALETTE pal_sewer      "images/lvl_3_sewer/bg_sewer.png"
 BIN     bg_sewer_tiles "images/lvl_3_sewer/bg_sewer_tiles.bin" 2 2 0 NONE
 BIN     bg_sewer_map   "images/lvl_3_sewer/bg_sewer_map.bin"   2 2 0 NONE
 IMAGE   bg_sewer_fg    "images/lvl_3_sewer/bg_sewer_fg.png"    NONE ALL
+
+// (28/09) Lo del primer plano que cae en la franja del HUD (filas 0-3, que en
+// BG_A no scrollean): 9 frames de 8x32, uno por columna, que stage_level
+// muestra como sprites (fgTop). Sus X de mundo: src/level3_1_fgtop.h.
+SPRITE  sewer_fg_top   "images/lvl_3_sewer/sewer_fg_top.png"   1 4 NONE 0

@@ -859,7 +859,10 @@ static const u8 hudAnimForChar[] = { 0, 3, 2, 1 };
 // Despues dos objetos compartian el mismo Sprite, uno le pisaba los campos al
 // otro y SPR_update terminaba saltando a un onFrameChange basura.
 // Regla: todo Sprite* static se olvida (NULL) cuando se resetea el motor.
+static bool hudFront = FALSE;       // ver hudFramesToFront
+
 static void hudForgetSprites(void) {
+    hudFront     = FALSE;
     hudSprite1   = NULL;
     hudSprite2   = NULL;
     portraitSpr1 = NULL;
@@ -927,8 +930,19 @@ static Sprite* hudPortraitShow(u8 k, u8 ch) {
         *slot = SPR_addSprite(&turtle_portrait,
                               (k == 0) ? PORTRAIT_P1_X : PORTRAIT_P2_X, PORTRAIT_Y,
                               TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    if (*slot) SPR_setAnim(*slot, ch);
+    if (*slot) {
+        SPR_setAnim(*slot, ch);
+        if (hudFront) SPR_setDepth(*slot, SPR_MIN_DEPTH);
+    }
     return *slot;
+}
+
+void hudFramesToFront(void) {
+    hudFront = TRUE;
+    Sprite* s[] = { hudSprite1, hudSprite2, portraitSpr1, portraitSpr2,
+                    hud4Spr[0], hud4Spr[1], hud4Spr[2], hud4Spr[3] };
+    for (u8 i = 0; i < 8; i++)
+        if (s[i]) SPR_setDepth(s[i], SPR_MIN_DEPTH);
 }
 static void hudPortraitHide(u8 k) {
     Sprite** slot = (k == 0) ? &portraitSpr1 : &portraitSpr2;
