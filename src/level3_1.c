@@ -16,7 +16,7 @@
 // JEFE: BAXTER STOCKMAN (baxter.c). Con las oleadas limpias y la camara en el
 // fondo entra volando por la izquierda; el nivel se gana cuando su nave
 // explota y no quedan ratas. PAL3 es suya.
-// Musica: todavia no hay tema del sewer; suena el del 2-1 (Downtown).
+// Musica: music_level3 (res/audio.res), el tema del sewer.
 // ===========================================================================
 
 #include <genesis.h>
@@ -91,7 +91,7 @@ static const StageLevel level31 = {
     .waves        = waves31,
     .nWaves       = sizeof(waves31) / sizeof(waves31[0]),
     .bossFeetX    = 1000,
-    .music        = music_stage2_1,
+    .music        = music_level3,
     .musicVol     = 90,
     .bossMusic    = music_boss,
     .bossMusicVol = 90,

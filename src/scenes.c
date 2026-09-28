@@ -273,9 +273,9 @@ static Sprite* sparksAddSprite(const SpriteDefinition* sizeDef, u16 vramInd,
 // ---------------------------------------------------------------------------
 #define VOL_MUSIC_INTRO    90
 #define VOL_MUSIC_SELECT   90
-#define VOL_MUSIC_LEVEL1    90   // la música del nivel saturaba: bajada al 50%
-#define VOL_MUSIC_LEVEL2    90
-#define VOL_MUSIC_BOSS      90   // tema del jefe (Rocksteady)
+#define VOL_MUSIC_LEVEL1    80   // la música del nivel saturaba: bajada al 50%
+#define VOL_MUSIC_LEVEL2    80
+#define VOL_MUSIC_BOSS      80   // tema del jefe (Rocksteady)
 // --- Ducking del tema del jefe mientras Rocksteady habla --------------------
 // El voice over "SAY YOUR PRAYERS!" (say_your_p_sfx, PCM) arranca EXACTAMENTE
 // en el mismo tick que music_boss, y aunque el PCM va en CH2 con prioridad 15
@@ -2471,7 +2471,7 @@ SceneId showScene21Title() {
 #define SCENE5_TITLE_LINE2  "HIT THE FREEWAY!!"
 #define SCENE6_TITLE_LINE2  "SKATE THE HIGHWAY!!"
 #define SCENE7_TITLE_LINE2  "INTO THE FACTORY!!"
-#define SCENE8_TITLE_LINE2  "WE GOTTA FIND THE TECHNODROME!"   // (27/09) texto de Gustavo
+#define SCENE8_TITLE_LINE2  "WE GOTTA FIND THE TECHNODROME!"   
 #define SCENE9_TITLE_LINE2  "SHOWDOWN WITH SHREDDER!!"
 
 static SceneId showStageTitle(const char* line1, const char* line2, SceneId next) {
@@ -2541,7 +2541,7 @@ SceneId showScene91Title() {
 // creditos del equipo (SCENE_SGDK), los del soundtrack y de vuelta a la intro.
 // ---------------------------------------------------------------------------
 #define THE_END_LINE1  "CONGRATULATIONS!!"
-#define THE_END_LINE2  "APRIL IS SAFE AGAIN."
+#define THE_END_LINE2  "STAY TUNED FOR UPDATES."
 #define THE_END_LINE3  "THE END"
 #define THE_END_SECS   8
 
