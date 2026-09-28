@@ -75,23 +75,37 @@ typedef enum {
 #define MAX_PLAYERS         4
 
 #define PLAYER_SPEED        2       // Píxeles por frame
-// --- Salto ---
-// La altura del apex sale de la suma 1+2+...+FORCE (la gravedad es entera y
-// frena 1 px/frame por frame), asi que NO se puede pedir cualquier altura:
-// FORCE 13 -> 91 px, 14 -> 105, 15 -> 120. Para que el apex diera exactamente
-// 2 tiles mas que los 91 de antes (13/09, a pedido de Gustavo) se usa FORCE 14
-// mas un empujon suelto de PLAYER_JUMP_BOOST px al arrancar: 2 + 105 = 107 =
-// 91 + 16 clavado.
-#define PLAYER_JUMP_FORCE   14      // Velocidad inicial del salto
-#define PLAYER_JUMP_BOOST    2      // px de arranque para cerrar los 16 justos
-#define GRAVITY             1       // Aceleración de la gravedad (px/frame²)
-#define APEX_HANG           4       // Frames de float en el punto más alto del salto
+// --- Salto (28/09: PUNTO FIJO) ---------------------------------------------
+// Altura y velocidad vertical en Q8 (256 = 1 px). Antes eran enteras: la
+// gravedad frenaba 1 px/frame por frame, el apice solo podia ser 1+2+...+N
+// (91, 105, 120 px...) y habia que emparcharlo con un empujon suelto de 2 px;
+// ademas el flote del apice era un congelado de 4 frames y la caida saltaba
+// de golpe a 6 px/frame. Ahora:
+//   SUBIDA  arranca a 14,55 px/frame y la gravedad (1,06 px/frame2) la frena.
+//   APICE   mientras |vel| < 1,59 px/frame la gravedad va a la MITAD: la
+//           tortuga "cuelga" 3 frames en lo alto de forma continua, sin
+//           congelarse (y sin depender de si se aprieta una direccion).
+//   CAIDA   sin patada acelera a 1,5 px/frame2 hasta PLAYER_FALL_SPEED (6) y
+//           sigue pareja ahi (la caida constante que pidio Gustavo el 13/09,
+//           ahora sin el escalon de velocidad al salir del apice).
+//   PATADA  gravedad 1 px/frame2 con tope PLAYER_KICK_FALL_MAX (7).
+// Simulado antes de pasarlo al codigo: apice 107,2 px en el frame 15
+// (el mismo alto de antes), 37 frames en el aire (antes 37), con patada 34-35.
+// jumpZ (entero) sigue existiendo: es la altura en px que lee todo el resto
+// del juego; la verdad es jumpZq.
+#define PLAYER_JUMP_Q         8
+#define PLAYER_JUMP_V0_Q   3724     // 14,55 px/frame hacia arriba
+#define PLAYER_GRAVITY_Q    272     // 1,0625 px/frame2
+#define PLAYER_APEX_BAND_Q  408     // |vel| < 1,59 px/frame = zona del apice
+#define PLAYER_APEX_GRAV_Q  136     // gravedad a la mitad en el apice
+#define PLAYER_FALL_ACCEL_Q 384     // 1,5 px/frame2 al empezar a caer
+#define PLAYER_KICK_GRAV_Q  256     // 1 px/frame2 cayendo con patada
 
-// Velocidad de CAIDA cuando NO se pateo en el aire: constante, sin acelerar
-// (13/09, a pedido de Gustavo). Si la tortuga patea, la caida vuelve a ser
-// acelerada por GRAVITY -- patear "pesa" y te tira al piso mas rapido.
-// Con el apex en 107 px: 18 frames de caida uniforme contra 14 acelerada.
-#define PLAYER_FALL_SPEED    6      // px/frame de la caida sin patada
+// Velocidad de CAIDA cuando NO se pateo en el aire: pareja (13/09, a pedido
+// de Gustavo). Desde el 28/09 se llega a ella acelerando (PLAYER_FALL_ACCEL_Q)
+// en vez de saltar de golpe. Si la tortuga patea, la caida vuelve a ser
+// acelerada -- patear "pesa" y te tira al piso mas rapido.
+#define PLAYER_FALL_SPEED    6      // px/frame de la caida sin patada (tope)
 // VELOCIDAD TERMINAL de la caida CON patada (14/09, pedido de Gustavo). Antes
 // la gravedad aceleraba sin tope y la tortuga llegaba al piso a 14 px/frame:
 // se sentia una plomada. Ahora acelera igual al principio (patear sigue
@@ -342,15 +356,15 @@ typedef struct {
     u8          comboBuffered;  // B presionado durante el swing (buffer de input)
     u8          comboLinger;    // Frames restantes de la ventana de enlace post-anim
 
-    // Salto
-    s16         jumpVel;
+    // Salto (28/09: en punto fijo Q8, ver PLAYER_JUMP_Q)
+    s32         jumpVq;         // velocidad vertical (+ = hacia abajo), Q8
+    s32         jumpZq;         // altura, Q8 (la verdad; jumpZ es su parte entera)
     // Altura VISUAL sobre el piso (0 = pisando, crece al saltar). NO es la
     // profundidad: 'y' sigue siendo siempre la lane real, movible en el
     // aire con arriba/abajo igual que caminando. jumpZ solo desplaza el
     // dibujado hacia arriba (ver render en updatePlayer).
     s16         jumpZ;
     u8          isJumpKicking;  // JUMPKICK_NONE / JUMPKICK_SOFT / JUMPKICK_STRONG
-    u8          apexHang;       // Contador de frames de float en el ápex
     u8          airFrame;       // Frame actual del loop de ápice (1..n-2)
     u8          airTimer;       // Ticks hasta el próximo paso del loop
     u16         kickCarry;      // Fracción de px extra de la patada fuerte (Q16, 16=1px)

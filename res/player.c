@@ -92,10 +92,10 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->attackIsSpecial = 0;
     p->specialTick   = 0;
     p->bcWindow      = 0;
-    p->jumpVel       = 0;
+    p->jumpVq        = 0;
+    p->jumpZq        = 0;
     p->jumpZ         = 0;
     p->isJumpKicking = FALSE;
-    p->apexHang      = 0;
     p->kickCarry     = 0;
     p->joyId         = joyId;
     p->prevJoy       = 0;
@@ -295,7 +295,8 @@ static void startSpecial(Player* p) {
     // Venga del piso o de los primeros frames de un salto (B+C tardio), el
     // especial arranca apoyado: el arco lo pone specialHopZ.
     p->jumpZ           = 0;
-    p->jumpVel         = 0;
+    p->jumpZq          = 0;
+    p->jumpVq          = 0;
     p->isJumpKicking   = JUMPKICK_NONE;
     p->kickCarry       = 0;
     SPR_setAutoAnimation(p->sprite, FALSE);
@@ -430,12 +431,10 @@ void updatePlayer(Player* p) {
                 // 'y' NO se toca al saltar: sigue siendo la lane real, y el
                 // jugador puede seguir moviéndola en el aire (ver abajo).
                 p->state     = STATE_JUMPING;
-                p->jumpVel   = -PLAYER_JUMP_FORCE;
-                // Arranca 2px arriba: ver PLAYER_JUMP_BOOST en player.h (con
-                // gravedad entera el apex va de 91 a 105 a 120, y hacen falta
-                // 107 clavados para que sean 2 tiles justos sobre los 91).
-                p->jumpZ     = PLAYER_JUMP_BOOST;
-                p->apexHang  = APEX_HANG;
+                // (28/09) Punto fijo: ver PLAYER_JUMP_V0_Q en player.h.
+                p->jumpVq    = -PLAYER_JUMP_V0_Q;
+                p->jumpZq    = 0;
+                p->jumpZ     = 0;
                 p->airFrame  = 1;
                 p->airTimer  = 0;
                 p->idleTimer = 0;
@@ -529,30 +528,26 @@ void updatePlayer(Player* p) {
             // jumpZ = altura VISUAL sobre el piso (crece al saltar, vuelve a
             // 0 al aterrizar). 'y' ya NO se toca acá: sigue siendo la lane
             // real de profundidad, libre de moverse con arriba/abajo.
-            p->jumpZ -= p->jumpVel;
+            p->jumpZq -= p->jumpVq;
+            p->jumpZ   = (s16)(p->jumpZq >> PLAYER_JUMP_Q);
 
-            // Float en el ápex: cuando la vel llega a 0 (punto más alto) y el
-            // jugador no mueve horizontalmente, pausar la gravedad APEX_HANG frames.
-            // Da esa sensación de "colgar" en el aire del beat-em-up clásico.
-            bool noHoriz = !(joy & BUTTON_LEFT) && !(joy & BUTTON_RIGHT);
-            if (p->jumpVel == 0 && noHoriz && p->apexHang > 0) {
-                p->apexHang--;
-                // No se aplica gravedad este frame → vel queda en 0
-            } else if (p->jumpVel >= 0 && !p->isJumpKicking) {
-                // CAIDA SIN PATADA: velocidad CONSTANTE, no acelerada. Se fija
-                // en PLAYER_FALL_SPEED apenas se pasa el apex y se queda ahi,
-                // asi el descenso es parejo y da tiempo a reposicionarse en el
-                // aire (que es para lo que sirve el salto en un beat'em up).
-                p->jumpVel = PLAYER_FALL_SPEED;
+            // (28/09) Gravedad en punto fijo (Q8). Ver el bloque "Salto" de
+            // player.h: subida frenada por la gravedad, apice con la gravedad
+            // a la mitad (cuelga de forma continua, sin congelarse), caida
+            // sin patada que acelera hasta la velocidad pareja de siempre y
+            // caida con patada mas pesada, con su tope.
+            if (p->isJumpKicking && p->jumpVq >= 0) {
+                p->jumpVq += PLAYER_KICK_GRAV_Q;
+                if (p->jumpVq > ((s32)PLAYER_KICK_FALL_MAX << PLAYER_JUMP_Q))
+                    p->jumpVq = (s32)PLAYER_KICK_FALL_MAX << PLAYER_JUMP_Q;
+            } else if (p->jumpVq > -PLAYER_APEX_BAND_Q && p->jumpVq < PLAYER_APEX_BAND_Q) {
+                p->jumpVq += PLAYER_APEX_GRAV_Q;
+            } else if (p->jumpVq < 0) {
+                p->jumpVq += PLAYER_GRAVITY_Q;
             } else {
-                // Subida (vel < 0), y caida CON patada: gravedad normal. Patear
-                // en el aire renuncia a la caida flotada y te tira mas rapido…
-                p->jumpVel += GRAVITY;
-                // …pero con VELOCIDAD TERMINAL (14/09): sin este tope la caida
-                // terminaba a 14 px/frame y se sentia una plomada. Solo afecta
-                // la bajada (vel > 0); la subida es negativa y pasa de largo.
-                if (p->jumpVel > PLAYER_KICK_FALL_MAX)
-                    p->jumpVel = PLAYER_KICK_FALL_MAX;
+                p->jumpVq += PLAYER_FALL_ACCEL_Q;
+                if (p->jumpVq > ((s32)PLAYER_FALL_SPEED << PLAYER_JUMP_Q))
+                    p->jumpVq = (s32)PLAYER_FALL_SPEED << PLAYER_JUMP_Q;
             }
 
             // --- Movimiento en el aire (X e Y) ---
@@ -620,9 +615,9 @@ void updatePlayer(Player* p) {
             // predicho con la velocidad actual): último frame.
             if (!p->isJumpKicking) {
                 u16 n = p->sprite->animation->numFrame;
-                if (p->jumpVel < 0) {
+                if (p->jumpVq < 0) {
                     SPR_setFrame(p->sprite, 0);
-                } else if (p->jumpVel > 0 && p->jumpZ <= (p->jumpVel << 1)) {
+                } else if (p->jumpVq > 0 && p->jumpZq <= (p->jumpVq << 1)) {
                     SPR_setFrame(p->sprite, n - 1);
                 } else if (n >= 3) {
                     if (++p->airTimer >= PLAYER_JUMP_LOOP_TICKS) {
@@ -635,9 +630,10 @@ void updatePlayer(Player* p) {
             }
 
             // --- Aterrizaje ---
-            if (p->jumpZ <= 0) {
+            if (p->jumpZq <= 0) {
                 p->jumpZ   = 0;
-                p->jumpVel = 0;
+                p->jumpZq  = 0;
+                p->jumpVq  = 0;
                 p->isJumpKicking = JUMPKICK_NONE;
                 p->state   = STATE_IDLE;
                 SPR_setAutoAnimation(p->sprite, TRUE);   // devolver la anim al motor
@@ -972,15 +968,16 @@ s16 getPlayerJumpZ(const Player* p) {
 // altura VISUAL. Se mueve 'y' de golpe a la lane de destino y se le suma a
 // jumpZ exactamente esa diferencia, asi el sprite NO se teletransporta (queda
 // dibujado donde estaba) y despues cae solo con la gravedad del salto hasta
-// que jumpZ vuelve a 0. Con jumpVel = 0 y apexHang = 0, updatePlayer entra
-// derecho en la rama de caida (velocidad constante PLAYER_FALL_SPEED).
+// que jumpZ vuelve a 0. (28/09) Arranca con la velocidad del borde del apice:
+// entra derecho en la caida, que acelera hasta PLAYER_FALL_SPEED.
 void playerFallTo(Player* p, s16 newFeetY) {
     if (!p->sprite) { p->y = newFeetY; return; }
     s16 drop = newFeetY - p->y;
     if (drop <= 0) { p->y = newFeetY; return; }
     p->y      = newFeetY;
-    p->jumpZ += drop;
-    p->jumpVel = 0;
+    p->jumpZ  += drop;
+    p->jumpZq  = (s32)p->jumpZ << PLAYER_JUMP_Q;
+    p->jumpVq  = PLAYER_APEX_BAND_Q;
     if (p->state != STATE_JUMPING) {
         p->state         = STATE_JUMPING;
         p->isJumpKicking = JUMPKICK_NONE;
@@ -990,7 +987,6 @@ void playerFallTo(Player* p, s16 newFeetY) {
         SPR_setAnimationLoop(p->sprite, FALSE);
         SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
     }
-    p->apexHang = 0;   // sin flote: es una caida, no un salto
 }
 
 s8 getPlayerDir(const Player* p) {
@@ -1073,7 +1069,8 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
     // tuvo el foot soldier blanco al ser golpeado en pleno salto).
     if (p->state == STATE_JUMPING) {
         p->jumpZ         = 0;
-        p->jumpVel       = 0;
+        p->jumpZq        = 0;
+        p->jumpVq        = 0;
         p->isJumpKicking = JUMPKICK_NONE;
         p->kickCarry     = 0;
     }
@@ -1481,7 +1478,8 @@ bool playerManholeFall(Player* p, s16 outX, s16 outY) {
     p->comboLinger     = 0;
     p->attackIsSpecial = 0;
     p->jumpZ           = 0;
-    p->jumpVel         = 0;
+    p->jumpZq          = 0;
+    p->jumpVq          = 0;
     p->hurtTimer       = 0;
     p->state           = STATE_IDLE;
 
@@ -1503,8 +1501,8 @@ bool playerInManhole(const Player* p)       { return (bool)(p->mhPhase != 0); }
 void playerDropIn(Player* p, s16 height) {
     p->state         = STATE_JUMPING;
     p->jumpZ         = height;
-    p->jumpVel       = PLAYER_FALL_SPEED;   // ya cayendo: sin subida ni apex
-    p->apexHang      = 0;
+    p->jumpZq        = (s32)height << PLAYER_JUMP_Q;
+    p->jumpVq        = (s32)PLAYER_FALL_SPEED << PLAYER_JUMP_Q;   // ya cayendo
     p->airFrame      = 1;
     p->airTimer      = 0;
     p->isJumpKicking = JUMPKICK_NONE;
