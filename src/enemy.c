@@ -97,7 +97,7 @@ static u16 enemyAttackTime(const Enemy* e) {
         // camino de ENEMY_ATTACK_JUMP en ENEMY_STATE_ATTACK). Se devuelve un
         // tope de seguridad por si algo lo dejara colgado en el aire.
         if (e->attackType == ENEMY_ATTACK_JUMP)
-            return (u16)(WHITE_JUMP_FORCE * 4 + 32);
+            return WHITE_JUMP_SAFETY;
         return WHITE_SLASH_TIME;
     }
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
@@ -262,24 +262,31 @@ static s16 enemyMinX(const Enemy* e) {
 }
 
 // ---------------------------------------------------------------------------
-// Salto del foot soldier BLANCO — un paso de física
+// Salto del foot soldier BLANCO — un paso de física (29/09: punto fijo Q8)
 // ---------------------------------------------------------------------------
-// SUBIDA (jumpVel > 0): gravedad entera todos los frames, igual que siempre.
-// El apex no se toca: sigue en los 107px clavados de las tortugas.
-// BAJADA (jumpVel <= 0): la gravedad se aplica solo 1 de cada
-// WHITE_FALL_GRAV_DIV frames (14/09, pedido de Gustavo). La caida pasa de 14
-// a ~21 frames y el espadazo aereo se ve planeado en vez de plomada.
-// El avance en X tambien baja a WHITE_FALL_SPEED_X mientras cae, para que el
-// vuelo total cubra la misma distancia horizontal de antes (~84px).
+// SUBIDA: la gravedad de las tortugas (apice de 107 px). Al entrar en la zona
+// del apice (vel < WHITE_JUMP_BAND_Q) pasa a la gravedad de la caida lenta
+// (14/09, pedido de Gustavo): el espadazo aereo se ve planeado, no plomada.
+// El avance en X baja a WHITE_FALL_SPEED_X mientras cae (ver whiteJumpSpeedX).
+static void whiteJumpStart(Enemy* e) {
+    e->jumpVel  = WHITE_JUMP_V0_Q;
+    e->jumpZq   = 0;
+    e->jumpZ    = 0;
+    e->gravTick = 0;
+}
+
 static void whiteJumpStep(Enemy* e) {
-    e->jumpZ += e->jumpVel;
-    if (e->jumpVel > 0) {                     // subiendo
-        e->jumpVel -= WHITE_JUMP_GRAVITY;
-        e->gravTick = 0;
-    } else if (++e->gravTick >= WHITE_FALL_GRAV_DIV) {   // cayendo
-        e->gravTick = 0;
-        e->jumpVel -= WHITE_JUMP_GRAVITY;
-    }
+    e->jumpZq += e->jumpVel;
+    e->jumpZ   = (s16)(e->jumpZq >> 8);
+    e->jumpVel -= (e->jumpVel >= WHITE_JUMP_BAND_Q) ? WHITE_JUMP_GRAV_Q
+                                                    : WHITE_FALL_GRAV_Q;
+}
+
+static void whiteJumpStop(Enemy* e) {
+    e->jumpZ    = 0;
+    e->jumpZq   = 0;
+    e->jumpVel  = 0;
+    e->gravTick = 0;
 }
 
 // px/frame de avance horizontal segun la fase del salto (ver arriba).
@@ -771,6 +778,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->comboStep  = 0;
     e->comboLen   = 0;
     e->jumpZ      = 0;
+    e->jumpZq     = 0;
     e->jumpVel    = 0;
     e->gravTick = 0;
 
@@ -867,16 +875,27 @@ void initEnemyWhiteJumpSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette) {
     initEnemySpawn(e, spawnX, y, 0, palette, ENEMY_TYPE_FOOT_SOLDIER_WHITE);
     e->state   = ENEMY_STATE_SPAWNING;
     e->dir     = dir;
-    e->jumpVel = WHITE_JUMP_FORCE;
-    e->gravTick = 0;
-    e->jumpZ   = WHITE_JUMP_BOOST;
+    whiteJumpStart(e);
+    whiteJumpStep(e);          // ya en el aire (jumpZ > 0: ver SPAWNING)
     // Tope de seguridad: el arco termina solo al aterrizar, esto es por si
     // algo lo dejara colgado (un clamp de X en un borde, por ejemplo).
-    e->timer   = (u16)(WHITE_JUMP_FORCE * 4 + 32);
+    e->timer   = WHITE_JUMP_SAFETY;
 
     e->anim = WHITE_ANIM_JUMP;
     SPR_setAnimAndFrame(e->sprite, WHITE_ANIM_JUMP, 0);
     SPR_setAnimationLoop(e->sprite, FALSE);
+}
+
+// Spawn CAMINANDO (29/09): ver enemy.h. somersault = 2 marca la caminata de
+// entrada (el bloque SPAWNING de updateEnemyN lo mueve a ENEMY_SPEED).
+void initEnemyWalkInSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type) {
+    initEnemySpawn(e, spawnX, y, 0, palette, type);
+    e->state      = ENEMY_STATE_SPAWNING;
+    e->dir        = dir;
+    e->somersault = 2;
+    e->timer      = (u16)((e->w / 2 + ENEMY_WALKIN_MARGIN) / ENEMY_WALKIN_SPEED);
+    enemySetAnim(e, enemyAnimWalk(e), TRUE);
+    SPR_setAnimationLoop(e->sprite, TRUE);
 }
 
 // Spawn con VOLTERETA (anim 15): el morado entra desde fuera de pantalla
@@ -1010,9 +1029,7 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     // saca al enemigo de los dos. (Bug reportado por Gustavo el 13/09: "uno
     // salta y queda desfasado, como si su piso estuviera a la altura de la
     // cabeza de April".)
-    e->jumpZ   = 0;
-    e->jumpVel = 0;
-    e->gravTick = 0;
+    whiteJumpStop(e);
 
     e->hp -= dmg;
     if (e->hp <= 0) {
@@ -1103,9 +1120,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     if (e->jumpZ != 0 &&
         !(e->state == ENEMY_STATE_SPAWNING) &&
         !(e->state == ENEMY_STATE_ATTACK && e->attackType == ENEMY_ATTACK_JUMP)) {
-        e->jumpZ   = 0;
-        e->jumpVel = 0;
-        e->gravTick = 0;
+        whiteJumpStop(e);
     }
 
     u16 explodeTime = enemyExplodeTime(e);
@@ -1154,9 +1169,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             e->x += e->dir * spdX;
             e->x  = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
             if (e->jumpZ <= 0) {
-                e->jumpZ   = 0;
-                e->jumpVel = 0;
-                e->gravTick = 0;
+                whiteJumpStop(e);
                 e->timer   = 0;   // aterrizo: que el bloque de abajo lo pase a CHASE
             }
         }
@@ -1185,7 +1198,10 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         }
         // Voltereta de entrada: avanza en X durante TODO el SPAWNING (más rápido
         // que el walk; el sprite hace la voltereta sola con la anim 15).
-        if (e->somersault) {
+        if (e->somersault == 2) {                 // (29/09) entrada caminando
+            e->x += e->dir * ENEMY_WALKIN_SPEED;
+            e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
+        } else if (e->somersault) {
             e->x += e->dir * ENEMY_SOMERSAULT_SPEED;
             e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
         }
@@ -1534,7 +1550,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 }
             } else if (e->attackType == ENEMY_ATTACK_JUMP) {
                 // --- Salto con espadazo del BLANCO ---
-                // El arco manda, no el timer: sube WHITE_JUMP_FORCE frames y
+                // El arco manda, no el timer: sube ~15 frames y
                 // baja otros tantos, y el ataque termina cuando toca el piso.
                 // (e->timer sigue corriendo solo como tope de seguridad.)
                 if (e->timer > 0) e->timer--;
@@ -1553,9 +1569,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                     enemyRestartAnim(e, WHITE_ANIM_AIR_SLASH, FALSE);
 
                 if (e->jumpZ <= 0 || e->timer == 0) {
-                    e->jumpZ   = 0;
-                    e->jumpVel = 0;
-                    e->gravTick = 0;
+                    whiteJumpStop(e);
                     leaveAttackState(e);
                     e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
                     newState = ENEMY_STATE_CHASE;
@@ -1670,9 +1684,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 // que el salto de la tortuga (jumpZ es un offset VISUAL; la
                 // lane 'y' no cambia en el aire), asi que la profundidad y el
                 // orden de dibujo siguen siendo los del piso.
-                e->jumpVel = WHITE_JUMP_FORCE;
-                e->gravTick = 0;
-                e->jumpZ   = WHITE_JUMP_BOOST;
+                whiteJumpStart(e);
                 enemyRestartAnim(e, WHITE_ANIM_JUMP, FALSE);
             } else {
                 u8 atkAnim;

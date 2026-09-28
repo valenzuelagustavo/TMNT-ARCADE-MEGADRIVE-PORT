@@ -175,21 +175,19 @@
 #define WHITE_SLASH_MID2_REACH 32
 
 // --- Salto con espadazo (el "kick" del blanco) ---
-// Salta EXACTAMENTE tan alto como las tortugas (pedido de Gustavo): misma
-// cuenta que PLAYER_JUMP_FORCE/BOOST de player.h -- la gravedad es entera y
-// frena 1px por frame, asi que el apex es 1+2+...+FORCE = 105, mas el empujon
-// suelto de 2 = 107 px clavados. Sube WHITE_JUMP_FORCE frames y baja otros
-// tantos; al tocar el piso termina el ataque.
-#define WHITE_JUMP_FORCE        14
-#define WHITE_JUMP_BOOST         2
-#define WHITE_JUMP_GRAVITY       1
-// CAIDA MAS LENTA (14/09, pedido de Gustavo): la subida no se toca (el apex
-// sigue en 107px clavados) pero al pasar el apex la gravedad se aplica solo
-// 1 de cada WHITE_FALL_GRAV_DIV frames. Con 2: las velocidades de bajada van
-// 0,0,1,1,2,2,3,3... asi que recorre los 107px en ~21 frames en vez de 14
-// (+50% de tiempo en el aire cayendo) y el espadazo se ve "planeado" en vez
-// de una plomada. Subir el divisor = caida aun mas lenta.
-#define WHITE_FALL_GRAV_DIV      2
+// (29/09) PUNTO FIJO Q8 (256 = 1 px), igual que el salto de las tortugas
+// (ver el bloque "Salto" de player.h): altura en jumpZq y velocidad en
+// jumpVel, las dos en Q8; jumpZ queda como la parte entera que se dibuja.
+// SUBIDA con la misma velocidad inicial y gravedad que las tortugas (apice de
+// 107 px en el frame 15). Al entrar en la zona del apice la gravedad pasa a
+// WHITE_FALL_GRAV_Q, la mitad: la CAIDA MAS LENTA del 14/09 (antes era la
+// gravedad entera aplicada 1 de cada 2 frames, a los saltos). Simulado: 36
+// frames en el aire (antes 36) y ~87 px de avance (antes 86).
+#define WHITE_JUMP_V0_Q       3724   // 14,55 px/frame hacia arriba
+#define WHITE_JUMP_GRAV_Q      272   // 1,06 px/frame2 subiendo
+#define WHITE_JUMP_BAND_Q      408   // por debajo de 1,59 px/frame: apice/caida
+#define WHITE_FALL_GRAV_Q      128   // 0,5 px/frame2: apice y caida planeada
+#define WHITE_JUMP_SAFETY       88   // frames: tope de seguridad del arco
 #define WHITE_JUMP_SPEED         3   // px/frame de avance horizontal en el aire
 // Avance horizontal MIENTRAS CAE: mas lento que el de subida para que el
 // vuelo total no se estire (la caida ahora dura 21 frames en vez de 14).
@@ -323,6 +321,10 @@
 #define ENEMY_GIRO_TIME        16   // Giro: 2 frames x 8
 #define ENEMY_SOMERSAULT_TIME  56   // Voltereta de entrada: 7 frames x 8
 #define ENEMY_SOMERSAULT_SPEED  3   // px/frame durante la voltereta (avanza mas que el walk)
+// (29/09) Entrada CAMINANDO (initEnemyWalkInSpawn): a la velocidad de siempre
+// hasta que el centro del cuerpo queda ENEMY_WALKIN_MARGIN px adentro.
+#define ENEMY_WALKIN_SPEED      ENEMY_SPEED
+#define ENEMY_WALKIN_MARGIN    24
 
 // --- Tirada de DINAMITA (18/09) --------------------------------------------
 // La anim 16 son 13 frames x 8 ticks = 104. El cartucho sale de la mano entre
@@ -487,11 +489,9 @@ typedef struct {
     // profundidad no cambia en el aire) y jumpZ es un offset puramente VISUAL
     // que se resta al dibujar. Los otros dos tipos lo dejan siempre en 0.
     s16         jumpZ;        // Altura visual sobre el piso (0 = en el suelo)
-    s16         jumpVel;      // Velocidad vertical del salto (+ sube, - baja)
-    u8          gravTick;     // Divisor de la gravedad EN LA BAJADA (ver
-                              // WHITE_FALL_GRAV_DIV): cuenta frames y solo
-                              // acelera 1 de cada N, para que la caida del
-                              // espadazo aereo no sea una plomada.
+    s32         jumpVel;      // Velocidad vertical del salto, Q8 (+ sube, - baja)
+    s32         jumpZq;       // (29/09) Altura del salto en Q8 (jumpZ = su parte entera)
+    u8          gravTick;     // (sin uso desde el 29/09: la caida lenta es WHITE_FALL_GRAV_Q)
     // --- Empuje de la muerte (27/09) ---
     s8          deathDir;     // hacia donde lo lanza el golpe (0 = en el lugar)
     u8          deathSpeed;   // px/frame actuales (van bajando)
@@ -555,6 +555,12 @@ void initEnemyTntSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette,
 void initEnemyManholeSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette);
 // Entrada saltando del BLANCO (arco de 107px, sin hitbox) -> ver enemy.c
 void initEnemyWhiteJumpSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette);
+// (29/09) Entrada CAMINANDO desde fuera de pantalla, para cualquier tipo: la
+// usan el naranja (no tiene voltereta: con initEnemySomersaultSpawn pedia la
+// anim 15, que su sheet no tiene, y aparecia de golpe o con pixeles basura) y
+// el blanco. Camina a velocidad normal hasta dejar el centro del cuerpo
+// ENEMY_WALKIN_MARGIN px adentro del borde y ahi pasa a CHASE.
+void initEnemyWalkInSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type);
 
 // Los Player* se usan para el AGARRE por la espalda: el morado pone al jugador
 // en STATE_GRABBED (playerFootGrab) y lo suelta al zafarse (mash), ser golpeado

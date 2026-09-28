@@ -23,3 +23,11 @@ IMAGE   bg_sewer_fg    "images/lvl_3_sewer/bg_sewer_fg.png"    NONE ALL
 // BG_A no scrollean): 9 frames de 8x32, uno por columna, que stage_level
 // muestra como sprites (fgTop). Sus X de mundo: src/level3_1_fgtop.h.
 SPRITE  sewer_fg_top   "images/lvl_3_sewer/sewer_fg_top.png"   1 4 NONE 0
+
+// (29/09) Misil que sale del AGUA cuando una tortuga camina por el canal, y
+// su explosion. Arte de Traag (traag_missil / traag_explosao) remapeado a la
+// paleta de los foot soldiers (PAL2) por tools/gen_sewer_missile.py: en la
+// cloaca PAL3 es de Baxter. Misil: 2 frames de 64x32 (mira a la DERECHA).
+// Explosion: 7 frames de 32x32 (impacta de derecha a izquierda), a mano.
+SPRITE  sewer_missil   "sprites/sewer_missil.png"   8 4 NONE 4
+SPRITE  sewer_explosao "sprites/sewer_explosao.png" 4 4 NONE 0

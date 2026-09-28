@@ -3204,13 +3204,14 @@ SceneId showScene11() {
                                     // 24/09 PAL3 es SOLO suya: el naranja se
                                     // mudo a PAL2 (comparte sheet de colores
                                     // con el morado).
-                                    initEnemyWhiteJumpSpawn(&enemies[i], camR, 163, -1, PAL3);
+                                    initEnemyWalkInSpawn(&enemies[i], camR, 163, -1, PAL3,   // (29/09) entra caminando
+                                                         ENEMY_TYPE_FOOT_SOLDIER_WHITE);
                                 else if (s == 2)
                                     initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 196,
                                                              1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
                                 else
-                                    initEnemyKickSpawn(&enemies[i], camR, 191,
-                                                       -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                                    initEnemyWalkInSpawn(&enemies[i], camR, 191,   // (29/09) caminando
+                                                         -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                                 activeEnemies++;
                                 break;
                             }
@@ -3438,9 +3439,9 @@ SceneId showScene11() {
                 if (nPl <= 2) {
                     for (u16 i = 0; i < MAX_ENEMIES; i++) {
                         if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                            initEnemyKickSpawn(&enemies[i],
-                                               cameraLockX - ENEMY_SPRITE_W_ORANGE, 160,
-                                               1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                            initEnemyWalkInSpawn(&enemies[i],   // (29/09) entra caminando
+                                                 cameraLockX - ENEMY_SPRITE_W_ORANGE, 160,
+                                                 1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                             activeEnemies++;
                             break;
                         }
@@ -4414,14 +4415,16 @@ SceneId showScene12() {
                         // separarlos en X no serviria de nada) y se separan
                         // por LANE: uno al fondo y otro al frente.
                         if (s == 0)
-                            initEnemyWhiteJumpSpawn(&enemies[i],
-                                camL - ENEMY_SPRITE_W_WHITE, 158, 1, PAL3);
+                            initEnemyWalkInSpawn(&enemies[i],   // (29/09) entra caminando
+                                camL - ENEMY_SPRITE_W_WHITE, 158, 1, PAL3,
+                                ENEMY_TYPE_FOOT_SOLDIER_WHITE);
                         else if (s == 1)
-                            initEnemyWhiteJumpSpawn(&enemies[i],
-                                camL - ENEMY_SPRITE_W_WHITE, 192, 1, PAL3);
+                            initEnemyWalkInSpawn(&enemies[i],
+                                camL - ENEMY_SPRITE_W_WHITE, 192, 1, PAL3,
+                                ENEMY_TYPE_FOOT_SOLDIER_WHITE);
                         else
-                            initEnemyKickSpawn(&enemies[i], camR, 174,
-                                               -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+                            initEnemyWalkInSpawn(&enemies[i], camR, 174,   // (29/09) caminando
+                                                 -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                         activeEnemies++;
                         break;
                     }

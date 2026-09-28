@@ -87,6 +87,12 @@ typedef struct {
     bool (*bossUpdate)(Player** pls, u8 nPl, s16 camX);   // TRUE = terminado
     bool (*bossDying)(void);    // TRUE mientras muere (no se evaluan continues)
     void (*bossRelease)(void);
+    // --- Ganchos propios del nivel (29/09; todos pueden ser NULL) ---
+    // levelInit: despues de crear jugadores y HUD. levelUpdate: cada frame,
+    // despues de los enemigos. levelRelease: al salir, antes de clearScene.
+    void (*levelInit)(void);
+    void (*levelUpdate)(Player** pls, u8 nPl, s16 camX);
+    void (*levelRelease)(void);
     // --- Salida ---
     SceneId       nextScene;    // al ganar
 } StageLevel;

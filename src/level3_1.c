@@ -35,6 +35,7 @@
 #include "enemy.h"             // ENEMY_TYPE_*
 #include "baxter.h"
 #include "audio.h"
+#include "player.h"
 
 #define SCREEN_W            320
 #define LVL31_W            1248
@@ -62,6 +63,154 @@ static const StageWave waves31[] = {
 };
 #undef P
 #undef O
+
+// ---------------------------------------------------------------------------
+// MISILES DEL AGUA (29/09, pedido de Gustavo)
+// ---------------------------------------------------------------------------
+// Si una tortuga se queda en el CANAL (pies >= LVL31_LEDGE_BOT) unos 4
+// segundos, sale un misil del agua desde el borde de la camara MAS LEJANO a
+// ella y cruza derecho en X, por su lane, hasta salir de camara. Uno cada 4
+// segundos mientras siga en el agua; subirse a la vereda reinicia la cuenta.
+//   - Pega a las TORTUGAS (1 barra); a los foot soldiers no les hace nada.
+//   - Va rasante (SW_MIS_Z sobre los pies): saltando se lo esquiva.
+//   - Al pegar desaparece y en su lugar queda la explosion (7 frames, una
+//     vez); al terminar se suelta el sprite.
+// El arte (el de Traag, ver tools/gen_sewer_missile.py) va en PAL2: el misil
+// mira a la DERECHA y la explosion impacta de derecha a izquierda, asi que
+// el misil se espeja si va a la izquierda y la explosion si iba a la derecha.
+// VRAM: 32 tiles por misil y 16 por explosion; a lo sumo uno de cada por
+// tortuga (el misil cruza la pantalla en ~1,5 s y sale otro cada 4 s).
+#define SW_WATER_SECS       4
+#define SW_MIS_MAX          MAX_PLAYERS
+#define SW_MIS_SPEED        4       // px/frame
+#define SW_MIS_Z           18       // altura del misil sobre los pies
+#define SW_MIS_HALF_X      14       // |dx| con el centro de la tortuga para pegar
+#define SW_MIS_TOL_Y       12       // |dy| de lane para pegar
+#define SW_MIS_CLEAR       30       // con los pies mas alto que esto, pasa por abajo
+#define SW_MIS_DMG          1
+#define SW_EXPL_FRAMES      7
+#define SW_EXPL_TICKS       4       // frames de juego por frame de la explosion
+
+static u16 swWater[MAX_PLAYERS];
+static struct { Sprite* spr; s16 x, lane; s8 dir; } swMis[SW_MIS_MAX];
+static struct { Sprite* spr; s16 x, lane; u8 frame, tick; } swBoom[SW_MIS_MAX];
+
+static void swInit(void) {
+    for (u16 i = 0; i < MAX_PLAYERS; i++) swWater[i] = 0;
+    for (u16 i = 0; i < SW_MIS_MAX; i++) { swMis[i].spr = NULL; swBoom[i].spr = NULL; }
+}
+
+static void swRelease(void) {
+    for (u16 i = 0; i < SW_MIS_MAX; i++) {
+        if (swMis[i].spr)  { SPR_releaseSprite(swMis[i].spr);  swMis[i].spr  = NULL; }
+        if (swBoom[i].spr) { SPR_releaseSprite(swBoom[i].spr); swBoom[i].spr = NULL; }
+    }
+}
+
+static void swFire(const Player* p, s16 camX) {
+    for (u16 i = 0; i < SW_MIS_MAX; i++) {
+        if (swMis[i].spr) continue;
+        s16 px = (s16)(getPlayerWorldX(p) + PLAYER_SPRITE_W / 2);
+        // Desde el borde mas LEJANO a la tortuga.
+        s8  dir = (px - camX < SCREEN_W / 2) ? -1 : 1;
+        s16 x   = (dir < 0) ? (s16)(camX + SCREEN_W + 32) : (s16)(camX - 32);
+        Sprite* s = SPR_addSprite(&sewer_missil, -64, -64, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        if (!s) return;                     // sin VRAM: este no sale
+        SPR_setAnimationLoop(s, TRUE);
+        SPR_setHFlip(s, dir < 0);           // el arte mira a la derecha
+        swMis[i].spr  = s;
+        swMis[i].x    = x;
+        swMis[i].lane = getPlayerY(p);
+        swMis[i].dir  = dir;
+        return;
+    }
+}
+
+static void swBoomAt(s16 x, s16 lane, s8 dir) {
+    for (u16 i = 0; i < SW_MIS_MAX; i++) {
+        if (swBoom[i].spr) continue;
+        Sprite* s = SPR_addSprite(&sewer_explosao, -32, -32, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        if (!s) return;
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, 0, 0);
+        SPR_setHFlip(s, dir > 0);           // el arte impacta de derecha a izquierda
+        swBoom[i].spr   = s;
+        swBoom[i].x     = x;
+        swBoom[i].lane  = lane;
+        swBoom[i].frame = 0;
+        swBoom[i].tick  = 0;
+        XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                       SOUND_PCM_CH3, 13, FALSE, FALSE);
+        return;
+    }
+}
+
+static void swUpdate(Player** pls, u8 nPl, s16 camX) {
+    const u16 period = (u16)((IS_PAL_SYSTEM ? 50 : 60) * SW_WATER_SECS);
+
+    // Cuenta del agua por tortuga.
+    for (u8 k = 0; k < nPl; k++) {
+        const Player* p = pls[k];
+        if (isPlayerGameOver(p) || !p->sprite) { swWater[k] = 0; continue; }
+        s16 y = getPlayerY(p);
+        if (y >= LVL31_LEDGE_BOT) {
+            if (++swWater[k] >= period) { swWater[k] = 0; swFire(p, camX); }
+        } else if (y <= LVL31_LEDGE_TOP) {
+            swWater[k] = 0;                 // arriba de la vereda: se corta
+        }
+    }
+
+    // Misiles.
+    for (u16 i = 0; i < SW_MIS_MAX; i++) {
+        if (!swMis[i].spr) continue;
+        swMis[i].x += swMis[i].dir * SW_MIS_SPEED;
+        if (swMis[i].x < camX - 48 || swMis[i].x > camX + SCREEN_W + 48) {
+            SPR_releaseSprite(swMis[i].spr);
+            swMis[i].spr = NULL;
+            continue;
+        }
+        bool hit = FALSE;
+        for (u8 k = 0; k < nPl && !hit; k++) {
+            Player* p = pls[k];
+            if (!playerCanBeHitAir(p)) continue;
+            if (getPlayerJumpZ(p) > SW_MIS_CLEAR) continue;         // lo salto
+            s16 px = (s16)(getPlayerWorldX(p) + PLAYER_SPRITE_W / 2);
+            s16 dx = (s16)(px - swMis[i].x), dy = (s16)(getPlayerY(p) - swMis[i].lane);
+            if (dx < 0) dx = (s16)-dx;
+            if (dy < 0) dy = (s16)-dy;
+            if (dx >= SW_MIS_HALF_X || dy >= SW_MIS_TOL_Y) continue;
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            playerHitProjectile(p, swMis[i].x, SW_MIS_DMG);
+            hit = TRUE;
+        }
+        if (hit) {
+            swBoomAt(swMis[i].x, swMis[i].lane, swMis[i].dir);
+            SPR_releaseSprite(swMis[i].spr);
+            swMis[i].spr = NULL;
+            continue;
+        }
+        SPR_setPosition(swMis[i].spr, (s16)(swMis[i].x - camX - 32),
+                        (s16)(swMis[i].lane - SW_MIS_Z - 16));
+        SPR_setDepth(swMis[i].spr, (s16)(-(swMis[i].lane) - 1));
+    }
+
+    // Explosiones: una pasada de los 7 frames y se sueltan.
+    for (u16 i = 0; i < SW_MIS_MAX; i++) {
+        if (!swBoom[i].spr) continue;
+        if (++swBoom[i].tick >= SW_EXPL_TICKS) {
+            swBoom[i].tick = 0;
+            if (++swBoom[i].frame >= SW_EXPL_FRAMES) {
+                SPR_releaseSprite(swBoom[i].spr);
+                swBoom[i].spr = NULL;
+                continue;
+            }
+            SPR_setFrame(swBoom[i].spr, swBoom[i].frame);
+        }
+        SPR_setPosition(swBoom[i].spr, (s16)(swBoom[i].x - camX - 16),
+                        (s16)(swBoom[i].lane - SW_MIS_Z - 16));
+        SPR_setDepth(swBoom[i].spr, (s16)(-(swBoom[i].lane) - 2));
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Ganchos del jefe: Baxter y sus ratas
@@ -122,6 +271,9 @@ static const StageLevel level31 = {
     .bossUpdate   = bossUpdate31,
     .bossDying    = bossDying31,
     .bossRelease  = bossRelease31,
+    .levelInit    = swInit,
+    .levelUpdate  = swUpdate,
+    .levelRelease = swRelease,
     .nextScene    = SCENE_4_1_TITLE,
 };
 

@@ -243,8 +243,17 @@ static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX) {
     s16 span = (s16)(cur->walkYMax - 8 - (top + 8));
     s16 y = (s16)(top + 8 + ((span > 0) ? (s16)(random() % (u16)span) : 0));
     y = ledgeSnap(y);
-    if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
-    else          initEnemyKickSpawn(e, x, y, -1, PAL2, type);
+    // (29/09) Solo el MORADO tiene voltereta y patada de entrada. El naranja
+    // no tiene la anim 15: con la voltereta aparecia de golpe o con pixeles
+    // basura. El naranja y el blanco entran CAMINANDO.
+    if (type != ENEMY_TYPE_FOOT_SOLDIER) {
+        if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)
+            x = (side < 0) ? (s16)(camX - ENEMY_SPRITE_W_WHITE) : (s16)(camX + SCREEN_W);
+        initEnemyWalkInSpawn(e, x, y, (s8)((side < 0) ? 1 : -1),
+                             (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) ? PAL3 : PAL2, type);
+    }
+    else if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
+    else               initEnemyKickSpawn(e, x, y, -1, PAL2, type);
     setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
 }
 
@@ -342,6 +351,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     u16 maxAlive = dosJugadores ? STAGE_MAX_ALIVE_2P : STAGE_MAX_ALIVE_1P;
 
     if (L->bossInit) L->bossInit();
+    if (L->levelInit) L->levelInit();
     bool bossStarted = FALSE;
 
     s16 waveIdx     = -1;       // ultima oleada disparada
@@ -548,6 +558,9 @@ SceneId stageLevelRun(const StageLevel* L) {
             }
         }
 
+        // --- Lo propio del nivel (29/09: los misiles del agua del sewer) -----
+        if (L->levelUpdate) L->levelUpdate(pls, nPl, cameraX);
+
         // --- Jefe ------------------------------------------------------------
         bool wavesDone = (L->nWaves == 0) ||
                          (waveIdx == (s16)L->nWaves - 1 &&
@@ -592,6 +605,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     }
 
     shurikenReleaseAll();
+    if (L->levelRelease) L->levelRelease();
     if (L->bossRelease) L->bossRelease();
     VDP_setTextPriority(0);
     VDP_setTextPalette(PAL0);
