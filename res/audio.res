@@ -125,3 +125,19 @@ WAV boss_scream_bebop_vo "audio/boss_scream_bebop.wav" XGM2
 // el resto de los voice over (ver claude/audio-mix-voz-vs-musica.md).
 // El original de 48k queda al lado como who_put_the_light_out_orig48k.wav.
 WAV who_put_light_vo "audio/who_put_the_light_out.wav" XGM2
+
+// --- TV de la vidriera (2-1, 27/09) ----------------------------------------
+// Cuando se prende la tele: April pide ayuda y Shredder la interrumpe.
+// * "Help me!" es la MISMA toma que help_me_april.wav (help_me.wav, el
+//   original de 48k, correlaciona 0,99 con la ya convertida), asi que se
+//   reusa help_me_april_vo y no se declara otra copia (1,28 s, rms 22,4%).
+// * "Tonight I dine on turtle soup!" llego como WAV ESTEREO 8-bit 48000 Hz de
+//   2,145 s. Convencion de la casa: MONO, 8-bit, 11025 Hz, puntas recortadas,
+//   pico 96,9%. Normalizada al pico quedaba en rms 11,7% (unos pocos picos
+//   muy por encima del resto), muy por debajo de la banda de voz: se le dio
+//   ganancia hasta que el percentil 99,5 toco el techo y lo que pasaba del 80%
+//   se redondeo con una rodilla suave (tanh; toca solo el 1,1% de las
+//   muestras). Medido despues de convertir:
+//   dinne_turtle            2,145s  pico 96,9%  rms 22,0%  23.649 B
+// El original de 48k queda al lado como dinne_turtle_orig48k.wav.
+WAV dinne_turtle_vo "audio/dinne_turtle.wav" XGM2

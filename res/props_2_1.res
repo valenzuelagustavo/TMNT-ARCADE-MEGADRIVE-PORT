@@ -29,3 +29,12 @@ SPRITE parking_meter_fly   "sprites/parking_meter_fly_gen.png"   7 8 FAST 0
 // hasta que aparece Bebop (ver level2_1.c). time 30 = medio segundo por frame.
 // -----------------------------------------------------------------------------
 SPRITE tv_april "sprites/tv_april.png" 7 6 FAST 30
+
+// Globos de dialogo de la TV (27/09). 64x32 (8x4 tiles, 32 tiles cada uno;
+// nunca conviven: primero uno y despues el otro). Llegaron con paleta propia
+// de 5 colores y se remapearon a la de las TORTUGAS (PAL1), como el globo de
+// "who put the light out": relleno 11, borde 9, texto 8, sombra del texto 7.
+// El de "Help!" media 64x30: se relleno con 2 filas transparentes ARRIBA
+// (la cola apunta abajo, a la tele). Los originales: *_orig.png.
+SPRITE tv_help_bubble "sprites/help_baloon.png" 8 4 NONE 0
+SPRITE tv_dine_bubble "sprites/tonight_i_dinne_baloon.png" 8 4 NONE 0

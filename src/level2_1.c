@@ -698,12 +698,63 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 #define LVL21_TV_MARGIN   32
 #define LVL21_TV_NEAR     16      // 2 tiles en X desde el borde del televisor
 #define LVL21_TV_FRAMES    4
+// (27/09) Con VOZ: frames 0-2 (April) en ciclo mientras suena "Help me!" y
+// frame 3 (Shredder) FIJO hasta que termina "Tonight I dine on turtle soup".
+// Cada fase dura lo que su voice over (sale de los bytes del sample: rescomp
+// los deja a 13300 Hz, 1 byte por muestra), no de XGM2_isPlayingPCM: si un
+// SFX le pisa el canal, la tele y el globo siguen igual su tiempo.
+// Los globos van ARRIBA de la tele, centrados en su pantalla (la cola de
+// los dos PNG cae mas o menos en x=38 de 64).
+#define LVL21_TV_APRIL_FRAMES 3
+#define LVL21_TV_SHREDDER_F   3
+#define LVL21_PCM_RATE     13300
+#define LVL21_TVB_W           64
+#define LVL21_TVB_H           32
+#define LVL21_TVB_X   (LVL21_TV_X + LVL21_TV_W / 2 - 38)
+#define LVL21_TVB_Y   (LVL21_TV_Y - LVL21_TVB_H + 4)   // pisa 4px el marco
+// La tele queda pegada abajo del HUD (camY ~32 ahi), asi que el globo cae en
+// la franja del HUD: va con prioridad ALTA (como los marcos) para que el
+// texto del HUD en BG_A no lo atraviese, y por delante de todo en depth.
 #define LVL21_TV_TICKS    30      // ticks por frame (el time del .res)
 
 typedef enum { TV_OFF, TV_PENDING, TV_PLAYING, TV_DONE } TvState;
 static Sprite* tvSpr;
+static Sprite* tvBubble;        // globo de dialogo de la fase actual
 static TvState tvState;
 static u16     tvTick;
+static u8      tvPhase;         // 0 = April ("Help me!"), 1 = Shredder
+static u16     tvPhaseLen;      // frames que dura la fase (su voice over)
+
+static u16 tvVoFrames(u32 bytes) {
+    return (u16)((bytes * (IS_PAL_SYSTEM ? 50 : 60)) / LVL21_PCM_RATE + 1);
+}
+
+static void tvBubbleSet(const SpriteDefinition* def) {
+    if (tvBubble) { SPR_releaseSprite(tvBubble); tvBubble = NULL; }
+    if (def) {
+        tvBubble = SPR_addSprite(def, 0, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+        if (tvBubble) SPR_setDepth(tvBubble, SPR_MIN_DEPTH);
+    }
+}
+
+// Arranca una fase: globo + voice over. La voz va en CH3 (los SFX de a
+// ratos), no en CH2: los golpes de las tortugas van ahi con prioridad 15 y
+// si la tele se prende en plena pelea la cortarian a cada rato.
+static void tvStartPhase(u8 phase) {
+    tvPhase = phase;
+    tvTick  = 0;
+    if (phase == 0) {
+        tvBubbleSet(&tv_help_bubble);
+        XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo),
+                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+        tvPhaseLen = tvVoFrames(sizeof(help_me_april_vo));
+    } else {
+        tvBubbleSet(&tv_dine_bubble);
+        XGM2_playPCMEx(dinne_turtle_vo, sizeof(dinne_turtle_vo),
+                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+        tvPhaseLen = tvVoFrames(sizeof(dinne_turtle_vo));
+    }
+}
 
 static u16 soldierMaxTiles(void) {
     u16 a = foot_soldier.maxNumTile, b = foot_soldier_orange.maxNumTile;
@@ -713,6 +764,7 @@ static u16 soldierMaxTiles(void) {
 // Suelta la tele si al proximo soldier no le alcanza la VRAM de sprites.
 static void tvRelease(void) {
     if (tvSpr) { SPR_releaseSprite(tvSpr); tvSpr = NULL; }
+    tvBubbleSet(NULL);
 }
 
 static void tvYield(u16 alive, u16 maxAlive) {
@@ -744,7 +796,7 @@ static void tvUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, u16 alive, u16 ma
         bool onScreen = sx > -(LVL21_TV_W + LVL21_TV_MARGIN) &&
                         sx < (s16)(SCREEN_PIXEL_WIDTH + LVL21_TV_MARGIN);
         if (!allow || !onScreen) { tvState = TV_DONE; return; }   // se la perdio
-        u16 need = tv_april.maxNumTile;
+        u16 need = tv_april.maxNumTile + tv_help_bubble.maxNumTile;
         if (alive < maxAlive) need += (u16)((maxAlive - alive) * soldierMaxTiles());
         if (SPR_getFreeVRAM() >= need &&
             SPR_getLargestFreeVRAMBlock() >= tv_april.maxNumTile) {
@@ -753,23 +805,42 @@ static void tvUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, u16 alive, u16 ma
                 SPR_setDepth(tvSpr, SPR_MAX_DEPTH);
                 SPR_setAutoAnimation(tvSpr, FALSE);     // los frames van a mano
                 SPR_setAnimAndFrame(tvSpr, 0, 0);
-                tvTick = 0;
                 tvState = TV_PLAYING;
+                tvStartPhase(0);
             }
         }
     }
 
     if (tvState == TV_PLAYING) {
         if (!tvSpr) { tvState = TV_DONE; return; }
-        u16 f = (u16)(tvTick / LVL21_TV_TICKS);
-        if (f >= LVL21_TV_FRAMES) {                     // termino: se va para siempre
-            tvRelease();
-            tvState = TV_DONE;
-            return;
+        if (tvTick >= tvPhaseLen) {
+            if (tvPhase == 0) tvStartPhase(1);          // "Help me!" termino
+            else {                                      // termino todo: se va
+                tvRelease();
+                tvState = TV_DONE;
+                return;
+            }
         }
+        u16 f = (tvPhase == 0)
+              ? (u16)((tvTick / LVL21_TV_TICKS) % LVL21_TV_APRIL_FRAMES)
+              : LVL21_TV_SHREDDER_F;
         SPR_setFrame(tvSpr, (s16)f);
         tvTick++;
+        // La secuencia sigue aunque la tortuga se aleje y la tele salga de
+        // camara (la voz no se corta). Fuera de pantalla se OCULTAN: sin eso
+        // una X muy negativa da la vuelta en la VDP (x & 511) y el sprite
+        // asomaba por el borde derecho.
+        bool tvVis = (sx > -LVL21_TV_W) && (sx < SCREEN_PIXEL_WIDTH);
+        SPR_setVisibility(tvSpr, tvVis ? VISIBLE : HIDDEN);
         SPR_setPosition(tvSpr, sx, (s16)(LVL21_TV_Y - camY));
+        if (tvBubble) {
+            s16 bx = (s16)(LVL21_TVB_X - camX);
+            s16 by = (s16)(LVL21_TVB_Y - camY);
+            if (by < 0) by = 0;
+            bool bVis = (bx > -LVL21_TVB_W) && (bx < SCREEN_PIXEL_WIDTH);
+            SPR_setVisibility(tvBubble, bVis ? VISIBLE : HIDDEN);
+            SPR_setPosition(tvBubble, bx, by);
+        }
     }
 }
 
@@ -934,6 +1005,9 @@ SceneId showScene21() {
     // partida anterior murio con algo en el aire hay que limpiarlo).
     mhReset();
     tvSpr = NULL;     // la tele se prende una vez al acercarse (tvUpdate)
+    tvBubble = NULL;
+    tvPhase = 0;
+    tvPhaseLen = 0;
     tvState = TV_OFF;
     tvTick = 0;
     tntInit();
