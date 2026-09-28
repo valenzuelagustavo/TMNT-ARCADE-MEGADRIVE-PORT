@@ -968,8 +968,9 @@ s16 getPlayerJumpZ(const Player* p) {
 // altura VISUAL. Se mueve 'y' de golpe a la lane de destino y se le suma a
 // jumpZ exactamente esa diferencia, asi el sprite NO se teletransporta (queda
 // dibujado donde estaba) y despues cae solo con la gravedad del salto hasta
-// que jumpZ vuelve a 0. (28/09) Arranca con la velocidad del borde del apice:
-// entra derecho en la caida, que acelera hasta PLAYER_FALL_SPEED.
+// que jumpZ vuelve a 0. (29/09) Arranca con un saltito (PLAYER_DROP_HOP_Q):
+// sube ~3 px, cuelga un instante y cae acelerando hasta PLAYER_FALL_SPEED.
+// Antes arrancaba ya cayendo y la bajada se sentia brusca.
 void playerFallTo(Player* p, s16 newFeetY) {
     if (!p->sprite) { p->y = newFeetY; return; }
     s16 drop = newFeetY - p->y;
@@ -977,7 +978,10 @@ void playerFallTo(Player* p, s16 newFeetY) {
     p->y      = newFeetY;
     p->jumpZ  += drop;
     p->jumpZq  = (s32)p->jumpZ << PLAYER_JUMP_Q;
-    p->jumpVq  = PLAYER_APEX_BAND_Q;
+    // (29/09) Parado: se baja con un SALTITO (PLAYER_DROP_HOP_Q hacia arriba)
+    // en vez de caer a plomo. Ya en el aire: sigue con la velocidad que traia.
+    if (p->state != STATE_JUMPING) p->jumpVq = -PLAYER_DROP_HOP_Q;
+    else if (p->jumpVq < PLAYER_APEX_BAND_Q) p->jumpVq = PLAYER_APEX_BAND_Q;
     if (p->state != STATE_JUMPING) {
         p->state         = STATE_JUMPING;
         p->isJumpKicking = JUMPKICK_NONE;

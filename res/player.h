@@ -100,6 +100,11 @@ typedef enum {
 #define PLAYER_APEX_GRAV_Q  136     // gravedad a la mitad en el apice
 #define PLAYER_FALL_ACCEL_Q 384     // 1,5 px/frame2 al empezar a caer
 #define PLAYER_KICK_GRAV_Q  256     // 1 px/frame2 cayendo con patada
+// (29/09) Dejarse caer de un borde (playerFallTo: escalon del sewer, cornisa
+// del 2-1): arranca con este saltito hacia arriba (2 px/frame) en vez de caer
+// a plomo. Simulado: 30 px de bajada en 13 frames (antes 7), 78 px en 21
+// (antes 15); el saltito sube ~3 px.
+#define PLAYER_DROP_HOP_Q   512
 
 // Velocidad de CAIDA cuando NO se pateo en el aire: pareja (13/09, a pedido
 // de Gustavo). Desde el 28/09 se llega a ella acelerando (PLAYER_FALL_ACCEL_Q)

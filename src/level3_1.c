@@ -16,7 +16,8 @@
 //
 // ESCALON (28/09): la vereda y el canal ya no son una sola franja. La cara
 // del escalon (el recuadro negro que pinto Gustavo en "ejemplo de escalon.png":
-// filas 192..213 del fondo = Y de mundo 160..181) no se pisa: desde la vereda
+// filas 192..213 del fondo = Y de mundo 160..181; el 29/09 se agrando un tile
+// hacia abajo, hasta 189, a pedido de Gustavo) no se pisa: desde la vereda
 // uno se deja caer al agua, y desde el agua hay que SALTAR para subir (ver
 // ledgeTop/ledgeBot en stage_level.h).
 //
@@ -40,7 +41,7 @@
 #define SCREEN_W            320
 #define LVL31_W            1248
 #define LVL31_LEDGE_TOP     160     // ultima Y de pies de la vereda
-#define LVL31_LEDGE_BOT     182     // primera Y de pies del canal
+#define LVL31_LEDGE_BOT     190     // primera Y de pies del canal (29/09: +1 tile)
 
 static const SbgRaw sewer31 = {
     (const u32*) bg_sewer_tiles,
@@ -68,11 +69,15 @@ static const StageWave waves31[] = {
 // MISILES DEL AGUA (29/09, pedido de Gustavo)
 // ---------------------------------------------------------------------------
 // Si una tortuga se queda en el CANAL (pies >= LVL31_LEDGE_BOT) unos 4
-// segundos, sale un misil del agua desde el borde de la camara MAS LEJANO a
-// ella y cruza derecho en X, por su lane, hasta salir de camara. Uno cada 4
-// segundos mientras siga en el agua; subirse a la vereda reinicia la cuenta.
+// segundos, sale un misil del agua. Uno cada 4 segundos mientras siga en el
+// agua; subirse a la vereda reinicia la cuenta.
+//   - (29/09) EMERGE: aparece del lado de la pantalla MAS LEJANO a la
+//     tortuga (SW_MIS_EDGE px adentro del borde), por su lane, saliendo del
+//     agua desde abajo (SW_MIS_Z0) y sube hasta SW_MIS_Z. Recien ahi sale
+//     derecho en X hacia la tortuga hasta dejar la camara. Mientras sube
+//     no pega.
 //   - Pega a las TORTUGAS (1 barra); a los foot soldiers no les hace nada.
-//   - Va rasante (SW_MIS_Z sobre los pies): saltando se lo esquiva.
+//   - Saltando por encima (pies a mas de SW_MIS_CLEAR) se lo esquiva.
 //   - Al pegar desaparece y en su lugar queda la explosion (7 frames, una
 //     vez); al terminar se suelta el sprite.
 // El arte (el de Traag, ver tools/gen_sewer_missile.py) va en PAL2: el misil
@@ -83,16 +88,19 @@ static const StageWave waves31[] = {
 #define SW_WATER_SECS       4
 #define SW_MIS_MAX          MAX_PLAYERS
 #define SW_MIS_SPEED        4       // px/frame
-#define SW_MIS_Z           18       // altura del misil sobre los pies
+#define SW_MIS_Z           28       // altura de vuelo sobre los pies (antes 18)
+#define SW_MIS_Z0         (-10)     // arranca por debajo de la linea del agua
+#define SW_MIS_RISE         2       // px/frame que sube al emerger
+#define SW_MIS_EDGE        40       // px adentro del borde donde emerge
 #define SW_MIS_HALF_X      14       // |dx| con el centro de la tortuga para pegar
 #define SW_MIS_TOL_Y       12       // |dy| de lane para pegar
-#define SW_MIS_CLEAR       30       // con los pies mas alto que esto, pasa por abajo
+#define SW_MIS_CLEAR       40       // con los pies mas alto que esto, pasa por abajo
 #define SW_MIS_DMG          1
 #define SW_EXPL_FRAMES      7
 #define SW_EXPL_TICKS       4       // frames de juego por frame de la explosion
 
 static u16 swWater[MAX_PLAYERS];
-static struct { Sprite* spr; s16 x, lane; s8 dir; } swMis[SW_MIS_MAX];
+static struct { Sprite* spr; s16 x, lane, z; s8 dir; bool rising; } swMis[SW_MIS_MAX];
 static struct { Sprite* spr; s16 x, lane; u8 frame, tick; } swBoom[SW_MIS_MAX];
 
 static void swInit(void) {
@@ -111,9 +119,10 @@ static void swFire(const Player* p, s16 camX) {
     for (u16 i = 0; i < SW_MIS_MAX; i++) {
         if (swMis[i].spr) continue;
         s16 px = (s16)(getPlayerWorldX(p) + PLAYER_SPRITE_W / 2);
-        // Desde el borde mas LEJANO a la tortuga.
+        // Emerge del lado mas LEJANO a la tortuga y va hacia ella.
         s8  dir = (px - camX < SCREEN_W / 2) ? -1 : 1;
-        s16 x   = (dir < 0) ? (s16)(camX + SCREEN_W + 32) : (s16)(camX - 32);
+        s16 x   = (dir < 0) ? (s16)(camX + SCREEN_W - SW_MIS_EDGE)
+                            : (s16)(camX + SW_MIS_EDGE);
         Sprite* s = SPR_addSprite(&sewer_missil, -64, -64, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
         if (!s) return;                     // sin VRAM: este no sale
         SPR_setAnimationLoop(s, TRUE);
@@ -122,6 +131,9 @@ static void swFire(const Player* p, s16 camX) {
         swMis[i].x    = x;
         swMis[i].lane = getPlayerY(p);
         swMis[i].dir  = dir;
+        swMis[i].z    = SW_MIS_Z0;
+        swMis[i].rising = TRUE;
+        SPR_setPosition(s, (s16)(x - camX - 32), (s16)(swMis[i].lane - SW_MIS_Z0 - 16));
         return;
     }
 }
@@ -163,6 +175,14 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
     // Misiles.
     for (u16 i = 0; i < SW_MIS_MAX; i++) {
         if (!swMis[i].spr) continue;
+        if (swMis[i].rising) {                      // saliendo del agua
+            swMis[i].z += SW_MIS_RISE;
+            if (swMis[i].z >= SW_MIS_Z) { swMis[i].z = SW_MIS_Z; swMis[i].rising = FALSE; }
+            SPR_setPosition(swMis[i].spr, (s16)(swMis[i].x - camX - 32),
+                            (s16)(swMis[i].lane - swMis[i].z - 16));
+            SPR_setDepth(swMis[i].spr, (s16)(-(swMis[i].lane) - 1));
+            continue;
+        }
         swMis[i].x += swMis[i].dir * SW_MIS_SPEED;
         if (swMis[i].x < camX - 48 || swMis[i].x > camX + SCREEN_W + 48) {
             SPR_releaseSprite(swMis[i].spr);
@@ -190,7 +210,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
             continue;
         }
         SPR_setPosition(swMis[i].spr, (s16)(swMis[i].x - camX - 32),
-                        (s16)(swMis[i].lane - SW_MIS_Z - 16));
+                        (s16)(swMis[i].lane - swMis[i].z - 16));
         SPR_setDepth(swMis[i].spr, (s16)(-(swMis[i].lane) - 1));
     }
 
