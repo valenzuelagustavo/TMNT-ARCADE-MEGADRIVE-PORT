@@ -59,6 +59,72 @@ static void clampWalk(s16* x, s16* y, s16 px, s16 py, s16 footDx) {
 }
 
 // ---------------------------------------------------------------------------
+// ESCALON (28/09, sewer). Tiene la misma idea que la cornisa del 2-1: la 'y'
+// es PROFUNDIDAD, y la cara del escalon es una banda de profundidad donde no
+// se puede estar parado.
+//   - Parado arriba y caminando hacia abajo: al pasarse del borde se deja
+//     caer al piso de abajo (playerFallTo: el sprite no salta, baja con la
+//     gravedad del salto).
+//   - Parado abajo y caminando hacia arriba: el escalon frena. Hay que
+//     saltar y, en el aire, apretar arriba hasta pasar el borde.
+//   - Al aterrizar dentro de la banda: si quedo a LEDGE_SNAP px del borde de
+//     arriba se lo sube (no perder el salto por nada); si no, cae abajo.
+// Los soldiers no saltan: cuando su 'y' cruza la banda se la pasa de una al
+// otro piso y se compensa con un desplazamiento VISUAL (eStepZ) que vuelve a
+// 0 de a pocos px por frame: se los ve bajar o trepar el escalon.
+// ---------------------------------------------------------------------------
+#define LEDGE_SNAP        6
+#define LEDGE_Z_DOWN      3     // px por frame que baja un soldier
+#define LEDGE_Z_UP        2     // px por frame que trepa
+
+static inline bool ledgeOn(void) { return cur && cur->ledgeBot > cur->ledgeTop; }
+static inline bool inLedge(s16 y) {
+    return (y > cur->ledgeTop && y < cur->ledgeBot);
+}
+// Una Y de pies valida en el suelo: la de la banda va al piso mas cercano.
+static s16 ledgeSnap(s16 y) {
+    if (!ledgeOn() || !inLedge(y)) return y;
+    return (y - cur->ledgeTop <= cur->ledgeBot - y) ? cur->ledgeTop : cur->ledgeBot;
+}
+
+static void ledgePlayer(Player* p, s16 prevY, bool* wasAir) {
+    if (!ledgeOn()) return;
+    const s16 lt = cur->ledgeTop, lb = cur->ledgeBot;
+    if (!isPlayerJumping(p)) {
+        if (*wasAir) {                              // aterrizo este frame
+            if (inLedge(p->y)) {
+                if (p->y <= lt + LEDGE_SNAP) p->y = lt;
+                else playerFallTo(p, lb);
+            }
+        } else if (prevY <= lt && p->y > lt) {      // se paso del borde
+            playerFallTo(p, lb);
+        } else if (prevY >= lb && p->y < lb) {      // contra el escalon
+            p->y = lb;
+        } else if (inLedge(p->y)) {                 // red de seguridad
+            p->y = ledgeSnap(p->y);
+        }
+    }
+    *wasAir = isPlayerJumping(p);
+}
+
+static s16 eStepZ[MAX_ENEMIES];
+
+static void ledgeEnemy(Enemy* e, u16 i, s16 prevY) {
+    if (!ledgeOn()) return;
+    if (inLedge(e->y)) {
+        s16 to;
+        if (prevY <= cur->ledgeTop)      to = cur->ledgeBot;   // baja
+        else if (prevY >= cur->ledgeBot) to = cur->ledgeTop;   // sube
+        else                             to = ledgeSnap(e->y);
+        // Mismo lugar en pantalla: y - z se conserva.
+        eStepZ[i] = (s16)(eStepZ[i] + (to - e->y));
+        e->y = to;
+    }
+    if (eStepZ[i] > 0) eStepZ[i] = (eStepZ[i] > LEDGE_Z_DOWN) ? eStepZ[i] - LEDGE_Z_DOWN : 0;
+    else if (eStepZ[i] < 0) eStepZ[i] = (eStepZ[i] < -LEDGE_Z_UP) ? eStepZ[i] + LEDGE_Z_UP : 0;
+}
+
+// ---------------------------------------------------------------------------
 // Primer plano (BG_A, prioridad alta, sin las filas del HUD)
 // ---------------------------------------------------------------------------
 static u16 fgVram;
@@ -143,6 +209,7 @@ static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX) {
     s16 top = stageWalkTopAt(fx);
     s16 span = (s16)(cur->walkYMax - 8 - (top + 8));
     s16 y = (s16)(top + 8 + ((span > 0) ? (s16)(random() % (u16)span) : 0));
+    y = ledgeSnap(y);
     if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
     else          initEnemyKickSpawn(e, x, y, -1, PAL2, type);
     setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
@@ -205,7 +272,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         s16 top = stageWalkTopAt(STAGE_START_X + FOOT_DX);
         s16 span = (s16)(L->walkYMax - top);
         static const u8 frac[MAX_PLAYERS] = { 40, 65, 20, 85 };   // % de la franja
-        s16 y = (s16)(top + (span * frac[k]) / 100);
+        s16 y = ledgeSnap((s16)(top + (span * frac[k]) / 100));
         initPlayer(pls[k], playerChar(k), playerJoy(k), PAL1, STAGE_START_X, y);
         setPlayerLane(pls[k], L->walkYMin, L->walkYMax);
         setPlayerEndWall(pls[k], 0, 0);
@@ -234,7 +301,9 @@ SceneId stageLevelRun(const StageLevel* L) {
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state  = ENEMY_STATE_INACTIVE;
         enemies[i].sprite = NULL;
+        eStepZ[i] = 0;
     }
+    bool plWasAir[MAX_PLAYERS] = { FALSE, FALSE, FALSE, FALSE };
     u16 maxAlive = dosJugadores ? STAGE_MAX_ALIVE_2P : STAGE_MAX_ALIVE_1P;
 
     if (L->bossInit) L->bossInit();
@@ -278,6 +347,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             s16 prevX = pls[k]->x, prevY = pls[k]->y;
             updatePlayer(pls[k]);
             clampWalk(&pls[k]->x, &pls[k]->y, prevX, prevY, FOOT_DX);
+            ledgePlayer(pls[k], prevY, &plWasAir[k]);
         }
 
         // --- Camara: dead-zone a la derecha, nunca vuelve -------------------
@@ -356,6 +426,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
                 if (i >= MAX_ENEMIES) break;
+                eStepZ[i] = 0;
                 spawnWaveEnemy(&enemies[i], w->type[waveSpawned],
                                w->side[waveSpawned], cameraX);
                 waveSpawned++;
@@ -374,9 +445,10 @@ SceneId stageLevelRun(const StageLevel* L) {
             updateEnemyN(e, pls, nPl);
             if (e->state == ENEMY_STATE_INACTIVE) continue;
             clampWalk(&e->x, &e->y, prevEX, prevEY, (s16)(getEnemyCenterX(e) - e->x));
+            ledgeEnemy(e, i, prevEY);
             if (e->sprite)
                 SPR_setPosition(e->sprite, e->x - cameraX,
-                                e->y - e->footOffset - e->jumpZ);
+                                e->y - e->footOffset - e->jumpZ - eStepZ[i]);
         }
 
         // Golpe del jugador al soldier.

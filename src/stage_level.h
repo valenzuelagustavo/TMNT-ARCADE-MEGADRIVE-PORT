@@ -20,6 +20,11 @@
 //     por detras), sin las filas del HUD. BG_A y BG_B scrollean por fila de
 //     tile: filas 0-3 fijas (HUD), el resto con la camara.
 //   - Franja caminable: tope por columna de 8 px (tabla del nivel) y un piso.
+//   - (28/09, sewer) ESCALON opcional: una banda de profundidad que parte la
+//     franja en dos pisos (la vereda y el canal). Caminando no se cruza: de
+//     arriba hacia abajo uno se deja caer, y de abajo hacia arriba hay que
+//     SALTAR (como la cornisa del 2-1). Los soldiers lo cruzan con un
+//     saltito. Ver ledgeTop/ledgeBot.
 //   - Tortugas 1..4, HUD, P2 que se suma, continues, pausa, especial.
 //   - Oleadas de foot soldiers con camara bloqueada hasta limpiarlas.
 //   - (26/09, freeway) Variante con CAPA LEJANA: si el nivel trae 'far', el
@@ -55,6 +60,11 @@ typedef struct {
     u16           walkCols;
     s16           walkYMin;     // franja de profundidad del motor (pies)
     s16           walkYMax;
+    // (28/09) Escalon: pies <= ledgeTop es el piso de ARRIBA, >= ledgeBot el
+    // de ABAJO; entre medio es la cara del escalon (solo se pasa en el aire).
+    // ledgeBot = 0 -> sin escalon.
+    s16           ledgeTop;
+    s16           ledgeBot;
     // --- Guion ---
     const StageWave* waves;
     u16           nWaves;
