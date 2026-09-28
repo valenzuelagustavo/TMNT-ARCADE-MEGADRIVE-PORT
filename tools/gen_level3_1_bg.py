@@ -35,9 +35,23 @@
 #                        Sin esto las bajadas de los caños arrancaban recien
 #                        debajo del HUD y parecian mas bajas que el nivel.
 #
-# La paleta es la de la hoja con el indice 0 en NEGRO (el fondo no lo usa;
-# asi el color de fondo del VDP, PAL0[0], no es magenta). En el primer plano
-# el indice 0 es el transparente.
+# La paleta es la de la hoja con el indice 0 en NEGRO (asi el color de fondo
+# del VDP, PAL0[0], no es magenta). En el primer plano el indice 0 es el
+# transparente.
+#
+# (29/09) AGUA ANIMADA. El agua usa 3 colores: el violeta (3) y dos grises
+# (4 y 5) que el arcade ROTA para que parezca que corre. Pero 4 y 5 tambien
+# son de los caños y las escaleras, asi que el agua recibe sus PROPIOS
+# indices, WATER_A (copia de 4) y WATER_B (copia de 5), y level3_1.c
+# intercambia esos dos colores en la CRAM. Los dos lugares salen de:
+#   - el 1, que era un negro repetido del 0: en el fondo sus pixeles pasan al
+#     0 (en BG_B el 0 es transparente y muestra el color de fondo del VDP,
+#     que es PAL0[0] = negro: se ve igual) y en los caños al 2 (4a0000, el
+#     mas oscuro que queda: son 50 pixeles de contorno);
+#   - el 14 (7b4a39), que en la VDP es el MISMO color que el 7 (635231: los
+#     dos dan 3,2,1 en 3 bits por canal): sus pixeles pasan al 7 sin ningun
+#     cambio visible.
+# Solo se remapean los pixeles de 4/5 del agua (filas >= WATER_ROW0).
 #
 # Uso: python3 tools/gen_level3_1_bg.py
 # =============================================================================
@@ -56,6 +70,8 @@ W, H = 1248, 224
 BG_ROW0 = 44          # hoja: fila 12 (arranque del fondo) + 32 de recorte
 FG_ROW0 = 344         # hoja: fila 312 (arranque del primer plano) + 32, como el fondo
 FG_DX = 0             # misma X que en la hoja
+WATER_ROW0 = 170      # de aca para abajo, los 4/5 son del agua (el borde incluido)
+WATER_A, WATER_B = 1, 14
 
 
 def paletted(img, pal):
@@ -73,10 +89,35 @@ def main():
 
     bg = paletted(src.crop((0, BG_ROW0, W, BG_ROW0 + H)), pal)
     assert 0 not in set(bg.getdata()), 'el fondo no deberia usar el indice 0'
+
+    # Agua animada: liberar el 1 y el 14 y darselos al agua (ver arriba).
+    pal[WATER_A * 3:WATER_A * 3 + 3] = pal[4 * 3:4 * 3 + 3]
+    pal[WATER_B * 3:WATER_B * 3 + 3] = pal[5 * 3:5 * 3 + 3]
+    px = bg.load()
+    for y in range(H):
+        for x in range(W):
+            v = px[x, y]
+            if v == 1:
+                v = 0
+            elif v == 14:
+                v = 7
+            elif y >= WATER_ROW0 and v == 4:
+                v = WATER_A
+            elif y >= WATER_ROW0 and v == 5:
+                v = WATER_B
+            px[x, y] = v
+    bg.putpalette(pal)
     bg.save(os.path.join(D, 'bg_sewer.png'))
 
     # crop() fuera de la hoja rellena con 0 (transparente).
     fg = paletted(src.crop((FG_DX, FG_ROW0, FG_DX + W, FG_ROW0 + H)), pal)
+    fq = fg.load()
+    for y in range(H):
+        for x in range(W):
+            if fq[x, y] == 1:
+                fq[x, y] = 2
+            elif fq[x, y] == 14:
+                fq[x, y] = 7
     fg.save(os.path.join(D, 'bg_sewer_fg.png'), transparency=0)
 
     # Tramos del primer plano en la franja del HUD (filas de tile 0-3).

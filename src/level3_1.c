@@ -99,11 +99,42 @@ static const StageWave waves31[] = {
 #define SW_EXPL_FRAMES      7
 #define SW_EXPL_TICKS       4       // frames de juego por frame de la explosion
 
+// ---------------------------------------------------------------------------
+// AGUA ANIMADA (29/09): como en el arcade, los dos colores del agua que no son
+// el violeta se intercambian cada SW_WATER_CYCLE frames. El agua tiene sus
+// propios indices en PAL0 (1 y 14, ver tools/gen_level3_1_bg.py): los grises
+// originales (4 y 5) siguen siendo de los caños y las escaleras, que no se
+// tocan. Son 2 palabras de CRAM por cambio, por la cola de DMA.
+// ---------------------------------------------------------------------------
+#define SW_WATER_A          1
+#define SW_WATER_B         14
+#define SW_WATER_CYCLE      8
+
+static u16 swWaterTick;
+static u8  swWaterPhase;
+
+static void swWaterUpdate(void) {
+    if (++swWaterTick < SW_WATER_CYCLE) return;
+    swWaterTick = 0;
+    swWaterPhase ^= 1;
+    // Por la cola de DMA (en el VBlank): escribir la CRAM en pleno cuadro
+    // deja puntitos en la imagen en un Mega Drive real. static: la cola lee
+    // el buffer recien en el VBlank.
+    static u16 ca, cb;
+    const u16* c = pal_sewer.data;
+    ca = swWaterPhase ? c[SW_WATER_B] : c[SW_WATER_A];
+    cb = swWaterPhase ? c[SW_WATER_A] : c[SW_WATER_B];
+    PAL_setColors(SW_WATER_A, &ca, 1, DMA_QUEUE);
+    PAL_setColors(SW_WATER_B, &cb, 1, DMA_QUEUE);
+}
+
 static u16 swWater[MAX_PLAYERS];
 static struct { Sprite* spr; s16 x, lane, z; s8 dir; bool rising; } swMis[SW_MIS_MAX];
 static struct { Sprite* spr; s16 x, lane; u8 frame, tick; } swBoom[SW_MIS_MAX];
 
 static void swInit(void) {
+    swWaterTick  = 0;
+    swWaterPhase = 0;
     for (u16 i = 0; i < MAX_PLAYERS; i++) swWater[i] = 0;
     for (u16 i = 0; i < SW_MIS_MAX; i++) { swMis[i].spr = NULL; swBoom[i].spr = NULL; }
 }
@@ -159,6 +190,8 @@ static void swBoomAt(s16 x, s16 lane, s8 dir) {
 
 static void swUpdate(Player** pls, u8 nPl, s16 camX) {
     const u16 period = (u16)((IS_PAL_SYSTEM ? 50 : 60) * SW_WATER_SECS);
+
+    swWaterUpdate();
 
     // Cuenta del agua por tortuga.
     for (u8 k = 0; k < nPl; k++) {
