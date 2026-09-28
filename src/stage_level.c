@@ -77,7 +77,14 @@ static void clampWalk(s16* x, s16* y, s16 px, s16 py, s16 footDx) {
 #define LEDGE_Z_DOWN      3     // px por frame que baja un soldier
 #define LEDGE_Z_UP        2     // px por frame que trepa
 
-static inline bool ledgeOn(void) { return cur && cur->ledgeBot > cur->ledgeTop; }
+// (29/09) Durante la pelea con el JEFE el escalon no existe: la franja vuelve
+// a ser una sola, como antes del 28/09 (pedido de Gustavo: el escalon no
+// tiene que afectar la pelea del jefe). Se apaga al arrancar el jefe y vuelve
+// a prenderse en cada stageLevelRun.
+static bool ledgeOff;
+static inline bool ledgeOn(void) {
+    return cur && !ledgeOff && cur->ledgeBot > cur->ledgeTop;
+}
 static inline bool inLedge(s16 y) {
     return (y > cur->ledgeTop && y < cur->ledgeBot);
 }
@@ -353,6 +360,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     if (L->bossInit) L->bossInit();
     if (L->levelInit) L->levelInit();
     bool bossStarted = FALSE;
+    ledgeOff = FALSE;
 
     s16 waveIdx     = -1;       // ultima oleada disparada
     u8  waveSpawned = 0;
@@ -568,6 +576,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         if (!bossStarted && wavesDone && cameraX >= camMaxX &&
             leadFeetX >= L->bossFeetX) {
             bossStarted = TRUE;
+            ledgeOff    = TRUE;    // (29/09) con el jefe, sin escalon
             if (L->bossStart) {
                 if (L->bossMusic) {
                     XGM2_setLoopNumber(-1);
