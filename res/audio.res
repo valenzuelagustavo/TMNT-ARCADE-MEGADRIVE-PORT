@@ -141,3 +141,13 @@ WAV who_put_light_vo "audio/who_put_the_light_out.wav" XGM2
 //   dinne_turtle            2,145s  pico 96,9%  rms 22,0%  23.649 B
 // El original de 48k queda al lado como dinne_turtle_orig48k.wav.
 WAV dinne_turtle_vo "audio/dinne_turtle.wav" XGM2
+
+// --- Baxter Stockman, jefe de la Scene 3 (30/09) ----------------------------
+// "I'm invincible!" al aparecer el jefe. Llego ya MONO 8-bit 11025 Hz (2,0 s)
+// pero bajo: pico 43%, rms 7,8%. Se recorto la cola de silencio y se le dio
+// ganancia (x2,79) hasta rms 22% (la banda de voz), redondeando lo que pasaba
+// del 80% con la rodilla suave (tanh, toca el 0,8% de las muestras), igual
+// que dinne_turtle. Medido despues de convertir:
+//   im_invinsible_baxter    1,947s  pico 96,6%  rms 22,0%  21.469 B
+// El original queda al lado como im_invinsible_baxter_orig.wav.
+WAV im_invinsible_baxter_vo "audio/im_invinsible_baxter.wav" XGM2

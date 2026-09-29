@@ -79,6 +79,16 @@ void baxterRatInitAll(void) {
     }
 }
 
+// (30/09) Ratas que todavia tienen algo en pantalla (vivas O explotando). La
+// usa el fin de la pelea: sin esto el nivel terminaba con la explosion de una
+// rata a medio hacer y quedaba congelada durante el jingle.
+u16 baxterRatBusyCount(void) {
+    u16 n = 0;
+    for (u16 i = 0; i < MAX_BAXTER_RATS; i++)
+        if (rats[i].state != RAT_INACTIVE) n++;
+    return n;
+}
+
 u16 baxterRatAliveCount(void) {
     u16 n = 0;
     for (u16 i = 0; i < MAX_BAXTER_RATS; i++)
@@ -349,7 +359,7 @@ void baxterRatReleaseAll(void) {
 // ---------------------------------------------------------------------------
 void baxterInit(Baxter* b) {
     b->sprite     = NULL;
-    b->boomSprite = NULL;
+    for (u16 q = 0; q < BAXTER_BOOM_PARTS; q++) b->boomSprite[q] = NULL;
     b->state      = BAXTER_INACTIVE;
     b->hp         = BAXTER_HP;
     b->anim       = 0xFF;
@@ -417,20 +427,113 @@ static void baxterPickTarget(Baxter* b, s16 playerX) {
     b->tgy = top ? BAXTER_Y_TOP : bxYLow;
 }
 
+// Junta los 4 cuartos de la explosion alrededor del centro de la nave.
+static void baxterBoomPlace(Baxter* b, s16 camX) {
+    s16 cx = (s16)(b->x - camX - BAXTER_BOOM_HALF);
+    s16 cy = (s16)(b->y + BAXTER_FRAME_H / 2 - stageCamY - BAXTER_BOOM_HALF);
+    for (u16 q = 0; q < BAXTER_BOOM_PARTS; q++)
+        if (b->boomSprite[q])
+            SPR_setPosition(b->boomSprite[q],
+                            (s16)(cx + (q & 1) * BAXTER_BOOM_HALF),
+                            (s16)(cy + (q >> 1) * BAXTER_BOOM_HALF));
+}
+
+static void baxterBoomRelease(Baxter* b) {
+    for (u16 q = 0; q < BAXTER_BOOM_PARTS; q++)
+        if (b->boomSprite[q]) { SPR_releaseSprite(b->boomSprite[q]); b->boomSprite[q] = NULL; }
+}
+
+// (30/09) La explosion va en CUATRO sprites de 64x64 (cuartos del lienzo de
+// 128x128, ver BAXTER_BOOM_PARTS y tools/gen_baxter_boom.py). Antes era uno
+// solo declarado de 48x72 sobre una tira que no es una grilla: se veian
+// tajadas sueltas de la explosion.
+//
+// VRAM: los 4 cuartos distintos son 4 x 64 = 256 tiles, y en la cloaca (con la
+// camara vertical quedan 382 para sprites) al morir Baxter hay ~210 libres con
+// una tortuga y ~70 con dos. Asi que la explosion se arma con lo que haya,
+// COMPARTIENDO tiles entre cuartos (los que comparten apuntan al mismo bloque
+// de VRAM, sin subir tiles propios, y se dibujan espejados):
+//   FULL    256 tiles  los 4 cuartos con su propio arte
+//   HALF    128        los 2 de la izquierda con su arte; los de la derecha
+//                      son su espejo horizontal
+//   QUARTER  64        el de arriba a la izquierda y sus 3 espejos
+// Se prueba en ese orden; si ni el QUARTER entra, no hay explosion (el sonido
+// y el final de la pelea siguen igual).
+static Sprite* boomMaster(u16 anim) {
+    Sprite* s = SPR_addSpriteEx(&baxter_boom, -128, -128,
+                                TILE_ATTR(PAL3, TRUE, FALSE, FALSE),
+                                SPR_FLAG_AUTO_VISIBILITY | SPR_FLAG_AUTO_VRAM_ALLOC |
+                                SPR_FLAG_AUTO_TILE_UPLOAD |
+                                SPR_FLAG_DISABLE_DELAYED_FRAME_UPDATE);
+    if (s) {
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, (s16)anim, 0);
+        SPR_setDepth(s, SPR_MIN_DEPTH);
+    }
+    return s;
+}
+
+// Un cuarto que reusa los tiles de 'm' (mismo anim y frame), espejado.
+static Sprite* boomMirror(const Sprite* m, u16 anim, bool hflip, bool vflip) {
+    if (!m) return NULL;
+    u16 idx = m->attribut & TILE_INDEX_MASK;
+    Sprite* s = SPR_addSpriteEx(&baxter_boom, -128, -128,
+                                TILE_ATTR_FULL(PAL3, TRUE, FALSE, FALSE, idx),
+                                SPR_FLAG_AUTO_VISIBILITY);
+    if (s) {
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, (s16)anim, 0);
+        SPR_setHFlip(s, hflip);
+        SPR_setVFlip(s, vflip);
+        SPR_setDepth(s, SPR_MIN_DEPTH);
+    }
+    return s;
+}
+
+static void baxterBoomRelease(Baxter* b);
+
+static void baxterBoomCreate(Baxter* b) {
+    Sprite** sp = b->boomSprite;
+    const u16 T = baxter_boom.maxNumTile;
+    // FULL
+    if (SPR_getFreeVRAM() >= 4 * T) {
+        for (u16 q = 0; q < BAXTER_BOOM_PARTS; q++) {
+            b->boomAnim[q] = (u8)q;
+            sp[q] = boomMaster(q);
+        }
+        if (sp[0] && sp[1] && sp[2] && sp[3]) return;
+        baxterBoomRelease(b);
+    }
+    // HALF: izquierda con arte propio, derecha espejada
+    if (SPR_getFreeVRAM() >= 2 * T) {
+        sp[0] = boomMaster(0);
+        sp[2] = boomMaster(2);
+        if (sp[0] && sp[2]) {
+            sp[1] = boomMirror(sp[0], 0, TRUE, FALSE);
+            sp[3] = boomMirror(sp[2], 2, TRUE, FALSE);
+            b->boomAnim[0] = b->boomAnim[1] = 0;
+            b->boomAnim[2] = b->boomAnim[3] = 2;
+            return;
+        }
+        baxterBoomRelease(b);
+    }
+    // QUARTER: arriba a la izquierda y sus tres espejos
+    sp[0] = boomMaster(0);
+    if (!sp[0]) return;
+    sp[1] = boomMirror(sp[0], 0, TRUE,  FALSE);
+    sp[2] = boomMirror(sp[0], 0, FALSE, TRUE);
+    sp[3] = boomMirror(sp[0], 0, TRUE,  TRUE);
+    for (u16 q = 0; q < BAXTER_BOOM_PARTS; q++) b->boomAnim[q] = 0;
+}
+
 static void baxterKill(Baxter* b) {
     b->hp    = 0;
     b->state = BAXTER_DEAD;
     b->boomFrame = 0;
     b->boomTick  = 0;
     if (b->sprite) { SPR_releaseSprite(b->sprite); b->sprite = NULL; }
-    if (!b->boomSprite)
-        b->boomSprite = SPR_addSprite(&baxter_boom, -80, -80,
-                                      TILE_ATTR(PAL3, TRUE, FALSE, FALSE));
-    if (b->boomSprite) {
-        SPR_setAutoAnimation(b->boomSprite, FALSE);
-        SPR_setAnimAndFrame(b->boomSprite, 0, 0);
-        SPR_setDepth(b->boomSprite, SPR_MIN_DEPTH);
-    }
+    baxterBoomCreate(b);
+    baxterBoomPlace(b, b->camX);
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                    SOUND_PCM_CH3, 15, FALSE, FALSE);
     for (u16 i = 0; i < MAX_BAXTER_RATS; i++)
@@ -541,17 +644,18 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
     }
 
     case BAXTER_DEAD:
-        if (++b->boomTick >= 4) {
+        if (++b->boomTick >= BAXTER_BOOM_TICKS) {
             b->boomTick = 0;
-            if (++b->boomFrame >= 21) {
-                if (b->boomSprite) { SPR_releaseSprite(b->boomSprite); b->boomSprite = NULL; }
+            if (++b->boomFrame >= BAXTER_BOOM_FRAMES) {
+                baxterBoomRelease(b);
                 b->state = BAXTER_GONE;
                 return;
             }
-            if (b->boomSprite) SPR_setFrame(b->boomSprite, b->boomFrame);
+            for (u16 q = 0; q < BAXTER_BOOM_PARTS; q++)
+                if (b->boomSprite[q])
+                    SPR_setAnimAndFrame(b->boomSprite[q], b->boomAnim[q], b->boomFrame);
         }
-        if (b->boomSprite)
-            SPR_setPosition(b->boomSprite, b->x - camX - BAXTER_FRAME_W / 2, b->y - stageCamY);
+        baxterBoomPlace(b, camX);
         return;
 
     default:
@@ -586,7 +690,7 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
 
 void baxterRelease(Baxter* b) {
     if (b->sprite)     { SPR_releaseSprite(b->sprite);     b->sprite = NULL; }
-    if (b->boomSprite) { SPR_releaseSprite(b->boomSprite); b->boomSprite = NULL; }
+    baxterBoomRelease(b);
     b->state = BAXTER_INACTIVE;
     baxterRatReleaseAll();
 }

@@ -284,6 +284,9 @@ static void bossStart31(s16 camX, s16 levelW) {
     (void)levelW;
     swBoss = TRUE;
     baxterSpawn(&baxter, (s16)(camX + 16), (s16)(camX + SCREEN_W - 16), 96, 216);
+    // (30/09) "I'm invincible!" al entrar (CH2, como el grito de Bebop).
+    XGM2_playPCMEx(im_invinsible_baxter_vo, sizeof(im_invinsible_baxter_vo),
+                   SOUND_PCM_CH2, 15, FALSE, FALSE);
 }
 
 static bool bossUpdate31(Player** pls, u8 nPl, s16 camX) {
@@ -293,7 +296,7 @@ static bool bossUpdate31(Player** pls, u8 nPl, s16 camX) {
     if (baxterPlayerHits(&baxter, pls, nPl, &killer) && killer >= 0)
         addPlayerScore(pls[(u8)killer], 5);
     baxterRatPlayerHits(pls, nPl);
-    return baxterIsGone(&baxter) && baxterRatAliveCount() == 0;
+    return baxterIsGone(&baxter) && baxterRatBusyCount() == 0;
 }
 
 static bool bossDying31(void) {

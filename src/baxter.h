@@ -45,6 +45,16 @@
 
 #define BAXTER_FRAME_W      48
 #define BAXTER_FRAME_H      72
+// (30/09) Explosion de la nave: 8 frames de hasta 128x128, partidos en 4
+// cuartos de 64x64 (tools/gen_baxter_boom.py). Un Sprite por cuarto, todos
+// con la definicion baxter_boom: el ARTE del cuarto es la anim (0 arriba-izq,
+// 1 arriba-der, 2 abajo-izq, 3 abajo-der) y el frame es el de la explosion.
+// Segun la VRAM libre, algunos cuartos reusan los tiles de otro espejados
+// (ver baxterBoomCreate en baxter.c).
+#define BAXTER_BOOM_PARTS    4
+#define BAXTER_BOOM_HALF    64     // medio lienzo = lado de cada cuarto
+#define BAXTER_BOOM_FRAMES   8
+#define BAXTER_BOOM_TICKS    7     // ticks por frame (8 x 7 = ~1 s)
 #define BAXTER_BODY_H       62     // la parte que colisiona (sin el escape)
 #define BAXTER_HALF_W       22
 #define BAXTER_HP           48     // la misma energia que Rocksteady
@@ -94,7 +104,8 @@ typedef struct {
     s16         arenaLeft, arenaRight;
     s16         ratLaneTop, ratLaneBot;
     u8          anim;
-    Sprite*     boomSprite;
+    Sprite*     boomSprite[BAXTER_BOOM_PARTS];   // (30/09) los 4 cuartos
+    u8          boomAnim[BAXTER_BOOM_PARTS];     // anim (arte) de cada cuarto
     u8          boomFrame;
     u8          boomTick;
 } Baxter;
@@ -117,6 +128,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt);
 // Golpes de tortugas a las ratas; suma el punto al que la mata.
 void baxterRatPlayerHits(Player** pls, u8 nPl);
 u16  baxterRatAliveCount(void);
+u16  baxterRatBusyCount(void);    // vivas o explotando (30/09)
 void baxterRatReleaseAll(void);
 
 #endif
