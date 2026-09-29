@@ -726,6 +726,22 @@ bool shurikenBreakByPlayerAttack(const Player* p);
 #define BOOM_EV_BROKE   1   // una tortuga rompio uno (SFX de golpe)
 #define BOOM_EV_HIT     2   // uno le pego a una tortuga (ya aplico el dano)
 void boomerangInit(void);
+
+// ---------------------------------------------------------------------------
+// VRAM de sprites (30/09)
+// ---------------------------------------------------------------------------
+// SPR_getLargestFreeVRAMBlock NO junta bloques libres vecinos: el asignador de
+// SGDK (vram.c) los "empaqueta" recien cuando un VRAM_alloc falla en el bloque
+// actual. Asi que preguntar el bloque mas grande antes de crear un sprite
+// puede dar menos de lo que de verdad hay contiguo, y un spawn que espera esa
+// respuesta se queda esperando para siempre (bug del sewer: la camara trabada
+// en una oleada hasta que un misil del agua, al crearse, forzaba el empaque).
+// sprVramFits responde bien: si el bloque no alcanza pero el total si,
+// desfragmenta (SPR_defragVRAM, como SPR_addSpriteSafe) y vuelve a mirar.
+// Como mucho una vez cada 30 frames. sprDefragLock != 0 la prohibe (sprites
+// con VRAM puesta a mano apuntando a la de otro: la explosion de Baxter).
+extern u8 sprDefragLock;
+bool sprVramFits(u16 need);
 u8   boomerangStep(Player** pls, u8 nPl, s16 camX, s16 camY);
 void boomerangReleaseAll(void);
 

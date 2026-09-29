@@ -99,6 +99,7 @@ typedef struct {
     s16         tgx, tgy;
     u8          orbit;
     u8          legs;
+    u8          corner;       // (30/09) ultima esquina visitada (0..3)
     u8          hurtFlash;
     u8          invuln;
     s16         arenaLeft, arenaRight;

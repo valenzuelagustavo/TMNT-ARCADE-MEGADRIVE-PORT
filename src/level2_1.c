@@ -1486,7 +1486,7 @@ SceneId showScene21() {
             if (alive >= maxAlive) continue;          // se reintenta el frame que viene
             // (30/09) Sin VRAM para el sheet tambien espera: un soldier sin
             // sprite no se anima ni muere, y trabaria el guion de oleadas.
-            if (SPR_getLargestFreeVRAMBlock() < foot_soldier.maxNumTile) continue;
+            if (!sprVramFits(foot_soldier.maxNumTile)) continue;
             for (u16 i = 0; i < MAX_ENEMIES; i++) {
                 if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
                 initEnemyManholeSpawn(&enemies[i],
@@ -1551,7 +1551,7 @@ SceneId showScene21() {
                 if (usesSide && l21SideGap[sideIx]) { scan++; continue; }
                 const SpriteDefinition* def = (r->type == L21_Y) ? &foot_soldier_yellow
                                                                  : &foot_soldier;
-                if (SPR_getLargestFreeVRAMBlock() < def->maxNumTile) break;
+                if (!sprVramFits(def->maxNumTile)) break;
                 u16 i;
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;

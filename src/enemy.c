@@ -488,6 +488,18 @@ typedef struct {
 
 static Boomerang boomerangs[MAX_BOOMERANGS];
 
+u8 sprDefragLock = 0;
+
+bool sprVramFits(u16 need) {
+    static u32 last = 0;
+    if (SPR_getLargestFreeVRAMBlock() >= need) return TRUE;
+    if (SPR_getFreeVRAM() < need || sprDefragLock) return FALSE;
+    if (vtimer - last < 30) return FALSE;
+    last = vtimer;
+    SPR_defragVRAM();
+    return SPR_getLargestFreeVRAMBlock() >= need;
+}
+
 void boomerangInit(void) {
     for (u16 i = 0; i < MAX_BOOMERANGS; i++) {
         boomerangs[i].state  = BOOM_OFF;
@@ -522,7 +534,7 @@ void boomerangReleaseAll(void) {
 // Hay lugar para un boomerang mas? (slot libre + VRAM para su sprite). La IA
 // lo pregunta ANTES de arrancar el lanzamiento: sin esto tiraria al aire.
 static bool boomCanSpawn(void) {
-    if (SPR_getLargestFreeVRAMBlock() < boomerang_sprite.maxNumTile) return FALSE;
+    if (!sprVramFits(boomerang_sprite.maxNumTile)) return FALSE;
     u16 air = 0;
     bool slot = FALSE;
     for (u16 i = 0; i < MAX_BOOMERANGS; i++) {

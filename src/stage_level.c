@@ -585,7 +585,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                         (ty == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? &foot_soldier_white  :
                         (ty == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? &foot_soldier_yellow :
                                                                  &foot_soldier;
-                    if (SPR_getLargestFreeVRAMBlock() < def->maxNumTile) break;
+                    if (!sprVramFits(def->maxNumTile)) break;
                 }
                 eStepZ[i] = 0;
                 spawnWaveEnemy(&enemies[i], w->type[waveSpawned],

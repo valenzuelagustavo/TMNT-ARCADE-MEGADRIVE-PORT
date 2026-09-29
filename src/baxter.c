@@ -1,5 +1,6 @@
 #include "baxter.h"
 #include "audio.h"    // hit_turtles, foot_soldier_explode
+#include "enemy.h"    // sprVramFits / sprDefragLock (30/09)
 
 // ===========================================================================
 // BAXTER + RATAS — ver baxter.h
@@ -154,7 +155,7 @@ static void ratDamage(BaxterRat* r, s16 dmg) {
 static void ratSpawnFromShip(s16 x, s16 shipTop) {
     // (port) Tambien la VRAM de sprites: sin lugar para la rata (y despues su
     // explosion), no sale. La nave vuelve a intentarlo en la proxima parada.
-    if (SPR_getLargestFreeVRAMBlock() < baxter_rat.maxNumTile) return;
+    if (!sprVramFits(baxter_rat.maxNumTile)) return;
     for (u16 i = 0; i < MAX_BAXTER_RATS; i++) {
         BaxterRat* r = &rats[i];
         if (r->state != RAT_INACTIVE) continue;
@@ -385,6 +386,7 @@ void baxterSpawn(Baxter* b, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 lane
     b->invuln = 0;
     b->orbit = 0;
     b->legs  = 2;
+    b->corner = 3;       // (30/09) la primera esquina despues de la vuelta: 0
     b->arenaLeft  = arenaLeft;
     b->arenaRight = arenaRight;
     ratLaneTop = laneTop;
@@ -411,6 +413,14 @@ bool baxterCanBeHit(const Baxter* b) {
 
 // Siguiente destino: diagonales de esquina a esquina; cada 3 cruces, una
 // vuelta alrededor del jugador.
+// (30/09) Las esquinas van en ORDEN FIJO: arriba-izq, abajo-der, arriba-der,
+// abajo-izq (dos diagonales y dos verticales). Antes el lado salia de donde
+// estaba la nave y el alto de la paridad de 'legs', y con la vuelta alrededor
+// de la tortuga en el medio la combinacion dejaba afuera siempre la misma
+// esquina: nunca iba arriba a la izquierda.
+static const s8 bxCornerRight[4] = { 0, 1, 1, 0 };
+static const s8 bxCornerTop[4]   = { 1, 0, 1, 0 };
+
 static void baxterPickTarget(Baxter* b, s16 playerX) {
     b->legs++;
     if (b->legs >= 3) {
@@ -421,8 +431,9 @@ static void baxterPickTarget(Baxter* b, s16 playerX) {
         return;
     }
     b->orbit = 0;
-    bool right = (b->x < ((b->arenaLeft + b->arenaRight) >> 1));
-    bool top   = (b->legs & 1) == 1;
+    b->corner = (u8)((b->corner + 1) & 3);
+    bool right = bxCornerRight[b->corner];
+    bool top   = bxCornerTop[b->corner];
     b->tgx = right ? (s16)(b->arenaRight - 34) : (s16)(b->arenaLeft + 34);
     b->tgy = top ? BAXTER_Y_TOP : bxYLow;
 }
@@ -494,6 +505,9 @@ static void baxterBoomRelease(Baxter* b);
 
 static void baxterBoomCreate(Baxter* b) {
     Sprite** sp = b->boomSprite;
+    // Los espejos apuntan a la VRAM de su dueno: mientras dure la explosion
+    // nadie puede desfragmentar (moveria al dueno y no a los espejos).
+    sprDefragLock = 1;
     const u16 T = baxter_boom.maxNumTile;
     // FULL
     if (SPR_getFreeVRAM() >= 4 * T) {
@@ -575,7 +589,7 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
 
     case BAXTER_ENTER:
         b->x += 2;
-        b->y = (s16)(80 + (rsin(b->timer * 3) >> 6));
+        b->y = (s16)(80 + ((rsin(b->timer) * 3) >> 8));   // (30/09) flote suave
         if (b->x >= b->arenaLeft + 50) {
             b->x = (s16)(b->arenaLeft + 50);
             baxterPickTarget(b, (s16)(b->arenaLeft + 60));
@@ -585,8 +599,14 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
         break;
 
     case BAXTER_DROP: {
-        s16 hoverY = (s16)(b->tgy + (rsin(b->timer * 4) >> 6));
-        b->y += (s16)((hoverY - b->y) >> 2);
+        // (30/09) Flote SUAVE: +-3 px con periodo de 64 frames y a 1 px por
+        // frame como mucho. Antes era +-4 px cada 16 frames (la tabla del seno
+        // se recorria entera en 16) con un acercamiento de 1/4 que redondeaba
+        // distinto para arriba que para abajo: la nave temblaba parada, y con
+        // la esquina de abajo a la altura del escalon parecia que chocaba.
+        s16 hoverY = (s16)(b->tgy + ((rsin(b->timer) * 3) >> 8));
+        if (b->y < hoverY) b->y++;
+        else if (b->y > hoverY) b->y--;
         if (b->doorPhase == 0) {
             if (b->timer > 22) { b->doorPhase = 1; b->timer = 0; }
         } else if (b->doorPhase == 1) {
@@ -614,11 +634,19 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
     }
 
     case BAXTER_FLY: {
-        b->flightT += 9;
+        // (30/09) La vuelta alrededor de la tortuga: la fase avanza 2/3 de
+        // unidad por frame (una vuelta en 96 frames) y la Y va con el coseno
+        // (+16 = un cuarto de vuelta): una elipse. Antes la fase avanzaba 9
+        // por frame y la tabla del seno (16 pasos) daba la vuelta cada ~7
+        // frames en X y ~3,5 en Y: el destino saltaba de punta a punta todo
+        // el tiempo y la nave, persiguiendolo a 5 px por frame, temblaba en
+        // el lugar en vez de dar la vuelta.
+        b->flightT++;
         s16 tx = b->tgx, ty = b->tgy;
         if (b->orbit) {
-            tx = (s16)(b->tgx + ((rsin(b->flightT) * 76) >> 8));
-            ty = (s16)(b->tgy + ((rsin(b->flightT * 2 + 64) * 34) >> 8));
+            u16 ph = (u16)((b->flightT * 2) / 3);
+            tx = (s16)(b->tgx + ((rsin(ph) * 76) >> 8));
+            ty = (s16)(b->tgy + ((rsin((u16)(ph + 16)) * 34) >> 8));
             if (b->timer > 110) { baxterPickTarget(b, pxWorld); b->timer = 0; }
         }
         s16 ddx = (s16)(tx - b->x);
@@ -648,6 +676,7 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
             b->boomTick = 0;
             if (++b->boomFrame >= BAXTER_BOOM_FRAMES) {
                 baxterBoomRelease(b);
+                sprDefragLock = 0;
                 b->state = BAXTER_GONE;
                 return;
             }
@@ -691,6 +720,7 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
 void baxterRelease(Baxter* b) {
     if (b->sprite)     { SPR_releaseSprite(b->sprite);     b->sprite = NULL; }
     baxterBoomRelease(b);
+    sprDefragLock = 0;
     b->state = BAXTER_INACTIVE;
     baxterRatReleaseAll();
 }
