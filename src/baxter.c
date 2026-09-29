@@ -57,6 +57,20 @@ typedef struct {
 static BaxterRat rats[MAX_BAXTER_RATS];
 static s16 ratLaneTop, ratLaneBot;
 
+// (29/09) ALTURAS DE VUELO. Los numeros de Ray (esquina de abajo en y=118,
+// tope 128) estaban hechos para la vereda sola: con el canal del sewer nuevo
+// (pies hasta 216) la nave nunca bajaba mas alla del escalon y parecia que se
+// trababa en el. Es una maquina VOLADORA: ahora la esquina de abajo, el centro
+// de la vuelta alrededor del jugador y el tope salen del piso de la arena
+// (laneBot de baxterSpawn), asi cruza por encima del agua como en el arcade.
+// Todo es la Y del BORDE DE ARRIBA del frame (72 px), en mundo.
+#define BAXTER_Y_MIN        44      // lo mas alto (sin cambios)
+#define BAXTER_Y_TOP        56      // esquina de arriba (sin cambios)
+#define BAXTER_Y_LOW_GAP     8      // la esquina de abajo, 8 px sobre el tope
+static s16 bxYMax  = 128;           // tope: el frame termina 8 px bajo laneBot
+static s16 bxYLow  = 118;           // esquina de abajo
+static s16 bxYOrb  = 88;            // centro de la vuelta alrededor del jugador
+
 void baxterRatInitAll(void) {
     for (u16 i = 0; i < MAX_BAXTER_RATS; i++) {
         rats[i].state      = RAT_INACTIVE;
@@ -365,6 +379,12 @@ void baxterSpawn(Baxter* b, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 lane
     b->arenaRight = arenaRight;
     ratLaneTop = laneTop;
     ratLaneBot = laneBot;
+    // Alturas de vuelo a partir del piso de la arena (ver BAXTER_Y_*). Nunca
+    // menos que las de Ray, por si otra arena tuviera el piso mas arriba.
+    bxYMax = (s16)(laneBot - BAXTER_FRAME_H + 8);
+    if (bxYMax < 128) bxYMax = 128;
+    bxYLow = (s16)(bxYMax - BAXTER_Y_LOW_GAP);
+    bxYOrb = (s16)((BAXTER_Y_TOP + bxYLow) / 2);
     b->anim = 0xFF;
     if (b->sprite) {
         SPR_setAutoAnimation(b->sprite, TRUE);
@@ -387,14 +407,14 @@ static void baxterPickTarget(Baxter* b, s16 playerX) {
         b->legs  = 0;
         b->orbit = 1;
         b->tgx   = xclamp(playerX, (s16)(b->arenaLeft + 60), (s16)(b->arenaRight - 60));
-        b->tgy   = 88;
+        b->tgy   = bxYOrb;
         return;
     }
     b->orbit = 0;
     bool right = (b->x < ((b->arenaLeft + b->arenaRight) >> 1));
     bool top   = (b->legs & 1) == 1;
     b->tgx = right ? (s16)(b->arenaRight - 34) : (s16)(b->arenaLeft + 34);
-    b->tgy = top ? 56 : 118;
+    b->tgy = top ? BAXTER_Y_TOP : bxYLow;
 }
 
 static void baxterKill(Baxter* b) {
@@ -515,7 +535,7 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
             b->y += (s16)((ddy * 5) / d);
         }
         b->x = xclamp(b->x, (s16)(b->arenaLeft + 8), (s16)(b->arenaRight - 8));
-        b->y = xclamp(b->y, 44, 128);
+        b->y = xclamp(b->y, BAXTER_Y_MIN, bxYMax);
         if (!b->orbit && b->timer > 260) { baxterPickTarget(b, pxWorld); b->timer = 0; }
         break;
     }
