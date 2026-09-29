@@ -680,18 +680,20 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 // pero Bebop recien aparece al final (bebopSpawn carga la suya), y para
 // entonces la tele quedo muy atras.
 //
-// VRAM: son 42 tiles de sprites y el presupuesto del nivel esta hecho a la
-// medida de 2 tortugas + 2 soldiers (ver SPR_initEx). La tele es decorado:
-// solo se crea si, despues de crearla, siguen entrando los soldiers que
-// todavia pueden aparecer; y si un spawn se queda sin lugar, se suelta antes
-// (ver tvUpdate / tvYield). Asi nunca le saca el lugar a un enemigo.
+// VRAM: son 42 tiles de sprites (mas los 32 del globo) y el presupuesto del
+// nivel esta hecho a la medida de 2 tortugas + 2 soldiers (ver SPR_initEx).
+// (30/09, Gustavo) Ya no se reserva lugar para los soldiers ni la tele se
+// suelta para dejarles lugar: MIENTRAS LA TELE ESTA PRENDIDA (o esperando
+// prenderse) NO ENTRA NINGUN FOOT SOLDIER. Las bocas de tormenta y la cola del
+// guion quedan en espera (tvHoldsSpawns) y retoman cuando la tele termina. La
+// tele se prende en cuanto entran ella y su globo (sprVramFits: la medicion
+// que no se engana con la VRAM partida, ver enemy.h).
 //
 // (27/09, Gustavo) UNA SOLA VEZ: la tele se prende cuando una tortuga (el
 // centro de su cuerpo) llega a 2 tiles en X del televisor, pasa los 4 frames
 // una vez (April, April, April, Shredder) y el sprite se suelta para siempre:
 // queda la pantalla apagada del fondo. Si al llegar no hay VRAM, se prende
-// en cuanto la haya (mientras siga en pantalla); si un spawn la desaloja a
-// mitad de camino, no vuelve.
+// en cuanto la haya (mientras siga en pantalla).
 #define LVL21_TV_X       480
 #define LVL21_TV_Y        72
 #define LVL21_TV_W        56
@@ -1001,28 +1003,18 @@ static bool l21SpawnReq(Enemy* e, const L21Req* r, s16 camX, s16 camY,
     }
 }
 
-static u16 soldierMaxTiles(void) {
-    u16 a = foot_soldier.maxNumTile, b = foot_soldier_orange.maxNumTile;
-    u16 c = foot_soldier_yellow.maxNumTile;
-    if (b > a) a = b;
-    return (c > a) ? c : a;
-}
-
-// Suelta la tele si al proximo soldier no le alcanza la VRAM de sprites.
+// Suelta la tele y su globo (al terminar, o al salir del nivel).
 static void tvRelease(void) {
     if (tvSpr) { SPR_releaseSprite(tvSpr); tvSpr = NULL; }
     tvBubbleSet(NULL);
 }
 
-static void tvYield(u16 alive, u16 maxAlive) {
-    if (!tvSpr || alive >= maxAlive) return;
-    if (SPR_getLargestFreeVRAMBlock() >= soldierMaxTiles()) return;
-    tvRelease();
-    tvState = TV_DONE;
+// (30/09) Tele esperando prenderse o prendida: no entra ningun soldier.
+static inline bool tvHoldsSpawns(void) {
+    return tvState == TV_PENDING || tvState == TV_PLAYING;
 }
 
-static void tvUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, u16 alive, u16 maxAlive,
-                     bool allow) {
+static void tvUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, bool allow) {
     if (tvState == TV_DONE) return;
     s16 sx = (s16)(LVL21_TV_X - camX);
 
@@ -1044,9 +1036,7 @@ static void tvUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, u16 alive, u16 ma
                         sx < (s16)(SCREEN_PIXEL_WIDTH + LVL21_TV_MARGIN);
         if (!allow || !onScreen) { tvState = TV_DONE; return; }   // se la perdio
         u16 need = tv_april.maxNumTile + tv_help_bubble.maxNumTile;
-        if (alive < maxAlive) need += (u16)((maxAlive - alive) * soldierMaxTiles());
-        if (SPR_getFreeVRAM() >= need &&
-            SPR_getLargestFreeVRAMBlock() >= tv_april.maxNumTile) {
+        if (SPR_getFreeVRAM() >= need && sprVramFits(tv_april.maxNumTile)) {
             tvSpr = SPR_addSprite(&tv_april, 0, 0, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
             if (tvSpr) {
                 SPR_setDepth(tvSpr, SPR_MAX_DEPTH);
@@ -1458,7 +1448,6 @@ SceneId showScene21() {
         u16 alive = 0;
         for (u16 i = 0; i < MAX_ENEMIES; i++)
             if (enemies[i].state != ENEMY_STATE_INACTIVE) alive++;
-        tvYield(alive, maxAlive);   // la tele no le quita lugar a un spawn
 
         // --- Guion de enemigos (19/09) -------------------------------------
         // El lider en X es el que dispara los eventos: se mide sobre los PIES,
@@ -1484,6 +1473,7 @@ SceneId showScene21() {
                 mhReleaseLid(m);           // la tapa pasa a ser la del sprite
             }
             if (alive >= maxAlive) continue;          // se reintenta el frame que viene
+            if (tvHoldsSpawns()) continue;            // (30/09) con la tele prendida, no
             // (30/09) Sin VRAM para el sheet tambien espera: un soldier sin
             // sprite no se anima ni muere, y trabaria el guion de oleadas.
             if (!sprVramFits(foot_soldier.maxNumTile)) continue;
@@ -1543,7 +1533,8 @@ SceneId showScene21() {
             if (l21SideGap[0]) l21SideGap[0]--;
             if (l21SideGap[1]) l21SideGap[1]--;
             u8 scan = 0;
-            while (scan < l21qN && scan < 4 && alive < maxAlive) {
+            // (30/09) Con la tele prendida no entra nadie (ver tvHoldsSpawns).
+            while (!tvHoldsSpawns() && scan < l21qN && scan < 4 && alive < maxAlive) {
                 L21Req* r = &l21q[(l21qHead + scan) % L21Q_SIZE];
                 u8   sideIx   = (r->side > 0) ? 1 : 0;
                 bool usesSide = (r->kind == L21K_WALK || r->kind == L21K_SOMERSAULT ||
@@ -1580,7 +1571,7 @@ SceneId showScene21() {
 
         // Tapas cerradas de las bocas que todavia no salieron.
         mhUpdateLids(cameraX, cameraY);
-        tvUpdate(pls, nPl, cameraX, cameraY, alive, maxAlive, !bossStarted);
+        tvUpdate(pls, nPl, cameraX, cameraY, !bossStarted);
 
         separateEnemies(enemies, MAX_ENEMIES);
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
