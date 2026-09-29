@@ -127,7 +127,8 @@
 // Linea de tiempo (numeros de frame del analisis; 1 frame = 2 VBlanks NTSC)
 // ---------------------------------------------------------------------------
 #define T_FADE_IN            20   // Fundido de entrada de la escena A
-#define T_A_TOTAL           121   // Duracion de la escena A
+#define T_A_TOTAL           127   // Duracion de la escena A (30/09: 121 -> 127
+                                  // para que entren los 4 saltos escalonados)
 
 #define T_BAL_FIRE_IN        10   // "Fire!!" entra
 #define T_BAL_FIRE_OUT       35   // ...y sale
@@ -148,7 +149,11 @@
 #define T_CLIMB_TIME         32   // Duracion del salto: UN solo arco (30/09: de
                                   // 30 a 32 porque ahora el arco sube y ademas
                                   // cae hasta perderse detras del borde).
-#define T_CLIMB_END        (T_CLIMB_START + T_CLIMB_TIME)   // 90
+// (30/09, Gustavo) Saltan DE A UNA: cada tortuga arranca CLIMB_STAGGER ticks
+// despues de la anterior, en el orden de climbRank (la de mas a la derecha
+// primero, asi ninguna pasa por encima de otra que todavia esta parada).
+#define CLIMB_STAGGER        11
+#define T_CLIMB_END        (T_CLIMB_START + 3 * CLIMB_STAGGER + T_CLIMB_TIME)   // 125
 #define SPL_FRAME_IDLE        0   // Splinter arranca en su 1ra pose (reposo)
 #define SPL_FRAME_ALERT       1   // ...y pasa a la 2da (baston en alto) apenas
                                   // aparece el globo "Fire!!", quedandose ahi
@@ -239,6 +244,9 @@ static const s16 climbOffX[4]    = {   0, -28,  26, -53 };
 static const s16 climbOffY[4]    = {   0,   6,  11,   4 };
 static const s16 climbFarOffX[4] = {   0, -19,  17, -35 };
 static const s16 climbFarOffY[4] = {   0,   4,   7,   3 };
+// Turno de salto de cada una (0 = primera). Por X de mas a la derecha a mas a
+// la izquierda: la 2 (+26), la 0 (Leo, 0), la 1 (-28) y la 3 (-53).
+static const u8  climbRank[4]    = {   1,   2,   0,   3 };
 
 // ---------------------------------------------------------------------------
 // ESCENA B - tunel de techos. Coordenadas sobre roof_bg_b.png (256x224)
@@ -612,6 +620,39 @@ static void climbSetPose(s16 cx, s16 cy, u16 frame, bool big, bool falling) {
     }
 }
 
+// (30/09) Un tick del salto escalonado. 'ft' = ticks desde T_CLIMB_START.
+// Cada tortuga hace el mismo arco (ver CLIMB_ARC_*) corrido por su offset del
+// grupo, arrancando en su turno; hasta entonces sigue parada donde estaba.
+static void climbStep(s16 ft) {
+    const s32 T = T_CLIMB_TIME;
+    for (u16 i = 0; i < 4; i++) {
+        s16 lt = (s16)(ft - climbRank[i] * CLIMB_STAGGER);
+        if (lt < 0) continue;                       // todavia no le toca
+        if (lt >= T_CLIMB_TIME) {                   // ya cayo
+            SPR_setVisibility(climbSpr[i], HIDDEN);
+            continue;
+        }
+        s16 x = (s16)(lerpS(CLIMB_FROM_X, CLIMB_TO_X, lt, T_CLIMB_TIME) + climbOffX[i]);
+        // y = FROM_Y - A*t + B*t^2 con t = lt/T (ver CLIMB_ARC_*)
+        s16 y = (s16)(CLIMB_FROM_Y + climbOffY[i]
+                      - ((s32)CLIMB_ARC_A * lt) / T
+                      + ((s32)CLIMB_ARC_B * lt * lt) / (T * T));
+        // Ya bajando (t > A/2B) y con los pies del otro lado del borde del
+        // techo: cayo detras, no se dibuja mas.
+        if ((s32)lt * 2 * CLIMB_ARC_B > (s32)CLIMB_ARC_A * T) {
+            s16 edge = (s16)(ROOF_EDGE_Y0 + ((s32)x * ROOF_EDGE_NUM) / ROOF_EDGE_DEN);
+            if (y > edge + CLIMB_EDGE_MARGIN) {
+                SPR_setVisibility(climbSpr[i], HIDDEN);
+                continue;
+            }
+        }
+        // Frame 0 = apoyado (impulso, solo el primer tick), 1 = en el aire
+        SPR_setPosition(climbSpr[i], x - CLIMB_W / 2, y - CLIMB_H);
+        SPR_setAnimAndFrame(climbSpr[i], i, (lt == 0) ? 0 : 1);
+        SPR_setVisibility(climbSpr[i], VISIBLE);
+    }
+}
+
 static void climbHideAll(void) {
     for (u16 i = 0; i < 4; i++) {
         SPR_setVisibility(climbSpr[i],    HIDDEN);
@@ -707,21 +748,9 @@ static bool roofSceneA(void) {
             SPR_setVisibility(baloonSpr, HIDDEN);
         }
 
-        // --- El grupo se tira del techo: sube, pasa el vertice y cae ---
+        // --- Se tiran del techo DE A UNA: sube, pasa el vertice y cae ---
         if (f >= T_CLIMB_START && f < T_CLIMB_END) {
-            s16 lt = (s16)(f - T_CLIMB_START);
-            s16 x = lerpS(CLIMB_FROM_X, CLIMB_TO_X, lt, T_CLIMB_TIME);
-            // y = FROM_Y - A*t + B*t^2 con t = lt/T (ver CLIMB_ARC_*)
-            const s32 T = T_CLIMB_TIME;
-            s16 y = (s16)(CLIMB_FROM_Y
-                          - ((s32)CLIMB_ARC_A * lt) / T
-                          + ((s32)CLIMB_ARC_B * lt * lt) / (T * T));
-            // Ya bajando = pasado el vertice (t > A/2B).
-            bool falling = ((s32)lt * 2 * CLIMB_ARC_B > (s32)CLIMB_ARC_A * T);
-            // Frame 0 = apoyado (impulso, solo el primer frame), 1 = en el aire
-            u16 pose = (lt == 0) ? 0 : 1;
-            bool big = (bool)((lt * 100) < (T_CLIMB_TIME * CLIMB_SWAP_PCT));
-            climbSetPose(x, y, pose, big, falling);
+            climbStep((s16)(f - T_CLIMB_START));
         } else if (f == T_CLIMB_END) {
             // Ya cayeron detras del borde (o por abajo): se los deja de ver.
             climbHideAll();
