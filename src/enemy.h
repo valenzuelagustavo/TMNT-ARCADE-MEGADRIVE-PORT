@@ -381,6 +381,10 @@
 #define ENEMY_KICK_TIME     32   // Duración total de la patada con salto
 #define ENEMY_KICK_LUNGE    16   // Frames iniciales del kick CON desplazamiento
 #define ENEMY_KICK_SPEED     3   // px/frame de avance durante el lunge (16*3 = 48px, se desplaza más)
+// (30/09) Gravedad de la patada de entrada saltando de una ventana (2-1):
+// 0,25 px/frame2 -> desde 64 px toca el piso en ~23 frames, dentro de los 32
+// que dura la patada.
+#define ENEMY_WINDOW_FALL_GRAV_Q  64
 
 // Muerte con explosión (anim 5 = 4 frames x 8) y rotura de puerta al spawnear
 // (anim 7: se reproduce desde el 2do frame → quedan 4 frames x 8).

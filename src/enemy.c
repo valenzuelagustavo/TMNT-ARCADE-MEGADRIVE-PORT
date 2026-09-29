@@ -1426,6 +1426,17 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
             }
         }
+        // (30/09) Patada de entrada SALTANDO DE UNA VENTANA (2-1): la escena
+        // la arranca con jumpZ/jumpZq en alto y aca cae con gravedad (Q8)
+        // mientras dura la patada. Las patadas de entrada comunes tienen
+        // jumpZq = 0 y no pasan por aca.
+        if (e->type == ENEMY_TYPE_FOOT_SOLDIER && e->anim == ENEMY_ANIM_KICK &&
+            e->jumpZq > 0) {
+            e->jumpVel += ENEMY_WINDOW_FALL_GRAV_Q;
+            e->jumpZq  -= e->jumpVel;
+            if (e->jumpZq < 0) e->jumpZq = 0;
+            e->jumpZ = (s16)(e->jumpZq >> 8);
+        }
         // Entrada SALTANDO del blanco: el arco manda sobre el timer, igual que
         // en su ataque; al tocar el piso se corta el SPAWNING y pasa a CHASE.
         if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE && e->jumpZ > 0) {

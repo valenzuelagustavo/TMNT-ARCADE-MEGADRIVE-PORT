@@ -717,23 +717,6 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 // texto del HUD en BG_A no lo atraviese, y por delante de todo en depth.
 #define LVL21_TV_TICKS    30      // ticks por frame (el time del .res)
 
-// ---------------------------------------------------------------------------
-// Foot soldiers AMARILLOS, los del boomerang (29/09)
-// ---------------------------------------------------------------------------
-// La primera aparicion, pedida por Gustavo: TRES que entran caminando desde la
-// derecha apenas se pasa el televisor de la vidriera. Se disparan cuando los
-// pies del lider pasan el borde derecho de la tele + LVL21_YELLOW_TRIG_DX, y
-// cada uno entra por el borde derecho de la camara, escalonados en X
-// (LVL21_YELLOW_STAGGER) y en tres lanes distintas de la vereda (160..250 en
-// esa cuadra, 123..250 un poco mas adelante: las tres caen adentro).
-// Como las bocas de tormenta, un spawn que llegue con el tope de vivos lleno
-// (o sin VRAM para su sheet) queda PENDIENTE hasta que haya lugar.
-#define LVL21_YELLOW_N         3
-#define LVL21_YELLOW_TRIG_DX  24
-#define LVL21_YELLOW_TRIG_X   (LVL21_TV_X + LVL21_TV_W + LVL21_YELLOW_TRIG_DX)
-#define LVL21_YELLOW_STAGGER  36
-static const s16 lvl21YellowLane[LVL21_YELLOW_N] = { 205, 172, 238 };
-
 typedef enum { TV_OFF, TV_PENDING, TV_PLAYING, TV_DONE } TvState;
 static Sprite* tvSpr;
 static Sprite* tvBubble;        // globo de dialogo de la fase actual
@@ -770,6 +753,251 @@ static void tvStartPhase(u8 phase) {
         XGM2_playPCMEx(dinne_turtle_vo, sizeof(dinne_turtle_vo),
                        SOUND_PCM_CH3, 15, FALSE, FALSE);
         tvPhaseLen = tvVoFrames(sizeof(dinne_turtle_vo));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GUION DE OLEADAS (30/09, pedido de Gustavo)
+// ---------------------------------------------------------------------------
+// Ademas de las bocas de tormenta (que siguen igual), los soldiers entran por
+// EVENTOS. Cada evento, al dispararse, encola sus pedidos de spawn en una FIFO
+// (l21q); cada frame se sacan de la cola los que entran: tope de vivos
+// (maxAlive), VRAM libre para su sheet y un lugar en el pool. Asi nada se
+// pierde por una casualidad de timing: si no hay lugar, espera.
+//
+//   E1  al empezar (terminada la caida de las tortugas): 2 morados caminando
+//       por la derecha.
+//   E2  el tirador de dinamita de la puerta amarilla (LVL21_TNT_*) + 1 morado
+//       por la derecha + 2 por la izquierda, caminando.
+//   E3  sale el de la boca de tormenta de frente a la tele (la 2da): 1 morado
+//       mas caminando por la derecha.
+//   E4  al costado de la vidriera de la tele, en el borde de la pared (el pilar
+//       de piedra a la derecha de la vidriera): OTRO tirador de dinamita
+//       (LVL21_TNT2_*) + los 3 amarillos + 1 morado por la derecha.
+//   E5  despues de E4, al matar 3 soldiers: 3 amarillos por la derecha.
+//   E6  sale el de la 3ra boca de tormenta: 2 amarillos por la izquierda.
+//   E7  el lider llega al parquimetro siguiente (LVL21_METER4_X): 2 amarillos
+//       por la derecha (grupo L21G_METER).
+//   E8  muertos los 2 de E7: 3 amarillos por la derecha.
+//   E9  aparece en camara el parquimetro que sigue (LVL21_METER5_X): 2
+//       amarillos por la derecha.
+//   E10 por la cornisa (el balcon sobre los portones): 2 morados caminando por
+//       la derecha, uno detras del otro (grupo L21G_BALCONY, junto con el de
+//       la 4ta boca de tormenta).
+//   E11 muertos esos 3: 2 amarillos por la izquierda (en la calle) y 3 morados
+//       por la derecha con la voltereta.
+//   E12 la camara empieza a bajar por la esquina: 2 morados SALTAN de las
+//       ventanas de la pared de la derecha (anim de patada, cayendo desde la
+//       altura de las ventanas) y 2 amarillos por la izquierda.
+// ---------------------------------------------------------------------------
+typedef enum {
+    L21K_WALK,        // entra caminando por un costado
+    L21K_SOMERSAULT,  // voltereta (solo morado)
+    L21K_WINDOW,      // patada saltando de una ventana de la pared derecha
+    L21K_TNT,         // tirador de dinamita (arg = 0 puerta amarilla, 1 pilar)
+    L21K_BALCONY      // caminando por la cornisa, desde la derecha
+} L21Kind;
+
+#define L21_P  ENEMY_TYPE_FOOT_SOLDIER
+#define L21_Y  ENEMY_TYPE_FOOT_SOLDIER_YELLOW
+#define L21G_NONE     0
+#define L21G_METER    1    // los 2 de E7
+#define L21G_BALCONY  2    // los 2 de la cornisa + el de la 4ta boca
+#define L21G_COUNT    3
+static const u8 l21GroupSize[L21G_COUNT] = { 0, 2, 3 };
+
+typedef struct {
+    u8 type;     // L21_P / L21_Y
+    u8 kind;     // L21Kind
+    s8 side;     // +1 derecha, -1 izquierda (WALK/SOMERSAULT)
+    u8 group;    // L21G_*
+    u8 arg;      // TNT: cual tirador
+} L21Req;
+
+typedef struct { u8 n; L21Req r[6]; } L21Event;
+
+#define R_(t, s) { t, L21K_WALK, s, L21G_NONE, 0 }
+static const L21Event l21Ev[] = {
+    /* E1  */ { 2, { R_(L21_P, 1), R_(L21_P, 1) } },
+    /* E2  */ { 4, { { L21_P, L21K_TNT, 1, L21G_NONE, 0 },
+                     R_(L21_P, 1), R_(L21_P, -1), R_(L21_P, -1) } },
+    /* E3  */ { 1, { R_(L21_P, 1) } },
+    /* E4  */ { 5, { { L21_P, L21K_TNT, 1, L21G_NONE, 1 },
+                     R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_P, 1) } },
+    /* E5  */ { 3, { R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1) } },
+    /* E6  */ { 2, { R_(L21_Y, -1), R_(L21_Y, -1) } },
+    /* E7  */ { 2, { { L21_Y, L21K_WALK, 1, L21G_METER, 0 },
+                     { L21_Y, L21K_WALK, 1, L21G_METER, 0 } } },
+    /* E8  */ { 3, { R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1) } },
+    /* E9  */ { 2, { R_(L21_Y, 1), R_(L21_Y, 1) } },
+    /* E10 */ { 2, { { L21_P, L21K_BALCONY, 1, L21G_BALCONY, 0 },
+                     { L21_P, L21K_BALCONY, 1, L21G_BALCONY, 0 } } },
+    /* E11 */ { 5, { R_(L21_Y, -1), R_(L21_Y, -1),
+                     { L21_P, L21K_SOMERSAULT, 1, L21G_NONE, 0 },
+                     { L21_P, L21K_SOMERSAULT, 1, L21G_NONE, 0 },
+                     { L21_P, L21K_SOMERSAULT, 1, L21G_NONE, 0 } } },
+    /* E12 */ { 4, { { L21_P, L21K_WINDOW, 1, L21G_NONE, 0 },
+                     { L21_P, L21K_WINDOW, 1, L21G_NONE, 0 },
+                     R_(L21_Y, -1), R_(L21_Y, -1) } },
+};
+#undef R_
+enum { L21E1, L21E2, L21E3, L21E4, L21E5, L21E6, L21E7, L21E8, L21E9,
+       L21E10, L21E11, L21E12, L21E_COUNT };
+
+// El segundo tirador de dinamita: en el borde derecho del pilar de piedra de
+// la vidriera de la tele (el pilar termina en x~578; a partir de x=592 la
+// vereda se mete hacia adentro hasta y=123, frente a la tienda "JACK"). Se
+// asoma desde ahi mirando a la izquierda y tira el cartucho con las mismas
+// distancias que el de la puerta amarilla (-99 en X, +23 en profundidad), o
+// sea que cae justo delante de la tele. Sin alto visual (el de la puerta
+// amarilla sale del vano, este esta parado en la vereda).
+#define LVL21_TNT2_CENTER_X  600
+#define LVL21_TNT2_Y         150
+#define LVL21_TNT2_X        (LVL21_TNT2_CENTER_X - ENEMY_SPRITE_W_PURPLE / 2)
+#define LVL21_TNT2_LAND_X   (LVL21_TNT2_CENTER_X - 99)
+#define LVL21_TNT2_LAND_Y   (LVL21_TNT2_Y + 23)
+#define LVL21_TNT2_TRIG_X   (LVL21_TNT2_CENTER_X - 96)   // 504: pasando la tele
+
+// Parquimetros (X de mundo, las mismas de meterX[] en meters_2_1.c).
+#define LVL21_METER4_X       910   // E7: el lider llega a su altura
+#define LVL21_METER5_X      1166   // E9: entra en camara
+// E10: la cornisa se ve bien cuando el borde derecho de la camara pasa esto.
+#define LVL21_BALCONY_TRIG  1240
+#define LVL21_BALCONY_GAP     48   // "uno detras de otro": px entre los dos
+// E5: soldiers muertos (despues de E4) que disparan los 3 amarillos.
+#define LVL21_E5_KILLS         3
+// E12: la camara empieza a bajar (y el lider ya llego a la esquina: la
+// camara no deberia bajar antes, pero por las dudas).
+#define LVL21_CORNER_X      1250
+// E12: altura visual desde la que caen los de las ventanas.
+#define LVL21_WINDOW_Z        64
+
+// Separacion entre dos entradas por el MISMO costado: si salieran en el mismo
+// frame entrarian encimados.
+#define LVL21_SIDE_GAP        40
+// Lanes de entrada: porcentaje de la franja visible de la vereda en esa
+// columna, rotando entre pedidos para que no entren en fila.
+static const u8 l21LanePct[5] = { 50, 20, 80, 35, 65 };
+
+#define L21Q_SIZE 24
+static L21Req l21q[L21Q_SIZE];
+static u8  l21qHead, l21qN;
+static u16 l21Fired;                    // bit por evento disparado
+static u8  l21LaneRot;
+static u8  l21SideGap[2];               // [0] izquierda, [1] derecha
+static u8  eGroup[MAX_ENEMIES];         // grupo de cada slot (L21G_*)
+static u8  l21GroupSpawned[L21G_COUNT];
+
+static void l21ScriptReset(void) {
+    l21qHead = 0; l21qN = 0; l21Fired = 0; l21LaneRot = 0;
+    l21SideGap[0] = l21SideGap[1] = 0;
+    for (u16 i = 0; i < MAX_ENEMIES; i++) eGroup[i] = L21G_NONE;
+    for (u16 g = 0; g < L21G_COUNT; g++) l21GroupSpawned[g] = 0;
+}
+
+static bool l21Fire(u8 ev) {
+    if (l21Fired & (1u << ev)) return FALSE;
+    l21Fired |= (u16)(1u << ev);
+    const L21Event* E = &l21Ev[ev];
+    for (u8 k = 0; k < E->n && l21qN < L21Q_SIZE; k++) {
+        l21q[(l21qHead + l21qN) % L21Q_SIZE] = E->r[k];
+        l21qN++;
+    }
+    return TRUE;
+}
+
+static inline bool l21Done(u8 ev) { return (l21Fired & (1u << ev)) != 0; }
+
+// Grupo "liquidado": ya entraron todos sus miembros y no queda ninguno vivo.
+static bool l21GroupClear(const Enemy* en, u8 g) {
+    if (l21GroupSpawned[g] < l21GroupSize[g]) return FALSE;
+    for (u16 i = 0; i < MAX_ENEMIES; i++)
+        if (eGroup[i] == g && en[i].state != ENEMY_STATE_INACTIVE) return FALSE;
+    return TRUE;
+}
+
+// Lane de entrada en la columna fx: dentro de la calle Y de lo que se ve de
+// ella (pies entre camY+110 y camY+214). -1 si la columna no sirve.
+static s16 l21LaneAt(s16 fx, s16 camY) {
+    if (fx < 0 || fx >= LVL21_WORLD_W) return -1;
+    s16 lo = (s16)(walkTopAt(fx) + 4), hi = (s16)(walkBotAt(fx) - 4);
+    if (lo < camY + 110) lo = (s16)(camY + 110);
+    if (hi > camY + 214) hi = (s16)(camY + 214);
+    if (hi < lo) return -1;
+    return (s16)(lo + ((s32)(hi - lo) * l21LanePct[l21LaneRot % 5]) / 100);
+}
+
+// Un pedido -> un soldier en el slot 'e'. FALSE si no se pudo ubicar (queda
+// en la cola y se reintenta).
+static bool l21SpawnReq(Enemy* e, const L21Req* r, s16 camX, s16 camY,
+                        bool* onPlat) {
+    *onPlat = FALSE;
+    switch (r->kind) {
+    case L21K_TNT:
+        if (r->arg == 0) {
+            initEnemyTntSpawn(e, LVL21_TNT_X, LVL21_TNT_Y, LVL21_TNT_DIR, PAL2,
+                              LVL21_TNT_LAND_X, LVL21_TNT_LAND_Y);
+            // Alto del vano del portal: visual, igual que el escalon del 1-1.
+            // enemy.c lo baja solo despues del lanzamiento.
+            e->jumpZ = LVL21_TNT_Z;
+        } else {
+            initEnemyTntSpawn(e, LVL21_TNT2_X, LVL21_TNT2_Y, LVL21_TNT_DIR, PAL2,
+                              LVL21_TNT2_LAND_X, LVL21_TNT2_LAND_Y);
+        }
+        return TRUE;
+
+    case L21K_BALCONY: {
+        // Por la cornisa desde el borde derecho (sin pasarse de su punta).
+        s16 cx = (s16)(camX + SCREEN_PIXEL_WIDTH + ENEMY_SPRITE_W_PURPLE / 2);
+        if (cx > LVL21_PLAT_X1 - 8) cx = LVL21_PLAT_X1 - 8;
+        if (cx < LVL21_PLAT_X0 + 8) return FALSE;
+        initEnemyWalkInSpawn(e, (s16)(cx - ENEMY_SPRITE_W_PURPLE / 2),
+                             LVL21_PLAT_Y1, -1, PAL2, r->type);
+        *onPlat = TRUE;
+        return TRUE;
+    }
+
+    case L21K_WINDOW: {
+        // La pared de la derecha es la diagonal de la esquina: su base es el
+        // walkTop de cada columna. Se busca, desde el borde derecho hacia
+        // adentro, la primera columna cuya base se vea en pantalla; el
+        // segundo sale un poco mas a la izquierda (otra ventana). Si la camara
+        // ya bajo tanto que la base quedo por arriba de la pantalla, cae igual
+        // cerca del borde derecho, en la parte de calle que se ve.
+        s16 fx = (s16)(camX + SCREEN_PIXEL_WIDTH - 24 - (l21LaneRot & 1) * 36);
+        for (u8 t = 0; t < 24; t++, fx -= 8) {
+            s16 top = walkTopAt(fx), bot = walkBotAt(fx);
+            if (top > bot) continue;                     // columna sin calle
+            s16 y = (s16)(top + 6);
+            if (y > camY + 210) continue;                // base todavia abajo
+            if (y < camY + 110) y = (s16)(camY + 110);   // base arriba: calle
+            if (y > bot - 4) continue;
+            initEnemyKickSpawn(e, (s16)(fx - ENEMY_SPRITE_W_PURPLE / 2), y, -1, PAL2, r->type);
+            e->jumpZ   = LVL21_WINDOW_Z;          // cae desde la ventana
+            e->jumpZq  = (s32)LVL21_WINDOW_Z << 8;
+            e->jumpVel = 0;
+            return TRUE;
+        }
+        return FALSE;
+    }
+
+    default: {   // WALK / SOMERSAULT por un costado
+        s16 w  = ENEMY_SPRITE_W_PURPLE;           // morado y amarillo: 64
+        s16 fx = (r->side > 0) ? (s16)(camX + SCREEN_PIXEL_WIDTH + w / 2)
+                               : (s16)(camX - w / 2);
+        s16 y = -1;
+        for (u8 t = 0; t < 16 && y < 0; t++) {    // columna sin calle: adentro
+            y = l21LaneAt(fx, camY);
+            if (y < 0) fx = (s16)(fx - r->side * 8);
+        }
+        if (y < 0) return FALSE;
+        s8 dir = (s8)-r->side;
+        if (r->kind == L21K_SOMERSAULT)
+            initEnemySomersaultSpawn(e, (s16)(fx - w / 2), y, dir, PAL2, r->type);
+        else
+            initEnemyWalkInSpawn(e, (s16)(fx - w / 2), y, dir, PAL2, r->type);
+        return TRUE;
+    }
     }
 }
 
@@ -1033,15 +1261,16 @@ SceneId showScene21() {
     lidInit();
     metersInit();
     boomerangInit();
-    u8 yellowState   = MH_DORMANT;         // (29/09) los tres del boomerang
-    u8 yellowSpawned = 0;
+    l21ScriptReset();                      // (30/09) guion de oleadas
+    u16 l21Kills = 0;                      // soldiers muertos despues de E4
+    static bool eWasDead[MAX_ENEMIES];
+    for (u16 i = 0; i < MAX_ENEMIES; i++) eWasDead[i] = FALSE;
     // --- Jefe (24/09) ------------------------------------------------------
     // Vive en el stack de la escena como todo lo demas; bebopInit ademas deja
     // el pool de disparos limpio.
     static Bebop bebop;
     bebopInit(&bebop);
     bool bossStarted = FALSE;
-    u8 tntState   = MH_DORMANT;            // el tirador usa los mismos estados
     u8 tntHitMask = 0;                     // un golpe de explosion por jugador
     Sprite* lightBubble = NULL;            // globo de la caida por la alcantarilla
 
@@ -1255,6 +1484,9 @@ SceneId showScene21() {
                 mhReleaseLid(m);           // la tapa pasa a ser la del sprite
             }
             if (alive >= maxAlive) continue;          // se reintenta el frame que viene
+            // (30/09) Sin VRAM para el sheet tambien espera: un soldier sin
+            // sprite no se anima ni muere, y trabaria el guion de oleadas.
+            if (SPR_getLargestFreeVRAMBlock() < foot_soldier.maxNumTile) continue;
             for (u16 i = 0; i < MAX_ENEMIES; i++) {
                 if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
                 initEnemyManholeSpawn(&enemies[i],
@@ -1270,56 +1502,79 @@ SceneId showScene21() {
                 eClimb[i]  = 0;
                 mhState[m] = MH_DONE;
                 alive++;
+                // (30/09) Guion: la 2da boca (frente a la tele) dispara E3, la
+                // 3ra dispara E6 y el de la 4ta cuenta para el grupo de la
+                // cornisa (E11 espera a que mueran los tres).
+                eGroup[i] = (m == 3) ? L21G_BALCONY : L21G_NONE;
+                if (m == 3) l21GroupSpawned[L21G_BALCONY]++;
+                if (m == 1) l21Fire(L21E3);
+                if (m == 2) l21Fire(L21E6);
                 break;
             }
         }
 
-        // El tirador de dinamita: mismo mecanismo, un solo evento.
-        if (tntState != MH_DONE && !bossStarted) {
-            if (tntState == MH_DORMANT && leadFeetX >= LVL21_TNT_TRIG_X)
-                tntState = MH_PENDING;
-            if (tntState == MH_PENDING && alive < maxAlive) {
-                for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                    if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
-                    initEnemyTntSpawn(&enemies[i], LVL21_TNT_X, LVL21_TNT_Y,
-                                      LVL21_TNT_DIR, PAL2,
-                                      LVL21_TNT_LAND_X, LVL21_TNT_LAND_Y);
-                    // Alto del vano del portal: visual, igual que el escalon
-                    // del 1-1. enemy.c lo baja solo despues del lanzamiento.
-                    enemies[i].jumpZ = LVL21_TNT_Z;
-                    setEnemyBounds(&enemies[i], LVL21_WALK_Y_MIN, LVL21_WALK_Y_MAX,
-                                   0, 0, LVL21_MAP_W * 8);
-                    eOnPlat[i] = FALSE;
-                    eClimb[i]  = 0;
-                    tntState = MH_DONE;
-                    alive++;
-                    break;
-                }
+        // --- Guion de oleadas (30/09): ver l21Ev -----------------------------
+        if (!bossStarted) {
+            // Bajas: un soldier cuenta al pasar a DEAD (dura 36..48 frames,
+            // no hay forma de saltearlo).
+            for (u16 i = 0; i < MAX_ENEMIES; i++) {
+                bool dead = (enemies[i].state == ENEMY_STATE_DEAD);
+                if (dead && !eWasDead[i] && l21Done(L21E4)) l21Kills++;
+                eWasDead[i] = dead;
             }
-        }
 
-        // (29/09) Los tres amarillos del boomerang, pasando la tele.
-        if (yellowState != MH_DONE && !bossStarted) {
-            if (yellowState == MH_DORMANT && leadFeetX >= LVL21_YELLOW_TRIG_X)
-                yellowState = MH_PENDING;
-            while (yellowState == MH_PENDING && alive < maxAlive &&
-                   SPR_getLargestFreeVRAMBlock() >= foot_soldier_yellow.maxNumTile) {
+            if (dropTicks == 0)                           l21Fire(L21E1);
+            if (leadFeetX >= LVL21_TNT_TRIG_X)            l21Fire(L21E2);
+            if (leadFeetX >= LVL21_TNT2_TRIG_X)           l21Fire(L21E4);
+            if (l21Done(L21E4) && l21Kills >= LVL21_E5_KILLS) l21Fire(L21E5);
+            if (leadFeetX >= LVL21_METER4_X)              l21Fire(L21E7);
+            if (l21Done(L21E7) && l21GroupClear(enemies, L21G_METER))
+                                                          l21Fire(L21E8);
+            if (cameraX + SCREEN_PIXEL_WIDTH >= LVL21_METER5_X) l21Fire(L21E9);
+            if (cameraX + SCREEN_PIXEL_WIDTH >= LVL21_BALCONY_TRIG) l21Fire(L21E10);
+            if (l21Done(L21E10) && l21GroupClear(enemies, L21G_BALCONY))
+                                                          l21Fire(L21E11);
+            if (cameraY > LVL21_CAM_Y_MIN && leadFeetX >= LVL21_CORNER_X)
+                                                          l21Fire(L21E12);
+
+            // Cola: se miran los primeros pedidos (no solo el primero: si el
+            // de adelante espera la separacion de SU costado, puede pasar uno
+            // del otro costado).
+            if (l21SideGap[0]) l21SideGap[0]--;
+            if (l21SideGap[1]) l21SideGap[1]--;
+            u8 scan = 0;
+            while (scan < l21qN && scan < 4 && alive < maxAlive) {
+                L21Req* r = &l21q[(l21qHead + scan) % L21Q_SIZE];
+                u8   sideIx   = (r->side > 0) ? 1 : 0;
+                bool usesSide = (r->kind == L21K_WALK || r->kind == L21K_SOMERSAULT ||
+                                 r->kind == L21K_BALCONY);
+                if (usesSide && l21SideGap[sideIx]) { scan++; continue; }
+                const SpriteDefinition* def = (r->type == L21_Y) ? &foot_soldier_yellow
+                                                                 : &foot_soldier;
+                if (SPR_getLargestFreeVRAMBlock() < def->maxNumTile) break;
                 u16 i;
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
                 if (i >= MAX_ENEMIES) break;
-                // Entra por el borde derecho; el que tenga otros por entrar
-                // detras arranca un poco mas lejos (asi no salen en fila).
-                s16 sx = (s16)(cameraX + SCREEN_PIXEL_WIDTH
-                               + yellowSpawned * LVL21_YELLOW_STAGGER);
-                initEnemyWalkInSpawn(&enemies[i], sx, lvl21YellowLane[yellowSpawned],
-                                     -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_YELLOW);
+                bool onPlat = FALSE;
+                if (!l21SpawnReq(&enemies[i], r, cameraX, cameraY, &onPlat)) {
+                    scan++;                               // todavia no se puede ubicar
+                    continue;
+                }
+                l21LaneRot++;
                 setEnemyBounds(&enemies[i], LVL21_WALK_Y_MIN, LVL21_WALK_Y_MAX,
                                0, 0, LVL21_MAP_W * 8);
-                eOnPlat[i] = FALSE;
-                eClimb[i]  = 0;
+                eOnPlat[i]  = onPlat;
+                eClimb[i]   = 0;
+                eWasDead[i] = FALSE;
+                eGroup[i]   = r->group;
+                if (r->group) l21GroupSpawned[r->group]++;
+                if (usesSide) l21SideGap[sideIx] = LVL21_SIDE_GAP;
                 alive++;
-                if (++yellowSpawned >= LVL21_YELLOW_N) yellowState = MH_DONE;
+                // Sacarlo de la cola (corriendo los que estaban detras).
+                for (u8 j = scan; j + 1 < l21qN; j++)
+                    l21q[(l21qHead + j) % L21Q_SIZE] = l21q[(l21qHead + j + 1) % L21Q_SIZE];
+                l21qN--;
             }
         }
 
@@ -1347,7 +1602,9 @@ SceneId showScene21() {
             u8  tk  = (e->target < nPl) ? e->target : 0;
             bool tgtArriba = plOnPlat[tk];
 
-            if (eClimb[i] == 0) {
+            // (30/09) Mientras entra (caminando por la cornisa, por ejemplo)
+            // no trepa ni se baja: primero termina de entrar.
+            if (eClimb[i] == 0 && e->state != ENEMY_STATE_SPAWNING) {
                 if (!eOnPlat[i] && tgtArriba && inPlatX(ecx) &&
                     e->y <= walkTopAt(ecx) + 2) {
                     eClimb[i] = 1;                    // arranca a subir
@@ -1593,6 +1850,7 @@ SceneId showScene21() {
             }
             lidReleaseAll();
             boomerangReleaseAll();
+            l21qN = 0;         // (30/09) lo que quedaba en la cola ya no entra
             tntReleaseAll();   // (27/09) tntInit solo ponia NULL: si habia una
                                // dinamita en el aire su sprite quedaba huerfano
             XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
