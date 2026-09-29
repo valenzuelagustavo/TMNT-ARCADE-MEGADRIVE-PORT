@@ -157,11 +157,13 @@
 #define YELLOW_ANIM_IDLE        0   // Quieto (1f)
 #define YELLOW_ANIM_THROW       1   // Lanzamiento del boomerang (9f)
 #define YELLOW_ANIM_GUARD       2   // Guardia (1f): esperando que vuelva el
-                                    // boomerang, y tambien el golpe recibido
-                                    // (el sheet no trae anim de golpe)
+                                    // boomerang
 #define YELLOW_ANIM_WALK        3   // Caminar de frente (5f)
 #define YELLOW_ANIM_WALK_UP     4   // Caminar hacia arriba (4f)
 #define YELLOW_ANIM_EXPLODE     5   // Muerte (6f)
+#define YELLOW_ANIM_HIT_1       6   // (29/09) Golpe recibido, 1f cada una: se
+#define YELLOW_ANIM_HIT_2       7   // alternan 6/7/8 en cada golpe, igual que
+#define YELLOW_ANIM_HIT_3       8   // las tres del morado (hitToggle)
 
 #define ENEMY_SPRITE_W_YELLOW   64
 #define ENEMY_SPRITE_H_YELLOW   80

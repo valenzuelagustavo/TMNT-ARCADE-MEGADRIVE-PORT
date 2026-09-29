@@ -92,8 +92,8 @@ static u8 enemyAnimExplode(const Enemy* e) {
 static u8 enemyAnimHit(Enemy* e) {
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return ORANGE_ANIM_HIT;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  return WHITE_ANIM_HIT;
-    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) return YELLOW_ANIM_GUARD;
-    u8 hitAnim = (u8)(ENEMY_ANIM_HIT_1 + e->hitToggle);
+    u8 hitAnim = (u8)(((e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW)
+                       ? YELLOW_ANIM_HIT_1 : ENEMY_ANIM_HIT_1) + e->hitToggle);
     if (++e->hitToggle >= 3) e->hitToggle = 0;
     return hitAnim;
 }

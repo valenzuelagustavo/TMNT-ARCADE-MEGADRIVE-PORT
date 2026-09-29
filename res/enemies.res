@@ -105,6 +105,7 @@ SPRITE shuriken_sprite "sprites/shuriken_anim.png" 2 2 FAST 4
 //   [0] Idle (1f) | [1] Lanzar el boomerang (9f; sale en el frame 6)
 //   [2] Guardia (1f) | [3] Caminar (5f) | [4] Caminar hacia arriba (4f)
 //   [5] Muerte (6f)
+//   [6] [7] [8] Golpe recibido (1f cada una, se alternan en cada golpe)
 // Va a 6 ticks por frame (ver YELLOW_TICKS en enemy.h).
 SPRITE foot_soldier_yellow "sprites/Foot_Soldier_Yellow_boomerang.png" 8 10 FAST 6
 
