@@ -145,9 +145,9 @@
 // Mismo nivel que el resto de la musica del juego (VOL_MUSIC_* en scenes.c).
 #define CINEMATIC_MUSIC_VOL  90
 #define T_CLIMB_START        60   // El grupo toma impulso y salta
-#define T_CLIMB_TIME         30   // Duracion del salto: UN solo arco. Antes 40:
-                                  // acortado para que caigan un poco mas rapido
-                                  // (mismo alto de arco, trayecto mas corto).
+#define T_CLIMB_TIME         32   // Duracion del salto: UN solo arco (30/09: de
+                                  // 30 a 32 porque ahora el arco sube y ademas
+                                  // cae hasta perderse detras del borde).
 #define T_CLIMB_END        (T_CLIMB_START + T_CLIMB_TIME)   // 90
 #define SPL_FRAME_IDLE        0   // Splinter arranca en su 1ra pose (reposo)
 #define SPL_FRAME_ALERT       1   // ...y pasa a la 2da (baston en alto) apenas
@@ -194,20 +194,41 @@
 // Recorrido del grupo: 5 puntos = 4 saltos en diagonal hacia arriba-derecha,
 // de saliente en saliente, hasta perderse en el humo. Son coordenadas del
 // CENTRO en X y de los PIES en Y.
-// UN SOLO ARCO, de la vereda a lo alto de la fachada. Antes eran 4 saltos
-// encadenados y se leia como un rebote: ahora es un unico salto largo, con la
-// parabola valiendo 0 en las dos puntas y CLIMB_APEX en el medio. Son
-// coordenadas del CENTRO en X y de los PIES en Y.
+// (30/09, Gustavo) SE DEJAN CAER DEL TECHO. Antes el arco iba de la azotea
+// a lo alto de la fachada de enfrente (una parabola montada sobre una recta
+// que SUBIA 102 px): se leia como un salto hacia adelante y arriba. Ahora es
+// un tiro de verdad: suben CLIMB_RISE px en diagonal hacia la derecha, pasan
+// por el vertice y caen, cada vez mas rapido, hasta perderse detras del borde
+// del techo (el parapeto azul oscuro que corta la azotea en diagonal) o por
+// abajo de la pantalla. Igual que la captura marcada por Gustavo.
+//
+// Pies en funcion de t = lt/T (0..1):  y = FROM_Y - A*t + B*t^2
+// con A y B tales que el vertice queda CLIMB_RISE px arriba del arranque y el
+// final en CLIMB_END_Y:  A = 2R + 2*sqrt(R*(R+D)),  B = A + D  (R = 96,
+// D = END_Y - FROM_Y = 44)  ->  A = 424, B = 468, vertice en t = A/2B = 0,45.
+// La X avanza pareja; con TO_X = 212 el vertice cae en x ~164.
 #define CLIMB_FROM_X       124
 #define CLIMB_FROM_Y       206
-#define CLIMB_TO_X         208
-#define CLIMB_TO_Y         104
-#define CLIMB_APEX          70   // Cuanto sube el arco por encima de la recta
+#define CLIMB_TO_X         212
+#define CLIMB_END_Y        250   // pies al final: ya fuera de cuadro o detras del borde
+#define CLIMB_ARC_A        424
+#define CLIMB_ARC_B        468
+// Borde del techo: la linea donde empieza el piso gris de la azotea, medida
+// sobre roof_bg_a.png: y ~ 132 + 0,453*x (a partir de x~205 cae debajo de la
+// pantalla). Una tortuga que YA paso el vertice y tiene los pies mas abajo que
+// esa linea (+ CLIMB_EDGE_MARGIN, lo que ocupa el parapeto) cayo del otro lado
+// del borde: se la deja de dibujar.
+#define ROOF_EDGE_Y0       132
+#define ROOF_EDGE_NUM       29   // pendiente 29/64 = 0,453
+#define ROOF_EDGE_DEN       64
+#define CLIMB_EDGE_MARGIN    4
 // A mitad del arco pasan de roof_climb a roof_climb_far (la misma pose a 2/3):
 // ya estan sobre la fachada, lejos de camara, y con un solo tamano quedaban de
 // cinco pisos de alto. El cambio cae en el VERTICE del salto, que es donde
 // menos se nota. 100 = nunca cambia, 0 = siempre la chica.
-#define CLIMB_SWAP_PCT      50
+// (30/09) Ya no van hacia la fachada de enfrente: caen delante, siempre a la
+// misma distancia de camara. Sin cambio de tamano.
+#define CLIMB_SWAP_PCT     100
 
 // Las 4 tortugas van en bloque pero LIGERAMENTE SEPARADAS (antes se fundian en
 // una sola mancha). Leo (0) adelante, tapando en parte a los otros tres.
@@ -564,8 +585,19 @@ static bool roofCutToBlack(void) {
 // Dibuja el grupo con la hoja grande o la chica segun `big`. La otra queda
 // oculta: los 8 sprites viven toda la escena A (344 tiles de sprite en total),
 // asi no hay altas y bajas de VRAM en el medio del salto.
-static void climbSetPose(s16 cx, s16 cy, u16 frame, bool big) {
+// 'falling' = ya paso el vertice: la que cruzo el borde del techo se oculta.
+static void climbSetPose(s16 cx, s16 cy, u16 frame, bool big, bool falling) {
     for (u16 i = 0; i < 4; i++) {
+        if (falling) {
+            s16 fx = (s16)(cx + (big ? climbOffX[i] : climbFarOffX[i]));
+            s16 fy = (s16)(cy + (big ? climbOffY[i] : climbFarOffY[i]));
+            s16 edge = (s16)(ROOF_EDGE_Y0 + ((s32)fx * ROOF_EDGE_NUM) / ROOF_EDGE_DEN);
+            if (fy > edge + CLIMB_EDGE_MARGIN) {
+                SPR_setVisibility(climbSpr[i],    HIDDEN);
+                SPR_setVisibility(climbFarSpr[i], HIDDEN);
+                continue;
+            }
+        }
         if (big) {
             SPR_setPosition(climbSpr[i], cx + climbOffX[i] - CLIMB_W / 2,
                                          cy + climbOffY[i] - CLIMB_H);
@@ -626,7 +658,7 @@ static bool roofSceneA(void) {
         SPR_setDepth(climbSpr[i],    (s16)i);
         SPR_setDepth(climbFarSpr[i], (s16)i);
     }
-    climbSetPose(CLIMB_FROM_X, CLIMB_FROM_Y, 0, TRUE);
+    climbSetPose(CLIMB_FROM_X, CLIMB_FROM_Y, 0, TRUE, FALSE);
 
     SPR_update();
     PAL_setColors(0, roofBlack, 64, DMA);
@@ -675,20 +707,23 @@ static bool roofSceneA(void) {
             SPR_setVisibility(baloonSpr, HIDDEN);
         }
 
-        // --- El grupo salta: UN solo arco hasta lo alto de la fachada ---
+        // --- El grupo se tira del techo: sube, pasa el vertice y cae ---
         if (f >= T_CLIMB_START && f < T_CLIMB_END) {
             s16 lt = (s16)(f - T_CLIMB_START);
             s16 x = lerpS(CLIMB_FROM_X, CLIMB_TO_X, lt, T_CLIMB_TIME);
-            s16 y = lerpS(CLIMB_FROM_Y, CLIMB_TO_Y, lt, T_CLIMB_TIME);
-            // Parabola: 0 en las dos puntas, maxima en el medio
-            y -= (s16)(((s32)CLIMB_APEX * 4 * lt * (T_CLIMB_TIME - lt))
-                       / ((s32)T_CLIMB_TIME * T_CLIMB_TIME));
+            // y = FROM_Y - A*t + B*t^2 con t = lt/T (ver CLIMB_ARC_*)
+            const s32 T = T_CLIMB_TIME;
+            s16 y = (s16)(CLIMB_FROM_Y
+                          - ((s32)CLIMB_ARC_A * lt) / T
+                          + ((s32)CLIMB_ARC_B * lt * lt) / (T * T));
+            // Ya bajando = pasado el vertice (t > A/2B).
+            bool falling = ((s32)lt * 2 * CLIMB_ARC_B > (s32)CLIMB_ARC_A * T);
             // Frame 0 = apoyado (impulso, solo el primer frame), 1 = en el aire
             u16 pose = (lt == 0) ? 0 : 1;
             bool big = (bool)((lt * 100) < (T_CLIMB_TIME * CLIMB_SWAP_PCT));
-            climbSetPose(x, y, pose, big);
+            climbSetPose(x, y, pose, big, falling);
         } else if (f == T_CLIMB_END) {
-            // Llegaron arriba, ya adentro del humo: se los deja de ver.
+            // Ya cayeron detras del borde (o por abajo): se los deja de ver.
             climbHideAll();
         }
 
