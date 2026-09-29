@@ -717,6 +717,23 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 // texto del HUD en BG_A no lo atraviese, y por delante de todo en depth.
 #define LVL21_TV_TICKS    30      // ticks por frame (el time del .res)
 
+// ---------------------------------------------------------------------------
+// Foot soldiers AMARILLOS, los del boomerang (29/09)
+// ---------------------------------------------------------------------------
+// La primera aparicion, pedida por Gustavo: TRES que entran caminando desde la
+// derecha apenas se pasa el televisor de la vidriera. Se disparan cuando los
+// pies del lider pasan el borde derecho de la tele + LVL21_YELLOW_TRIG_DX, y
+// cada uno entra por el borde derecho de la camara, escalonados en X
+// (LVL21_YELLOW_STAGGER) y en tres lanes distintas de la vereda (160..250 en
+// esa cuadra, 123..250 un poco mas adelante: las tres caen adentro).
+// Como las bocas de tormenta, un spawn que llegue con el tope de vivos lleno
+// (o sin VRAM para su sheet) queda PENDIENTE hasta que haya lugar.
+#define LVL21_YELLOW_N         3
+#define LVL21_YELLOW_TRIG_DX  24
+#define LVL21_YELLOW_TRIG_X   (LVL21_TV_X + LVL21_TV_W + LVL21_YELLOW_TRIG_DX)
+#define LVL21_YELLOW_STAGGER  36
+static const s16 lvl21YellowLane[LVL21_YELLOW_N] = { 205, 172, 238 };
+
 typedef enum { TV_OFF, TV_PENDING, TV_PLAYING, TV_DONE } TvState;
 static Sprite* tvSpr;
 static Sprite* tvBubble;        // globo de dialogo de la fase actual
@@ -758,7 +775,9 @@ static void tvStartPhase(u8 phase) {
 
 static u16 soldierMaxTiles(void) {
     u16 a = foot_soldier.maxNumTile, b = foot_soldier_orange.maxNumTile;
-    return (a > b) ? a : b;
+    u16 c = foot_soldier_yellow.maxNumTile;
+    if (b > a) a = b;
+    return (c > a) ? c : a;
 }
 
 // Suelta la tele si al proximo soldier no le alcanza la VRAM de sprites.
@@ -1013,6 +1032,9 @@ SceneId showScene21() {
     tntInit();
     lidInit();
     metersInit();
+    boomerangInit();
+    u8 yellowState   = MH_DORMANT;         // (29/09) los tres del boomerang
+    u8 yellowSpawned = 0;
     // --- Jefe (24/09) ------------------------------------------------------
     // Vive en el stack de la escena como todo lo demas; bebopInit ademas deja
     // el pool de disparos limpio.
@@ -1276,6 +1298,31 @@ SceneId showScene21() {
             }
         }
 
+        // (29/09) Los tres amarillos del boomerang, pasando la tele.
+        if (yellowState != MH_DONE && !bossStarted) {
+            if (yellowState == MH_DORMANT && leadFeetX >= LVL21_YELLOW_TRIG_X)
+                yellowState = MH_PENDING;
+            while (yellowState == MH_PENDING && alive < maxAlive &&
+                   SPR_getLargestFreeVRAMBlock() >= foot_soldier_yellow.maxNumTile) {
+                u16 i;
+                for (i = 0; i < MAX_ENEMIES; i++)
+                    if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
+                if (i >= MAX_ENEMIES) break;
+                // Entra por el borde derecho; el que tenga otros por entrar
+                // detras arranca un poco mas lejos (asi no salen en fila).
+                s16 sx = (s16)(cameraX + SCREEN_PIXEL_WIDTH
+                               + yellowSpawned * LVL21_YELLOW_STAGGER);
+                initEnemyWalkInSpawn(&enemies[i], sx, lvl21YellowLane[yellowSpawned],
+                                     -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_YELLOW);
+                setEnemyBounds(&enemies[i], LVL21_WALK_Y_MIN, LVL21_WALK_Y_MAX,
+                               0, 0, LVL21_MAP_W * 8);
+                eOnPlat[i] = FALSE;
+                eClimb[i]  = 0;
+                alive++;
+                if (++yellowSpawned >= LVL21_YELLOW_N) yellowState = MH_DONE;
+            }
+        }
+
         // Tapas cerradas de las bocas que todavia no salieron.
         mhUpdateLids(cameraX, cameraY);
         tvUpdate(pls, nPl, cameraX, cameraY, alive, maxAlive, !bossStarted);
@@ -1384,6 +1431,13 @@ SceneId showScene21() {
                 break;
             }
         }
+
+        // --- Boomerangs de los amarillos (29/09) ----------------------------
+        // Despues de updateEnemyN (los lanza ahi) y de los golpes: el que
+        // vuelve a la mano dispara la atrapada del soldier.
+        if (boomerangStep(pls, nPl, cameraX, cameraY))
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
 
         // --- Proyectiles del guion (19/09) ---------------------------------
         // Dinamita: mismo bloque que el 1-1, pero con tntUpdateEx porque aca la
@@ -1538,6 +1592,7 @@ SceneId showScene21() {
                 enemies[i].state  = ENEMY_STATE_INACTIVE;
             }
             lidReleaseAll();
+            boomerangReleaseAll();
             tntReleaseAll();   // (27/09) tntInit solo ponia NULL: si habia una
                                // dinamita en el aire su sprite quedaba huerfano
             XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
@@ -1605,6 +1660,7 @@ SceneId showScene21() {
     // se liberan aca la proxima partida arranca con sprites fantasma.
     tntReleaseAll();
     lidReleaseAll();
+    boomerangReleaseAll();
     mhReleaseAll();
     metersReleaseAll();
     tvRelease();

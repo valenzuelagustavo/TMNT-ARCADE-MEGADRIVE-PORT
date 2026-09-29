@@ -97,6 +97,21 @@ SPRITE foot_soldier_white "sprites/foot_soldier_white_gen.png" 13 13 FAST 8
 // shuriken_anim.png la arma tools/gen_shuriken.py con shuriken1..3.png.
 SPRITE shuriken_sprite "sprites/shuriken_anim.png" 2 2 FAST 4
 
+// Foot Soldier AMARILLO, el del boomerang (29/09): frames de 64x80 (8x10
+// tiles, la grilla del morado, pies en el borde de abajo). Mismo orden de
+// indices que la paleta unica de enemigos: se dibuja con PAL2 y con la paleta
+// del MORADO (initEnemySpawn no carga la de este PNG).
+// Animaciones (filas):
+//   [0] Idle (1f) | [1] Lanzar el boomerang (9f; sale en el frame 6)
+//   [2] Guardia (1f) | [3] Caminar (5f) | [4] Caminar hacia arriba (4f)
+//   [5] Muerte (6f)
+// Va a 6 ticks por frame (ver YELLOW_TICKS en enemy.h).
+SPRITE foot_soldier_yellow "sprites/Foot_Soldier_Yellow_boomerang.png" 8 10 FAST 6
+
+// El boomerang: 32x32 = 4x4 tiles, PAL2. [0] girando (8f, en loop)
+// [1] le pega a una tortuga (2f) | [2] roto por un golpe de tortuga (3f).
+SPRITE boomerang_sprite "sprites/boomerang.png" 4 4 FAST 4
+
 // --- Dinamita del foot soldier morado (18/09) --------------------------------
 // TNT: el cartucho que tira con la anim [16]. 192x24 = 8 frames de 24x24px
 // (3x3 tiles) girando sobre si mismo. Frame time 3 (1/20 s): a 8 frames da una

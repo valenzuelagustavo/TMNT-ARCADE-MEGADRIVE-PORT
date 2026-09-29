@@ -11,6 +11,7 @@
 #define ENEMY_TYPE_FOOT_SOLDIER        0   // foot soldier regular (PAL2)
 #define ENEMY_TYPE_FOOT_SOLDIER_ORANGE 1   // foot soldier naranja (PAL3, shuriken)
 #define ENEMY_TYPE_FOOT_SOLDIER_WHITE  2   // foot soldier blanco, espada larga (PAL3)
+#define ENEMY_TYPE_FOOT_SOLDIER_YELLOW 3   // (29/09) foot soldier amarillo, boomerang (PAL2)
 
 #define MAX_ENEMIES         8
 #define ENEMY_SPEED         1
@@ -78,6 +79,7 @@
 #define ENEMY_HP_ORANGE    4    // Golpes para eliminar al naranja
 #define ENEMY_HP_WHITE     6    // El blanco aguanta mas: aparece recien antes
                                 // de Rocksteady y tiene espada larga (13/09)
+#define ENEMY_HP_YELLOW    4    // (29/09) El del boomerang: como el morado
 #define MAX_ACTIVE_ENEMIES  4    // Foot soldiers vivos al mismo tiempo (tope de spawn)
 #define ENEMY_INVINCIBLE    20
 
@@ -143,6 +145,82 @@
 #define WHITE_ANIM_AIR_SLASH    7   // Espadazo cayendo desde el aire (2f)
 #define WHITE_ANIM_HIT          8   // Golpe recibido (2f)
 #define WHITE_ANIM_EXPLODE      9   // Muerte: cae al piso y explota (4f)
+
+// ---------------------------------------------------------------------------
+// Foot soldier AMARILLO -- el del BOOMERANG (29/09)
+// ---------------------------------------------------------------------------
+// Sheet Foot_Soldier_Yellow_boomerang.png: frames de 64x80 (8x10 tiles, la
+// misma grilla que el morado, pies en el borde de abajo), arte mirando a la
+// DERECHA. Usa PAL2 con la paleta del MORADO: el PNG tiene el mismo orden de
+// indices (el mismo rip) y cargar la suya cambiaria un poco los colores de los
+// morados que esten en pantalla (ver initEnemySpawn).
+#define YELLOW_ANIM_IDLE        0   // Quieto (1f)
+#define YELLOW_ANIM_THROW       1   // Lanzamiento del boomerang (9f)
+#define YELLOW_ANIM_GUARD       2   // Guardia (1f): esperando que vuelva el
+                                    // boomerang, y tambien el golpe recibido
+                                    // (el sheet no trae anim de golpe)
+#define YELLOW_ANIM_WALK        3   // Caminar de frente (5f)
+#define YELLOW_ANIM_WALK_UP     4   // Caminar hacia arriba (4f)
+#define YELLOW_ANIM_EXPLODE     5   // Muerte (6f)
+
+#define ENEMY_SPRITE_W_YELLOW   64
+#define ENEMY_SPRITE_H_YELLOW   80
+#define ENEMY_FOOT_OFFSET_YELLOW 80  // pixel mas bajo en y=79 en todas las filas
+// Cuerpo medido sobre el arte (idle y walk): x 18..43 del frame, tope y=17.
+#define ENEMY_BODY_HALF_W_YELLOW 14
+#define ENEMY_BODY_H_YELLOW      60
+
+// El sheet va a FAST 6 (el lanzamiento es rapido en el arcade; a 8 ticks los
+// 9 frames duraban 1,2 s).
+#define YELLOW_TICKS             6
+#define YELLOW_THROW_TIME       54   // 9 frames x 6
+#define YELLOW_EXPLODE_TIME     36   // 6 frames x 6
+// El boomerang se ve en la mano en los frames 2..5 y ya no esta en el 6 (el
+// brazo estirado hacia adelante): sale al EMPEZAR el frame 6. Con el timer
+// contando hacia atras: 54 - 6x6 = 18.
+#define YELLOW_RELEASE_TIMER    18
+// Atrapada: el frame 4 del lanzamiento (indice 3, boomerang en la mano en
+// alto) y de ahi para atras hasta el 0, 6 ticks cada uno. Frames puestos a
+// mano (SPR_setAutoAnimation(FALSE)), la anim no corre en reversa sola.
+#define YELLOW_CATCH_FRAME0      3
+#define YELLOW_CATCH_TIME       ((YELLOW_CATCH_FRAME0 + 1) * YELLOW_TICKS)   // 24
+
+// Distancia (X, centro a centro) a la que tira. Por debajo de MIN se aleja
+// para tomar distancia (no tiene golpes cuerpo a cuerpo: su arma es el
+// boomerang); por encima de MAX se acerca.
+#define YELLOW_RANGE_MIN        56
+#define YELLOW_RANGE_MAX       140
+#define YELLOW_ALIGN_Y           8   // |dy| maximo para tirar (vuela en X)
+// Cada amarillo se planta a una distancia PROPIA (YELLOW_RANGE_MAX menos un
+// sorteo de 0..YELLOW_RANGE_JITTER-1, guardado en flankTimer, que el amarillo
+// no usa): con la misma distancia los tres quedaban apilados en la misma X.
+#define YELLOW_RANGE_JITTER     64
+// Espera inicial antes del primer tiro (se suma un sorteo de 0..63): asi los
+// que entran juntos no tiran los tres en el mismo frame.
+#define YELLOW_FIRST_COOLDOWN   40
+
+// --- El boomerang ---
+// Sheet boomerang.png, frames de 32x32 (4x4 tiles): [0] girando (8f),
+// [1] pegandole a la tortuga (2f), [2] roto por un golpe de la tortuga (3f).
+// Vuela en X a la altura de la mano: sale con BOOM_V0 alejandose y SIEMPRE
+// acelera hacia la mano del duenio (BOOM_ACC). O sea que frena, se da vuelta
+// a V0^2 / (2 ACC) = 128 px y vuelve solo, aunque el duenio se haya movido.
+// Todo en Q8 (256 = 1 px).
+#define MAX_BOOMERANGS           3
+#define BOOM_MAX_AIR             2   // en el aire a la vez (el tercero espera)
+#define BOOM_V0               1536   // 6 px/frame
+#define BOOM_ACC                36   // 0,14 px/frame2 -> se da vuelta a 128 px
+#define BOOM_LANE_SPEED          1   // px/frame que corrige la lane al volver
+#define BOOM_Z                  50   // altura del CENTRO sobre los pies (la mano)
+#define BOOM_SPAWN_DX           24   // sale del centro del soldier + dir*24
+#define BOOM_HAND_DX            16   // donde lo agarra: centro + dir*16 (frame 3)
+#define BOOM_CATCH_X            10   // tolerancia de la atrapada
+#define BOOM_CATCH_Y            10
+#define BOOM_HIT_X              20   // contra el centro de la tortuga
+#define BOOM_HIT_Y              16   // lanes
+#define BOOM_LIFE              360   // frames de vuelo como maximo (seguridad)
+#define BOOM_IMPACT_TIME        12   // anim [1] (2f x 4) y un poquito quieto
+#define BOOM_BROKEN_TIME        14   // anim [2] (3f x 4) y un poquito quieto
 
 // --- Tiempos (el sheet va a FAST 8: 8 ticks por frame) ---
 #define WHITE_SLASH_TIME       24   // 3 frames x 8 (vale para las 3 anims 3/4/5)
@@ -262,6 +340,8 @@
 #define ENEMY_ATTACK_FRONT  2    // golpe de frente / directo (anim 6)
 #define ENEMY_ATTACK_SHURIKEN 3  // lanzar shuriken (solo naranja, anim 3)
 #define ENEMY_ATTACK_JUMP   4    // salto + espadazo cayendo (solo blanco, anims 6/7)
+#define ENEMY_ATTACK_BOOMERANG 5 // tirar el boomerang (solo amarillo, anim 1)
+#define ENEMY_ATTACK_CATCH  6    // atrapar el boomerang (amarillo, anim 1 al reves)
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
 #define MAX_SHURIKENS           4   // proyectiles simultáneos en pantalla
@@ -496,6 +576,8 @@ typedef struct {
     s8          deathDir;     // hacia donde lo lanza el golpe (0 = en el lugar)
     u8          deathSpeed;   // px/frame actuales (van bajando)
     u8          deathTick;
+    // --- Boomerang del AMARILLO (29/09) ---
+    s8          boomSlot;     // boomerang propio en vuelo (-1 = en la mano)
 } Enemy;
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
@@ -621,6 +703,25 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX);
 // desaparece sin dañar al jugador. Devuelve TRUE si rompió alguno. Llamar por
 // jugador y ANTES de shurikenCheckHitPlayer.
 bool shurikenBreakByPlayerAttack(const Player* p);
+
+// ---------------------------------------------------------------------------
+// BOOMERANG del foot soldier AMARILLO (29/09)
+// ---------------------------------------------------------------------------
+// Pool de MAX_BOOMERANGS. Lo lanza updateEnemyN (en el frame 6 del
+// lanzamiento) y vuelve a la mano del que lo tiro; al tocarla el soldier lo
+// ATRAPA (anim de lanzamiento del frame 3 al 0). Si le pega a una tortuga
+// hace la anim [1] y desaparece; si una tortuga lo golpea (cuerpo a cuerpo,
+// no con la patada voladora, igual que el shuriken) se rompe con la anim [2].
+// Si el duenio muere, sigue de largo y se suelta al salir de camara.
+//
+// La escena llama boomerangStep una vez por frame, DESPUES de updateEnemyN.
+// Dibuja con camX/camY (la Y de camara la pasa el nivel: el 2-1 tiene la
+// suya, stage_level pasa stageCamY).
+#define BOOM_EV_BROKE   1   // una tortuga rompio uno (SFX de golpe)
+#define BOOM_EV_HIT     2   // uno le pego a una tortuga (ya aplico el dano)
+void boomerangInit(void);
+u8   boomerangStep(Player** pls, u8 nPl, s16 camX, s16 camY);
+void boomerangReleaseAll(void);
 
 // ---------------------------------------------------------------------------
 // DINAMITA del foot soldier MORADO (18/09)

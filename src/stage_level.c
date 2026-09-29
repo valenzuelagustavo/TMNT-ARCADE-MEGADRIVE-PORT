@@ -427,6 +427,7 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     resetEnemyAI(cantidadJugadores);
     shurikenInit();
+    boomerangInit();
     static Enemy enemies[MAX_ENEMIES];
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state  = ENEMY_STATE_INACTIVE;
@@ -582,6 +583,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                     const SpriteDefinition* def =
                         (ty == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? &foot_soldier_orange :
                         (ty == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? &foot_soldier_white  :
+                        (ty == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? &foot_soldier_yellow :
                                                                  &foot_soldier;
                     if (SPR_getLargestFreeVRAMBlock() < def->maxNumTile) break;
                 }
@@ -672,6 +674,11 @@ SceneId stageLevelRun(const StageLevel* L) {
             }
         }
 
+        // Boomerangs del amarillo (29/09).
+        if (boomerangStep(pls, nPl, cameraX, stageCamY))
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+
         // --- Lo propio del nivel (29/09: los misiles del agua del sewer) -----
         if (L->levelUpdate) L->levelUpdate(pls, nPl, cameraX);
 
@@ -720,6 +727,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     }
 
     shurikenReleaseAll();
+    boomerangReleaseAll();
     if (L->levelRelease) L->levelRelease();
     if (L->bossRelease) L->bossRelease();
     VDP_setTextPriority(0);

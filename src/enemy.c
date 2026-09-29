@@ -37,6 +37,7 @@ static u8 enemyAnimIdle(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_IDLE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_IDLE;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_IDLE;
         default:                             return ENEMY_ANIM_IDLE;
     }
 }
@@ -44,6 +45,7 @@ static u8 enemyAnimWalk(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_WALK;
         default:                             return ENEMY_ANIM_WALK;
     }
 }
@@ -51,6 +53,7 @@ static u8 enemyAnimWalkUp(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK_UP;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_WALK_UP;
         default:                             return ENEMY_ANIM_WALK_UP;
     }
 }
@@ -58,6 +61,7 @@ static u8 enemyAnimKick(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_KICK;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_JUMP;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_IDLE;   // no tiene
         default:                             return ENEMY_ANIM_KICK;
     }
 }
@@ -65,6 +69,7 @@ static u8 enemyAnimPunchFront(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_PUNCH_FRONT;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_SLASH_LONG;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_IDLE;   // no tiene
         default:                             return ENEMY_ANIM_PUNCH_FRONT;
     }
 }
@@ -72,6 +77,7 @@ static u8 enemyAnimUppercut(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_UPPERCUT;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_SLASH_MID;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_IDLE;   // no tiene
         default:                             return ENEMY_ANIM_PUNCH;
     }
 }
@@ -79,12 +85,14 @@ static u8 enemyAnimExplode(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_EXPLODE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_EXPLODE;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_EXPLODE;
         default:                             return ENEMY_ANIM_EXPLODE;
     }
 }
 static u8 enemyAnimHit(Enemy* e) {
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return ORANGE_ANIM_HIT;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  return WHITE_ANIM_HIT;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) return YELLOW_ANIM_GUARD;
     u8 hitAnim = (u8)(ENEMY_ANIM_HIT_1 + e->hitToggle);
     if (++e->hitToggle >= 3) e->hitToggle = 0;
     return hitAnim;
@@ -100,6 +108,9 @@ static u16 enemyAttackTime(const Enemy* e) {
             return WHITE_JUMP_SAFETY;
         return WHITE_SLASH_TIME;
     }
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW)
+        return (e->attackType == ENEMY_ATTACK_CATCH) ? YELLOW_CATCH_TIME
+                                                     : YELLOW_THROW_TIME;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
         switch (e->attackType) {
             case ENEMY_ATTACK_KICK:    return ORANGE_KICK_TIME;
@@ -117,6 +128,7 @@ static u16 enemyExplodeTime(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_EXPLODE_TIME;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_EXPLODE_TIME;
         default:                             return ENEMY_EXPLODE_TIME;
     }
 }
@@ -257,7 +269,8 @@ static s16 enemyMaxX(const Enemy* e) {
 // cámara) e imposible de matar.
 static s16 enemyMinX(const Enemy* e) {
     if (e->state == ENEMY_STATE_SPAWNING) return -(s16)e->w;
-    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return e->cameraOffsetX;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE ||
+        e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) return e->cameraOffsetX;
     return -(s16)e->w;
 }
 
@@ -318,11 +331,19 @@ static void releaseTarget(u8 target) {
         enemyTargetCount[target]--;
 }
 
+// Ataques a distancia (shuriken, boomerang y su atrapada): no ocupan cupo de
+// atacante melee.
+static bool attackIsRanged(u8 attackType) {
+    return attackType == ENEMY_ATTACK_SHURIKEN ||
+           attackType == ENEMY_ATTACK_BOOMERANG ||
+           attackType == ENEMY_ATTACK_CATCH;
+}
+
 static void leaveAttackState(Enemy* e) {
     // El shuriken es a distancia: no ocupa cupo de atacante melee, así que
     // tampoco lo libera (nunca lo incrementó — ver el trigger de ataque).
     if (e->state == ENEMY_STATE_ATTACK &&
-        e->attackType != ENEMY_ATTACK_SHURIKEN && enemiesAttacking > 0)
+        !attackIsRanged(e->attackType) && enemiesAttacking > 0)
         enemiesAttacking--;
 }
 
@@ -434,6 +455,226 @@ bool shurikenBreakByPlayerAttack(const Player* p) {
     return broke;
 }
 
+
+// ---------------------------------------------------------------------------
+// BOOMERANG del foot soldier AMARILLO (29/09) -- ver enemy.h
+// ---------------------------------------------------------------------------
+// Convencion de coordenadas, la del shuriken: 'lane' es la profundidad (los
+// pies del que lo tiro) y el sprite se dibuja BOOM_Z px mas arriba, a la
+// altura de la mano. 'xq' es la X de mundo del CENTRO, en Q8.
+//
+// El duenio se guarda como puntero (los Enemy viven en arreglos static de la
+// escena, no se mueven) y el enlace es DOBLE: owner->boomSlot tiene que
+// apuntar a este boomerang. Si no coincide (el soldier murio y su lugar lo
+// ocupo otro spawn, que arranca con boomSlot = -1) el boomerang queda
+// huerfano: sigue de largo y se suelta al salir de camara.
+typedef enum { BOOM_OFF, BOOM_FLY, BOOM_IMPACT, BOOM_BROKEN } BoomState;
+
+typedef struct {
+    Sprite* sprite;
+    Enemy*  owner;       // NULL = huerfano
+    s32     xq;          // X de mundo del centro, Q8
+    s16     vx;          // px/frame en Q8 (+ derecha)
+    s16     lane;        // profundidad (pies)
+    u16     life;        // frames de vuelo que le quedan (seguridad)
+    u8      state;       // BoomState
+    u8      timer;       // impacto / roto: frames hasta soltarlo
+    u8      back;        // 1 = ya se dio vuelta (volviendo)
+} Boomerang;
+
+#define BOOM_ANIM_SPIN   0
+#define BOOM_ANIM_IMPACT 1
+#define BOOM_ANIM_BROKEN 2
+
+static Boomerang boomerangs[MAX_BOOMERANGS];
+
+void boomerangInit(void) {
+    for (u16 i = 0; i < MAX_BOOMERANGS; i++) {
+        boomerangs[i].state  = BOOM_OFF;
+        boomerangs[i].sprite = NULL;
+        boomerangs[i].owner  = NULL;
+    }
+}
+
+// Suelta el enlace con el duenio (si sigue siendo suyo) y le da un respiro
+// antes de volver a tirar: sin boomerang no tiene con que atacar.
+static void boomDetach(u16 i) {
+    Enemy* o = boomerangs[i].owner;
+    if (o && o->boomSlot == (s8)i) {
+        o->boomSlot = -1;
+        if (o->attackCooldown < ENEMY_ATTACK_COOLDOWN)
+            o->attackCooldown = ENEMY_ATTACK_COOLDOWN;
+    }
+    boomerangs[i].owner = NULL;
+}
+
+static void boomFree(u16 i) {
+    boomDetach(i);
+    if (boomerangs[i].sprite) SPR_releaseSprite(boomerangs[i].sprite);
+    boomerangs[i].sprite = NULL;
+    boomerangs[i].state  = BOOM_OFF;
+}
+
+void boomerangReleaseAll(void) {
+    for (u16 i = 0; i < MAX_BOOMERANGS; i++) boomFree(i);
+}
+
+// Hay lugar para un boomerang mas? (slot libre + VRAM para su sprite). La IA
+// lo pregunta ANTES de arrancar el lanzamiento: sin esto tiraria al aire.
+static bool boomCanSpawn(void) {
+    if (SPR_getLargestFreeVRAMBlock() < boomerang_sprite.maxNumTile) return FALSE;
+    u16 air = 0;
+    bool slot = FALSE;
+    for (u16 i = 0; i < MAX_BOOMERANGS; i++) {
+        if (boomerangs[i].state == BOOM_OFF) slot = TRUE;
+        else if (boomerangs[i].state == BOOM_FLY) air++;
+    }
+    return slot && air < BOOM_MAX_AIR;
+}
+
+static s8 boomSpawn(Enemy* e) {
+    for (u16 i = 0; i < MAX_BOOMERANGS; i++) {
+        Boomerang* b = &boomerangs[i];
+        if (b->state != BOOM_OFF) continue;
+        s16 cx = (s16)(e->x + e->w / 2 + e->dir * BOOM_SPAWN_DX);
+        b->sprite = SPR_addSprite(&boomerang_sprite,
+                                  cx - 16 - e->cameraOffsetX,
+                                  e->y - BOOM_Z - 16 - stageCamY,
+                                  TILE_ATTR(e->palette, FALSE, FALSE, FALSE));
+        if (!b->sprite) return -1;
+        SPR_setAnim(b->sprite, BOOM_ANIM_SPIN);
+        SPR_setHFlip(b->sprite, (e->dir < 0));
+        SPR_setDepth(b->sprite, -(e->y) - 1);
+        b->owner = e;
+        b->xq    = (s32)cx << 8;
+        b->vx    = (s16)(e->dir * BOOM_V0);
+        b->lane  = e->y;
+        b->life  = BOOM_LIFE;
+        b->state = BOOM_FLY;
+        b->timer = 0;
+        b->back  = 0;
+        return (s8)i;
+    }
+    return -1;
+}
+
+// El duenio lo atrapa: anim de lanzamiento del frame 3 al 0 (frames a mano,
+// ver ENEMY_ATTACK_CATCH en updateEnemyN). Si esta en medio de un golpe
+// recibido no hay atrapada que mostrar: el boomerang vuelve a la mano igual.
+static void yellowCatch(Enemy* e) {
+    if (!e->sprite) return;
+    bool free = (e->state == ENEMY_STATE_CHASE || e->state == ENEMY_STATE_PATROL ||
+                 (e->state == ENEMY_STATE_ATTACK &&
+                  e->attackType == ENEMY_ATTACK_BOOMERANG));
+    if (!free) return;
+    leaveAttackState(e);   // el boomerang no ocupa cupo: no descuenta nada
+    e->state      = ENEMY_STATE_ATTACK;
+    e->attackType = ENEMY_ATTACK_CATCH;
+    e->attackHit  = 1;     // no pega
+    e->comboLen   = 0;
+    e->timer      = YELLOW_CATCH_TIME;
+    e->anim       = YELLOW_ANIM_THROW;
+    SPR_setAutoAnimation(e->sprite, FALSE);
+    SPR_setAnimAndFrame(e->sprite, YELLOW_ANIM_THROW, YELLOW_CATCH_FRAME0);
+}
+
+u8 boomerangStep(Player** pls, u8 nPl, s16 camX, s16 camY) {
+    u8 ev = 0;
+    for (u16 i = 0; i < MAX_BOOMERANGS; i++) {
+        Boomerang* b = &boomerangs[i];
+        if (b->state == BOOM_OFF) continue;
+
+        // Impacto / roto: se queda quieto haciendo su anim y se va.
+        if (b->state != BOOM_FLY) {
+            if (b->timer > 0) b->timer--;
+            if (b->timer == 0) { boomFree(i); continue; }
+            SPR_setPosition(b->sprite, (s16)((b->xq >> 8) - 16 - camX),
+                            (s16)(b->lane - BOOM_Z - 16 - camY));
+            continue;
+        }
+
+        // --- Vuelo ---
+        Enemy* o = b->owner;
+        if (o && (o->boomSlot != (s8)i || o->state == ENEMY_STATE_DEAD ||
+                  o->state == ENEMY_STATE_INACTIVE || !o->sprite)) {
+            // Se quedo sin duenio: sigue de largo a toda velocidad.
+            boomDetach(i);
+            o = NULL;
+            b->vx = (b->vx < 0) ? -BOOM_V0 : BOOM_V0;
+        }
+        if (o) {
+            // Acelera SIEMPRE hacia la mano del duenio: a la ida eso lo frena,
+            // se da vuelta solo y vuelve (aunque el soldier se haya movido).
+            s32 handQ = (s32)(o->x + o->w / 2 + o->dir * BOOM_HAND_DX) << 8;
+            s8  toward = (handQ > b->xq) ? 1 : -1;
+            b->vx += (s16)(toward * BOOM_ACC);
+            if (b->vx >  BOOM_V0) b->vx =  BOOM_V0;
+            if (b->vx < -BOOM_V0) b->vx = -BOOM_V0;
+            if (!b->back && ((b->vx < 0) == (toward < 0)) && b->vx != 0)
+                b->back = 1;
+            // A la vuelta corrige la profundidad hacia la del duenio.
+            if (b->back) {
+                if (b->lane < o->y) b->lane = (s16)(b->lane + BOOM_LANE_SPEED);
+                else if (b->lane > o->y) b->lane = (s16)(b->lane - BOOM_LANE_SPEED);
+            }
+        }
+        b->xq += b->vx;
+        s16 bcx = (s16)(b->xq >> 8);
+
+        if (o) {
+            // ATRAPADA: volviendo y a la altura de la mano.
+            s16 hx = (s16)(o->x + o->w / 2 + o->dir * BOOM_HAND_DX);
+            if (b->back && absS16((s16)(bcx - hx)) <= BOOM_CATCH_X &&
+                absS16((s16)(b->lane - o->y)) <= BOOM_CATCH_Y) {
+                yellowCatch(o);
+                boomFree(i);
+                continue;
+            }
+            if (b->life > 0) b->life--;
+            if (b->life == 0) { boomFree(i); continue; }   // seguridad
+        } else if (bcx < camX - 32 || bcx > camX + ENEMY_SCREEN_W + 32) {
+            boomFree(i);                                    // huerfano, afuera
+            continue;
+        }
+
+        // Golpe de una tortuga: se rompe (la patada voladora no, igual que el
+        // shuriken: para cortarlo hay que estar en el piso y pegar).
+        bool broke = FALSE;
+        for (u8 k = 0; k < nPl && !broke; k++) {
+            if (isPlayerJumpKicking(pls[k])) continue;
+            if (playerAttackHits(pls[k], bcx, b->lane)) broke = TRUE;
+        }
+        if (broke) {
+            boomDetach(i);
+            b->state = BOOM_BROKEN;
+            b->timer = BOOM_BROKEN_TIME;
+            SPR_setAnimAndFrame(b->sprite, BOOM_ANIM_BROKEN, 0);
+            SPR_setAnimationLoop(b->sprite, FALSE);
+            ev |= BOOM_EV_BROKE;
+        } else {
+            // Contra las tortugas: una barra y se deshace.
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerCanBeHit(pls[k])) continue;
+                s16 pcx = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
+                if (absS16((s16)(pcx - bcx)) >= BOOM_HIT_X) continue;
+                if (absS16((s16)(getPlayerY(pls[k]) - b->lane)) >= BOOM_HIT_Y) continue;
+                damagePlayer(pls[k], bcx);
+                boomDetach(i);
+                b->state = BOOM_IMPACT;
+                b->timer = BOOM_IMPACT_TIME;
+                SPR_setAnimAndFrame(b->sprite, BOOM_ANIM_IMPACT, 0);
+                SPR_setAnimationLoop(b->sprite, FALSE);
+                ev |= BOOM_EV_HIT;
+                break;
+            }
+        }
+
+        SPR_setPosition(b->sprite, (s16)(bcx - 16 - camX),
+                        (s16)(b->lane - BOOM_Z - 16 - camY));
+        SPR_setDepth(b->sprite, -(b->lane) - 1);
+    }
+    return ev;
+}
 
 // ---------------------------------------------------------------------------
 // DINAMITA del foot soldier MORADO (18/09)
@@ -753,6 +994,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->timer       = 0;
     e->hp          = (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_HP_ORANGE
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? ENEMY_HP_WHITE
+                   : (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? ENEMY_HP_YELLOW
                                                               : ENEMY_HP_PURPLE;
     e->invincible  = 0;
     e->palette     = palette;
@@ -781,6 +1023,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->jumpZq     = 0;
     e->jumpVel    = 0;
     e->gravTick = 0;
+    e->boomSlot = -1;
 
     // Dimensiones de frame según el tipo (sheet morada 64x80 con los pies en
     // el borde; la naranja mantiene la grilla vieja 104x104).
@@ -792,6 +1035,10 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
         e->w          = ENEMY_SPRITE_W_WHITE;
         e->h          = ENEMY_SPRITE_H_WHITE;
         e->footOffset = ENEMY_FOOT_OFFSET_WHITE;
+    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
+        e->w          = ENEMY_SPRITE_W_YELLOW;
+        e->h          = ENEMY_SPRITE_H_YELLOW;
+        e->footOffset = ENEMY_FOOT_OFFSET_YELLOW;
     } else {
         e->w          = ENEMY_SPRITE_W_PURPLE;
         e->h          = ENEMY_SPRITE_H_PURPLE;
@@ -820,12 +1067,24 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
         sheetDef = &foot_soldier_orange;
     } else if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
         sheetDef = &foot_soldier_white;
+    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
+        sheetDef = &foot_soldier_yellow;
     }
     e->sprite = SPR_addSprite(sheetDef, e->x, e->y,
                               TILE_ATTR(palette, FALSE, FALSE, FALSE));
 
     // Cargar paleta desde el PNG (que ya tiene blanco en índice 1 para el HUD).
-    PAL_setPalette(palette, sheetDef->palette->data, DMA);
+    // (29/09) El amarillo NO: su PNG tiene el mismo orden de indices que el
+    // morado pero con los colores del rip un poco distintos, y PAL2 es
+    // compartida. Se dibuja con la del morado.
+    const SpriteDefinition* palDef =
+        (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? &foot_soldier : sheetDef;
+    PAL_setPalette(palette, palDef->palette->data, DMA);
+
+    if (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
+        e->flankTimer     = (u8)(random() % YELLOW_RANGE_JITTER);   // su distancia
+        e->attackCooldown = (u8)(YELLOW_FIRST_COOLDOWN + (random() & 63));
+    }
 
     enemySetAnim(e, enemyAnimWalk(e), TRUE);
 }
@@ -1020,6 +1279,10 @@ bool damageEnemy(Enemy* e, s16 dmg) {
 
     leaveAttackState(e);
     e->attackCooldown = ENEMY_HURT_COOLDOWN;
+    // La atrapada del boomerang pone los frames a mano: el golpe la corta y
+    // lo que sigue (golpe, muerte) tiene que volver a animarse solo.
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW && e->sprite)
+        SPR_setAutoAnimation(e->sprite, TRUE);
 
     // Si lo agarraron EN EL AIRE (el blanco entrando de un salto, o en pleno
     // salto con espadazo), el golpe lo baja al piso de una. Sin esto el jumpZ
@@ -1080,6 +1343,7 @@ s16 enemyBodyHalfW(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_HALF_W_ORANGE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_HALF_W_WHITE;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_BODY_HALF_W_YELLOW;
         default:                             return ENEMY_BODY_HALF_W_PURPLE;
     }
 }
@@ -1088,6 +1352,7 @@ s16 enemyBodyH(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_H_ORANGE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_H_WHITE;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_BODY_H_YELLOW;
         default:                             return ENEMY_BODY_H_PURPLE;
     }
 }
@@ -1349,6 +1614,22 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                         wantAttack = TRUE;
                     }
                 }
+            } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
+                // --- Amarillo: el del BOOMERANG (29/09) ---
+                // No tiene golpes cuerpo a cuerpo: tira desde la distancia
+                // (alineado en profundidad, porque el boomerang vuela en X) y
+                // mientras esta en el aire se queda en guardia esperandolo.
+                // Igual que con el shuriken, fuera de camara no tira.
+                s16  screenX  = e->x - e->cameraOffsetX;
+                bool onScreen = (screenX > -(s16)e->w / 2) &&
+                                (screenX < ENEMY_SCREEN_W - e->w / 2);
+                if (e->boomSlot < 0 && e->attackCooldown == 0 && onScreen &&
+                    absS16(dy) <= YELLOW_ALIGN_Y &&
+                    dist >= YELLOW_RANGE_MIN - 16 && dist <= YELLOW_RANGE_MAX &&
+                    boomCanSpawn()) {
+                    e->attackType = ENEMY_ATTACK_BOOMERANG;
+                    wantAttack = TRUE;
+                }
             } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
                 // --- Blanco: espadachin, pelea DE FRENTE ---
                 // No flanquea ni agarra como el morado: su ventaja es el
@@ -1393,10 +1674,12 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             if (wantAttack) {
                 newState = ENEMY_STATE_ATTACK;
                 // El shuriken es a distancia: no cuenta como atacante melee.
-                if (e->attackType != ENEMY_ATTACK_SHURIKEN) enemiesAttacking++;
+                if (!attackIsRanged(e->attackType)) enemiesAttacking++;
                 if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
                 e->attackHit  = 0;
-                e->flankTimer = 0;   // reinicia la frustración de flanqueo
+                if (e->type != ENEMY_TYPE_FOOT_SOLDIER_YELLOW)
+                    e->flankTimer = 0;   // reinicia la frustración de flanqueo
+                                         // (el amarillo guarda ahi su distancia)
                 // El morado ataca con COMBOS (cadenas de 2-3 golpes como el
                 // arcade ATTACK S0/S1/S2): comboLen > 0 activa la tabla de
                 // pasos; el naranja deja comboLen en 0 (ataque simple).
@@ -1428,6 +1711,25 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 if (!onScreen || dist > ORANGE_SHURIKEN_RANGE_MAX)
                     moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;   // acercarse
                 // dentro del rango de lanzamiento y en pantalla → se queda en X
+            } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
+                // Amarillo: con el boomerang en el aire se queda QUIETO (lo
+                // tiene que atrapar). Si no, busca la distancia de tiro:
+                // lejos se acerca, encima se aleja -- sin salirse de camara,
+                // o tiraria desde donde la tortuga no lo puede alcanzar.
+                if (e->boomSlot < 0) {
+                    s16  screenX  = e->x - e->cameraOffsetX;
+                    bool onScreen = (screenX > -(s16)e->w / 2) &&
+                                    (screenX < ENEMY_SCREEN_W - e->w / 2);
+                    if (!onScreen || dist > YELLOW_RANGE_MAX - e->flankTimer) {
+                        moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
+                    } else if (dist < YELLOW_RANGE_MIN) {
+                        moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;
+                        s16 nx = e->x + moveX;
+                        if (nx < e->cameraOffsetX ||
+                            nx > e->cameraOffsetX + ENEMY_SCREEN_W - e->w)
+                            moveX = 0;                // contra el borde: aguanta
+                    }
+                }
             } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
                 // Blanco: va DERECHO al jugador y se planta a distancia de
                 // estocada. Nada de rodearlo por la espalda -- con 50px de
@@ -1481,11 +1783,21 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             }
 
             // Siempre MIRANDO al jugador (para que el ataque salga hacia él)
-            if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
+            // (29/09) El amarillo con el boomerang en el aire mira al
+            // BOOMERANG: lo va a atrapar con la mano de adelante.
+            bool waitBoom = (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW &&
+                             e->boomSlot >= 0);
+            if (waitBoom) {
+                s16 bx = (s16)(boomerangs[(u8)e->boomSlot].xq >> 8);
+                s16 cx = getEnemyCenterX(e);
+                if (bx > cx + 2) e->dir = 1;
+                else if (bx < cx - 2) e->dir = -1;
+            } else if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
 
             // --- Movimiento vertical ---
             s16 moveY = 0;
-            if (dy > ENEMY_Y_ALIGN)       moveY =  ENEMY_SPEED;
+            if (waitBoom)                 moveY = 0;
+            else if (dy > ENEMY_Y_ALIGN)  moveY =  ENEMY_SPEED;
             else if (dy < -ENEMY_Y_ALIGN) moveY = -ENEMY_SPEED;
             if (moveY != 0) {
                 e->y = clampS16(e->y + moveY, e->laneTop, e->laneBottom);
@@ -1508,6 +1820,8 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                         enemySetAnim(e, e->stanceToggle ? ENEMY_ANIM_STANCE
                                                         : ENEMY_ANIM_IDLE, TRUE);
                     }
+                } else if (waitBoom) {
+                    enemySetAnim(e, YELLOW_ANIM_GUARD, TRUE);
                 } else {
                     enemySetAnim(e, enemyAnimIdle(e), TRUE);
                 }
@@ -1596,7 +1910,17 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                     s16 spawnX = getEnemyCenterX(e) + e->dir * (e->w / 2 - ORANGE_SHURIKEN_NEAR_OFFSET);
                     shurikenSpawn(spawnX, e->y, e->dir, e->palette);
                 }
+
+                // Boomerang del amarillo: sale al empezar el frame 6.
+                if (e->attackType == ENEMY_ATTACK_BOOMERANG &&
+                    e->timer == YELLOW_RELEASE_TIMER && e->boomSlot < 0)
+                    e->boomSlot = boomSpawn(e);
+                // Atrapada: frames 3..0 del lanzamiento, a mano.
+                if (e->attackType == ENEMY_ATTACK_CATCH)
+                    SPR_setFrame(e->sprite, (s16)(e->timer / YELLOW_TICKS));
             } else {
+                if (e->attackType == ENEMY_ATTACK_CATCH)
+                    SPR_setAutoAnimation(e->sprite, TRUE);
                 leaveAttackState(e);
                 e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
                 newState = ENEMY_STATE_CHASE;
@@ -1694,6 +2018,8 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                     atkAnim = enemyAnimPunchFront(e);
                 else if (e->attackType == ENEMY_ATTACK_SHURIKEN)
                     atkAnim = ORANGE_ANIM_SHURIKEN;
+                else if (e->attackType == ENEMY_ATTACK_BOOMERANG)
+                    atkAnim = YELLOW_ANIM_THROW;
                 else
                     atkAnim = enemyAnimUppercut(e);
                 enemyRestartAnim(e, atkAnim, FALSE);
@@ -1748,8 +2074,8 @@ bool enemyTryHitPlayerBox(Enemy* e, s16 px, s16 py, s16 targetHalfW) {
     if (e->state != ENEMY_STATE_ATTACK || e->attackHit || !e->sprite)
         return FALSE;
 
-    // Shuriken no tiene hitbox melee
-    if (e->attackType == ENEMY_ATTACK_SHURIKEN)
+    // Shuriken y boomerang no tienen hitbox melee
+    if (attackIsRanged(e->attackType))
         return FALSE;
 
     bool active;
