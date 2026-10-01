@@ -61,7 +61,8 @@ void shredderSpawn(ShredderBoss* s, s16 x, s16 y, s16 arenaL, s16 arenaR, s16 la
         SPR_setAutoAnimation(s->sprite, TRUE);
         setAnim(s, SHRED_ANIM_IDLE);
     }
-    XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    // (01/10) La risa de entrada la toca level9_1 con bossVoStart (antes del
+    // tema del jefe), ya no aca.
 }
 
 bool shredderIsDying(const ShredderBoss* s) { return s->state == SHRED_DEATH || s->state == SHRED_GONE; }

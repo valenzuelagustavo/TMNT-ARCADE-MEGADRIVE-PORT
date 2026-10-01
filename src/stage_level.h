@@ -102,6 +102,10 @@ typedef struct {
     u16           musicVol;
     const u8*     bossMusic;
     u16           bossMusicVol;
+    // (01/10) TRUE = el jefe tiene voice over de entrada: stage_level NO
+    // arranca bossMusic en el bossStart, lo hace el nivel con bossVoStart
+    // cuando el jefe aparece (primero la voz completa, despues el tema).
+    bool          bossMusicByVo;
     // --- Jefe (todos pueden ser NULL: sin jefe, el nivel se gana al llegar) ---
     void (*bossInit)(void);
     void (*bossStart)(s16 camX, s16 levelW);

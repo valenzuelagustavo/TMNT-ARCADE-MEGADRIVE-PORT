@@ -47,6 +47,7 @@
 #include "bebop.h"
 #include "rocksteady.h"
 #include "audio.h"
+#include "boss_vo.h"           // (01/10)
 
 #define SCREEN_W            320
 #define LVL41_W            1288
@@ -572,8 +573,10 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
     // --- Bebop, apenas termina de abrir ---
     if (doorState == DOOR_OPEN && !bebopOut) {
         bebopOut = TRUE;
-        XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
-                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+        // (01/10) Grito completo y con prioridad; el tema del jefe entra
+        // cuando termina (boss_vo.h). Hasta ahi sigue el del garage.
+        bossVoStart(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
+                    music_boss, 80);
         bebopSpawnArena(&bebop, &arena41);
     }
 
@@ -635,6 +638,7 @@ static const StageLevel level41 = {
     .musicVol     = 80,
     .bossMusic    = music_boss,
     .bossMusicVol = 80,
+    .bossMusicByVo = TRUE,      // lo arranca el grito de Bebop (bossVoStart)
     .bossInit     = bossInit41,
     .bossStart    = bossStart41,
     .bossUpdate   = bossUpdate41,

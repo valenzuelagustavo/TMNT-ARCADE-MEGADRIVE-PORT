@@ -27,6 +27,7 @@
 #include "shredder_boss.h"
 #include "pause_menu.h"
 #include "audio.h"
+#include "boss_vo.h"           // (01/10)
 
 #ifndef IS_PAL_SYSTEM
 #define IS_PAL_SYSTEM IS_PALSYSTEM
@@ -164,8 +165,9 @@ SceneId showScene91() {
     drawPlayers(pls, nPl);
     SPR_update();
 
-    XGM2_setLoopNumber(-1);
-    playMusicVol(music_boss, VOL_MUSIC);
+    // (01/10) El tema NO arranca con la sala: primero la risa de Shredder al
+    // aparecer (completa y con prioridad) y despues el tema (boss_vo.h).
+    XGM2_stop();
 
     static const u16 black[64] = { 0 };
     PAL_setColors(0, black, 64, DMA);
@@ -178,9 +180,11 @@ SceneId showScene91() {
     u16  tick    = 0;
     SceneId jump = PAUSE_NO_JUMP;
     pauseReset();
+    bossVoReset();
     while (running) {
         jump = pausePoll(pls, nPl);
         if (jump != PAUSE_NO_JUMP) break;
+        bossVoUpdate();
 
         for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
 
@@ -211,6 +215,8 @@ SceneId showScene91() {
             bossStarted = TRUE;
             shredderSpawn(&shred, L9_BOSS_X, L9_BOSS_Y,
                           L9_CAM_X + 24, L9_CAM_X + SCREEN_W - 24, L9_LANE_T, L9_LANE_B);
+            bossVoStart(shredder_laugh_sfx, sizeof(shredder_laugh_sfx),
+                        music_boss, VOL_MUSIC);   // (01/10) risa y despues el tema
         }
         if (bossStarted) {
             shredderUpdate(&shred, pls, nPl, L9_CAM_X, L9_CAM_Y);

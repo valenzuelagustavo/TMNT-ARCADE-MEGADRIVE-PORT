@@ -110,6 +110,7 @@
 #include "meters_2_1.h" // parquimetros (25/09)
 #include "pause_menu.h" // pausa con START del control 1 + selector de niveles (26/09)
 #include "audio.h"    // music_stage2_1, music_scene_clear, music_boss, boss_scream_bebop_vo
+#include "boss_vo.h"  // (01/10) voz de entrada de Bebop antes del tema
 
 #ifndef IS_PAL_SYSTEM
 #define IS_PAL_SYSTEM IS_PALSYSTEM
@@ -1304,10 +1305,12 @@ SceneId showScene21() {
     bool running = TRUE;
     SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
     pauseReset();
+    bossVoReset();
     while (running) {
         // Pausa (START del control 1). Primero de todo en el frame.
         jump = pausePoll(pls, nPl);
         if (jump != PAUSE_NO_JUMP) break;
+        bossVoUpdate();   // (01/10) el tema del jefe entra cuando termina la voz
 
         // Deriva de la entrada cayendo: solo mientras siguen en el aire.
         if (dropTicks > 0) {
@@ -1844,9 +1847,10 @@ SceneId showScene21() {
             l21qN = 0;         // (30/09) lo que quedaba en la cola ya no entra
             tntReleaseAll();   // (27/09) tntInit solo ponia NULL: si habia una
                                // dinamita en el aire su sprite quedaba huerfano
-            XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
-            playMusicVol(music_boss, VOL_MUSIC_BOSS_2_1);
+            // (01/10) Primero el grito completo (con prioridad, CH1 y el
+            // tema parado) y despues el tema del jefe. Ver boss_vo.h.
+            bossVoStart(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
+                        music_boss, VOL_MUSIC_BOSS_2_1);
             bebopSpawn(&bebop);
         }
 

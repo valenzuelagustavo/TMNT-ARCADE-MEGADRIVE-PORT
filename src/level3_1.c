@@ -35,6 +35,7 @@
 #include "stage_level.h"
 #include "enemy.h"             // ENEMY_TYPE_*
 #include "baxter.h"
+#include "boss_vo.h"           // (01/10)
 #include "audio.h"
 #include "player.h"
 
@@ -284,9 +285,10 @@ static void bossStart31(s16 camX, s16 levelW) {
     (void)levelW;
     swBoss = TRUE;
     baxterSpawn(&baxter, (s16)(camX + 16), (s16)(camX + SCREEN_W - 16), 96, 216);
-    // (30/09) "I'm invincible!" al entrar (CH2, como el grito de Bebop).
-    XGM2_playPCMEx(im_invinsible_baxter_vo, sizeof(im_invinsible_baxter_vo),
-                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+    // (30/09) "I'm invincible!" al entrar. (01/10) Completo y con prioridad,
+    // y el tema del jefe recien cuando termina (boss_vo.h).
+    bossVoStart(im_invinsible_baxter_vo, sizeof(im_invinsible_baxter_vo),
+                music_boss, 80);
 }
 
 static bool bossUpdate31(Player** pls, u8 nPl, s16 camX) {
@@ -331,6 +333,7 @@ static const StageLevel level31 = {
     .musicVol     = 80,
     .bossMusic    = music_boss,
     .bossMusicVol = 80,
+    .bossMusicByVo = TRUE,      // lo arranca bossStart31 despues de la voz
     .bossInit     = bossInit31,
     .bossStart    = bossStart31,
     .bossUpdate   = bossUpdate31,

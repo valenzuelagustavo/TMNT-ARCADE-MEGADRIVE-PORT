@@ -14,6 +14,7 @@
 #include "stage_bg.h"
 #include "pause_menu.h"
 #include "audio.h"
+#include "boss_vo.h"           // (01/10) voz de entrada de los jefes
 
 #ifndef IS_PAL_SYSTEM
 #define IS_PAL_SYSTEM IS_PALSYSTEM
@@ -490,9 +491,11 @@ SceneId stageLevelRun(const StageLevel* L) {
     bool win     = FALSE;
     SceneId jump = PAUSE_NO_JUMP;
     pauseReset();
+    bossVoReset();
     while (running) {
         jump = pausePoll(pls, nPl);
         if (jump != PAUSE_NO_JUMP) break;
+        bossVoUpdate();   // (01/10) el tema del jefe entra cuando termina su voz
 
         // --- Jugadores -----------------------------------------------------
         for (u8 k = 0; k < nPl; k++) {
@@ -701,7 +704,9 @@ SceneId stageLevelRun(const StageLevel* L) {
             bossStarted = TRUE;
             ledgeOff    = TRUE;    // (29/09) con el jefe, sin escalon
             if (L->bossStart) {
-                if (L->bossMusic) {
+                // (01/10) Con bossMusicByVo el nivel arranca el tema el mismo,
+                // despues de la voz del jefe (bossVoStart).
+                if (L->bossMusic && !L->bossMusicByVo) {
                     XGM2_setLoopNumber(-1);
                     playMusicVol(L->bossMusic, L->bossMusicVol);
                 }

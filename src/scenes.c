@@ -9,6 +9,7 @@
 #include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
 #include "hud.h"     // HUD compartido (marcos, retratos, barra de vida, puntaje)
 #include "pause_menu.h" // pausa con START del control 1 + selector de niveles (26/09)
+#include "boss_vo.h"     // (01/10) voz de entrada de los jefes antes del tema
 #include "rocksteady.h"  // jefe final del nivel 2 (cápsula del taladro; rocksteady_boss, boss_bullet)
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
@@ -286,12 +287,11 @@ static Sprite* sparksAddSprite(const SpriteDefinition* sizeDef, u16 vramInd,
 //      shredder_laugh). Se normalizo; el original quedo en say_your_p_orig.wav.
 //   2. El tema entra BAJO (VOL_MUSIC_BOSS_DUCK) y recien sube al volumen normal
 //      cuando el wav termino, con una rampa para que no sea un salto.
-// El wav dura 1,76s (23552 bytes al rate del driver XGM2) = ~106 frames NTSC:
-// por eso el duck aguanta 110 y la rampa arranca ahi. 110 + 40 = 150 < 170, que
-// es lo que dura el stage 3 completo, asi que la pelea empieza a volumen pleno.
-#define VOL_MUSIC_BOSS_DUCK 20   // volumen del tema mientras habla el jefe
-#define BOSS_TAUNT_DUCK_F  110   // frames que dura el ducking (largo del wav)
-#define BOSS_TAUNT_RAMP_F   40   // frames de rampa de vuelta a VOL_MUSIC_BOSS
+// El wav dura 1,76s (23552 bytes al rate del driver XGM2) = ~106 frames NTSC.
+// (01/10) El ducking se reemplazo por boss_vo.c: el tema NO arranca hasta que
+// la voz termino (y la voz va sola en CH1). VOL_MUSIC_BOSS_DUCK queda para el
+// bajon del tema cuando muere el jefe.
+#define VOL_MUSIC_BOSS_DUCK 20   // volumen del tema al morir el jefe
 // Aire entre el tema del jefe y el de la cutscene de Shredder: 1 segundo justo
 // (NTSC/PAL). Sin esto, el play de music_ending pisaba a music_boss en seco.
 #define CUT_SILENCE_FRAMES  (IS_PAL_SYSTEM ? 50 : 60)
@@ -4475,10 +4475,12 @@ SceneId showScene12() {
 
     SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
     pauseReset();
+    bossVoReset();
     while (1) {
         // 0. Pausa (START del control 1), antes de los continues.
         jump = pausePoll(pls, nPl);
         if (jump != PAUSE_NO_JUMP) break;
+        bossVoUpdate();   // (01/10) el tema del jefe entra cuando termina su voz
 
         // 1. Input y física de cada jugador. Durante la cutscene de victoria la
         // tortuga deja de leer input y se queda congelada en el frame de
@@ -4725,11 +4727,12 @@ SceneId showScene12() {
                         // play (misma trampa que documenta MUSIC_ENDING_LEN mas
                         // arriba, pero al reves -- aca queremos loop INFINITO,
                         // porque la pelea dura mas que los 32,5s del tema).
-                        XGM2_setLoopNumber(-1);
-                        // Entra BAJO: arriba esta el voice over. La rampa de
-                        // vuelta al volumen normal esta al final de este case.
-                        playMusicVol(music_boss, VOL_MUSIC_BOSS_DUCK);
-                        bossMusicVol = VOL_MUSIC_BOSS_DUCK;
+                        //
+                        // (01/10) Ya NO arranca aca: primero se escucha el
+                        // "SAY YOUR PRAYERS!" completo y recien despues entra
+                        // el tema (boss_vo.c, mas abajo con bossVoStart). Antes
+                        // entraba bajo (ducking) y subia con una rampa.
+                        bossMusicVol = VOL_MUSIC_BOSS;
 
                         if (!bossSpawned) {
                             bossSpawned = TRUE;
@@ -4753,8 +4756,10 @@ SceneId showScene12() {
                             }
                             rocksteadySpawn(&boss);   // se queda parado en la puerta (IDLE)
                         }
-                        XGM2_playPCMEx(say_your_p_sfx, sizeof(say_your_p_sfx),
-                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                        // Voz con prioridad (CH1, el tema parado) y el tema
+                        // del jefe cuando termina (bossVoUpdate en el bucle).
+                        bossVoStart(say_your_p_sfx, sizeof(say_your_p_sfx),
+                                    music_boss, VOL_MUSIC_BOSS);
 
                         // Globo de diálogo justo cuando el jefe aparece (mismo
                         // tick que el wav). Posición FIJA de pantalla: tope a
@@ -4792,22 +4797,8 @@ SceneId showScene12() {
                             bubblePhase = 3;
                         }
                     }
-                    // Rampa del ducking: el tema vuelve al volumen normal recién
-                    // cuando el voice over terminó, subiendo de a poco para que
-                    // no se note el salto. Se hace acá y no con XGM2_fadeTo
-                    // porque el fade del driver NO actualiza su fmVol interno,
-                    // así que el próximo fade arrancaría desde el valor viejo.
-                    if (bossTimer >= BOSS_TAUNT_DUCK_F && bossMusicVol < VOL_MUSIC_BOSS) {
-                        u16 t = bossTimer - BOSS_TAUNT_DUCK_F;
-                        u16 v = VOL_MUSIC_BOSS_DUCK
-                              + ((VOL_MUSIC_BOSS - VOL_MUSIC_BOSS_DUCK) * t) / BOSS_TAUNT_RAMP_F;
-                        if (v > VOL_MUSIC_BOSS) v = VOL_MUSIC_BOSS;
-                        if (v != bossMusicVol) {
-                            bossMusicVol = (u8)v;
-                            XGM2_setFMVolume(v);
-                            XGM2_setPSGVolume(v);
-                        }
-                    }
+                    // (01/10) La rampa del ducking se fue: el tema ahora entra
+                    // recien cuando termino la voz, ya a volumen normal.
                     // Espera a que termine el taunt (~2.8s) → empieza la batalla.
                     if (++bossTimer >= 170) { bossStage = 99; bossTimer = 0; }
                     break;
