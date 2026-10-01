@@ -94,7 +94,10 @@ typedef enum {
 // jumpZ (entero) sigue existiendo: es la altura en px que lee todo el resto
 // del juego; la verdad es jumpZq.
 #define PLAYER_JUMP_Q         8
-#define PLAYER_JUMP_V0_Q   3724     // 14,55 px/frame hacia arriba
+// (01/10, pedido de Gustavo: un poco mas alto) 3724 -> 4000: apice 123 px en
+// el frame 16 (antes 107,2 en el 15), 41 frames en el aire sin patada (antes
+// 37). Simulado con el mismo integrador de updatePlayer.
+#define PLAYER_JUMP_V0_Q   4000     // 15,6 px/frame hacia arriba
 #define PLAYER_GRAVITY_Q    272     // 1,0625 px/frame2
 #define PLAYER_APEX_BAND_Q  408     // |vel| < 1,59 px/frame = zona del apice
 #define PLAYER_APEX_GRAV_Q  136     // gravedad a la mitad en el apice

@@ -663,7 +663,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             if (r->chargeWind > 0) {
                 r->chargeWind--;
                 r->dir = r->chargeDir = (pcx >= bcx) ? 1 : -1;
-                // (01/10) Arranca a correr: el golpe del logo de SEGA.
+                // (01/10) Arranca a correr: el sonido de la corrida de
+                // Rocksteady hacia el logo de SEGA (dura ~1.1 s).
                 if (r->chargeWind == 0)
                     XGM2_playPCMEx(rocksteady_charge_sfx, sizeof(rocksteady_charge_sfx),
                                    SOUND_PCM_CH2, 15, FALSE, FALSE);
@@ -691,6 +692,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             }
             if (--r->timer == 0 || r->x <= ra.xMin || r->x >= ra.xMax) {
                 r->x = rclamp(r->x, ra.xMin, ra.xMax);
+                XGM2_stopPCM(SOUND_PCM_CH2);   // (01/10) corta el sonido de la corrida
                 r->chargeHit = 0;
                 r->attacksDone++;          // embestida COMPLETADA
                 rocksteadyToIdle(r);
