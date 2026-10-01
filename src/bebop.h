@@ -68,7 +68,7 @@
 #define BEBOP_BODY_H         80   // alto del cuerpo sobre los pies
 
 // --- Vida y daño ---
-#define BEBOP_HP            110   // golpes normales; el especial saca BEBOP_SPECIAL_DMG
+#define BEBOP_HP             55   // golpes normales; el especial saca BEBOP_SPECIAL_DMG (01/10: 110 -> 55)
 #define BEBOP_SPECIAL_DMG     3
 #define BEBOP_CHARGE_DMG      3   // barras que saca la embestida
 #define BEBOP_UPPER_DMG       2   // barras del uppercut
