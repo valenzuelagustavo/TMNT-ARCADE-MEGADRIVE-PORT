@@ -1150,8 +1150,22 @@ static void revivePlayer(Player* p, u8 ch, u16 joyId) {
     s16 x = p->x;
     if (x < p->boundLeft)  x = p->boundLeft;
     if (x > p->boundRight) x = p->boundRight;
+    // (01/10) initPlayer pone el lane y la pared diagonal del NIVEL 1 (los
+    // demas niveles los fijan una sola vez, al arrancar, con setPlayerLane /
+    // setPlayerEndWall). Al continuar en otro nivel el jugador quedaba
+    // encerrado en la franja y la pared del 1-1: se guardan los limites que
+    // tenia y se reponen despues de reinicializarlo.
+    const s16 laneTop = p->laneTop, laneBottom = p->laneBottom;
+    const s16 wallTop = p->wallXTop, wallBottom = p->wallXBottom;
+    const s16 bLeft = p->boundLeft, bRight = p->boundRight;
+    const s16 camOff = p->cameraOffsetX;
     if (p->sprite) SPR_releaseSprite(p->sprite);
     initPlayer(p, ch, joyId, PAL1, x, p->y);
+    setPlayerLane(p, laneTop, laneBottom);
+    setPlayerEndWall(p, wallTop, wallBottom);
+    setPlayerLeftBound(p, bLeft);
+    setPlayerRightBound(p, bRight);
+    setPlayerCamera(p, camOff);
     p->lives      = vidasIniciales;
     p->health     = PLAYER_MAX_HEALTH;
     p->gameOver   = FALSE;
@@ -1824,6 +1838,9 @@ static const SoundTrack soundTracks[] = {
     { "FIGHT!",       music_boss },
     { "SCENE CLEAR",  music_scene_clear },
     { "DOWNTOWN",     music_stage2_1 },
+    { "SEWERS",       music_level3 },
+    { "GARAGE",       music_garage },
+    { "HIGHWAY",      music_freeway },
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 

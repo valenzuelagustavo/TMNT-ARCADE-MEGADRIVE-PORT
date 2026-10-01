@@ -166,6 +166,7 @@ typedef enum { CAR_PARKED, CAR_WAIT, CAR_DRIVE, CAR_GONE } CarState;
 #define CAR_HIT_X0           8
 #define CAR_HIT_X1         168
 #define CAR_BARS             3
+#define CAR_DX_NUM          27   // avance en X por cada 32 en Y
 
 static struct {
     u8      state;
@@ -424,11 +425,13 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
         break;
     }
     case CAR_DRIVE: {
-        // Sale hacia abajo (hacia la camara) acelerando, y un poco a la
-        // derecha, que es para donde apunta el auto.
+        // Sale en diagonal hacia abajo a la derecha (hacia la camara),
+        // acelerando: el curso que marco Gustavo sobre la captura va a
+        // ~40 grados de la vertical (dx/dy ~ 27/32), que es para donde
+        // apunta el auto.
         if (car.vq < CAR_VMAX_Q) car.vq += CAR_ACCEL_Q;
         car.yq += car.vq;
-        car.xq += car.vq / 3;
+        car.xq += (car.vq * CAR_DX_NUM) >> 5;
         s16 cx = (s16)(car.xq >> 8), cy = (s16)(car.yq >> 8);
         // Atropella: pies dentro de la franja de abajo del auto.
         for (u8 k = 0; k < nPl; k++) {
@@ -442,7 +445,7 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
             car.hitMask |= (u8)(1 << k);
             sfxHit();
         }
-        if (cy - stageCamY > 224) {             // ya salio por abajo
+        if (cy - stageCamY > 224 || cx - camX > SCREEN_W) {   // salio de camara
             for (u16 k = 0; k < 2; k++)
                 if (car.spr[k]) { SPR_releaseSprite(car.spr[k]); car.spr[k] = NULL; }
             car.state = CAR_GONE;
