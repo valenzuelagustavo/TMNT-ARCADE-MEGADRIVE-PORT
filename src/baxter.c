@@ -50,6 +50,8 @@ typedef struct {
     s16      vxq, vzq;     // velocidades en 1/4 px
     s16      landY;        // lane donde aterriza al caer de la nave
     u8       anim;
+    u8       hitDone;      // (01/10) el salto ya pego (un golpe por salto)
+    u8       jumpT;        // (01/10) frames que dura el salto (para la anim)
     Sprite*  boomSprite;
     u8       boomFrame;
     u8       boomTick;
@@ -105,6 +107,46 @@ static void ratSetAnim(BaxterRat* r, u8 a, bool loop) {
     SPR_setAnimationLoop(r->sprite, loop);
 }
 
+// (01/10) Caminatas de DOS filas (frente 0-1, costado 2-3): cada fila corre
+// una vez y se pasa a la otra. 'base' es la primera fila (FRONT_A / SIDE_A).
+// Si ya esta en cualquiera de las dos mitades, sigue donde iba.
+static void ratSetWalk2(BaxterRat* r, u8 base) {
+    if (r->anim == base || r->anim == (u8)(base + 1)) return;
+    ratSetAnim(r, base, FALSE);
+}
+
+// Un frame de las caminatas de dos filas: al terminar una mitad, la otra.
+static void ratWalk2Step(BaxterRat* r) {
+    if (!r->sprite) return;
+    u8 a = r->anim;
+    if (a != RAT_ANIM_FRONT_A && a != RAT_ANIM_FRONT_B &&
+        a != RAT_ANIM_SIDE_A  && a != RAT_ANIM_SIDE_B) return;
+    if (!SPR_isAnimationDone(r->sprite)) return;
+    ratSetAnim(r, (u8)(a ^ 1), FALSE);     // A <-> B (filas pares/impares)
+}
+
+// (01/10) Ataque: SIEMPRE el salto (fila 5). De cerca un saltito corto, de
+// media distancia uno largo. Pega UNA vez por salto (hitDone).
+static void ratStartJump(BaxterRat* r, s16 dX, bool shortHop) {
+    r->state   = RAT_JUMP;
+    r->dir     = (dX >= 0) ? 1 : -1;
+    r->hitDone = 0;
+    if (shortHop) {
+        r->vxq = (s16)(r->dir * 6);       // 1.5 px/frame hacia el jugador
+        r->vzq = 5 * 4;
+    } else {
+        r->vxq = xclamp((s16)(dX / 4), -40, 40);
+        r->vzq = 8 * 4;
+    }
+    // Frames a mano: la fila entera (7) repartida en lo que dura el salto,
+    // asi se ve completa sea el saltito o el salto largo.
+    r->timer   = 0;
+    r->jumpT   = (u8)((r->vzq * 2) / 4);
+    r->anim    = 0xFF;
+    ratSetAnim(r, RAT_ANIM_JUMP, FALSE);
+    if (r->sprite) { SPR_setAutoAnimation(r->sprite, FALSE); SPR_setFrame(r->sprite, 0); }
+}
+
 static void ratRender(BaxterRat* r, s16 camX) {
     if (!r->sprite) return;
     SPR_setHFlip(r->sprite, (r->dir < 0));
@@ -132,7 +174,9 @@ static void ratStartBoom(BaxterRat* r, s16 camX) {
 static void ratKill(BaxterRat* r) {
     r->state = RAT_DEAD;
     r->timer = 0;
-    r->vzq   = 6 * 4;       // salta un poco para arriba antes de caer
+    // (01/10) Fila 7: tirada en el piso hasta explotar (antes daba un
+    // saltito para arriba, que no va con el arte).
+    r->vzq   = 0;
     ratSetAnim(r, RAT_ANIM_DEAD, FALSE);
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                    SOUND_PCM_CH3, 12, FALSE, FALSE);
@@ -177,7 +221,8 @@ static void ratSpawnFromShip(s16 x, s16 shipTop) {
         r->vxq = 0;
         r->vzq = 0;
         r->anim = 0xFF;
-        ratSetAnim(r, RAT_ANIM_FALL, TRUE);
+        r->hitDone = 0;
+        ratSetAnim(r, RAT_ANIM_JUMP, FALSE);   // (01/10) cae en la pose del salto
         return;
     }
 }
@@ -196,7 +241,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                 r->z = 0;
                 r->state = RAT_WALK;
                 r->timer = 0;
-                ratSetAnim(r, RAT_ANIM_WALK_SIDE, TRUE);
+                ratSetWalk2(r, RAT_ANIM_SIDE_A);
             }
             break;
 
@@ -206,20 +251,15 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
             s16 dY = (s16)(getPlayerY(tgt) - r->y);
             if (r->biteCooldown) r->biteCooldown--;
 
+            // (01/10) De cerca: saltito de ataque (antes "mordida" con la
+            // fila 3, que en realidad es la caminata de costado).
             if (xabs(dX) <= RAT_BITE_RANGE && xabs(dY) <= RAT_BITE_Y && !r->biteCooldown) {
-                r->state = RAT_BITE;
-                r->timer = 0;
-                r->dir = (dX >= 0) ? 1 : -1;
-                ratSetAnim(r, RAT_ANIM_BITE, FALSE);
+                ratStartJump(r, dX, TRUE);
                 break;
             }
             if (xabs(dX) >= RAT_JUMP_MIN_DX && xabs(dX) <= 110 && xabs(dY) <= 16 &&
                 !(r->timer & 63) && !r->biteCooldown) {
-                r->state = RAT_JUMP;
-                r->dir = (dX >= 0) ? 1 : -1;
-                r->vxq = xclamp((s16)(dX / 4), -40, 40);
-                r->vzq = 8 * 4;
-                ratSetAnim(r, RAT_ANIM_JUMP, TRUE);
+                ratStartJump(r, dX, FALSE);
                 break;
             }
             r->timer++;
@@ -230,10 +270,13 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
             }
             if (xabs(dY) > 4) {
                 if (step) r->y += (dY >= 0) ? 1 : -1;
-                ratSetAnim(r, (xabs(dY) >= 10) ? RAT_ANIM_WALK_UP : RAT_ANIM_WALK_SIDE, TRUE);
-            } else {
-                ratSetAnim(r, (xabs(dX) > 8) ? RAT_ANIM_WALK_SIDE : RAT_ANIM_WALK_FRONT, TRUE);
             }
+            // (01/10) Hacia arriba (fila 4) SOLO si el jugador esta arriba;
+            // si no, la caminata de costado (filas 2-3). La de frente (0-1)
+            // queda para cuando aparezcan dentro del nivel.
+            if (dY <= -10) ratSetAnim(r, RAT_ANIM_WALK_UP, TRUE);
+            else           ratSetWalk2(r, RAT_ANIM_SIDE_A);
+            ratWalk2Step(r);
             break;
         }
 
@@ -255,7 +298,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                 r->state = RAT_WALK;
                 r->biteCooldown = 50;
                 r->timer = 0;
-                ratSetAnim(r, RAT_ANIM_WALK_SIDE, TRUE);
+                ratSetWalk2(r, RAT_ANIM_SIDE_A);
             }
             break;
 
@@ -264,7 +307,12 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
             r->x   += r->vxq >> 2;
             r->vzq -= 4;
             r->z   += r->vzq >> 2;
-            for (u8 k = 0; k < nPl; k++) {
+            if (r->sprite && r->jumpT) {
+                u16 f = (u16)((++r->timer * RAT_JUMP_FRAMES) / r->jumpT);
+                if (f >= RAT_JUMP_FRAMES) f = RAT_JUMP_FRAMES - 1;
+                SPR_setFrame(r->sprite, (s16)f);
+            }
+            for (u8 k = 0; k < nPl && !r->hitDone; k++) {
                 Player* p = pls[k];
                 if (!playerCanBeHit(p)) continue;
                 s16 px = (s16)(getPlayerWorldX(p) + PLAYER_SPRITE_W / 2);
@@ -273,6 +321,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);
                 if (r->vzq > 0) r->vzq = 0;        // corta el salto
+                r->hitDone = 1;                    // (01/10) un golpe por salto
                 break;
             }
             if (r->z <= 0) {
@@ -280,7 +329,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                 r->state = RAT_WALK;
                 r->biteCooldown = 60;
                 r->timer = 0;
-                ratSetAnim(r, RAT_ANIM_WALK_SIDE, TRUE);
+                ratSetWalk2(r, RAT_ANIM_SIDE_A);
             }
             break;
         }
@@ -290,7 +339,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
             else {
                 r->state = RAT_WALK;
                 r->timer = 0;
-                ratSetAnim(r, RAT_ANIM_WALK_SIDE, TRUE);
+                ratSetWalk2(r, RAT_ANIM_SIDE_A);
             }
             break;
 
