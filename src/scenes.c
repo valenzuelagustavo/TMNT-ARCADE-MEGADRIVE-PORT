@@ -1160,6 +1160,7 @@ static void revivePlayer(Player* p, u8 ch, u16 joyId) {
     const s16 bLeft = p->boundLeft, bRight = p->boundRight;
     const s16 camOff = p->cameraOffsetX;
     if (p->sprite) SPR_releaseSprite(p->sprite);
+    playerPersistClearOut(p);   // (01/10) si venia fuera del nivel anterior
     initPlayer(p, ch, joyId, PAL1, x, p->y);
     setPlayerLane(p, laneTop, laneBottom);
     setPlayerEndWall(p, wallTop, wallBottom);
@@ -1218,6 +1219,16 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
 
     u16 joy = JOY_readJoypad(joyId);
 
+    // (01/10) SIN continues (o si ya venia fuera del nivel anterior) no hay
+    // cuenta: queda fuera directamente y no se muestra nada. Antes el
+    // "CONTINUE?" aparecia igual aunque no quedara ningun continue.
+    if (c->state == CONT_NONE && (continuesLeft == 0 || p->outCarried)) {
+        if (p->sprite) SPR_setVisibility(p->sprite, HIDDEN);
+        c->state   = CONT_OUT;
+        c->prevJoy = joy;
+        return TRUE;
+    }
+
     // Arranca la cuenta cuando el jugador acaba de caer.
     if (c->state == CONT_NONE) {
         c->state   = CONT_COUNTING;
@@ -1243,6 +1254,15 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
     }
 
     if (c->state == CONT_COUNTING) {
+        // (01/10) El companero gasto el ultimo continue mientras este contaba:
+        // se corta la cuenta y queda fuera.
+        if (continuesLeft == 0) {
+            contDrawText(h, -1);
+            if (p->sprite) SPR_setVisibility(p->sprite, HIDDEN);
+            c->state   = CONT_OUT;
+            c->prevJoy = joy;
+            return TRUE;
+        }
         // START del joystick del muerto + continues disponibles -> selección.
         if (continuesLeft > 0 && justPressedJoy(joy, c->prevJoy, BUTTON_START)) {
             continuesLeft--;

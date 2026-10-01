@@ -219,6 +219,7 @@ void rocksteadyInit(Rocksteady* r) {
     r->knockdowns = 0;
     r->comboHits = 0;
     r->counterPending = 0;
+    r->kickCooldown = 0;
     r->attacksDone = 0;
     r->chargeHit = 0;
     r->chargeWind = 0;
@@ -251,6 +252,7 @@ void rocksteadySpawnArena(Rocksteady* r, const RocksteadyArena* a) {
     r->knockdowns = 0;
     r->comboHits = 0;
     r->counterPending = 0;
+    r->kickCooldown = 0;
     r->attacksDone = 0;
     r->attackCooldown = 0;
     r->chargeHit = 0;
@@ -391,12 +393,14 @@ static void rocksteadyStartApproach(Rocksteady* r) {
 }
 
 static void rocksteadyStartKick(Rocksteady* r) {
+    r->kickCooldown = ROCKSTEADY_KICK_COOLDOWN;
     r->state = ROCKSTEADY_KICK;
     r->timer = 0;   // contador del frame de impacto
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_KICK, FALSE);
 }
 
 static void rocksteadyStartKickArms(Rocksteady* r) {
+    r->kickCooldown = ROCKSTEADY_KICK_COOLDOWN;
     r->state = ROCKSTEADY_KICK_ARMS;
     r->timer = 0;
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_KICK_ARMS, FALSE);
@@ -477,6 +481,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
     r->cameraOffsetX = cameraX;
 
     if (r->attackCooldown > 0) r->attackCooldown--;
+    if (r->kickCooldown > 0)   r->kickCooldown--;
 
     // Jugador objetivo: el MAS CERCANO en X (centro del frame), entre los que
     // haya (1..4). Se re-evalua cada frame, asi que el jefe "elige uno" y lo
@@ -501,6 +506,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
     // el flinch y suelta la patada hacia el jugador más cercano (fase 1:
     // patada; fase 2: patada con el arma). Evita que la tortuga encadene
     // golpes sin dejarlo responder.
+    if (r->counterPending && r->kickCooldown > 0)
+        r->counterPending = 0;          // (01/10) pateo hace poco: no hay contra
     if (r->counterPending &&
         (r->state == ROCKSTEADY_HURT || r->state == ROCKSTEADY_HURT_ARMS)) {
         r->counterPending = 0;
@@ -610,6 +617,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                         break;
                     }
                     // step == 2: acercarse y PATEAR de verdad (no como contra).
+                    // (01/10) Si pateo hace poco, cede el turno.
+                    if (r->kickCooldown > 0) continue;
                     if (distX <= ROCKSTEADY_KICK_RANGE) rocksteadyStartKick(r);
                     else { r->kickOnArrive = 1; rocksteadyStartApproach(r); }
                     break;

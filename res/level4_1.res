@@ -21,6 +21,8 @@
 //   garage_cone    cono (vuela al golpearlo)
 //   garage_barrel  barril explosivo: [0] quieto, [1..4] la mecha
 //   garage_car_l/r el auto que sale del estacionamiento, en dos mitades
+//   garage_boom    (01/10) la explosion del barril: la del TNT del foot
+//                  soldier (explosion.png, 7 frames de 64x64) en PAL0
 // =============================================================================
 PALETTE pal_garage      "images/lvl_4_garage/bg_garage_md.png"
 BIN     bg_garage_tiles "images/lvl_4_garage/bg_garage_tiles.bin" 2 2 0 NONE
@@ -33,3 +35,4 @@ SPRITE  garage_cone     "images/lvl_4_garage/garage_cone.png"    3 4  NONE 0
 SPRITE  garage_barrel   "images/lvl_4_garage/garage_barrel.png"  4 8  NONE 0
 SPRITE  garage_car_l    "images/lvl_4_garage/garage_car_l.png"   11 13 NONE 0
 SPRITE  garage_car_r    "images/lvl_4_garage/garage_car_r.png"   11 13 NONE 0
+SPRITE  garage_boom     "images/lvl_4_garage/garage_boom.png"    8 8  NONE 0

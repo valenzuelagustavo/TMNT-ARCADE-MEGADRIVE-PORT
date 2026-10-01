@@ -37,6 +37,7 @@
 #   bg_garage_var.bin       mapas de las variantes, una tras otra
 #   src/level4_1_bg.h       las regiones (posicion, tamano, variantes)
 #   *_gen.png               los props en la paleta del fondo
+#   garage_boom.png         la explosion del TNT en la paleta del fondo (01/10)
 # =============================================================================
 import os, struct
 from PIL import Image
@@ -126,6 +127,23 @@ def main():
         for i in range(n):
             sh.paste(g.crop((i * fw, 0, (i + 1) * fw, g.size[1])), (i * cw + ox, oy))
         sh.save(os.path.join(D, out + '.png'), transparency=0)
+    # (01/10) La explosion del barril es la del TNT del foot soldier
+    # (res/sprites/explosion.png, 7 frames de 64x64) remapeada a la paleta del
+    # fondo: asi va en PAL0 y no depende de PAL2, que en la pelea de jefes la
+    # pisa Rocksteady (el segundo barril esta en la arena).
+    # Mapeo a mano por TONO: por distancia el crema caia en el gris claro
+    # (5) y la bola de fuego quedaba gris. Crema y amarillo -> amarillo (11),
+    # naranja -> naranja (14), marron -> rojo oscuro (12), rojo -> rojo (13).
+    BOOM_MAP = {4: 11, 5: 11, 7: 14, 8: 12, 10: 13}
+    src_boom = Image.open(os.path.join(ROOT, 'res', 'sprites', 'explosion.png'))
+    boom = Image.new('P', src_boom.size, 0)
+    boom.putpalette(pal)
+    sp, bp = src_boom.load(), boom.load()
+    for y in range(src_boom.size[1]):
+        for x in range(src_boom.size[0]):
+            if sp[x, y]:
+                bp[x, y] = BOOM_MAP[sp[x, y]]
+    boom.save(os.path.join(D, 'garage_boom.png'), transparency=0)
     # El auto: 172x100 -> 176x104, en DOS mitades de 88x104 (un frame de
     # 22x13 tiles necesitaria 24 sprites de hardware; el tope de SGDK es 16).
     car = Image.new('P', (176, 104), 0)

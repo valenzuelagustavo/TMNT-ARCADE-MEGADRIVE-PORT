@@ -70,11 +70,10 @@
 #define ROCKSTEADY_FOOT_OFFSET  104   // Pies en el borde inferior del frame
 
 // --- Vida y daño ---
-#define ROCKSTEADY_HP          124   // Barras totales. 13/09: DUPLICADO (62 -> 124) a pedido de
-                                     // Gustavo, la pelea se sentia corta. Historial: 48 -> 52 -> 57
-                                     // -> 62 (30/08) -> 124. Un golpe normal saca 1 barra y el
-                                     // especial ROCKSTEADY_SPECIAL_DMG, asi que son ~124 golpes
-                                     // sueltos o ~41 combos B-B-B completos.
+#define ROCKSTEADY_HP           55   // Barras totales. (01/10) Igual que Bebop (BEBOP_HP), a
+                                     // pedido de Gustavo. Historial: 48 -> 52 -> 57 -> 62 (30/08)
+                                     // -> 124 (13/09) -> 55. Un golpe normal saca 1 barra y el
+                                     // especial ROCKSTEADY_SPECIAL_DMG.
 #define ROCKSTEADY_SPECIAL_DMG   3   // Daño del ataque especial (botón A / B+C)
 // ALTERNANCIA DEL ARMA (13/09): ya no hay progresion de fases. El jefe cuenta
 // los ataques que COMPLETA (una rafaga, una embestida o una patada) y cada
@@ -137,7 +136,13 @@
 #define ROCKSTEADY_CHARGE_TRIGGER_DIST 110
 // La PATADA ya NO es una decisión espontánea: SOLO sale como contraataque
 // cuando recibe ROCKSTEADY_COUNTER_HITS golpes seguidos.
-#define ROCKSTEADY_COUNTER_HITS      2
+#define ROCKSTEADY_COUNTER_HITS      3   // (01/10: 2 -> 3)
+// (01/10, pedido de Gustavo) La patada se spammeaba: con 2 golpes seguidos ya
+// contraatacaba, o sea que cortaba CADA combo. Ahora, despues de cualquier
+// patada (contra o de la rotacion), no vuelve a patear durante estos frames:
+// el contraataque que caiga en ese lapso se descarta (solo flinchea) y el paso
+// "patear" de la rotacion sin arma cede el turno.
+#define ROCKSTEADY_KICK_COOLDOWN   180
 // Anti-camping: jugador fuera de alcance durante estos frames (~2 s) seguidos
 // mientras el jefe está neutral → EMBESTIDA.
 #define ROCKSTEADY_FAR_FRAMES      120
@@ -292,6 +297,7 @@ typedef struct {
                              // ROCKSTEADY_UNARMED_STEPS): 0 esperar,
                              // 1 embestida, 2 acercarse y patear.
     u8          kickOnArrive;// 1 = el APPROACH en curso termina en patada.
+    u8          kickCooldown;// Frames hasta poder volver a patear (ROCKSTEADY_KICK_COOLDOWN)
     s8          chargeDir;   // Dirección LATCHEADA de la embestida (14/09). Se
                              // fija al arrancar y no se re-apunta: una vez
                              // lanzada la corrida, se esquiva.

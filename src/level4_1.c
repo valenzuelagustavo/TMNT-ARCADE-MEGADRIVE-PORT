@@ -42,7 +42,6 @@
 #include "scenes.h"
 #include "level4_1.h"          // pal_garage, bg_garage_*, garage_* (rescomp)
 #include "level4_1_bg.h"       // regiones y posiciones (generado)
-#include "level3_1.h"          // sewer_explosao (la explosion del barril)
 #include "stage_level.h"
 #include "enemy.h"             // ENEMY_TYPE_*, sprVramFits
 #include "bebop.h"
@@ -131,7 +130,7 @@ typedef enum { PS_IDLE, PS_ANIM, PS_FLY, PS_FUSE, PS_BOOM, PS_DONE, PS_GONE } Pr
 #define CONE_ENEMY_DMG       2
 #define BARREL_FUSE_TICKS    5   // ticks por frame de la mecha
 #define BARREL_FUSE_LOOPS    2
-#define BOOM_TICKS           4   // ticks por frame de la explosion (7 frames)
+#define BOOM_TICKS           6   // ticks por frame de la explosion (7 frames, como el TNT)
 #define BOOM_FRAMES          7
 #define BOOM_RADIUS_X       40   // alcance de la explosion (centro a centro)
 #define BOOM_RADIUS_Y       22   // en profundidad
@@ -346,8 +345,10 @@ static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
                 p->state = PS_BOOM;
                 p->timer = 0;
                 p->plMask = p->hitMask = 0;
-                p->boom = SPR_addSprite(&sewer_explosao, 0, -64,
-                                        TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+                // (01/10) La explosion del TNT (64x64) en vez de la del misil
+                // del Sewer: va mejor con el tamano del barril. En PAL0.
+                p->boom = SPR_addSprite(&garage_boom, 0, -64,
+                                        TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
                 if (p->boom) {
                     SPR_setAutoAnimation(p->boom, FALSE);
                     SPR_setFrame(p->boom, 0);
@@ -363,9 +364,9 @@ static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
             if (f >= BOOM_FRAMES) { propRelease(p); p->state = PS_GONE; continue; }
             if (p->boom) {
                 SPR_setFrame(p->boom, f);
-                // 32x32 centrada en la mitad de abajo del barril
-                SPR_setPosition(p->boom, (s16)(cx - 16 - camX),
-                                (s16)(base - 40 - stageCamY));
+                // 64x64 centrada en el cuerpo del barril
+                SPR_setPosition(p->boom, (s16)(cx - 32 - camX),
+                                (s16)(base - 28 - 32 - stageCamY));
             }
             p->timer++;
             continue;
@@ -485,7 +486,7 @@ static const RocksteadyArena rockArena41 = {
     1054, 118,
     176, 40,
     PAL2,
-    80          // (los dos juntos con la vida entera se hacian eternos)
+    0           // vida: ROCKSTEADY_HP (01/10: igual que Bebop, antes 80 aca)
 };
 
 #define DOOR_STEP_TICKS      4   // ticks por paso de la persiana (8 px)

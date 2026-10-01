@@ -408,6 +408,9 @@ typedef struct {
     u8          kdSlideTick;    // Frames hasta el próximo -1 de kdSlide
     u8          blinkTimer;     // Frames restantes de PARPADEO (solo al revivir, no al ser golpeado)
     bool        gameOver;       // TRUE cuando cae sin vidas restantes (lo lee scenes.c)
+    bool        outCarried;     // (01/10) Arranco el nivel FUERA de juego: habia
+                                // quedado afuera en el nivel anterior (sin vidas
+                                // y sin continuar). Ver playerPersistSave.
 
     // HUD: vida, vidas y puntaje (por jugador, estilo arcade)
     s16         health;         // Barras de vida restantes (0..PLAYER_MAX_HEALTH)
@@ -635,6 +638,10 @@ void playerPersistSave(const Player* p);
 // Vuelve el estado persistente a los valores iniciales (partida nueva).
 // Llamar al iniciar una partida (selección de personajes).
 void playerPersistReset(void);
+
+// (01/10) Olvida que el jugador habia quedado FUERA de juego (lo llama el
+// continue antes de reinicializarlo). Ver initPlayer / playerPersistSave.
+void playerPersistClearOut(const Player* p);
 
 // TRUE cuando el jugador agoto vidas y vida (game over). scenes.c lo consulta
 // para cortar el nivel.

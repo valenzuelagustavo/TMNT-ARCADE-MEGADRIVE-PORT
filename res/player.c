@@ -33,6 +33,10 @@ u8 vidasIniciales = PLAYER_START_LIVES;
 static u8  s_persistLives[MAX_PLAYERS];
 static u16 s_persistScore[MAX_PLAYERS];
 static s16 s_persistHealth[MAX_PLAYERS];
+// (01/10) El jugador termino el nivel FUERA de juego (game over sin continuar,
+// o sin continues). Antes el nivel siguiente lo reinicializaba vivo: en 2P la
+// tortuga muerta volvia a aparecer al pasar de pantalla.
+static bool s_persistOut[MAX_PLAYERS];
 static bool s_persistInit = FALSE;
 
 static void persistEnsureInit(void) {
@@ -42,6 +46,7 @@ static void persistEnsureInit(void) {
         s_persistLives[i]  = PLAYER_START_LIVES;
         s_persistScore[i]  = 0;
         s_persistHealth[i] = PLAYER_MAX_HEALTH;
+        s_persistOut[i]    = FALSE;
     }
 }
 
@@ -153,6 +158,21 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     // SPR_isAnimationDone() nunca da TRUE y los estados que esperan el fin de
     // una anim (HURT, ATTACKING) se cuelgan para siempre.
     if (p->sprite) SPR_setAnim(p->sprite, ANIM_IDLE);
+
+    // (01/10) Venia FUERA de juego del nivel anterior: arranca como quedo,
+    // sin vidas, tirado (STATE_KO congelado) e INVISIBLE. El continue lo ve
+    // con outCarried y lo deja afuera sin mostrar la cuenta; si quedan
+    // continues puede volver con START (revivePlayer limpia esto).
+    p->outCarried = FALSE;
+    if (s_persistOut[persistSlot(joyId)]) {
+        p->outCarried = TRUE;
+        p->gameOver   = TRUE;
+        p->lives      = 0;
+        p->health     = 0;
+        p->state      = STATE_KO;
+        p->koTimer    = 0;
+        if (p->sprite) SPR_setVisibility(p->sprite, HIDDEN);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -977,7 +997,7 @@ s16 getPlayerJumpZ(const Player* p) {
 // sube ~3 px, cuelga un instante y cae acelerando hasta PLAYER_FALL_SPEED.
 // Antes arrancaba ya cayendo y la bajada se sentia brusca.
 void playerFallTo(Player* p, s16 newFeetY) {
-    if (!p->sprite) { p->y = newFeetY; return; }
+    if (!p->sprite || p->gameOver) { p->y = newFeetY; return; }
     s16 drop = newFeetY - p->y;
     if (drop <= 0) { p->y = newFeetY; return; }
     p->y      = newFeetY;
@@ -1010,6 +1030,7 @@ s16 getPlayerY(const Player* p) {
 // DAÑO RECIBIDO
 // ---------------------------------------------------------------------------
 bool playerCanBeHit(const Player* p) {
+    if (p->gameOver) return FALSE;     // (01/10) fuera de juego
     if (p->invincible > 0) return FALSE;
     // Dentro de la boca de tormenta no la alcanza nada (esta bajo tierra).
     if (p->mhPhase != 0) return FALSE;
@@ -1029,6 +1050,7 @@ bool playerCanBeHit(const Player* p) {
 // arcade vale contra golpes cuerpo a cuerpo, no contra un tiro antiaéreo que
 // te está apuntando justo ahí arriba.
 bool playerCanBeHitAir(const Player* p) {
+    if (p->gameOver) return FALSE;     // (01/10) fuera de juego
     if (p->invincible > 0) return FALSE;
     if (p->mhPhase != 0) return FALSE;
     if (p->state == STATE_HURT || p->state == STATE_KO ||
@@ -1344,6 +1366,12 @@ void playerPersistSave(const Player* p) {
     s_persistLives[slot]  = p->lives;
     s_persistScore[slot]  = p->score;
     s_persistHealth[slot] = p->health;
+    s_persistOut[slot]    = p->gameOver;
+}
+
+void playerPersistClearOut(const Player* p) {
+    persistEnsureInit();
+    s_persistOut[persistSlot(p->joyId)] = FALSE;
 }
 
 void playerPersistReset(void) {
@@ -1352,6 +1380,7 @@ void playerPersistReset(void) {
         s_persistLives[i]  = vidasIniciales;
         s_persistScore[i]  = 0;
         s_persistHealth[i] = PLAYER_MAX_HEALTH;
+        s_persistOut[i]    = FALSE;
     }
 }
 
@@ -1387,7 +1416,7 @@ void playerCutsceneStand(Player* p) {
     // devolveria basura -- y los estados que esperan SPR_isAnimationDone se
     // colgarian para siempre. Sin sprite el jugador queda invisible e inerte,
     // pero el juego sigue.
-    if (!p->sprite) return;
+    if (!p->sprite || p->gameOver) return;
 
     SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, TRUE);
@@ -1398,7 +1427,7 @@ void playerCutsceneStand(Player* p) {
 bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
     // Sin sprite (ver la guarda de updatePlayer) se da por LLEGADO: si no, la
     // cutscene de salida se quedaria esperando a un jugador que no existe.
-    if (!p->sprite) return TRUE;
+    if (!p->sprite || p->gameOver) return TRUE;
     bool arrived = TRUE;
 
     s16 dx = targetX - p->x;
@@ -1508,6 +1537,7 @@ bool playerManholeFall(Player* p, s16 outX, s16 outY) {
 bool playerInManhole(const Player* p)       { return (bool)(p->mhPhase != 0); }
 
 void playerDropIn(Player* p, s16 height) {
+    if (p->gameOver) return;           // (01/10) fuera de juego: no entra
     p->state         = STATE_JUMPING;
     p->jumpZ         = height;
     p->jumpZq        = (s32)height << PLAYER_JUMP_Q;
@@ -1588,7 +1618,7 @@ void playerCutsceneWatch(Player* p) {
     // devolveria basura -- y los estados que esperan SPR_isAnimationDone se
     // colgarian para siempre. Sin sprite el jugador queda invisible e inerte,
     // pero el juego sigue.
-    if (!p->sprite) return;
+    if (!p->sprite || p->gameOver) return;
 
     SPR_setAutoAnimation(p->sprite, FALSE);
     SPR_setAnimationLoop(p->sprite, FALSE);

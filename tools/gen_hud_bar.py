@@ -8,7 +8,9 @@
 #   res/sprites/hp_bar.png          32x176 = 11 frames de 32x16
 #       La barra de vida, del doble de alto que la anterior (era 32x8). 10
 #       segmentos de 2px con separador negro de 1px, igual que el arcade.
-#       frame[0] = llena ... frame[10] = vacia. Sin comprimir ni deduplicar
+#       frame[0] = llena ... frame[10] = vacia (01/10: el fondo negro se
+#       achica con los segmentos; lo vacio es transparente). Sin comprimir ni
+#       deduplicar
 #       (TILESET ... NONE NONE) para poder indexar frame N = tiles N*8.
 #
 #   res/images/hud/lives_digits.png 8x160 = 10 digitos de 8x16
@@ -62,7 +64,12 @@ def make_bar():
     for f in range(BAR_FRAMES):
         top = f * BAR_H
         filled = SEGMENTS - f
-        img[top:top + BAR_H, :] = 1              # negro (borde y fondo)
+        # (01/10) El fondo negro ACOMPANA a los segmentos: cubre solo hasta
+        # el separador que sigue al ultimo segmento lleno, el resto queda
+        # transparente (indice 0). Antes era un rectangulo negro fijo de
+        # 32x16 y con poca vida quedaba un cuadrado negro vacio.
+        if filled > 0:
+            img[top:top + BAR_H, :min(BAR_W, filled * 3 + 2)] = 1   # negro (borde y fondo)
         for s in range(SEGMENTS):
             x = 1 + s * 3
             if s < filled:
