@@ -159,7 +159,7 @@ typedef enum {
 // (player.c): asi la animacion se ve COMPLETA y el arco queda sincronizado con
 // ella. La altura es solo VISUAL (se suma a jumpZ al dibujar, ver
 // playerDrawZ): la lane, la profundidad y la tolerancia de golpe no cambian.
-#define PLAYER_SPECIAL_HOP       20   // px de alto del saltito (pico del arco)
+#define PLAYER_SPECIAL_HOP       32   // px de alto del saltito (pico del arco; 01/10: 20 -> 32)
 #define PLAYER_SPECIAL_HOP_FROM   1   // frame en el que despega
 // El especial del arcade es ATAQUE + SALTO a la vez. Apretar B y C en el mismo
 // frame exacto es dificil: si llega uno solo, arranca el golpe (B) o el salto

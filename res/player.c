@@ -245,7 +245,10 @@ static void playAttackGrunt(const Player* p) {
 // espaldas y el remate. El giro se estira un poco respecto del 5-5-5-5-5 del
 // .res para que el swing se lea entero y el saltito tenga aire. Si una hoja
 // trae mas frames, los que sobran duran como el ultimo.
-static const u8 specialFrameTicks[] = { 5, 6, 6, 6, 7 };
+// (01/10) Saltito mas alto (PLAYER_SPECIAL_HOP 32) y mas largo: los frames
+// en el aire pasan de 6-6-6-7 a 8-8-8-9 (30 -> 38 ticks en total) para que
+// el giro se lea entero antes de apoyar.
+static const u8 specialFrameTicks[] = { 5, 8, 8, 8, 9 };
 #define SPECIAL_TICK_TABLE ((u16)(sizeof(specialFrameTicks) / sizeof(specialFrameTicks[0])))
 
 static u16 specialTicksOf(u16 f) {
