@@ -221,6 +221,7 @@ void rocksteadyInit(Rocksteady* r) {
     r->counterPending = 0;
     r->attacksDone = 0;
     r->chargeHit = 0;
+    r->chargeWind = 0;
     r->chargeDir = -1;
     r->unarmedStep = 0;
     r->kickOnArrive = 0;
@@ -253,6 +254,7 @@ void rocksteadySpawnArena(Rocksteady* r, const RocksteadyArena* a) {
     r->attacksDone = 0;
     r->attackCooldown = 0;
     r->chargeHit = 0;
+    r->chargeWind = 0;
     r->chargeDir = -1;
     r->unarmedStep = 0;
     r->kickOnArrive = 0;
@@ -300,7 +302,8 @@ s16 rocksteadyGetCenterY(const Rocksteady* r) { return r->y; }
 
 // ¿Ya completó la tanda de ataques y toca cambiar de arma?
 static bool rocksteadySwapDue(const Rocksteady* r) {
-    return (r->attacksDone >= ROCKSTEADY_ATTACKS_PER_SWAP);
+    return (r->attacksDone >= (r->armed ? ROCKSTEADY_ATTACKS_PER_SWAP
+                                        : ROCKSTEADY_UNARMED_ATTACKS));
 }
 
 void rocksteadyDamage(Rocksteady* r, s16 dmg) {
@@ -374,6 +377,7 @@ static void rocksteadyStartCharge(Rocksteady* r, s8 dir) {
     r->state = ROCKSTEADY_CHARGE;
     r->timer = ROCKSTEADY_CHARGE_MAX;
     r->chargeHit = 0;
+    r->chargeWind = ROCKSTEADY_CHARGE_WINDUP;   // amaga en el lugar y despues corre
     r->dir       = dir;
     r->chargeDir = dir;
     r->kickOnArrive = 0;   // si la embestida corta un acercamiento a mitad,
@@ -644,6 +648,14 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             // seco: sigue un tramo más (overshoot, ROCKSTEADY_CHARGE_OVER)
             // para que la carga recorra más eje X, dañando una sola vez
             // (chargeHit).
+            // (01/10) Preparacion: quieto en el lugar con la anim de la
+            // embestida, girando hacia el jugador. Al terminar se latchea la
+            // direccion y recien ahi corre (y puede dañar).
+            if (r->chargeWind > 0) {
+                r->chargeWind--;
+                r->dir = r->chargeDir = (pcx >= bcx) ? 1 : -1;
+                break;
+            }
             r->dir = r->chargeDir;
             s16 chgSpd = rocksteadyChargeSpeed(r);
             r->x += r->dir * chgSpd;

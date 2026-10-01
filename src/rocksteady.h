@@ -82,11 +82,21 @@
 // tiempo a propósito: si el jugador se esconde, el jefe no cambia de modo solo
 // -- el ritmo lo marca la pelea, no el reloj.
 #define ROCKSTEADY_ATTACKS_PER_SWAP 3
+// (01/10, pedido de Gustavo) La tanda SIN arma es mas corta: pasaba mucho
+// tiempo de la pelea desarmado (la rotacion sin arma tiene un paso de
+// "esperar" que no cuenta como ataque, mas el acercamiento de la patada).
+// Ahora con UN ataque completado sin arma (la embestida o la patada) ya saca
+// el arma; CON arma sigue haciendo ROCKSTEADY_ATTACKS_PER_SWAP rafagas.
+#define ROCKSTEADY_UNARMED_ATTACKS  1
 
 // --- Movimiento / patrulla ---
 // Arena: cámara bloqueada en LEVEL2_CAM_MAX_X (120) → mundo visible 120..440.
 #define ROCKSTEADY_SPEED         2   // px/frame al caminar/alinear lane
-#define ROCKSTEADY_CHARGE_SPEED  6   // px/frame de la estampida
+#define ROCKSTEADY_CHARGE_SPEED  5   // px/frame de la estampida (01/10: 6 -> 5)
+// (01/10) Antes de correr se queda en el lugar con la anim de la embestida
+// estos frames (amaga, mirando al jugador): le da al jugador tiempo de leerla
+// y salir de la lane. La direccion se latchea al terminar la preparacion.
+#define ROCKSTEADY_CHARGE_WINDUP 30
 #define ROCKSTEADY_LANE_TOP    142
 #define ROCKSTEADY_LANE_BOTTOM 196
 #define ROCKSTEADY_PATROL_LEFT 150   // centro del cuerpo, extremo izquierdo
@@ -276,6 +286,8 @@ typedef struct {
     u8          attacksDone;   // Ataques COMPLETADOS desde el último cambio de
                                // arma (ver ROCKSTEADY_ATTACKS_PER_SWAP)
     u8          chargeHit;   // 1 = la estampida ya impactó en esta carga (overshoot sin re-dañar)
+    u8          chargeWind;  // Frames de preparacion que le quedan a la embestida
+                             // (ROCKSTEADY_CHARGE_WINDUP): quieto, sin dañar.
     u8          unarmedStep; // Paso de la rotacion SIN ARMA (ver
                              // ROCKSTEADY_UNARMED_STEPS): 0 esperar,
                              // 1 embestida, 2 acercarse y patear.
