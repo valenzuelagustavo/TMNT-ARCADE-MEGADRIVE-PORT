@@ -31,7 +31,7 @@ extern u8 cantidadJugadores;
 #define STAGE_MAX_ALIVE_2P    2
 #define STAGE_START_X        40
 #define STAGE_CLEAR_SECS      5
-#define VOL_MUSIC_CLEAR      90
+#define VOL_MUSIC_CLEAR      80
 
 static const StageLevel* cur;       // el nivel en curso
 

@@ -663,6 +663,10 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             if (r->chargeWind > 0) {
                 r->chargeWind--;
                 r->dir = r->chargeDir = (pcx >= bcx) ? 1 : -1;
+                // (01/10) Arranca a correr: el golpe del logo de SEGA.
+                if (r->chargeWind == 0)
+                    XGM2_playPCMEx(rocksteady_charge_sfx, sizeof(rocksteady_charge_sfx),
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
                 break;
             }
             r->dir = r->chargeDir;

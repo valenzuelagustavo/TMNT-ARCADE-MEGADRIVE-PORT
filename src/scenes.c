@@ -2219,6 +2219,113 @@ SceneId showCharSelect() {
 
 // Dibuja el texto letra a letra con 'delay' frames entre letras.
 // Devuelve TRUE si se pidió saltar con START.
+// ---------------------------------------------------------------------------
+// HUD EN LAS PANTALLAS DE TITULO (01/10, pedido de Gustavo)
+// ---------------------------------------------------------------------------
+// Los titulos de nivel muestran el HUD de la partida (marcos, puntaje, vidas y
+// barra) y la barra de cada jugador se RECARGA de a una raya mientras dura el
+// titulo, como el arcade. La vida queda llena en el estado persistente, asi
+// que el nivel arranca con la barra completa. Los que estan FUERA de juego
+// (s_persistOut) muestran su HUD vacio y no se recargan.
+//
+// No hay Player de verdad (no hay tortugas en pantalla): el HUD se alimenta de
+// un Player "de papel" con lo persistido (playerPersistPeek); hudPlayerUpdate
+// solo lee vida, vidas, puntaje y charIndex.
+//
+// CHOQUE DE FUENTES: el puntaje del HUD se escribe con hud_font en la ranura
+// de la fuente (VDP_drawText), y el titulo usa title_font. Mientras el HUD
+// esta prendido, title_font va a TITLE_FONT_VRAM y el titulo se dibuja a mano
+// (titleDrawText) con esos tiles, en PAL0 como siempre.
+#define TITLE_FONT_VRAM     (TILE_USER_INDEX + MAX_PLAYERS * HUD_VRAM_PER_PLAYER)
+#define TITLE_REFILL_TICKS  8     // frames por raya recargada (10 rayas ~1.3 s)
+
+static bool      titleHudOn = FALSE;
+static u8        titleNPl;
+static u16       titleRefillTick;
+static Player    titlePl[MAX_PLAYERS];
+static HudPlayer titleHud[MAX_PLAYERS];
+
+static void titleDrawText(const char* text, u16 x, u16 y) {
+    if (!titleHudOn) { VDP_drawText(text, x, y); return; }
+    for (u16 i = 0; text[i] != 0; i++) {
+        u8 c = (u8)text[i];
+        if (c < 32 || c > 126) c = 32;
+        VDP_setTileMapXY(BG_A, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE,
+                                              TITLE_FONT_VRAM + (c - 32)),
+                         (u16)(x + i), y);
+    }
+}
+
+static void titleHudBegin(void) {
+    titleNPl = numJugadores();
+    VDP_loadTileSet(&title_font, TITLE_FONT_VRAM, DMA);
+    VDP_loadFont(&hud_font, DMA);
+    VDP_setTextPlane(BG_A);
+    VDP_setTextPriority(1);
+    VDP_setTextPalette(PAL1);
+    PAL_setColors(16, leo_player.palette->data, 16, DMA);   // PAL1: tortugas/HUD
+    hudSetPlane(BG_A);
+    hudInit();
+    for (u8 k = 0; k < titleNPl; k++) {
+        Player* p = &titlePl[k];
+        memset(p, 0, sizeof(Player));
+        u8 lives; u16 score; s16 hp; bool out;
+        playerPersistPeek(k, &lives, &score, &hp, &out);
+        p->lives     = lives;
+        p->score     = score;
+        p->health    = out ? 0 : hp;
+        p->gameOver  = out;
+        p->charIndex = (u8)(playerChar(k) & 3);
+        hudPlayerInit(&titleHud[k], p, hudPlayerCol(k),
+                      (u16)(TILE_USER_INDEX + k * HUD_VRAM_PER_PLAYER));
+        hudPlayerUpdate(&titleHud[k]);
+    }
+    titleRefillTick = 0;
+    titleHudOn = TRUE;
+    SPR_update();
+}
+
+static bool titleHudFull(void) {
+    for (u8 k = 0; k < titleNPl; k++)
+        if (!titlePl[k].gameOver && titlePl[k].health < PLAYER_MAX_HEALTH) return FALSE;
+    return TRUE;
+}
+
+// Un frame: una raya mas cada TITLE_REFILL_TICKS. 'fill' = llenar de una
+// (se salteo el titulo con START).
+static void titleHudStep(bool fill) {
+    if (!titleHudOn) return;
+    bool tick = (++titleRefillTick >= TITLE_REFILL_TICKS);
+    if (tick) titleRefillTick = 0;
+    for (u8 k = 0; k < titleNPl; k++) {
+        Player* p = &titlePl[k];
+        if (!p->gameOver && p->health < PLAYER_MAX_HEALTH && (tick || fill))
+            p->health = fill ? PLAYER_MAX_HEALTH : (s16)(p->health + 1);
+        hudPlayerUpdate(&titleHud[k]);
+    }
+    SPR_update();
+}
+
+static void titleHudEnd(void) {
+    if (!titleHudOn) return;
+    for (u8 k = 0; k < titleNPl; k++)
+        if (!titlePl[k].gameOver) playerPersistSetHealth(k, PLAYER_MAX_HEALTH);
+    titleHudOn = FALSE;
+}
+
+// Espera final del titulo: 'frames' y ademas, con el HUD prendido, que se
+// termine de recargar la barra. START corta (y llena la barra de una).
+// 'perFrame' corre cada frame (el 1-1 apaga ahi el tema de la cinematica).
+static void titleHold(u16 frames, void (*perFrame)(void)) {
+    while (frames > 0 || (titleHudOn && !titleHudFull())) {
+        if (frames > 0) frames--;
+        if (perFrame) perFrame();
+        if (JOY_readJoypad(JOY_1) & BUTTON_START) { titleHudStep(TRUE); break; }
+        titleHudStep(FALSE);
+        SYS_doVBlankProcess();
+    }
+}
+
 static bool drawTextTypewriter(const char* text, u16 x, u16 y, u16 delay) {
     char buf[2];
     buf[1] = 0;
@@ -2228,12 +2335,15 @@ static bool drawTextTypewriter(const char* text, u16 x, u16 y, u16 delay) {
 
         // Los espacios no se dibujan, pero sí consumen tiempo (ritmo natural)
         if (buf[0] != ' ')
-            VDP_drawText(buf, x + i, y);
+            titleDrawText(buf, x + i, y);
 
         // Espera entre letras, con posibilidad de saltar
         for (u16 f = 0; f < delay; f++) {
-            if (JOY_readJoypad(JOY_1) & BUTTON_START)
+            if (JOY_readJoypad(JOY_1) & BUTTON_START) {
+                titleHudStep(TRUE);
                 return TRUE;
+            }
+            titleHudStep(FALSE);   // (01/10) el HUD recarga mientras se escribe
             SYS_doVBlankProcess();
         }
     }
@@ -2402,7 +2512,13 @@ SceneId showCredits() {
     return SCENE_INTRO_ARCADE;
 }
 
+static bool title11MusicOff;
+static void title11StopMusic(void) {
+    if (!title11MusicOff && !XGM2_isPlaying()) { XGM2_stop(); title11MusicOff = TRUE; }
+}
+
 SceneId showScene11Title() {
+    title11MusicOff = FALSE;
     // (18/09) keepAudio: la cinematica del rescate deja sonando el tema de la
     // intro y tiene que seguir durante todo el titulo. Se corta al final, ya
     // con la pantalla en negro, antes de que el nivel arranque music_level1.
@@ -2426,6 +2542,8 @@ SceneId showScene11Title() {
     const char* line2 = "FIRE! WE GOTTA GET";
     const char* line3 = "APRIL OUT!!";
 
+    titleHudBegin();   // (01/10) HUD de la partida + recarga de la barra
+
     // Aparición letra a letra (START saltea la animación)
     bool skipped;
     skipped = drawTextTypewriter(line1, 16, 10, TITLE_CHAR_DELAY);
@@ -2434,9 +2552,9 @@ SceneId showScene11Title() {
 
     // Si salteó, mostramos el texto completo de una
     if (skipped) {
-        VDP_drawText(line1, 16, 10);
-        VDP_drawText(line2, 11, 13);
-        VDP_drawText(line3, 14, 15);
+        titleDrawText(line1, 16, 10);
+        titleDrawText(line2, 11, 13);
+        titleDrawText(line3, 14, 15);
     }
 
     // Mantener el texto completo 2 segundos (60 fps NTSC / 50 fps PAL)
@@ -2447,14 +2565,8 @@ SceneId showScene11Title() {
     // sonar pero sigue cargado, así que en cuanto XGM2_isPlaying() da FALSE
     // se lo para de verdad. El flag evita mandarle el comando al Z80 en cada
     // frame una vez que ya está parado.
-    bool musicOff = FALSE;
-    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 2;
-    while (timer > 0) {
-        timer--;
-        if (!musicOff && !XGM2_isPlaying()) { XGM2_stop(); musicOff = TRUE; }
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
-        SYS_doVBlankProcess();
-    }
+    titleHold((IS_PAL_SYSTEM ? 50 : 60) * 2, title11StopMusic);
+    titleHudEnd();
 
     // Restaurar la fuente por defecto de SGDK para el resto del juego
     VDP_loadFont(&font_default, DMA);
@@ -2493,21 +2605,19 @@ SceneId showScene21Title() {
     const char* line1 = "SCENE 2";
     const char* line2 = "C'MON, AFTER THAT SHREDDER CREEP!!";
 
+    titleHudBegin();   // (01/10)
+
     bool skipped;
     skipped = drawTextTypewriter(line1, 16, 10, TITLE_CHAR_DELAY);
     if (!skipped) skipped = drawTextTypewriter(line2, 3, 13, TITLE_CHAR_DELAY);
 
     if (skipped) {
-        VDP_drawText(line1, 16, 10);
-        VDP_drawText(line2, 3, 13);
+        titleDrawText(line1, 16, 10);
+        titleDrawText(line2, 3, 13);
     }
 
-    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 2;
-    while (timer > 0) {
-        timer--;
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
-        SYS_doVBlankProcess();
-    }
+    titleHold((IS_PAL_SYSTEM ? 50 : 60) * 2, NULL);
+    titleHudEnd();
 
     VDP_loadFont(&font_default, DMA);
 
@@ -2542,20 +2652,18 @@ static SceneId showStageTitle(const char* line1, const char* line2, SceneId next
     u16 col1 = (u16)((40 - strlen(line1)) / 2);
     u16 col2 = (u16)((40 - strlen(line2)) / 2);
 
+    titleHudBegin();   // (01/10)
+
     bool skipped;
     skipped = drawTextTypewriter(line1, col1, 10, TITLE_CHAR_DELAY);
     if (!skipped) skipped = drawTextTypewriter(line2, col2, 13, TITLE_CHAR_DELAY);
     if (skipped) {
-        VDP_drawText(line1, col1, 10);
-        VDP_drawText(line2, col2, 13);
+        titleDrawText(line1, col1, 10);
+        titleDrawText(line2, col2, 13);
     }
 
-    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 2;
-    while (timer > 0) {
-        timer--;
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
-        SYS_doVBlankProcess();
-    }
+    titleHold((IS_PAL_SYSTEM ? 50 : 60) * 2, NULL);
+    titleHudEnd();
 
     VDP_loadFont(&font_default, DMA);
     clearScene();

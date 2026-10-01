@@ -323,9 +323,9 @@ extern u8 cantidadJugadores;
 
 // Fin del nivel: cuantos segundos queda la imagen congelada con el jingle.
 #define LVL21_CLEAR_SECS       5
-#define VOL_MUSIC_SCENE_CLEAR 90
-#define VOL_MUSIC_LEVEL2_1    90   // igual que el tema del 1-1 (VOL_MUSIC_LEVEL1)
-#define VOL_MUSIC_BOSS_2_1    90   // tema del jefe, igual que el de Rocksteady
+#define VOL_MUSIC_SCENE_CLEAR 80
+#define VOL_MUSIC_LEVEL2_1    80   // igual que el tema del 1-1 (VOL_MUSIC_LEVEL1)
+#define VOL_MUSIC_BOSS_2_1    80   // tema del jefe, igual que el de Rocksteady
 
 // (25/09) La camara ARRANCA corrida a la derecha (antes en 0) y las tortugas
 // ENTRAN CAYENDO desde arriba por el lado izquierdo de la pantalla: nacen

@@ -643,6 +643,12 @@ void playerPersistReset(void);
 // continue antes de reinicializarlo). Ver initPlayer / playerPersistSave.
 void playerPersistClearOut(const Player* p);
 
+// (01/10) Lectura del estado persistente del jugador k (indice 0..3), para el
+// HUD de las pantallas de titulo, que no tienen Player. Y la recarga de la
+// barra que hacen esas pantallas.
+void playerPersistPeek(u8 k, u8* lives, u16* score, s16* health, bool* out);
+void playerPersistSetHealth(u8 k, s16 health);
+
 // TRUE cuando el jugador agoto vidas y vida (game over). scenes.c lo consulta
 // para cortar el nivel.
 bool isPlayerGameOver(const Player* p);

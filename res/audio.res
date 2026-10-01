@@ -74,6 +74,11 @@ WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
 WAV attack_turtles "audio/attack_turtles.wav" XGM2
 WAV hit_turtles "audio/hit_turtles.wav" XGM2
 WAV boss_hit "audio/boss_hit.wav" XGM2
+// (01/10) Embestida de Rocksteady: el MISMO golpe del logo de SEGA (golpe.vgm,
+// que es un tema XGM2 de FM y no se puede tocar encima de la musica del
+// nivel). Renderizado a WAV desde golpe.vgm (libgme, 0.34 s, 8-bit 13300 Hz
+// mono, normalizado) para tocarlo como PCM.
+WAV rocksteady_charge_sfx "audio/rocksteady_charge.wav" XGM2
 WAV foot_soldier_explode "audio/foot_soldier_explode.wav" XGM2
 WAV drill_sfx "audio/drill.wav" XGM2
 WAV electric_shock_sfx "audio/electric_shock.wav" XGM2

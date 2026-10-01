@@ -94,7 +94,7 @@ extern u8 cantidadJugadores;
 #define L8_MAX_ALIVE_2P       2
 #define L8_START_X           40
 #define L8_CLEAR_SECS         5
-#define VOL_MUSIC            90
+#define VOL_MUSIC            80
 
 typedef enum { PH_TOP, PH_RIDE, PH_BOTTOM } TechnoPhase;
 

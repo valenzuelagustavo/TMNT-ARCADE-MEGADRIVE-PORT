@@ -66,7 +66,7 @@ static const StageLevel level51 = {
     .nWaves       = sizeof(waves51) / sizeof(waves51[0]),
     .bossFeetX    = 2000,
     .music        = music_freeway,
-    .musicVol     = 90,
+    .musicVol     = 80,
     .nextScene    = SCENE_6_1_TITLE,
 };
 

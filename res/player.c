@@ -1374,6 +1374,21 @@ void playerPersistClearOut(const Player* p) {
     s_persistOut[persistSlot(p->joyId)] = FALSE;
 }
 
+void playerPersistPeek(u8 k, u8* lives, u16* score, s16* health, bool* out) {
+    persistEnsureInit();
+    if (k >= MAX_PLAYERS) k = 0;
+    *lives  = s_persistLives[k];
+    *score  = s_persistScore[k];
+    *health = s_persistHealth[k];
+    *out    = s_persistOut[k];
+}
+
+void playerPersistSetHealth(u8 k, s16 health) {
+    persistEnsureInit();
+    if (k >= MAX_PLAYERS) return;
+    s_persistHealth[k] = health;
+}
+
 void playerPersistReset(void) {
     s_persistInit = TRUE;
     for (u8 i = 0; i < MAX_PLAYERS; i++) {

@@ -46,7 +46,7 @@ extern u8 cantidadJugadores;
 #define L9_BOSS_Y         170
 #define L9_BOSS_DELAY      90          // frames antes de que aparezca
 #define L9_CLEAR_SECS       5
-#define VOL_MUSIC          90
+#define VOL_MUSIC          80
 
 // Ciclo de colores del portal (el de Ray): rota las rayas y titila un trio.
 static const u8 portalStripe[] = { 0, 3, 6, 7, 10, 1 };
