@@ -6,6 +6,16 @@
 // ===========================================================================
 
 static s16 rabs(s16 v)                 { return (v < 0) ? -v : v; }
+
+// (01/10) Arena en curso (ver RocksteadyArena). La del 1-2 por defecto.
+static const RocksteadyArena raLevel2 = {
+    ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM,
+    ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT,
+    ROCKSTEADY_SPAWN_X, 156,
+    ROCKSTEADY_LANE_BOTTOM, ROCKSTEADY_EMERGE_STAND,
+    PAL3, 0
+};
+static RocksteadyArena ra;
 static s16 rclamp(s16 v, s16 a, s16 b) { return (v < a) ? a : ((v > b) ? b : v); }
 
 // Velocidades del jefe. (13/09) Se quito el "anger" que las subia tras N
@@ -37,7 +47,7 @@ static void rocksteadyRestartAnim(Rocksteady* r, u8 a, bool loop) {
 static void rocksteadyRender(Rocksteady* r) {
     bool flip = (r->dir < 0);
     SPR_setHFlip(r->sprite, flip);
-    SPR_setPosition(r->sprite, r->x - r->cameraOffsetX, r->y - ROCKSTEADY_FOOT_OFFSET);
+    SPR_setPosition(r->sprite, r->x - r->cameraOffsetX, r->y - ROCKSTEADY_FOOT_OFFSET - stageCamY);
     SPR_setDepth(r->sprite, -(r->y));
 }
 
@@ -90,7 +100,7 @@ static void rocksteadyBulletSpawn(s16 cx, s16 lane, s16 z, s8 dir, s8 dz,
         bullets[i].cameraOffsetX = 0;
         bullets[i].active = 1;
         bullets[i].sprite = SPR_addSprite(&boss_bullet,
-                                          bullets[i].x, lane - z - 8,
+                                          bullets[i].x, lane - z - 8 - stageCamY,
                                           TILE_ATTR(palette, FALSE, FALSE, FALSE));
         if (bullets[i].sprite) {
             SPR_setDepth(bullets[i].sprite, -(lane) - 1);
@@ -123,7 +133,7 @@ void rocksteadyBulletUpdate(s16 camX) {
             if (bullets[i].sprite)
                 SPR_setPosition(bullets[i].sprite,
                                 bullets[i].x - bullets[i].cameraOffsetX,
-                                bullets[i].y - bullets[i].z - 8);
+                                bullets[i].y - bullets[i].z - 8 - stageCamY);
             continue;
         }
 
@@ -142,7 +152,7 @@ void rocksteadyBulletUpdate(s16 camX) {
         if (bullets[i].sprite)
             SPR_setPosition(bullets[i].sprite,
                             bullets[i].x - bullets[i].cameraOffsetX,
-                            bullets[i].y - bullets[i].z - 8);
+                            bullets[i].y - bullets[i].z - 8 - stageCamY);
     }
 }
 
@@ -222,14 +232,20 @@ void rocksteadyInit(Rocksteady* r) {
 }
 
 void rocksteadySpawn(Rocksteady* r) {
-    r->x = ROCKSTEADY_SPAWN_X;   // 8 tiles a la izquierda de la cápsula (puerta abierta)
-    // 156 y no 148: al corregir ROCKSTEADY_FOOT_OFFSET (96 -> 104) el sprite se
-    // dibuja 8px mas arriba para la misma lane, asi que la lane de aparicion
-    // sube otros 8 para que los pies sigan cayendo en el umbral de la puerta.
-    r->y = 156;   // Subido junto con la cápsula (4 tiles): pies alineados a la puerta
+    rocksteadySpawnArena(r, &raLevel2);
+}
+
+void rocksteadySpawnArena(Rocksteady* r, const RocksteadyArena* a) {
+    ra = *a;
+    // 1-2: 8 tiles a la izquierda de la cápsula (puerta abierta), y 156 y no
+    // 148: al corregir ROCKSTEADY_FOOT_OFFSET (96 -> 104) el sprite se dibuja
+    // 8px mas arriba para la misma lane, asi que la lane de aparicion sube
+    // otros 8 para que los pies sigan cayendo en el umbral de la puerta.
+    r->x = ra.spawnX;
+    r->y = ra.spawnY;
     r->dir = -1;
     r->armed = 0;   // entra SIN arma: la primera tanda es de embestidas
-    r->hp = ROCKSTEADY_HP;
+    r->hp = ra.hp ? ra.hp : ROCKSTEADY_HP;
     r->hitsTaken = 0;
     r->knockdowns = 0;
     r->comboHits = 0;
@@ -242,7 +258,7 @@ void rocksteadySpawn(Rocksteady* r) {
     r->kickOnArrive = 0;
     r->farTimer = 0;
     r->state = ROCKSTEADY_EMERGE;
-    r->timer = ROCKSTEADY_EMERGE_STAND;   // quieto en la puerta (taunt) antes de bajar
+    r->timer = ra.emergeStand;            // quieto en la puerta (taunt) antes de bajar
     r->anim = 0xFF;
     // SPR_addSpriteSafe (no SPR_addSprite): mismo riesgo que la capsula del
     // taladro (ver scenes.c) -- Rocksteady (sprite grande) se crea recien
@@ -250,7 +266,7 @@ void rocksteadySpawn(Rocksteady* r) {
     // spawn/muerte de los foot soldiers. SPR_addSpriteSafe desfragmenta y
     // reintenta si la asignacion falla la primera vez.
     r->sprite = SPR_addSpriteSafe(&rocksteady_boss, 0, 0,
-                              TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+                              TILE_ATTR(ra.pal, FALSE, FALSE, FALSE));
     // PAL3 ya fue cargada con la paleta del boss (PAL3[1] = blanco, HUD).
     if (r->sprite) {
         // Aparece parado en la puerta, reproduciendo su IDLE (no camina todavía).
@@ -433,7 +449,7 @@ static void rocksteadyToIdle(Rocksteady* r) {
 // "bajar al arena" en vez de decidir ataques desde arriba (las patadas no
 // conectarían por la tolerancia de Y). Si ya está en la lane, a IDLE normal.
 static void rocksteadyResumeFromHit(Rocksteady* r) {
-    if (!r->armed && r->y < ROCKSTEADY_LANE_BOTTOM) {
+    if (!r->armed && r->y < ra.emergeY) {
         r->state = ROCKSTEADY_EMERGE;
         r->timer = 0;
     } else {
@@ -517,9 +533,9 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             // (ya no se queda con el IDLE del taunt).
             rocksteadySetAnim(r, ROCKSTEADY_ANIM_WALK, TRUE);
             r->dir = (pcx >= bcx) ? 1 : -1;
-            r->x += r->dir * rocksteadyMoveSpeed(r);
-            if (r->y < ROCKSTEADY_LANE_BOTTOM) r->y = rclamp(r->y + rocksteadyMoveSpeed(r), 148, ROCKSTEADY_LANE_BOTTOM);
-            if (r->y >= ROCKSTEADY_LANE_BOTTOM) {
+            r->x = rclamp(r->x + r->dir * rocksteadyMoveSpeed(r), ra.xMin, ra.xMax);
+            if (r->y < ra.emergeY) r->y = rclamp(r->y + rocksteadyMoveSpeed(r), r->y, ra.emergeY);
+            if (r->y >= ra.emergeY) {
                 // Garantiza el primer golpe del combate (informe, sección 1):
                 // en vez de arrancar pasivo en IDLE, dispara una embestida
                 // scripteada hacia el jugador apenas termina de bajar, sin
@@ -540,7 +556,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             bool moved = FALSE;
             if (py > r->y + 2)      { r->y += 1; moved = TRUE; }
             else if (py < r->y - 2) { r->y -= 1; moved = TRUE; }
-            r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
+            r->y = rclamp(r->y, ra.laneTop, ra.laneBot);
             r->dir = (pcx >= bcx) ? 1 : -1;
             if (moved) {
                 rocksteadySetAnim(r, r->armed ? ROCKSTEADY_ANIM_WALK_ARMS
@@ -610,8 +626,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             r->x += r->dir * spd;
             if      (py > r->y + 2) r->y += spd;
             else if (py < r->y - 2) r->y -= spd;
-            r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
-            r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
+            r->y = rclamp(r->y, ra.laneTop, ra.laneBot);
+            r->x = rclamp(r->x, ra.xMin, ra.xMax);
             if (distX <= ROCKSTEADY_KICK_RANGE) {
                 // Llego: si venia a patear, patea; si no, se planta (IDLE).
                 if (r->kickOnArrive) { r->kickOnArrive = 0; rocksteadyStartKick(r); }
@@ -634,7 +650,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             s16 ms = rocksteadyMoveSpeed(r);
             if      (py > r->y + 2) r->y += ms;
             else if (py < r->y - 2) r->y -= ms;
-            r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
+            r->y = rclamp(r->y, ra.laneTop, ra.laneBot);
 
             // "La embestida golpea al player si lo toca": el impacto se mide
             // por SOLAPE REAL de los dos cuerpos (media anchura del jefe +
@@ -648,9 +664,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                 r->chargeHit = 1;
                 r->timer = ROCKSTEADY_CHARGE_OVER;   // sigue embistiendo un tramo
             }
-            if (--r->timer == 0 || r->x <= ROCKSTEADY_PATROL_LEFT ||
-                r->x >= ROCKSTEADY_PATROL_RIGHT) {
-                r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
+            if (--r->timer == 0 || r->x <= ra.xMin || r->x >= ra.xMax) {
+                r->x = rclamp(r->x, ra.xMin, ra.xMax);
                 r->chargeHit = 0;
                 r->attacksDone++;          // embestida COMPLETADA
                 rocksteadyToIdle(r);
@@ -719,8 +734,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             r->x += r->dir * spd;
             if      (py > r->y + 2) r->y += spd;
             else if (py < r->y - 2) r->y -= spd;
-            r->y = rclamp(r->y, ROCKSTEADY_LANE_TOP, ROCKSTEADY_LANE_BOTTOM);
-            r->x = rclamp(r->x, ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT);
+            r->y = rclamp(r->y, ra.laneTop, ra.laneBot);
+            r->x = rclamp(r->x, ra.xMin, ra.xMax);
             if (distX <= ROCKSTEADY_SHOOT_RANGE &&
                 (isPlayerJumping(tgt) ||
                  rabs(py - r->y) <= ROCKSTEADY_SHOOT_ALIGN_Y))
@@ -764,7 +779,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                                        : ROCKSTEADY_MUZZLE_H_Z;
                     rocksteadyBulletSpawn(bcx + r->dir * mx, r->y, mz, r->dir,
                                           r->shotUp ? ROCKSTEADY_UPSHOT_DZ : 0,
-                                          PAL3);
+                                          ra.pal);
                     r->shotsFired++;
                 }
                 r->shotFrame++;

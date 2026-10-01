@@ -70,4 +70,22 @@ void sbgUpdate(s16 camX);
 // Cuantos slots estan ocupados ahora mismo (debug / calibracion).
 u16  sbgUsed(void);
 
+// (01/10, garage) REGIONES VARIABLES: rectangulos de celdas del fondo (solo
+// el modo 1D: sbgInit/sbgInitRaw) con versiones alternas. La variante 0 es la
+// del mapa principal; las 1..nVar estan en 'var', una tras otra, cada una de
+// w x h celdas en el MISMO formato y con el MISMO tileset que el mapa. Sirve
+// para cambiar un pedazo del fondo en pleno nivel sin sprites: el auto
+// estacionado que arranca, la persiana del ascensor que sube. Al cambiar de
+// variante se sueltan los tiles de la vieja y se piden los de la nueva solo en
+// las columnas dibujadas; las demas se resuelven al entrar.
+#define SBG_MAX_REGIONS 4
+typedef struct {
+    u16        c0, r0, w, h;  // en celdas
+    u16        nVar;          // variantes alternas (sin contar la 0)
+    const u16* var;           // nVar * w * h celdas
+} SbgRegion;
+// Llamar ANTES de sbgInit/sbgInitRaw (todas arrancan en la variante 0).
+void sbgSetRegions(const SbgRegion* regs, u16 n);
+void sbgSetVariant(u16 reg, u16 v);
+
 #endif

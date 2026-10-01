@@ -1,0 +1,25 @@
+// GENERADO por tools/gen_level4_1_bg.py -- NO EDITAR A MANO
+#ifndef _LEVEL4_1_BG_H_
+#define _LEVEL4_1_BG_H_
+#define LVL41_BG_W 161
+#define LVL41_BG_ROWS 30
+#define LVL41_BG_WORST 656
+#define LVL41_REG_CAR 0
+#define LVL41_REG_CAR_C0 86
+#define LVL41_REG_CAR_R0 3
+#define LVL41_REG_CAR_W 23
+#define LVL41_REG_CAR_H 14
+#define LVL41_REG_CAR_NVAR 1
+#define LVL41_REG_CAR_OFF 0
+#define LVL41_REG_DOOR 1
+#define LVL41_REG_DOOR_C0 133
+#define LVL41_REG_DOOR_R0 4
+#define LVL41_REG_DOOR_W 11
+#define LVL41_REG_DOOR_H 11
+#define LVL41_REG_DOOR_NVAR 11
+#define LVL41_REG_DOOR_OFF 322
+#define LVL41_CAR_X 693
+#define LVL41_CAR_Y 29
+#define LVL41_DOOR_X 1067
+#define LVL41_DOOR_Y 38
+#endif

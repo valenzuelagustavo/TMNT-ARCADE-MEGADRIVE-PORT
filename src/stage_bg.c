@@ -36,6 +36,30 @@ static TransferMethod upTm;           // DMA en el init (pantalla en negro), CPU
 
 static u16 colBuf[32];
 
+// Regiones variables (ver SbgRegion en stage_bg.h).
+static const SbgRegion* sbgRegs;
+static u16 sbgNRegs;
+static u16 sbgRegVar[SBG_MAX_REGIONS];
+
+void sbgSetRegions(const SbgRegion* regs, u16 n) {
+    sbgRegs  = regs;
+    sbgNRegs = (n > SBG_MAX_REGIONS) ? SBG_MAX_REGIONS : n;
+    for (u16 i = 0; i < SBG_MAX_REGIONS; i++) sbgRegVar[i] = 0;
+}
+
+// Entrada del mapa de la celda (col, row) con las variantes puestas.
+static u16 cellEntry(u16 col, u16 row) {
+    for (u16 i = 0; i < sbgNRegs; i++) {
+        const SbgRegion* g = &sbgRegs[i];
+        u16 v = sbgRegVar[i];
+        if (!v) continue;
+        if (col < g->c0 || col >= g->c0 + g->w || row < g->r0 || row >= g->r0 + g->h)
+            continue;
+        return g->var[(u32)(v - 1) * g->w * g->h + (u32)(row - g->r0) * g->w + (col - g->c0)];
+    }
+    return sbgMap[(u32)row * sbgMapW + col];
+}
+
 static u16 slotAcquire(u16 tile) {
     u16 s = tileSlot[tile];
     if (s != SBG_NONE) {
@@ -79,7 +103,7 @@ static void colLoad(s16 col) {
     for (u16 r = 0; r < rows; r++) {
         u16 v = 0;
         if (col >= 0 && col < (s16)sbgMapW) {
-            u16 e    = sbgMap[(u32)r * sbgMapW + (u16)col];
+            u16 e    = cellEntry((u16)col, r);
             u16 tile = cellTile(e);
             u16 s    = (tile < SBG_MAX_TILES) ? slotAcquire(tile) : SBG_NONE;
             if (s != SBG_NONE)
@@ -95,9 +119,35 @@ static void colUnload(s16 col) {
     if (col < 0 || col >= (s16)sbgMapW) return;
     u16 rows = (sbgMapH < 32) ? sbgMapH : 32;
     for (u16 r = 0; r < rows; r++) {
-        u16 tile = cellTile(sbgMap[(u32)r * sbgMapW + (u16)col]);
+        u16 tile = cellTile(cellEntry((u16)col, r));
         if (tile < SBG_MAX_TILES) slotRelease(tile);
     }
+}
+
+void sbgSetVariant(u16 reg, u16 v) {
+    if (reg >= sbgNRegs || sbgRegVar[reg] == v || v > sbgRegs[reg].nVar) return;
+    const SbgRegion* g = &sbgRegs[reg];
+    s16 cA = (s16)g->c0, cB = (s16)(g->c0 + g->w - 1);
+    if (cA < colLeft)  cA = colLeft;
+    if (cB > colRight) cB = colRight;
+    // Primero se suelta la vieja (asi el pico del cache no suma las dos)...
+    for (s16 c = cA; c <= cB; c++)
+        for (u16 r = g->r0; r < g->r0 + g->h; r++) {
+            u16 tile = cellTile(cellEntry((u16)c, r));
+            if (tile < SBG_MAX_TILES) slotRelease(tile);
+        }
+    sbgRegVar[reg] = v;
+    // ...y despues se pide y se dibuja la nueva.
+    for (s16 c = cA; c <= cB; c++)
+        for (u16 r = g->r0; r < g->r0 + g->h; r++) {
+            u16 e    = cellEntry((u16)c, r);
+            u16 tile = cellTile(e);
+            u16 s    = (tile < SBG_MAX_TILES) ? slotAcquire(tile) : SBG_NONE;
+            u16 val  = 0;
+            if (s != SBG_NONE)
+                val = (u16)(cellFlip(e) | TILE_ATTR(sbgPal, FALSE, FALSE, FALSE) | (sbgVram + s));
+            VDP_setTileMapXY(sbgPlane, val, (u16)(c & 63), r);
+        }
 }
 
 static void sbgStart(VDPPlane plane, u16 pal, u16 vramBase, u16 slots, s16 camX);

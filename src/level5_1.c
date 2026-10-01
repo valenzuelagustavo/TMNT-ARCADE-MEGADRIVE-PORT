@@ -16,7 +16,7 @@
 // CAMINABLE: la calzada, del borde de abajo del guardarrail al piso.
 // Sin jefe: el nivel se gana con las oleadas limpias al llegar al final, y
 // sigue la Scene 6 (la segunda autopista).
-// Musica: todavia no hay tema de la autopista; suena el del 2-1.
+// Musica (01/10): "13 - Highway Blockade (Scene 3-1)" (music_freeway).
 // ===========================================================================
 
 #include <genesis.h>
@@ -65,7 +65,7 @@ static const StageLevel level51 = {
     .waves        = waves51,
     .nWaves       = sizeof(waves51) / sizeof(waves51[0]),
     .bossFeetX    = 2000,
-    .music        = music_stage2_1,
+    .music        = music_freeway,
     .musicVol     = 90,
     .nextScene    = SCENE_6_1_TITLE,
 };

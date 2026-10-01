@@ -37,6 +37,9 @@ XGM2 music_credits   "music/00 - SanSenpai Credit.vgm"
 XGM2 music_ending    "music/07 - April is Kidnapped (Cutscene).vgm"
 XGM2 music_intro_arcade "music/01 - Opening Demo.vgm"
 XGM2 music_level3    "music/10 - The Sewers (Stage 2-2).vgm"
+// (01/10) Temas del garage (Scene 4) y de la autopista (Scene 5).
+XGM2 music_garage    "music/11 - Parking Garage (Scene 2-3) & The Factory (Scene 4).vgm"
+XGM2 music_freeway   "music/13 - Highway Blockade (Scene 3-1).vgm"
 
 // (24/09) Tema del Stage 2-1 (Downtown). 77,7 s con punto de loop a los 38,5 s
 // (loop de 39,2 s), asi que con XGM2_setLoopNumber(-1) repite solo. Trae un

@@ -293,9 +293,23 @@ typedef struct {
                              // si no, la pose y la bala podian contradecirse.
 } Rocksteady;
 
+// (01/10) ARENA: lo que depende del escenario. rocksteadySpawn usa la del
+// pasillo en llamas del 1-2 (las macros ROCKSTEADY_LANE_* / PATROL_* /
+// SPAWN_X de arriba); otro nivel arma la suya y llama a rocksteadySpawnArena.
+typedef struct {
+    s16 laneTop, laneBot;   // franja de pies en la que pelea
+    s16 xMin, xMax;         // r->x (BORDE IZQUIERDO del frame) permitido
+    s16 spawnX, spawnY;     // donde aparece (r->x, pies)
+    s16 emergeY;            // lane a la que baja caminando antes de pelear
+    u16 emergeStand;        // frames quieto al aparecer (taunt)
+    u8  pal;                // linea de paleta (sprite y balas); la carga el nivel
+    s16 hp;                 // vida (0 = ROCKSTEADY_HP)
+} RocksteadyArena;
+
 // --- API pública ---
 void rocksteadyInit(Rocksteady* r);
 void rocksteadySpawn(Rocksteady* r);   // Aparece en la cápsula del taladro (PAL3 ya cargada)
+void rocksteadySpawnArena(Rocksteady* r, const RocksteadyArena* a);   // (01/10)
 void rocksteadyUpdate(Rocksteady* r, s16 cameraX, Player* p1, Player* p2, bool twoPlayers);
 
 // (14/09) Version de N jugadores (1..4). La de arriba es un envoltorio.

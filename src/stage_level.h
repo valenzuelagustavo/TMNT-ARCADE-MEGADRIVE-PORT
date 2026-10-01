@@ -5,6 +5,7 @@
 #include "scenes.h"
 #include "player.h"
 #include "stage_bg.h"
+#include "enemy.h"   // Enemy (stageEnemies)
 
 // ===========================================================================
 // STAGE_LEVEL — nivel generico de scroll horizontal (26/09)
@@ -69,6 +70,14 @@ typedef struct {
     // al plano WINDOW (filas 0-3), asi BG_A puede scrollear en vertical entero.
     // 0 = sin camara vertical (como siempre).
     s16           camYMin;
+    // (01/10) camYMax > 0: el fondo tiene camYMax px mas ABAJO de lo que entra
+    // en pantalla y la camara baja hasta ahi siguiendo a la tortuga mas baja
+    // (fila 0 de la imagen = y 0, como siempre). Alto: 224 + camYMax. Tambien
+    // manda el HUD a WINDOW. 0 = nada.
+    s16           camYMax;
+    // (01/10) Regiones del fondo con variantes (ver SbgRegion en stage_bg.h).
+    const SbgRegion* bgRegions;
+    u16           nBgRegions;
     const Image*  far;          // capa lejana (entera en VRAM, PAL3), o NULL
     u16           farDiv;       // parallax: la capa lejana anda camX / farDiv
     u16           farRowShift;  // filas de la capa lejana que se saltean arriba
@@ -113,5 +122,8 @@ SceneId stageLevelRun(const StageLevel* L);
 
 // Tope caminable del nivel en curso (para los jefes y sus secuaces).
 s16 stageWalkTopAt(s16 worldX);
+
+// (01/10) Arreglo de MAX_ENEMIES foot soldiers del nivel en curso.
+Enemy* stageEnemies(void);
 
 #endif

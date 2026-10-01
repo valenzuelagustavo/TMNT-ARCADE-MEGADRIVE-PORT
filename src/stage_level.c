@@ -40,7 +40,9 @@ static const StageLevel* cur;       // el nivel en curso
 #define STAGE_CAMY_FEET_TOP  128    // la tortuga mas alta, a esta Y de pantalla
 #define STAGE_CAMY_FEET_BOT  216    // la mas baja, nunca por debajo de esta
 #define STAGE_CAMY_SPEED       1    // px por frame
-static inline bool camYOn(void) { return cur && cur->camYMin < 0; }
+// (01/10) Tambien hacia ABAJO: camYMax > 0 (el garage tiene 16 px de piso
+// debajo de la pantalla; la fila 0 de la imagen sigue siendo y = 0).
+static inline bool camYOn(void) { return cur && (cur->camYMin < 0 || cur->camYMax > 0); }
 
 // A donde quiere ir la camara: la tortuga mas ALTA (menor Y de pies) cerca de
 // STAGE_CAMY_FEET_TOP en pantalla -- arriba de la vereda se ve el techo --,
@@ -58,7 +60,7 @@ static s16 camYTarget(Player** pls, u8 nPl) {
     s16 need = (s16)(bot - STAGE_CAMY_FEET_BOT);
     if (t < need) t = need;
     if (t < cur->camYMin) t = cur->camYMin;
-    if (t > 0) t = 0;
+    if (t > cur->camYMax) t = cur->camYMax;
     return t;
 }
 
@@ -78,6 +80,11 @@ static void camYApply(bool now) {
 // ---------------------------------------------------------------------------
 // Caminable
 // ---------------------------------------------------------------------------
+// (01/10) Los foot soldiers del nivel en curso (MAX_ENEMIES), para los props
+// del nivel que les pegan (conos y barriles del garage).
+static Enemy* stageEnemyList;
+Enemy* stageEnemies(void) { return stageEnemyList; }
+
 s16 stageWalkTopAt(s16 fx) {
     if (!cur || !cur->walkTop) return cur ? cur->walkYMin : 0;
     s16 c = (s16)(fx >> 3);
@@ -349,7 +356,8 @@ SceneId stageLevelRun(const StageLevel* L) {
     const Image* extra  = L->far ? L->far : L->fg;
     const u16 fgTiles   = extra ? extra->tileset->numTile : 0;
     const u16 topTiles  = fgTopSharedTiles(L);
-    const VDPPlane hudPl = L->far ? BG_B : (L->camYMin < 0 ? WINDOW : BG_A);
+    const bool camV = (L->camYMin < 0 || L->camYMax > 0);
+    const VDPPlane hudPl = L->far ? BG_B : (camV ? WINDOW : BG_A);
     const s16 camMaxX   = (s16)(L->levelW - SCREEN_W);
 
     // VRAM: HUD | primer plano | cache del fondo | sprites.
@@ -364,7 +372,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     VDP_setVerticalScroll(BG_B, 0);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
-    if (L->camYMin < 0) {
+    if (camV) {
         // HUD en WINDOW: las 4 filas de arriba, fijas, tapando a BG_A.
         VDP_clearPlane(WINDOW, TRUE);
         VDP_setWindowHPos(FALSE, 0);
@@ -380,6 +388,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     fgVram = (u16)(TILE_USER_INDEX + barBlocks);
     if (extra) VDP_loadTileSet(extra->tileset, fgVram, DMA);
     if (L->far) farDraw(fgVram);
+    sbgSetRegions(L->bgRegions, L->nBgRegions);   // (01/10) NULL/0 casi siempre
     if (L->bgRaw)
         sbgInitRaw(L->bgRaw, L->far ? BG_A : BG_B, PAL0,
                    (u16)(fgVram + fgTiles + topTiles), L->bgSlots, cameraX);
@@ -429,6 +438,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     shurikenInit();
     boomerangInit();
     static Enemy enemies[MAX_ENEMIES];
+    stageEnemyList = enemies;
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state  = ENEMY_STATE_INACTIVE;
         enemies[i].sprite = NULL;
