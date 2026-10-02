@@ -3634,7 +3634,7 @@ SceneId showScene11() {
             for (u8 k = 0; k < nPl; k++) {
                 if (tntHitMask & (1 << k)) continue;
                 if (!playerCanBeHit(pls[k])) continue;
-                s16 pcx = getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2;
+                s16 pcx = getPlayerHurtCX(pls[k]);   // (02/10) centro de la hurtbox
                 if (!tntBlastHits(pcx, getPlayerY(pls[k]), PLAYER_BODY_HALF_W)) continue;
                 tntHitMask |= (u8)(1 << k);
                 playerHitBars(pls[k], tntBlastX(), TNT_BLAST_DMG);
@@ -3657,12 +3657,10 @@ SceneId showScene11() {
             // Golpe contra la HURTBOX del cuerpo del soldier (no contra el
             // borde transparente del frame): playerAttackHitsBox solapa la
             // caja del ataque con el cuerpo real segun el tipo.
-            s16     halfW    = enemyBodyHalfW(&enemies[i]);
             s16     dmg      = 0;
             Player* attacker = NULL;
-            s16     bodyH    = enemyBodyH(&enemies[i]);
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerAttackHitsBox(pls[k], ex, ey, halfW, bodyH)) continue;
+                if (!playerAttackHitsEnemy(pls[k], &enemies[i])) continue;   // (02/10) hurtbox por tipo
                 dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
                 break;
             }
@@ -3729,7 +3727,7 @@ SceneId showScene11() {
             // El swing es UNO: pega al primer jugador alcanzado y se consume.
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
-                if (!enemyTryHitPlayerBox(e, getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(pls[k], getEnemyCenterX(e));
@@ -5024,12 +5022,10 @@ SceneId showScene12() {
             s16 ey = getEnemyCenterY(&enemies[i]);
 
             // Hurtbox del cuerpo (ver el mismo bloque del nivel 1).
-            s16     halfW    = enemyBodyHalfW(&enemies[i]);
             s16     dmg      = 0;
             Player* attacker = NULL;
-            s16     bodyH    = enemyBodyH(&enemies[i]);
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerAttackHitsBox(pls[k], ex, ey, halfW, bodyH)) continue;
+                if (!playerAttackHitsEnemy(pls[k], &enemies[i])) continue;   // (02/10) hurtbox por tipo
                 dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
                 break;
             }
@@ -5095,7 +5091,7 @@ SceneId showScene12() {
             // El swing es UNO: pega al primer jugador alcanzado y se consume.
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
-                if (!enemyTryHitPlayerBox(e, getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 damagePlayer(pls[k], getEnemyCenterX(e));

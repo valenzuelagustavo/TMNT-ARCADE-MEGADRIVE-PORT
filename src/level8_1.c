@@ -492,12 +492,10 @@ SceneId showScene81() {
             if (!enemyCanBeHit(&enemies[i])) continue;
             s16 ex = getEnemyCenterX(&enemies[i]);
             s16 ey = getEnemyCenterY(&enemies[i]);
-            s16 hw = enemyBodyHalfW(&enemies[i]);
-            s16 bh = enemyBodyH(&enemies[i]);
             Player* att = NULL;
             s16 dmg = 0;
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerAttackHitsBox(pls[k], ex, ey, hw, bh)) continue;
+                if (!playerAttackHitsEnemy(pls[k], &enemies[i])) continue;   // (02/10) hurtbox por tipo
                 dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; att = pls[k];
                 break;
             }
@@ -520,7 +518,7 @@ SceneId showScene81() {
             if (e->state != ENEMY_STATE_ATTACK) continue;
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
-                if (!enemyTryHitPlayerBox(e, getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);

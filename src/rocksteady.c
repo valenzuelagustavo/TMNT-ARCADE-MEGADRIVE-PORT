@@ -683,7 +683,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             // media anchura del jugador), no por un radio fijo de 56px que
             // pegaba bastante antes del contacto visual.
             if (!r->chargeHit &&
-                rabs(pcx - bcx) < (ROCKSTEADY_BODY_HALF_W + PLAYER_BODY_HALF_W) &&
+                rabs(getPlayerHurtCX(tgt) - bcx) < (ROCKSTEADY_BODY_HALF_W + PLAYER_BODY_HALF_W) &&
                 rabs(py - r->y) < ROCKSTEADY_HIT_TOL_Y &&
                 playerCanBeHit(tgt)) {
                 playerHitBars(tgt, r->x, ROCKSTEADY_CHARGE_DMG);   // 4 barras (30/08, a pedido de Gustavo)

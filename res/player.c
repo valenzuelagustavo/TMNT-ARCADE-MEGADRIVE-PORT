@@ -907,13 +907,29 @@ static s16 attackReachNow(const Player* p, s16 targetFeetY, s16 targetBodyH) {
 
 bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
                          s16 targetHalfW, s16 targetBodyH) {
+    return playerAttackHitsBand(p, targetCX, targetFeetY, targetHalfW,
+                                (s16)(-targetBodyH), 0);
+}
+
+s16 getPlayerHurtCX(const Player* p) {
+    s16 c = (s16)(p->x + PLAYER_SPRITE_W / 2);
+    return (s16)((p->dir >= 0) ? c + PLAYER_HURT_DX : c - PLAYER_HURT_DX);
+}
+
+s16 getPlayerHurtX(const Player* p) {
+    return (s16)(getPlayerHurtCX(p) - PLAYER_SPRITE_W / 2);
+}
+
+bool playerAttackHitsBand(const Player* p, s16 targetCX, s16 targetFeetY,
+                          s16 targetHalfW, s16 yTop, s16 yBot) {
     if (!isPlayerAttackActive(p))
         return FALSE;
 
     // Alcance de ESTE frame a la ALTURA de ESTE objetivo. PHB_NONE = el arte
     // del jugador no tiene un solo pixel en la franja del cuerpo del enemigo
-    // (patada en salto por encima de la cabeza, por ejemplo).
-    s16 reach = attackReachNow(p, targetFeetY, targetBodyH);
+    // (patada en salto por encima de la cabeza, por ejemplo). (02/10) La
+    // franja va de pies+yTop a pies+yBot (antes siempre terminaba en los pies).
+    s16 reach = attackReachNow(p, (s16)(targetFeetY + yBot), (s16)(yBot - yTop));
     if (reach == PHB_NONE)
         return FALSE;
     reach += PLAYER_ATK_SLACK;

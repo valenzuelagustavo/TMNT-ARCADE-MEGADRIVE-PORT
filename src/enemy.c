@@ -1360,6 +1360,23 @@ s16 enemyBodyHalfW(const Enemy* e) {
     }
 }
 
+bool playerAttackHitsEnemy(const Player* p, const Enemy* e) {
+    s16 cx = getEnemyCenterX(e);
+    switch (e->type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE:
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW:
+            return playerAttackHitsBox(p, cx, e->y, enemyBodyHalfW(e), enemyBodyH(e));
+        default: {
+            // morado: caja asimetrica -> centro corrido hacia adelante
+            s16 dx = (s16)((ENEMY_HURT_FRONT_PURPLE - ENEMY_HURT_BACK_PURPLE) / 2);
+            cx = (s16)((e->dir >= 0) ? cx + dx : cx - dx);
+            return playerAttackHitsBand(p, cx, e->y, ENEMY_BODY_HALF_W_PURPLE,
+                                        ENEMY_HURT_TOP_PURPLE, ENEMY_HURT_BOT_PURPLE);
+        }
+    }
+}
+
 s16 enemyBodyH(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_H_ORANGE;

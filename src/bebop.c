@@ -234,7 +234,7 @@ static void bebopShotUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
         s16 hx = front;
         for (u8 k = 0; k < nPl; k++) {
             if (!playerCanBeHitAir(pls[k])) continue;
-            s16 pcx = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
+            s16 pcx = getPlayerHurtCX(pls[k]);   // (02/10) centro de la hurtbox
             s16 py  = getPlayerY(pls[k]);
             if (pcx + PLAYER_BODY_HALF_W < lo || pcx - PLAYER_BODY_HALF_W > hi)
                 continue;
@@ -677,7 +677,7 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         if (!b->chargeHit) {
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
-                s16 pcx = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
+                s16 pcx = getPlayerHurtCX(pls[k]);   // (02/10) centro de la hurtbox
                 if (abs(pcx - bebopGetCenterX(b)) >
                     (s16)(BEBOP_BODY_HALF_W + PLAYER_BODY_HALF_W)) continue;
                 if (abs(getPlayerY(pls[k]) - b->y) > BEBOP_HIT_TOL_Y) continue;

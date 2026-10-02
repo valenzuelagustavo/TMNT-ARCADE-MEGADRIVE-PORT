@@ -66,7 +66,15 @@
 // La espada NO cuenta: es arte que sale del cuerpo, no cuerpo.
 #define ENEMY_BODY_H_WHITE         62
 
-#define ENEMY_BODY_HALF_W_PURPLE   16
+#define ENEMY_BODY_HALF_W_PURPLE   13   // (02/10) era 16: ancho de la hurtbox nueva (ver abajo)
+// (02/10) HURTBOX NUEVA del morado, la que marco Gustavo en
+// Pruebas_TMNT_Control: cabeza y torso, SIN las piernas, un poco corrida hacia
+// adelante. Desde los PIES, mirando a la DERECHA (se espeja con e->dir):
+// X -11 (atras) .. +14 (adelante), Y -63 .. -28. La usa playerAttackHitsEnemy.
+#define ENEMY_HURT_BACK_PURPLE    11
+#define ENEMY_HURT_FRONT_PURPLE   14
+#define ENEMY_HURT_TOP_PURPLE    -63
+#define ENEMY_HURT_BOT_PURPLE    -28
 #define ENEMY_BODY_HALF_W_ORANGE   20
 // Medido sobre torso+piernas (franja y=60..100, que no toca la espada):
 // el cuerpo va de -10 a +30 respecto del centro del frame -> 40px de ancho.
@@ -679,6 +687,11 @@ s16  getEnemyCenterY(const Enemy* e);
 s16  enemyBodyHalfW(const Enemy* e);
 // Alto del cuerpo sobre los pies, segun el tipo (ENEMY_BODY_H_*).
 s16  enemyBodyH(const Enemy* e);
+
+// (02/10) Golpe de la tortuga contra la HURTBOX de este enemigo: la nueva del
+// morado (ENEMY_HURT_*_PURPLE, franja de alto y corrida segun hacia donde
+// mira) y la de siempre (media anchura + alto desde los pies) para el resto.
+bool playerAttackHitsEnemy(const Player* p, const Enemy* e);
 
 // Intenta conectar el ataque en curso contra un jugador en (px, py) — coords
 // de mundo, px = borde izquierdo del frame (misma grilla de 104px), py = pies.

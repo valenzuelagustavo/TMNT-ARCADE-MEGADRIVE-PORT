@@ -257,7 +257,7 @@ static void barrelBlast(Prop* p, s16 cx, s16 base, Player** pls, u8 nPl) {
     for (u8 k = 0; k < nPl; k++) {
         if (p->plMask & (1 << k)) continue;
         if (!playerCanBeHit(pls[k])) continue;
-        s16 pcx = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
+        s16 pcx = getPlayerHurtCX(pls[k]);   // (02/10) centro de la hurtbox
         if (a16((s16)(pcx - cx)) > BOOM_RADIUS_X + PLAYER_BODY_HALF_W) continue;
         if (a16((s16)(getPlayerY(pls[k]) - base)) > BOOM_RADIUS_Y) continue;
         playerHitBarsKnockdown(pls[k], cx, BOOM_PLAYER_BARS);

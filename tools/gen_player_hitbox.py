@@ -57,6 +57,8 @@ CHARS = [("leo",  "leo_anim_13x13.png"),
 ATK_ANIMS = [(2, "KICK"), (3, "ATTACK_1"), (4, "ATTACK_2"), (5, "ATTACK_3"),
              (7, "JUMP_KICK"), (10, "SPECIAL")]
 NUM_ANIMS = 21      # filas de PlayerAnim
+KICK_ANIMS = (2, 7)         # KICK y JUMP_KICK: pega el pie, no el arma
+KICK_IGNORE = [4, 10, 13]   # sombra y grises del arma (paleta unica)
 
 # Enemigos, solo para imprimir de referencia el alto real de su cuerpo.
 ENEMIES = [("foot_soldier_16colors.png", 64, 80, 80),
@@ -78,8 +80,14 @@ def alpha_mask(im):
 def measure(path):
     """-> (frames_por_anim, {anim: [ [reach por franja] por frame ]})"""
     im = Image.open(path)
-    a = alpha_mask(im)
-    h, w = a.shape
+    a_all = alpha_mask(im)
+    # (02/10) En las PATADAS pega el PIE: no cuentan el arma (grises 10/13 de
+    # la paleta unica de las tortugas) ni la sombra (4). Antes la katana que
+    # cuelga en la patada en salto agrandaba el alcance (pedido de Gustavo,
+    # medido en Pruebas_TMNT_Control).
+    idx = np.array(im) if im.mode == "P" else None
+    a_kick = a_all & ~np.isin(idx, KICK_IGNORE) if idx is not None else a_all
+    h, w = a_all.shape
     rows, cols = h // CELL, w // CELL
     half = CELL // 2
     data = {}
@@ -88,6 +96,7 @@ def measure(path):
             data[anim] = []
             continue
         frames = []
+        a = a_kick if anim in KICK_ANIMS else a_all
         for c in range(cols):
             cell = a[anim * CELL:(anim + 1) * CELL, c * CELL:(c + 1) * CELL]
             bands = []

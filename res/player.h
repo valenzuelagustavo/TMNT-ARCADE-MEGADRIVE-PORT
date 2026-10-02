@@ -258,8 +258,21 @@ typedef enum {
 // enemigos conectan contra esta caja, no contra el borde transparente del
 // frame (patrón colbox del manual SGDK). Así un puño que pega en el borde
 // del sprite pero no toca el cuerpo ya no conecta.
+//
+// (02/10) HURTBOX NUEVA, la que marco Gustavo en Pruebas_TMNT_Control: cabeza
+// y torso, SIN las piernas. En px desde los PIES mirando a la DERECHA (al
+// mirar a la izquierda se espeja): X -16..+7, Y -58..-23. Antes era 22 a cada
+// lado de los pies. Como la caja esta corrida hacia atras (hacia el
+// caparazon), su CENTRO no es el de los pies: usar getPlayerHurtCX() (o
+// getPlayerHurtX() donde se pasa la X del frame) con PLAYER_BODY_HALF_W.
+// La Y no se usa todavia: los golpes de los enemigos se validan por lane.
 // ---------------------------------------------------------------------------
-#define PLAYER_BODY_HALF_W  22
+#define PLAYER_HURT_X0     -16
+#define PLAYER_HURT_X1       7
+#define PLAYER_HURT_Y0     -58
+#define PLAYER_HURT_Y1     -23
+#define PLAYER_BODY_HALF_W  ((PLAYER_HURT_X1 - PLAYER_HURT_X0 + 1) / 2)   // 12
+#define PLAYER_HURT_DX      ((PLAYER_HURT_X0 + PLAYER_HURT_X1) / 2)       // -4 (mirando a la derecha)
 
 // ---------------------------------------------------------------------------
 // Daño recibido (golpes de los foot soldiers)
@@ -500,6 +513,18 @@ bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY);
 // Pasar 0 desactiva esa validacion (objetivos puntuales: shurikens, balas).
 bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
                          s16 targetHalfW, s16 targetBodyH);
+
+// (02/10) Igual que playerAttackHitsBox pero con la hurtbox del objetivo como
+// FRANJA de alto: de (pies + yTop) a (pies + yBot), offsets negativos = arriba.
+// playerAttackHitsBox(..., bodyH) == playerAttackHitsBand(..., -bodyH, 0).
+bool playerAttackHitsBand(const Player* p, s16 targetCX, s16 targetFeetY,
+                          s16 targetHalfW, s16 yTop, s16 yBot);
+
+// (02/10) Centro X (mundo) de la HURTBOX de la tortuga (PLAYER_HURT_*), y la
+// misma posicion expresada como "X del frame" (para las funciones que le suman
+// PLAYER_SPRITE_W / 2 adentro, como enemyTryHitPlayerBox).
+s16 getPlayerHurtCX(const Player* p);
+s16 getPlayerHurtX(const Player* p);
 
 // TRUE si el ataque en curso es el ESPECIAL (mata foot soldiers de un
 // golpe). Consultar junto con playerAttackHits para decidir el daño.

@@ -1643,12 +1643,10 @@ SceneId showScene21() {
             if (!enemyCanBeHit(&enemies[i])) continue;
             s16 ex = getEnemyCenterX(&enemies[i]);
             s16 ey = getEnemyCenterY(&enemies[i]);
-            s16 hw = enemyBodyHalfW(&enemies[i]);
-            s16 bh = enemyBodyH(&enemies[i]);
             Player* att = NULL;
             s16 dmg = 0;
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerAttackHitsBox(pls[k], ex, ey, hw, bh)) continue;
+                if (!playerAttackHitsEnemy(pls[k], &enemies[i])) continue;   // (02/10) hurtbox por tipo
                 dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; att = pls[k];
                 break;
             }
@@ -1674,7 +1672,7 @@ SceneId showScene21() {
             // El swing es UNO: pega al primer jugador alcanzado y se consume.
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
-                if (!enemyTryHitPlayerBox(e, getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
+                if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);
@@ -1702,7 +1700,7 @@ SceneId showScene21() {
             for (u8 k = 0; k < nPl; k++) {
                 if (tntHitMask & (u8)(1 << k)) continue;
                 if (!playerCanBeHit(pls[k])) continue;
-                if (!tntBlastHits((s16)(getPlayerWorldX(pls[k]) + FOOT_DX), getPlayerY(pls[k]),
+                if (!tntBlastHits(getPlayerHurtCX(pls[k]), getPlayerY(pls[k]),
                                   PLAYER_BODY_HALF_W)) continue;
                 playerHitBars(pls[k], tntBlastX(), LVL21_TNT_DMG_BARS);
                 tntHitMask |= (u8)(1 << k);
@@ -1753,7 +1751,7 @@ SceneId showScene21() {
             s16 lx = 0;
             // (25/09) lidHits espera el CENTRO del jugador; se le pasaba el
             // borde izquierdo del frame (getPlayerWorldX), 52 px corrido.
-            if (!lidHits((s16)(getPlayerWorldX(pls[k]) + FOOT_DX), getPlayerY(pls[k]),
+            if (!lidHits(getPlayerHurtCX(pls[k]), getPlayerY(pls[k]),
                          PLAYER_BODY_HALF_W, &lx)) continue;
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                            SOUND_PCM_CH2, 15, FALSE, FALSE);
