@@ -4734,16 +4734,18 @@ SceneId showScene12() {
 
                         if (!bossSpawned) {
                             bossSpawned = TRUE;
-                            // Paleta del jefe en PAL3 (índice 1 blanco: HUD).
+                            // Paleta del jefe en PAL3. (03/10) Es la paleta
+                            // compartida de los jefes (Bebop/Rocksteady/April)
+                            // y usa el indice 1 (el negro de los contornos):
+                            // ya no se fuerza a blanco, el HUD dibuja con PAL1.
                             PAL_setPalette(PAL3, rocksteady_boss.palette->data, DMA);
-                            PAL_setColor(PAL3 * 16 + 1, 0x0EEE);
                             // Buffers del flash: normal + versión "quemada"
                             // (cada canal RGB duplicado, clampeado a 0xF). El
-                            // índice 0 se mantiene transparente y el 1 blanco.
+                            // índice 0 se mantiene transparente.
                             for (u16 ci = 0; ci < 16; ci++) {
                                 u16 c = rocksteady_boss.palette->data[ci];
-                                bossPal[ci] = (ci == 1) ? 0x0EEE : c;
-                                if (ci == 0 || ci == 1) flashPal[ci] = bossPal[ci];
+                                bossPal[ci] = c;
+                                if (ci == 0) flashPal[ci] = bossPal[ci];
                                 else {
                                     u16 r = (c >> 8)  & 0xF, g = (c >> 4) & 0xF, b = c & 0xF;
                                     r = (r << 1) | (r >> 3);  if (r > 0xF) r = 0xF;

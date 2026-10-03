@@ -1641,8 +1641,6 @@ SceneId showScene21() {
         // Golpe del jugador al soldier.
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (!enemyCanBeHit(&enemies[i])) continue;
-            s16 ex = getEnemyCenterX(&enemies[i]);
-            s16 ey = getEnemyCenterY(&enemies[i]);
             Player* att = NULL;
             s16 dmg = 0;
             for (u8 k = 0; k < nPl; k++) {

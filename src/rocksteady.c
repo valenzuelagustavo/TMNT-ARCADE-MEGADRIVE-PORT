@@ -271,7 +271,7 @@ void rocksteadySpawnArena(Rocksteady* r, const RocksteadyArena* a) {
     // reintenta si la asignacion falla la primera vez.
     r->sprite = SPR_addSpriteSafe(&rocksteady_boss, 0, 0,
                               TILE_ATTR(ra.pal, FALSE, FALSE, FALSE));
-    // PAL3 ya fue cargada con la paleta del boss (PAL3[1] = blanco, HUD).
+    // La paleta del boss (ra.pal) ya la cargo el nivel.
     if (r->sprite) {
         // Aparece parado en la puerta, reproduciendo su IDLE (no camina todavía).
         rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_IDLE, TRUE);

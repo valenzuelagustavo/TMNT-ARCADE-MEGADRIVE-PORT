@@ -148,7 +148,9 @@ SPRITE lid_sprite "sprites/tapa_voladora.png" 4 3 FAST 0
 
 // --- BEBOP: jefe del 2-1 (24/09) --------------------------------------------
 // El sheet que compila es bebop_boss_gen.png, GENERADO por
-// tools/gen_bebop_sheet.py a partir del rip de Gustavo (Bebop_Boss.png, con
+// tools/gen_bebop_sheet.py a partir del rip de Gustavo (03/10: "Arcade -
+// Teenage Mutant Ninja Turtles - Bosses - Bebop.png", con la PALETA
+// COMPARTIDA con Rocksteady y April; antes Bebop_Boss.png), con
 // los frames sueltos y de distinto ancho). El generador los re-pega en una
 // grilla de 112x120 px (14x15 tiles) anclados por los PIES: el borde inferior
 // de la celda es la linea de pies y la X sale del centro de las PIERNAS, no
@@ -162,10 +164,12 @@ SPRITE lid_sprite "sprites/tapa_voladora.png" 4 3 FAST 0
 //   [6] golpes (6f: 0-1 recibe, 2 tirado, 3-5 se levanta)
 // time 8, pero casi todas se manejan a mano desde bebop.c (SPR_setFrame).
 // Paleta PROPIA: en el 2-1 PAL3 esta libre (no hay foot soldier blanco), asi
-// que el jefe se la queda entera.
+// que el jefe se la queda entera. (03/10) Es la paleta compartida de los
+// jefes: en el garage Rocksteady tambien se dibuja en PAL3.
 SPRITE bebop_boss "sprites/bebop_boss_gen.png" 14 15 FAST 8
 
 // El disparo: 5 frames, un aro mas en cada uno (el tiro se va formando).
-// bebop_shot_gen.png sale del mismo generador y ya viene reindexado contra la
-// paleta del jefe, asi que NO lleva PALETTE propia: se dibuja con PAL3.
+// bebop_shot_gen.png sale del mismo generador (los aros vienen en el mismo rip,
+// a la derecha de la fila del disparo), con la paleta del jefe, asi que NO
+// lleva PALETTE propia: se dibuja con PAL3.
 SPRITE bebop_shot_spr "sprites/bebop_shot_gen.png" 9 5 FAST 0

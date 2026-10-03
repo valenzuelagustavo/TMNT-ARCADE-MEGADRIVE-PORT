@@ -2,9 +2,13 @@
 # =============================================================================
 # gen_bebop_sheet.py  -  Jefe del 2-1: grilla uniforme + frames del disparo
 # =============================================================================
-# Entradas (las dibuja Gustavo, NO se tocan):
-#     res/sprites/Bebop_Boss.png   541x715, 7 filas de frames sueltos
-#     res/sprites/bebop_shot.png    72x45, los 5 aros del disparo en fila
+# Entrada (la dibuja Gustavo, NO se toca):
+#     res/sprites/Arcade - Teenage Mutant Ninja Turtles - Bosses - Bebop.png
+#         536x735, 7 filas de frames sueltos. En la fila del disparo, a la
+#         derecha, vienen los 5 aros del proyectil (x >= RINGS_X).
+#     (03/10) Reemplaza a Bebop_Boss.png + bebop_shot.png: mismos dibujos,
+#     con la PALETA COMPARTIDA con Rocksteady y April (ver
+#     tools/gen_rocksteady_sheet.py y tools/gen_april_sheet.py).
 #
 # Salidas (las que compila rescomp):
 #     res/sprites/bebop_boss_gen.png   grilla uniforme de 7 filas x 6 frames
@@ -35,10 +39,11 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPR = os.path.join(ROOT, "res", "sprites")
 
-SRC = os.path.join(SPR, "Bebop_Boss.png")
+SRC = os.path.join(SPR, "Arcade - Teenage Mutant Ninja Turtles - Bosses - Bebop.png")
 DST = os.path.join(SPR, "bebop_boss_gen.png")
-SRC_SHOT = os.path.join(SPR, "bebop_shot.png")
 DST_SHOT = os.path.join(SPR, "bebop_shot_gen.png")
+SHOT_ROW = 5            # fila del disparo: los aros vienen a su derecha
+RINGS_X = 460           # desde esta X de la fila, son aros y no Bebop
 
 FEET_ROWS = 14          # filas de abajo que se toman como "las piernas"
 PAD = 8                 # la celda se redondea a multiplo de 8 (tiles)
@@ -61,6 +66,22 @@ def runs(mask):
     if start is not None:
         out.append((start, len(mask) - 1))
     return out
+
+
+def split_rings(a):
+    """Separa los aros del disparo (fila SHOT_ROW, x >= RINGS_X): devuelve
+    (sheet sin los aros, recorte con los aros en fila)."""
+    art = a != 0
+    rows = runs(art.any(axis=1))
+    if len(rows) <= SHOT_ROW:
+        sys.exit("No esta la fila del disparo")
+    r0, r1 = rows[SHOT_ROW]
+    rings = a[r0:r1 + 1, RINGS_X:].copy()
+    if not (rings != 0).any():
+        sys.exit("No se encontraron los aros del disparo")
+    b = a.copy()
+    b[r0:r1 + 1, RINGS_X:] = 0
+    return b, rings
 
 
 def cut_frames(a):
@@ -171,21 +192,11 @@ def main():
     if im.mode != "P":
         sys.exit("El sheet de Bebop tiene que ser indexado")
     a = np.asarray(im).astype(np.uint8)
-    grid, cw, ch = build_grid(cut_frames(a))
+    body, rings = split_rings(a)
+    grid, cw, ch = build_grid(cut_frames(body))
     save(grid, DST, im)
-
-    ims = Image.open(SRC_SHOT)
-    if ims.mode != "P":
-        sys.exit("El disparo tiene que ser indexado")
-    def pal16(image):
-        p = list(image.getpalette() or [])
-        p += [0] * (48 - len(p))
-        return [tuple(p[i * 3:i * 3 + 3]) for i in range(16)]
-
-    pal_b = pal16(im)
-    pal_s = pal16(ims)
-    shot = remap(build_shot(np.asarray(ims).astype(np.uint8)), pal_s, pal_b)
-    save(shot, DST_SHOT, im)
+    # Los aros ya vienen con la paleta del jefe (mismo PNG): no hay remapeo.
+    save(build_shot(rings), DST_SHOT, im)
 
 
 if __name__ == "__main__":

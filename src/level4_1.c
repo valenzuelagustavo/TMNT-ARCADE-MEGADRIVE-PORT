@@ -31,8 +31,10 @@
 // ROCKSTEADY. Juntos son 210 + 169 tiles de sprites: con una tortuga entran
 // los dos a la vez; con dos tortugas no hay VRAM, asi que Rocksteady espera
 // en el ascensor y sale cuando hay lugar (en la practica, cuando cae Bebop).
-// Bebop usa PAL3 (como en el 2-1) y Rocksteady PAL2, la de los soldiers: con
-// los jefes en pantalla ya no quedan soldiers.
+// (03/10) Bebop y Rocksteady comparten PALETA (las hojas nuevas de Gustavo):
+// los dos se dibujan en PAL3 (la carga Bebop al salir) y PAL2 queda para los
+// soldiers. OJO: el parpadeo de vida baja de Bebop alterna PAL3 entera, asi
+// que mientras dure Rocksteady parpadea con el.
 //
 // Musica (01/10): "11 - Parking Garage (Scene 2-3)" (music_garage).
 // Al ganar: Scene 5 (la autopista).
@@ -486,7 +488,7 @@ static const RocksteadyArena rockArena41 = {
     LVL41_CAM_MAX_X - 40, LVL41_CAM_MAX_X + SCREEN_W - 64,
     1054, 118,
     176, 40,
-    PAL2,
+    PAL3,       // (03/10) paleta compartida con Bebop
     0           // vida: ROCKSTEADY_HP (01/10: igual que Bebop, antes 80 aca)
 };
 
@@ -504,6 +506,20 @@ static bool bebopOut;
 static bool rockOut;
 static u16  rockWait;
 
+// (03/10) APRIL atada adentro del ascensor (los 2 frames nuevos de april.png,
+// anim 1 de april_gen.png; ver tools/gen_april_sheet.py). Aparece cuando la
+// persiana ya subio por encima de su cabeza y se queda hasta el final del
+// nivel, al fondo (detras de los jefes, que salen del mismo ascensor, y de
+// las tortugas). Paleta compartida con los jefes: PAL3.
+#define APRIL41_X          1117  // centro de los pies (mundo): lado derecho del interior
+#define APRIL41_Y           116  // pies (mundo): piso del ascensor
+#define APRIL41_SHOW_STEP     6  // paso de la persiana que ya le destapa la cabeza
+#define APRIL41_FEET_X       15  // ancla de la celda de 32x64 (gen_april_sheet.py)
+#define APRIL41_FEET_Y       63
+#define APRIL41_DEPTH      -100  // detras de cualquiera con pies en y >= 100
+#define APRIL_ANIM_TIED       1
+static Sprite* aprilSpr;
+
 static void bossInit41(void) {
     bebopInit(&bebop);
     rocksteadyInit(&rock);
@@ -512,6 +528,22 @@ static void bossInit41(void) {
     doorTimer = doorStep = 0;
     bebopOut = rockOut = FALSE;
     rockWait = 0;
+    aprilSpr = NULL;
+}
+
+static void aprilUpdate41(s16 camX) {
+    if (!aprilSpr) {
+        if (doorState == DOOR_CLOSED || doorStep < APRIL41_SHOW_STEP) return;
+        // la paleta compartida en PAL3 (Bebop la vuelve a cargar al salir)
+        PAL_setPalette(PAL3, april_garage.palette->data, DMA);
+        aprilSpr = SPR_addSpriteSafe(&april_garage, 0, 0,
+                                     TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        if (!aprilSpr) return;
+        SPR_setAnim(aprilSpr, APRIL_ANIM_TIED);
+        SPR_setDepth(aprilSpr, APRIL41_DEPTH);
+    }
+    SPR_setPosition(aprilSpr, (s16)(APRIL41_X - APRIL41_FEET_X - camX),
+                    (s16)(APRIL41_Y - APRIL41_FEET_Y - stageCamY));
 }
 
 static void bossStart41(s16 camX, s16 levelW) {
@@ -569,6 +601,7 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
             if (doorStep >= LVL41_REG_DOOR_NVAR) doorState = DOOR_OPEN;
         }
     }
+    aprilUpdate41(camX);
 
     // --- Bebop, apenas termina de abrir ---
     if (doorState == DOOR_OPEN && !bebopOut) {
@@ -586,7 +619,7 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
         else if (sprVramFits((u16)(rocksteady_boss.maxNumTile + ROCK_VRAM_RESERVE)) &&
                  SPR_getFreeVRAM() >= rocksteady_boss.maxNumTile + ROCK_VRAM_RESERVE) {
             rockOut = TRUE;
-            PAL_setPalette(PAL2, rocksteady_boss.palette->data, DMA);
+            // PAL3 ya tiene la paleta compartida (la cargo Bebop)
             rocksteadySpawnArena(&rock, &rockArena41);
         }
     }
@@ -617,6 +650,7 @@ static void bossRelease41(void) {
     rocksteadyBulletReleaseAll();
     if (rock.sprite) { SPR_releaseSprite(rock.sprite); rock.sprite = NULL; }
     rock.state = ROCKSTEADY_INACTIVE;
+    if (aprilSpr) { SPR_releaseSprite(aprilSpr); aprilSpr = NULL; }
 }
 
 static const StageLevel level41 = {

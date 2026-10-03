@@ -52,7 +52,11 @@ SPRITE taladro_capsula "sprites/taladro_capsula_v2.png" 12 15 NONE 0
 // (PAL1): el PNG esta cuantizado sobre esa misma paleta indexada (4bpp).
 // 64x64 = DOS frames de 32x64 lado a lado (2 cols de celdas 4x8 tiles).
 // time = 12: animacion automatica (~5 fps, balanceo).
-SPRITE april "sprites/april.png" 4 8 NONE 12
+// (03/10) april.png pasa a ser la hoja NUEVA con la paleta compartida de los
+// jefes (tools/gen_april_sheet.py -> april_gen.png, para el garage). Aca April
+// esta desde el principio y PAL3 es del foot soldier blanco hasta Rocksteady,
+// asi que se queda con la hoja de antes en PAL1 (april_l12.png).
+SPRITE april "sprites/april_l12.png" 4 8 NONE 12
 
 // Globo de dialogo del jefe "SAY YOUR PRAYERS!" (96x32 = grilla 12x4 de celdas
 // de 8px). Un solo frame (time = 0). Usa la paleta de las tortugas (PAL1),
@@ -70,10 +74,14 @@ SPRITE say_your_prayers "sprites/say_your_prayers.png" 12 4 NONE 0
 // time = 6 (frames por frame de animacion): el motor de sprites NO avanza la
 // auto-animacion si el timer del frame es 0 (ver sprite_eng.c), asi que 0
 // dejaria a Rocksteady congelado en el frame 0. 6 = ~10 fps, igual que robot_whip.
-// Se dibuja en PAL3 (paleta del boss, que se carga al aparecer). OJO: el PNG
-// NO usa el indice 1 de su paleta (se remapeo a 2): PAL3[1] queda blanco para
-// el texto del HUD (VDP_setTextPalette(PAL3)) sin manchar el sprite.
-SPRITE rocksteady_boss "sprites/rocksteady_boss.png" 13 13 FAST 6
+// Se dibuja en PAL3 (paleta del boss, que se carga al aparecer).
+// (03/10) Hoja GENERADA por tools/gen_rocksteady_sheet.py desde el rip nuevo
+// de Gustavo ("Arcade - ... - Rocksteady.png"), con la PALETA COMPARTIDA con
+// Bebop y April. Los frames quedan en la misma posicion de la celda que en la
+// hoja anterior (rocksteady_boss.png, que el generador usa de referencia).
+// La paleta nueva SI usa el indice 1 (el negro de los contornos): ya no se
+// fuerza PAL3[1] a blanco (el HUD dibuja con PAL1).
+SPRITE rocksteady_boss "sprites/rocksteady_boss_gen.png" 13 13 FAST 6
 
 // Bala del disparo de Rocksteady: 48x16 = TRES frames de 16x16 (2x2 tiles),
 // en una sola fila -> una animacion de 3 frames.
@@ -82,7 +90,8 @@ SPRITE rocksteady_boss "sprites/rocksteady_boss.png" 13 13 FAST 6
 // segun para que se disparo la bala, y se cambia al [2] cuando pega. Si tuviera
 // time > 0 las tres poses se alternarian solas, que no es lo que queremos.
 // Paleta indexada con la del boss (PAL3), sin PALETTE propia.
-SPRITE boss_bullet "sprites/boss_bullet-new.png" 2 2 FAST 0
+// (03/10) Sale del rip nuevo de Rocksteady (tools/gen_rocksteady_sheet.py).
+SPRITE boss_bullet "sprites/boss_bullet_gen.png" 2 2 FAST 0
 
 // Shredder (cutscene de victoria del nivel 2): 432x240 = grilla 6x3 de celdas
 // 72x80 (9x10 tiles). Indices de animacion: [0] Idle (1 frame, apenas sale de la
