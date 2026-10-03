@@ -760,92 +760,139 @@ static void tvStartPhase(u8 phase) {
 }
 
 // ---------------------------------------------------------------------------
-// GUION DE OLEADAS (30/09, pedido de Gustavo)
+// GUION DE OLEADAS (03/10: sacado del VIDEO del arcade)
 // ---------------------------------------------------------------------------
-// Ademas de las bocas de tormenta (que siguen igual), los soldiers entran por
-// EVENTOS. Cada evento, al dispararse, encola sus pedidos de spawn en una FIFO
-// (l21q); cada frame se sacan de la cola los que entran: tope de vivos
-// (maxAlive), VRAM libre para su sheet y un lugar en el pool. Asi nada se
-// pierde por una casualidad de timing: si no hay lugar, espera.
+// Ademas de las bocas de tormenta, los soldiers entran por EVENTOS. Cada
+// evento, al dispararse, encola sus pedidos de spawn en una FIFO (l21q); cada
+// frame se sacan de la cola los que entran: tope de vivos (maxAlive), VRAM
+// libre para su sheet y un lugar en el pool. Si no hay lugar, espera.
 //
-//   E1  al empezar (terminada la caida de las tortugas): 2 morados caminando
-//       por la derecha.
-//   E2  el tirador de dinamita de la puerta amarilla (LVL21_TNT_*) + 1 morado
-//       por la derecha + 2 por la izquierda, caminando.
-//   E3  sale el de la boca de tormenta de frente a la tele (la 2da): 1 morado
-//       mas caminando por la derecha.
-//   E4  al costado de la vidriera de la tele, en el borde de la pared (el pilar
-//       de piedra a la derecha de la vidriera): OTRO tirador de dinamita
-//       (LVL21_TNT2_*) + los 3 amarillos + 1 morado por la derecha.
-//   E5  despues de E4, al matar 3 soldiers: 3 amarillos por la derecha.
-//   E6  sale el de la 3ra boca de tormenta: 2 amarillos por la izquierda.
-//   E7  el lider llega al parquimetro siguiente (LVL21_METER4_X): 2 amarillos
-//       por la derecha (grupo L21G_METER).
-//   E8  muertos los 2 de E7: 3 amarillos por la derecha.
-//   E9  aparece en camara el parquimetro que sigue (LVL21_METER5_X): 2
-//       amarillos por la derecha.
-//   E10 por la cornisa (el balcon sobre los portones): 2 morados caminando por
-//       la derecha, uno detras del otro (grupo L21G_BALCONY, junto con el de
-//       la 4ta boca de tormenta).
-//   E11 muertos esos 3: 2 amarillos por la izquierda (en la calle) y 3 morados
-//       por la derecha con la voltereta.
-//   E12 la camara empieza a bajar por la esquina: 2 morados SALTAN de las
-//       ventanas de la pared de la derecha (anim de patada, cayendo desde la
-//       altura de las ventanas) y 2 amarillos por la izquierda.
+// (03/10) El guion es el del arcade: en gameplayARCADE/tmnt.avi (SCENE 2,
+// frames 12073..22300) cada frame se ubico sobre el mapa del nivel (las
+// coordenadas del PNG son las del mundo) y se anoto por donde y cuando entra
+// cada soldier. En el arcade los soldiers llegan cuando la CAMARA se frena en
+// ciertas X (oleadas); por eso casi todos los eventos se disparan por la X de
+// la camara (borde izquierdo de la pantalla) donde el arcade se frenaba. 48
+// soldiers en el arcade; aca 41 por eventos + 5 bocas de tormenta.
+//
+//   E1  al empezar: 2 morados caminando por la derecha + 1 que ROMPE LA VENTANA
+//       del edificio (x 251) y cae pateando (frames 12128-12212).
+//   E2  sale el de la 1ra boca (por la espalda): 1 morado por la izquierda.
+//   E3  tirador de dinamita de la puerta amarilla + 1 morado por la derecha
+//       (camara 194, frames 13246-13280).
+//   E4  sale el de la 2da boca: 2 morados por la izquierda + 1 por la derecha
+//       (camara 246, frames 13812-13870).
+//   E5  camara 300: 3 morados por la derecha (frames 14634-14690).
+//   E6  2do tirador de dinamita, el del pilar al lado de la vidriera de la tele
+//       (en el video sale ahi, x ~583-600).
+//   E7  camara 394: 3 amarillos por la derecha (frames 14754-14878).
+//   E8  despues de E7, al matar 3: 1 morado por la derecha.
+//   E9  camara 513: 1 amarillo por cada costado (frames 15740-15812; la 3ra
+//       boca de tormenta sale en la misma pasada).
+//   E10 camara 662: 3 amarillos por la derecha (frames 16342-16372).
+//   E11 camara 845: 2 amarillos por la derecha.
+//   E12 camara 962: 2 morados por la CORNISA (frames 17434-17700).
+//   E13 camara 1044: 1 morado por cada costado (la 4ta boca sale cerca).
+//   E14 camara 1143: 2 morados mas por la cornisa (frames 18024-18034).
+//   E15 camara 1394 (bajando por la esquina): 2 morados SALTAN de las ventanas
+//       de la pared de la derecha + 1 amarillo por la izquierda (19016-19180).
+//   E16 camara 1416: 1 amarillo por cada costado.
+//   E17 camara 1451: 1 morado mas de las ventanas (frame 20086).
+//   E18 camara 1496: 2 morados mas de las ventanas (frames 20372-20520).
+//   E19 camara 1693: 2 amarillos por la derecha (frame 20822).
+//   E20 camara 1925: 2 amarillos SALTAN de la cornisa de la pared (x 1982 y
+//       2047, frames 21110-21170).
+//   E21 camara 2129: 1 morado sale de atras del taxi (x ~2203, frame 21430).
+//   (la 5ta boca, la del que tira la tapa, sale antes de Bebop, como antes)
 // ---------------------------------------------------------------------------
 typedef enum {
     L21K_WALK,        // entra caminando por un costado
     L21K_SOMERSAULT,  // voltereta (solo morado)
     L21K_WINDOW,      // patada saltando de una ventana de la pared derecha
     L21K_TNT,         // tirador de dinamita (arg = 0 puerta amarilla, 1 pilar)
-    L21K_BALCONY      // caminando por la cornisa, desde la derecha
+    L21K_BALCONY,     // caminando por la cornisa, desde la derecha
+    L21K_DROP,        // (03/10) cae pateando desde un punto FIJO (arg: l21Drops)
+    L21K_POINT        // (03/10) aparece en un punto FIJO caminando (arg: l21Points)
 } L21Kind;
 
 #define L21_P  ENEMY_TYPE_FOOT_SOLDIER
 #define L21_Y  ENEMY_TYPE_FOOT_SOLDIER_YELLOW
-#define L21G_NONE     0
-#define L21G_METER    1    // los 2 de E7
-#define L21G_BALCONY  2    // los 2 de la cornisa + el de la 4ta boca
-#define L21G_COUNT    3
-static const u8 l21GroupSize[L21G_COUNT] = { 0, 2, 3 };
 
 typedef struct {
     u8 type;     // L21_P / L21_Y
     u8 kind;     // L21Kind
     s8 side;     // +1 derecha, -1 izquierda (WALK/SOMERSAULT)
-    u8 group;    // L21G_*
-    u8 arg;      // TNT: cual tirador
+    u8 arg;      // TNT: cual tirador; DROP/POINT: indice en su tabla
 } L21Req;
 
 typedef struct { u8 n; L21Req r[6]; } L21Event;
 
-#define R_(t, s) { t, L21K_WALK, s, L21G_NONE, 0 }
+// (03/10) Puntos fijos de caida (DROP): centro X y pies Y donde aterriza (mundo),
+// altura desde la que cae y hacia donde mira.
+typedef struct { s16 x, y, z; s8 dir; } L21Drop;
+static const L21Drop l21Drops[] = {
+    {  251, 181, 64, -1 },   // 0: rompe la ventana del edificio del principio
+    { 1982, 530, 56, +1 },   // 1: cornisa de la pared, despues del cartel
+    { 2047, 530, 56, +1 },   // 2: idem, el segundo
+};
+// (03/10) Puntos fijos de aparicion caminando (POINT): centro X, pies Y, dir.
+typedef struct { s16 x, y; s8 dir; } L21Point;
+static const L21Point l21Points[] = {
+    { 2203, 527, -1 },       // 0: sale de atras del taxi
+};
+
+#define R_(t, s) { t, L21K_WALK, s, 0 }
+#define K_(t, k, a) { t, k, 1, a }
 static const L21Event l21Ev[] = {
-    /* E1  */ { 2, { R_(L21_P, 1), R_(L21_P, 1) } },
-    /* E2  */ { 4, { { L21_P, L21K_TNT, 1, L21G_NONE, 0 },
-                     R_(L21_P, 1), R_(L21_P, -1), R_(L21_P, -1) } },
-    /* E3  */ { 1, { R_(L21_P, 1) } },
-    /* E4  */ { 5, { { L21_P, L21K_TNT, 1, L21G_NONE, 1 },
-                     R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_P, 1) } },
-    /* E5  */ { 3, { R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1) } },
-    /* E6  */ { 2, { R_(L21_Y, -1), R_(L21_Y, -1) } },
-    /* E7  */ { 2, { { L21_Y, L21K_WALK, 1, L21G_METER, 0 },
-                     { L21_Y, L21K_WALK, 1, L21G_METER, 0 } } },
-    /* E8  */ { 3, { R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1) } },
-    /* E9  */ { 2, { R_(L21_Y, 1), R_(L21_Y, 1) } },
-    /* E10 */ { 2, { { L21_P, L21K_BALCONY, 1, L21G_BALCONY, 0 },
-                     { L21_P, L21K_BALCONY, 1, L21G_BALCONY, 0 } } },
-    /* E11 */ { 5, { R_(L21_Y, -1), R_(L21_Y, -1),
-                     { L21_P, L21K_SOMERSAULT, 1, L21G_NONE, 0 },
-                     { L21_P, L21K_SOMERSAULT, 1, L21G_NONE, 0 },
-                     { L21_P, L21K_SOMERSAULT, 1, L21G_NONE, 0 } } },
-    /* E12 */ { 4, { { L21_P, L21K_WINDOW, 1, L21G_NONE, 0 },
-                     { L21_P, L21K_WINDOW, 1, L21G_NONE, 0 },
-                     R_(L21_Y, -1), R_(L21_Y, -1) } },
+    /* E1  */ { 3, { R_(L21_P, 1), R_(L21_P, 1), K_(L21_P, L21K_DROP, 0) } },
+    /* E2  */ { 1, { R_(L21_P, -1) } },
+    /* E3  */ { 2, { K_(L21_P, L21K_TNT, 0), R_(L21_P, 1) } },
+    /* E4  */ { 3, { R_(L21_P, -1), R_(L21_P, -1), R_(L21_P, 1) } },
+    /* E5  */ { 3, { R_(L21_P, 1), R_(L21_P, 1), R_(L21_P, 1) } },
+    /* E6  */ { 1, { K_(L21_P, L21K_TNT, 1) } },
+    /* E7  */ { 3, { R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1) } },
+    /* E8  */ { 1, { R_(L21_P, 1) } },
+    /* E9  */ { 2, { R_(L21_Y, 1), R_(L21_Y, -1) } },
+    /* E10 */ { 3, { R_(L21_Y, 1), R_(L21_Y, 1), R_(L21_Y, 1) } },
+    /* E11 */ { 2, { R_(L21_Y, 1), R_(L21_Y, 1) } },
+    /* E12 */ { 2, { K_(L21_P, L21K_BALCONY, 0), K_(L21_P, L21K_BALCONY, 0) } },
+    /* E13 */ { 2, { R_(L21_P, -1), R_(L21_P, 1) } },
+    /* E14 */ { 2, { K_(L21_P, L21K_BALCONY, 0), K_(L21_P, L21K_BALCONY, 0) } },
+    /* E15 */ { 3, { K_(L21_P, L21K_WINDOW, 0), K_(L21_P, L21K_WINDOW, 0),
+                     R_(L21_Y, -1) } },
+    /* E16 */ { 2, { R_(L21_Y, 1), R_(L21_Y, -1) } },
+    /* E17 */ { 1, { K_(L21_P, L21K_WINDOW, 0) } },
+    /* E18 */ { 2, { K_(L21_P, L21K_WINDOW, 0), K_(L21_P, L21K_WINDOW, 0) } },
+    /* E19 */ { 2, { R_(L21_Y, 1), R_(L21_Y, 1) } },
+    /* E20 */ { 2, { K_(L21_Y, L21K_DROP, 1), K_(L21_Y, L21K_DROP, 2) } },
+    /* E21 */ { 1, { K_(L21_P, L21K_POINT, 0) } },
 };
 #undef R_
+#undef K_
 enum { L21E1, L21E2, L21E3, L21E4, L21E5, L21E6, L21E7, L21E8, L21E9,
-       L21E10, L21E11, L21E12, L21E_COUNT };
+       L21E10, L21E11, L21E12, L21E13, L21E14, L21E15, L21E16, L21E17,
+       L21E18, L21E19, L21E20, L21E21, L21E_COUNT };
+
+// X de la CAMARA (borde izquierdo) que dispara cada evento: donde se frenaba
+// la camara del arcade. 0 = lo dispara otra cosa (inicio, boca, dinamita,
+// bajas). Ver el guion arriba.
+//
+// (03/10) Y como en el arcade, la camara se FRENA ahi: mientras queden
+// soldiers de la oleada (en la cola o vivos) no avanza (l21HoldX). Los
+// eventos marcados en l21EvHold frenan la camara donde esta al dispararse.
+// Por seguridad (un soldier trabado en algun lado) se suelta sola a los
+// LVL21_HOLD_MAX frames.
+static const s16 l21EvCamX[L21E_COUNT] = {
+    0, 0, 0, 0, 300, 0, 394, 0, 513, 662, 845, 962, 1044, 1143,
+    1394, 1416, 1451, 1496, 1693, 1925, 2129
+};
+
+// Eventos que frenan la camara (bit por evento). No frenan: E2 (el de la
+// boca de atras), E6 (2do tirador) ni E8 (refuerzo por bajas).
+#define EVB(e) (1UL << (e))
+static const u32 l21EvHold = ~(EVB(1) | EVB(5) | EVB(7));
+#undef EVB
+#define LVL21_HOLD_MAX     3600   // 60 s
 
 // El segundo tirador de dinamita: en el borde derecho del pilar de piedra de
 // la vidriera de la tele (el pilar termina en x~578; a partir de x=592 la
@@ -861,18 +908,10 @@ enum { L21E1, L21E2, L21E3, L21E4, L21E5, L21E6, L21E7, L21E8, L21E9,
 #define LVL21_TNT2_LAND_Y   (LVL21_TNT2_Y + 23)
 #define LVL21_TNT2_TRIG_X   (LVL21_TNT2_CENTER_X - 96)   // 504: pasando la tele
 
-// Parquimetros (X de mundo, las mismas de meterX[] en meters_2_1.c).
-#define LVL21_METER4_X       910   // E7: el lider llega a su altura
-#define LVL21_METER5_X      1166   // E9: entra en camara
-// E10: la cornisa se ve bien cuando el borde derecho de la camara pasa esto.
-#define LVL21_BALCONY_TRIG  1240
-#define LVL21_BALCONY_GAP     48   // "uno detras de otro": px entre los dos
-// E5: soldiers muertos (despues de E4) que disparan los 3 amarillos.
-#define LVL21_E5_KILLS         3
-// E12: la camara empieza a bajar (y el lider ya llego a la esquina: la
-// camara no deberia bajar antes, pero por las dudas).
-#define LVL21_CORNER_X      1250
-// E12: altura visual desde la que caen los de las ventanas.
+// E8: soldiers muertos (despues de E7) que disparan al morado que sigue.
+#define LVL21_E8_KILLS         3
+// E12/E14 (cornisa) y E15..E18 (ventanas): altura visual desde la que caen
+// los de las ventanas de la pared de la derecha.
 #define LVL21_WINDOW_Z        64
 
 // Separacion entre dos entradas por el MISMO costado: si salieran en el mismo
@@ -885,22 +924,26 @@ static const u8 l21LanePct[5] = { 50, 20, 80, 35, 65 };
 #define L21Q_SIZE 24
 static L21Req l21q[L21Q_SIZE];
 static u8  l21qHead, l21qN;
-static u16 l21Fired;                    // bit por evento disparado
+static u32 l21Fired;                    // bit por evento disparado
 static u8  l21LaneRot;
 static u8  l21SideGap[2];               // [0] izquierda, [1] derecha
-static u8  eGroup[MAX_ENEMIES];         // grupo de cada slot (L21G_*)
-static u8  l21GroupSpawned[L21G_COUNT];
+static s16 l21HoldX;                    // (03/10) tope de la camara (-1 = libre)
+static u16 l21HoldT;
+static s16 l21CamNow;                   // camara al disparar (para el freno)
 
 static void l21ScriptReset(void) {
     l21qHead = 0; l21qN = 0; l21Fired = 0; l21LaneRot = 0;
     l21SideGap[0] = l21SideGap[1] = 0;
-    for (u16 i = 0; i < MAX_ENEMIES; i++) eGroup[i] = L21G_NONE;
-    for (u16 g = 0; g < L21G_COUNT; g++) l21GroupSpawned[g] = 0;
+    l21HoldX = -1; l21HoldT = 0; l21CamNow = 0;
 }
 
 static bool l21Fire(u8 ev) {
-    if (l21Fired & (1u << ev)) return FALSE;
-    l21Fired |= (u16)(1u << ev);
+    if (l21Fired & (1UL << ev)) return FALSE;
+    l21Fired |= (1UL << ev);
+    if (l21EvHold & (1UL << ev)) {          // la camara se frena aca
+        l21HoldX = l21CamNow;
+        l21HoldT = 0;
+    }
     const L21Event* E = &l21Ev[ev];
     for (u8 k = 0; k < E->n && l21qN < L21Q_SIZE; k++) {
         l21q[(l21qHead + l21qN) % L21Q_SIZE] = E->r[k];
@@ -909,15 +952,7 @@ static bool l21Fire(u8 ev) {
     return TRUE;
 }
 
-static inline bool l21Done(u8 ev) { return (l21Fired & (1u << ev)) != 0; }
-
-// Grupo "liquidado": ya entraron todos sus miembros y no queda ninguno vivo.
-static bool l21GroupClear(const Enemy* en, u8 g) {
-    if (l21GroupSpawned[g] < l21GroupSize[g]) return FALSE;
-    for (u16 i = 0; i < MAX_ENEMIES; i++)
-        if (eGroup[i] == g && en[i].state != ENEMY_STATE_INACTIVE) return FALSE;
-    return TRUE;
-}
+static inline bool l21Done(u8 ev) { return (l21Fired & (1UL << ev)) != 0; }
 
 // Lane de entrada en la columna fx: dentro de la calle Y de lo que se ve de
 // ella (pies entre camY+110 y camY+214). -1 si la columna no sirve.
@@ -982,6 +1017,34 @@ static bool l21SpawnReq(Enemy* e, const L21Req* r, s16 camX, s16 camY,
             return TRUE;
         }
         return FALSE;
+    }
+
+    case L21K_DROP: {
+        // (03/10) Cae pateando desde un punto fijo (ventana / cornisa): la
+        // misma entrada que L21K_WINDOW, pero en la X y altura de la tabla.
+        const L21Drop* d = &l21Drops[r->arg];
+        s16 top = walkTopAt(d->x), bot = walkBotAt(d->x);
+        s16 y = d->y;
+        if (y < top + 4) y = (s16)(top + 4);
+        if (y > bot - 4) y = (s16)(bot - 4);
+        initEnemyKickSpawn(e, (s16)(d->x - ENEMY_SPRITE_W_PURPLE / 2), y, d->dir, PAL2, r->type);
+        e->jumpZ   = d->z;
+        e->jumpZq  = (s32)d->z << 8;
+        e->jumpVel = 0;
+        return TRUE;
+    }
+
+    case L21K_POINT: {
+        // (03/10) Aparece en un punto fijo y camina hacia adentro (el de
+        // atras del taxi).
+        const L21Point* pt = &l21Points[r->arg];
+        s16 top = walkTopAt(pt->x), bot = walkBotAt(pt->x);
+        s16 y = pt->y;
+        if (y < top + 4) y = (s16)(top + 4);
+        if (y > bot - 4) y = (s16)(bot - 4);
+        initEnemyWalkInSpawn(e, (s16)(pt->x - ENEMY_SPRITE_W_PURPLE / 2), y, pt->dir,
+                             PAL2, r->type);
+        return TRUE;
     }
 
     default: {   // WALK / SOMERSAULT por un costado
@@ -1253,7 +1316,7 @@ SceneId showScene21() {
     metersInit();
     boomerangInit();
     l21ScriptReset();                      // (30/09) guion de oleadas
-    u16 l21Kills = 0;                      // soldiers muertos despues de E4
+    u16 l21Kills = 0;                      // soldiers muertos despues de E7
     static bool eWasDead[MAX_ENEMIES];
     for (u16 i = 0; i < MAX_ENEMIES; i++) eWasDead[i] = FALSE;
     // --- Jefe (24/09) ------------------------------------------------------
@@ -1396,6 +1459,10 @@ SceneId showScene21() {
         }
         if (newCamX > hiX) newCamX = hiX;
         if (newCamX > LVL21_CAM_X_MAX) newCamX = LVL21_CAM_X_MAX;
+        // (03/10) Oleada en curso: la camara no pasa del freno (salvo que el
+        // corredor de la esquina la obligue a correrse para bajar).
+        if (l21HoldX >= 0 && newCamX > l21HoldX && l21HoldX >= loX)
+            newCamX = l21HoldX;
         if (newCamX < cameraX) newCamX = cameraX;      // nunca retrocede
         cameraX = newCamX;
 
@@ -1498,10 +1565,11 @@ SceneId showScene21() {
                 // (30/09) Guion: la 2da boca (frente a la tele) dispara E3, la
                 // 3ra dispara E6 y el de la 4ta cuenta para el grupo de la
                 // cornisa (E11 espera a que mueran los tres).
-                eGroup[i] = (m == 3) ? L21G_BALCONY : L21G_NONE;
-                if (m == 3) l21GroupSpawned[L21G_BALCONY]++;
-                if (m == 1) l21Fire(L21E3);
-                if (m == 2) l21Fire(L21E6);
+                // (03/10) Guion del arcade: la 1ra boca trae 1 morado por la
+                // izquierda (E2) y la 2da, 2 por la izquierda y 1 por la
+                // derecha (E4).
+                if (m == 0) l21Fire(L21E2);
+                if (m == 1) l21Fire(L21E4);
                 break;
             }
         }
@@ -1512,23 +1580,28 @@ SceneId showScene21() {
             // no hay forma de saltearlo).
             for (u16 i = 0; i < MAX_ENEMIES; i++) {
                 bool dead = (enemies[i].state == ENEMY_STATE_DEAD);
-                if (dead && !eWasDead[i] && l21Done(L21E4)) l21Kills++;
+                if (dead && !eWasDead[i] && l21Done(L21E7)) l21Kills++;
                 eWasDead[i] = dead;
             }
 
+            l21CamNow = cameraX;
+            // Se suelta el freno con la oleada liquidada (nada en cola ni vivo).
+            if (l21HoldX >= 0 &&
+                ((l21qN == 0 && alive == 0) || ++l21HoldT >= LVL21_HOLD_MAX))
+                l21HoldX = -1;
             if (dropTicks == 0)                           l21Fire(L21E1);
-            if (leadFeetX >= LVL21_TNT_TRIG_X)            l21Fire(L21E2);
-            if (leadFeetX >= LVL21_TNT2_TRIG_X)           l21Fire(L21E4);
-            if (l21Done(L21E4) && l21Kills >= LVL21_E5_KILLS) l21Fire(L21E5);
-            if (leadFeetX >= LVL21_METER4_X)              l21Fire(L21E7);
-            if (l21Done(L21E7) && l21GroupClear(enemies, L21G_METER))
-                                                          l21Fire(L21E8);
-            if (cameraX + SCREEN_PIXEL_WIDTH >= LVL21_METER5_X) l21Fire(L21E9);
-            if (cameraX + SCREEN_PIXEL_WIDTH >= LVL21_BALCONY_TRIG) l21Fire(L21E10);
-            if (l21Done(L21E10) && l21GroupClear(enemies, L21G_BALCONY))
-                                                          l21Fire(L21E11);
-            if (cameraY > LVL21_CAM_Y_MIN && leadFeetX >= LVL21_CORNER_X)
-                                                          l21Fire(L21E12);
+            if (leadFeetX >= LVL21_TNT_TRIG_X)            l21Fire(L21E3);
+            if (leadFeetX >= LVL21_TNT2_TRIG_X)           l21Fire(L21E6);
+            if (l21Done(L21E7) && l21Kills >= LVL21_E8_KILLS) l21Fire(L21E8);
+            // (03/10) Los demas: por la X de la camara (donde se frenaba la
+            // del arcade). Los de las ventanas, ademas, con la camara ya
+            // bajando por la esquina.
+            for (u8 ev = 0; ev < L21E_COUNT; ev++) {
+                if (!l21EvCamX[ev] || l21Done(ev)) continue;
+                if (cameraX < l21EvCamX[ev]) continue;
+                if (ev >= L21E15 && ev <= L21E18 && cameraY <= LVL21_CAM_Y_MIN) continue;
+                l21Fire(ev);
+            }
 
             // Cola: se miran los primeros pedidos (no solo el primero: si el
             // de adelante espera la separacion de SU costado, puede pasar uno
@@ -1561,8 +1634,6 @@ SceneId showScene21() {
                 eOnPlat[i]  = onPlat;
                 eClimb[i]   = 0;
                 eWasDead[i] = FALSE;
-                eGroup[i]   = r->group;
-                if (r->group) l21GroupSpawned[r->group]++;
                 if (usesSide) l21SideGap[sideIx] = LVL21_SIDE_GAP;
                 alive++;
                 // Sacarlo de la cola (corriendo los que estaban detras).
