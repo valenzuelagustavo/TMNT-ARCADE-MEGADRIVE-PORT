@@ -429,6 +429,14 @@ bool bebopDamageEx(Bebop* b, s16 dmg, bool special) {
         return TRUE;
     }
 
+    // (03/10) Embestida (amague o corrida): el golpe saca vida pero no la
+    // corta -- ni flinch, ni caida, ni contraataque, y no suma a las rachas.
+    // Intocable un rato para que el mismo swing no pegue cada frame.
+    if (b->state == BEBOP_CHARGE) {
+        b->armorTimer = special ? BEBOP_CHARGE_HIT_CD_SP : BEBOP_CHARGE_HIT_CD;
+        return FALSE;
+    }
+
     b->hitsTaken++;
     b->comboHits++;
     // (03/10) Arcade: el especial y el golpe SEGUIDO numero BEBOP_KD_COMBO lo

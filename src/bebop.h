@@ -131,6 +131,12 @@
 #define BEBOP_IDLE_MIN       24   // quieto minimo entre acciones
 #define BEBOP_COOLDOWN       34   // frames despues de un ataque
 #define BEBOP_HURT_FRAMES    18   // flinch (03/10, video: 16-20)
+// (03/10) EMBESTIDA CON ARMADURA: en el amague y la corrida los golpes le
+// sacan vida (y lo pueden matar) pero NO la cortan: ni flinch, ni caida, ni
+// contraataque. Sin flinch no hay i-frames, asi que tras cada golpe queda
+// intocable (armorTimer) estos frames: uno por swing; el especial, uno solo.
+#define BEBOP_CHARGE_HIT_CD     BEBOP_HURT_FRAMES
+#define BEBOP_CHARGE_HIT_CD_SP  40
 #define BEBOP_KD_INTERVAL     8   // golpes recibidos entre caidas
 // (03/10) Como en el arcade: el 4to golpe SEGUIDO (sin BEBOP_COMBO_RESET
 // frames de calma entre golpes) y el especial lo DERRIBAN.
@@ -271,7 +277,7 @@ typedef struct {
     u8         flashOn;
     u8         comboHits;     // golpes recibidos SEGUIDOS (ver anti-trabado)
     u8         armored;       // uppercut de contraataque: no se lo puede golpear
-    u16        armorTimer;    // invulnerable al levantarse
+    u16        armorTimer;    // invulnerable al levantarse / tras un golpe en la embestida
     s16        fromX, fromY;  // origen de la parabola en curso (entrada)
     s16        cameraOffsetX;
     s16        cameraOffsetY;

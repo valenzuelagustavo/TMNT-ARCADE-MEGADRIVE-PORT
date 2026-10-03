@@ -242,6 +242,7 @@ void rocksteadyInit(Rocksteady* r) {
     bossFlashReset(&r->flash);
     r->accX = r->accY = 0;
     r->slideDir = 1;
+    r->chargeHitCD = 0;
 }
 
 void rocksteadySpawn(Rocksteady* r) {
@@ -298,10 +299,12 @@ bool rocksteadyIsActive(const Rocksteady* r) {
 bool rocksteadyCanBeHit(const Rocksteady* r) {
     // Golpeable mientras camina, decide, ataca o dispara; NO durante el
     // flinch (i-frames), el knock-down, la transición de arma ni la muerte.
+    // (03/10) En la embestida, despues de cada golpe: ROCKSTEADY_CHARGE_HIT_CD.
     return (r->state == ROCKSTEADY_EMERGE || r->state == ROCKSTEADY_IDLE ||
             r->state == ROCKSTEADY_APPROACH || r->state == ROCKSTEADY_CHARGE ||
             r->state == ROCKSTEADY_KICK || r->state == ROCKSTEADY_AIM_WALK ||
-            r->state == ROCKSTEADY_SHOOT || r->state == ROCKSTEADY_KICK_ARMS);
+            r->state == ROCKSTEADY_SHOOT || r->state == ROCKSTEADY_KICK_ARMS) &&
+           !(r->state == ROCKSTEADY_CHARGE && r->chargeHitCD > 0);
 }
 
 // Centro VISUAL del cuerpo: r->x ancla el BORDE IZQUIERDO del frame de 104px
@@ -362,6 +365,15 @@ void rocksteadyDamageEx(Rocksteady* r, s16 dmg, bool special) {
         return;
     }
 
+    // (03/10) Embestida (amague o corrida): el golpe saca vida pero no la
+    // corta -- ni flinch, ni caida, ni contraataque, y no suma a la cuenta de
+    // caidas. Intocable un rato para que el mismo swing no pegue cada frame.
+    if (r->state == ROCKSTEADY_CHARGE) {
+        r->chargeHitCD = special ? ROCKSTEADY_CHARGE_HIT_CD_SP
+                                 : ROCKSTEADY_CHARGE_HIT_CD;
+        return;
+    }
+
     r->hitsTaken++;
     // Contraataque: golpes SEGUIDOS sin poder responder → al terminar este
     // flinch suelta la patada (lo ejecuta update antes del switch). Se resetea
@@ -408,6 +420,7 @@ static void rocksteadyStartCharge(Rocksteady* r, s8 dir) {
     r->timer = ROCKSTEADY_CHARGE_MAX;
     r->chargeHit = 0;
     r->chargeWind = ROCKSTEADY_CHARGE_WINDUP;   // amaga en el lugar y despues corre
+    r->chargeHitCD = 0;
     r->dir       = dir;
     r->chargeDir = dir;
     r->kickOnArrive = 0;   // si la embestida corta un acercamiento a mitad,
@@ -510,6 +523,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
 
     if (r->attackCooldown > 0) r->attackCooldown--;
     if (r->kickCooldown > 0)   r->kickCooldown--;
+    if (r->chargeHitCD > 0)    r->chargeHitCD--;
 
     // Jugador objetivo: el MAS CERCANO en X (centro del frame), entre los que
     // haya (1..4). Se re-evalua cada frame, asi que el jefe "elige uno" y lo

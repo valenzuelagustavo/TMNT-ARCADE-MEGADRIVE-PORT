@@ -156,6 +156,13 @@
 #define ROCKSTEADY_HIT_TOL_Y    25   // |dy| máx (pies) para conectar ataques
 #define ROCKSTEADY_ATTACK_COOLDOWN 40
 #define ROCKSTEADY_HURT_FRAMES  18   // Flinch tras un golpe normal (03/10, video: 18)
+// (03/10) EMBESTIDA CON ARMADURA: durante el amague y la corrida los golpes
+// le sacan vida (y lo pueden matar) pero NO la cortan: ni flinch, ni caida,
+// ni contraataque. Como sin flinch no hay i-frames, despues de cada golpe
+// queda intocable estos frames (uno por swing, el mismo ritmo que el flinch;
+// el especial dura ~38 ticks y pega una sola vez).
+#define ROCKSTEADY_CHARGE_HIT_CD     ROCKSTEADY_HURT_FRAMES
+#define ROCKSTEADY_CHARGE_HIT_CD_SP  40
 // (03/10) Caida del arcade (la provoca el ESPECIAL de la tortuga, armado o no;
 // y sin arma, cada ROCKSTEADY_KD_INTERVAL golpes): anim [4] a mano, frame 2
 // volando hacia atras (desliza ~80 px), 3 en el piso, 4 y 5 se levanta.
@@ -329,6 +336,7 @@ typedef struct {
     BossFlash   flash;       // (03/10) parpadeo de vida baja (arena.flashPal)
     u8          accX, accY;  // (03/10) restos Q8 del movimiento
     s8          slideDir;    // (03/10) hacia donde desliza al caer
+    u8          chargeHitCD; // (03/10) intocable tras un golpe en la embestida
 } Rocksteady;
 
 // (01/10) ARENA: lo que depende del escenario. rocksteadySpawn usa la del
