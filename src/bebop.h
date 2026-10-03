@@ -98,9 +98,14 @@
 #define BEBOP_JUMP_APEX      26   // cuanto se eleva en ese salto
 
 // --- Ritmo de la pelea -----------------------------------------------------
-#define BEBOP_SPEED           2   // px/frame caminando
-#define BEBOP_CHARGE_SPEED    6   // px/frame embistiendo
-#define BEBOP_CHARGE_MAX     80   // tope de frames de la embestida
+// (03/10) Velocidades MEDIDAS en el video del arcade (Q8: 256 = 1 px/frame).
+#define BEBOP_WALK_X_Q      256   // 1 px/f caminando (antes 2)
+#define BEBOP_WALK_Y_Q      192   // 0,75 px/f en profundidad
+#define BEBOP_CHARGE_Q      896   // 3,5 px/f embistiendo (antes 6)
+#define BEBOP_CHARGE_LANE_Q 256   // corrige la lane 1 px/f mientras embiste
+#define BEBOP_CHARGE_WINDUP  32   // amaga en el lugar antes de correr (video: ~32)
+#define BEBOP_CHARGE_TICKS    4   // ticks por frame de la anim (orden 0,1,3,2)
+#define BEBOP_CHARGE_MAX     56   // tope de frames corriendo (~196 px)
 #define BEBOP_CHARGE_OVER    16   // sigue de largo tras conectar
 #define BEBOP_CHARGE_DIST   150   // a mas de esto, embiste
 #define BEBOP_UPPER_RANGE    62   // alcance hacia adelante del uppercut
@@ -109,14 +114,15 @@
 #define BEBOP_AA_RANGE       80   // distX maxima para reaccionar a un salto
 #define BEBOP_AA_MAX_Z      110   // jumpZ maxima que alcanza el puño
 #define BEBOP_AA_COOLDOWN    40   // frames entre dos antiaereos
-#define BEBOP_UPPER_WIND_TICKS 4  // ticks por frame del arranque (0-2): rapido,
+#define BEBOP_UPPER_WIND_TICKS 2  // ticks por frame del arranque (0-2): rapido,
                                   // o el jugador ya aterrizo cuando pega
-#define BEBOP_UPPER_HIT_TICKS  8  // ticks por frame del golpe (3-4)
+#define BEBOP_UPPER_HIT_TICKS  6  // ticks por frame del golpe (3-4)
+                                  // (03/10: el arcade tarda ~18 frames en todo)
 // Rotacion de conductas (25/09): antes el disparo pedia estar alineado en lane
 // por casualidad y casi nunca salia. Ahora el jefe ROTA entre tres pasos:
 //   0, 1  ARMA       se alinea en lane (sin acercarse) y dispara
 //   2     CUERPO     lejos embiste; cerca, disparo agachado a quemarropa
-#define BEBOP_STEPS           3
+#define BEBOP_STEPS           2   // (03/10) arcade: dispara, embiste, dispara...
 #define BEBOP_CLOSE_RANGE    70   // "cerca" para el paso de cuerpo
 #define BEBOP_ALIGN_TICKS    70   // tope de frames alineandose antes de rendirse
 #define BEBOP_SHOOT_RANGE   260   // a mas de esto no dispara (no se lo ve)
@@ -124,8 +130,23 @@
 #define BEBOP_ALIGN_Y         6   // |dy| que considera "alineado" en lane
 #define BEBOP_IDLE_MIN       24   // quieto minimo entre acciones
 #define BEBOP_COOLDOWN       34   // frames despues de un ataque
-#define BEBOP_HURT_FRAMES    14   // flinch
+#define BEBOP_HURT_FRAMES    18   // flinch (03/10, video: 16-20)
 #define BEBOP_KD_INTERVAL     8   // golpes recibidos entre caidas
+// (03/10) Como en el arcade: el 4to golpe SEGUIDO (sin BEBOP_COMBO_RESET
+// frames de calma entre golpes) y el especial lo DERRIBAN.
+#define BEBOP_KD_COMBO        4
+// Caida del arcade: frame 3 (sentado) deslizando hacia atras, frame 4
+// (arrodillado) y frame 5 (se levanta): 12 + 36 + 12 frames.
+#define BEBOP_KD_SLIDE_F     12
+#define BEBOP_KD_SLIDE_Q   1024   // 4 px/f mientras desliza (~48 px)
+#define BEBOP_KD_KNEEL_F     36
+#define BEBOP_KD_RISE_F      12
+// Al levantarse, SIEMPRE suelta el uppercut (en el video, ~12 frames despues).
+#define BEBOP_GETUP_WAIT     12
+// Despues de disparar VITOREA (3 de cada 4 veces en el video): 0/1 cada 8.
+#define BEBOP_TAUNT_SHOT_PCT 75
+#define BEBOP_TAUNT_SHOT_F   64
+#define BEBOP_TAUNT_LOOP_TICKS 8
 // --- Anti-trabado (26/09) ---------------------------------------------------
 // Gustavo lo trababa a golpes: cada golpe lo mandaba al flinch, al salir del
 // flinch quedaba golpeable de nuevo con cooldown 0, y la tortuga encadenaba
@@ -140,10 +161,11 @@
 //     con armadura.
 //  3. La caida cada BEBOP_KD_INTERVAL golpes se mantiene, pero la racha se
 //     reinicia al caer.
-#define BEBOP_COUNTER_HITS    2
+#define BEBOP_COUNTER_HITS   99   // (03/10) sin contra por racha: el arcade
+                                  // aguanta el combo y cae (BEBOP_KD_COMBO)
 #define BEBOP_COMBO_RESET    50
 #define BEBOP_GETUP_ARMOR    40
-#define BEBOP_WAKE_RANGE     90
+#define BEBOP_WAKE_RANGE    999   // (03/10) siempre se levanta pegando
 #define BEBOP_COUNTER_DMG     2   // barras del uppercut de contraataque
 #define BEBOP_KD_HOLD        70   // frames tirado en el piso
 #define BEBOP_GETUP_TICKS     8   // ticks por frame al levantarse
@@ -162,11 +184,16 @@
 #define BEBOP_MUZZLE_CROUCH_Z  45
 #define BEBOP_SHOT_TICKS       7   // ticks por frame de la anim de disparo
 #define BEBOP_SHOT_SPEED       4   // px/frame del proyectil
-#define BEBOP_SHOT_GROW        5   // ticks entre aro y aro del proyectil
-#define BEBOP_SHOT_FRAMES      5   // aros del sprite bebop_shot_gen
-#define MAX_BEBOP_SHOTS        2
-#define BEBOP_SHOT_W          72   // celda del proyectil
+#define BEBOP_SHOT_GROW        7   // (03/10) frames entre tamanos del aro
+#define BEBOP_SHOT_FRAMES      5   // tamanos del aro (bebop_shot_gen)
+#define MAX_BEBOP_SHOTS        6   // (03/10) 3 aros por disparo
+#define BEBOP_SHOT_W          16   // celda del aro (un aro solo, centrado)
 #define BEBOP_SHOT_H          40
+// (03/10) Disparo agachado del arcade (video): se para y apunta (frames 0 y 1,
+// 6 + 6), se agacha y tira TRES aros, uno cada 12 frames. 40 frames en total.
+#define BEBOP_CSHOT_F         40
+#define BEBOP_CSHOT_RING1     14
+#define BEBOP_CSHOT_RING_GAP  12
 #define BEBOP_SHOT_TOL_Y      22   // |dy| de lane para conectar
 #define BEBOP_SHOT_TOL_Z      36   // |dz| contra el torso del jugador
 #define BEBOP_SHOT_TORSO_Z    36   // altura del torso sobre los pies
@@ -249,6 +276,11 @@ typedef struct {
     s16        cameraOffsetX;
     s16        cameraOffsetY;
     const BebopArena* arena;  // (26/09) escenario de la pelea
+    // (03/10) movimiento en Q8 (restos fraccionarios) y timers del arcade
+    u8         accX, accY;
+    u8         chargeWind;    // frames de amague que le quedan a la embestida
+    u16        actT;          // frames dentro del disparo agachado / vitoreo
+    s8         slideDir;      // hacia donde desliza al caer
 } Bebop;
 
 void bebopInit(Bebop* b);
@@ -260,6 +292,9 @@ void bebopSpawnArena(Bebop* b, const BebopArena* arena);
 void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY);
 // Golpe del jugador. Devuelve TRUE si el golpe lo mato.
 bool bebopDamage(Bebop* b, s16 dmg);
+// (03/10) special = el especial de la tortuga: lo DERRIBA (como en el
+// arcade). bebopDamage lo deduce del dano (>= BEBOP_SPECIAL_DMG).
+bool bebopDamageEx(Bebop* b, s16 dmg, bool special);
 bool bebopCanBeHit(const Bebop* b);
 bool bebopIsActive(const Bebop* b);
 bool bebopIsGone(const Bebop* b);

@@ -81,18 +81,22 @@
 // ROCKSTEADY_ATTACKS_PER_SWAP guarda o saca el arma. Se cuentan ataques y no
 // tiempo a propósito: si el jugador se esconde, el jefe no cambia de modo solo
 // -- el ritmo lo marca la pelea, no el reloj.
-#define ROCKSTEADY_ATTACKS_PER_SWAP 3
+#define ROCKSTEADY_ATTACKS_PER_SWAP 7   // (03/10) arcade: ~8 ataques armado
 // (01/10, pedido de Gustavo) La tanda SIN arma es mas corta: pasaba mucho
 // tiempo de la pelea desarmado (la rotacion sin arma tiene un paso de
 // "esperar" que no cuenta como ataque, mas el acercamiento de la patada).
 // Ahora con UN ataque completado sin arma (la embestida o la patada) ya saca
 // el arma; CON arma sigue haciendo ROCKSTEADY_ATTACKS_PER_SWAP rafagas.
-#define ROCKSTEADY_UNARMED_ATTACKS  1
+#define ROCKSTEADY_UNARMED_ATTACKS  2   // (03/10) arcade: embestida + patada
 
 // --- Movimiento / patrulla ---
 // Arena: cámara bloqueada en LEVEL2_CAM_MAX_X (120) → mundo visible 120..440.
-#define ROCKSTEADY_SPEED         2   // px/frame al caminar/alinear lane
-#define ROCKSTEADY_CHARGE_SPEED  5   // px/frame de la estampida (01/10: 6 -> 5)
+// (03/10) Velocidades MEDIDAS en el video del arcade (Q8: 256 = 1 px/frame).
+#define ROCKSTEADY_WALK_X_Q    320   // 1,25 px/f caminando (antes 2)
+#define ROCKSTEADY_WALK_Y_Q    256   // 1 px/f en profundidad
+#define ROCKSTEADY_AIM_X_Q     192   // 0,75 px/f avanzando con el arma apuntando
+#define ROCKSTEADY_CHARGE_Q    896   // 3,5 px/f la estampida (antes 5)
+#define ROCKSTEADY_LANE_Q      256   // corrige la lane 1 px/f mientras embiste
 // (01/10) Antes de correr se queda en el lugar con la anim de la embestida
 // estos frames (amaga, mirando al jugador): le da al jugador tiempo de leerla
 // y salir de la lane. La direccion se latchea al terminar la preparacion.
@@ -151,7 +155,18 @@
 #define ROCKSTEADY_SHOOT_ALIGN_Y    6   // |dy| máx con el jugador para disparar
 #define ROCKSTEADY_HIT_TOL_Y    25   // |dy| máx (pies) para conectar ataques
 #define ROCKSTEADY_ATTACK_COOLDOWN 40
-#define ROCKSTEADY_HURT_FRAMES  14   // Flinch tras un golpe normal
+#define ROCKSTEADY_HURT_FRAMES  18   // Flinch tras un golpe normal (03/10, video: 18)
+// (03/10) Caida del arcade (la provoca el ESPECIAL de la tortuga, armado o no;
+// y sin arma, cada ROCKSTEADY_KD_INTERVAL golpes): anim [4] a mano, frame 2
+// volando hacia atras (desliza ~80 px), 3 en el piso, 4 y 5 se levanta.
+#define ROCKSTEADY_KD_FLY_F     18
+#define ROCKSTEADY_KD_FLY_Q   1152   // 4,5 px/f mientras vuela
+#define ROCKSTEADY_KD_DOWN_F    36
+#define ROCKSTEADY_KD_UP1_F      6
+#define ROCKSTEADY_KD_UP2_F      8
+// (03/10) Con el arma se queda mucho mas tiempo parado entre ataques (en el
+// video, 100-180 frames apuntando).
+#define ROCKSTEADY_ARMED_IDLE   75
 // (13/09) SE QUITO el flash BLANCO al recibir daño: reescribia los indices
 // 2..15 de PAL3 durante 8 frames en cada golpe y Gustavo lo pidio sacar. Con
 // ROCKSTEADY_HP en 124 son ~124 destellos por pelea. OJO: el parpadeo por HP
@@ -186,11 +201,12 @@
 
 // --- Balas del disparo ---
 #define MAX_ROCKSTEADY_BULLETS   6   // Proyectiles simultáneos en vuelo
-#define ROCKSTEADY_BULLET_SPEED  3   // px/frame horizontal
+#define ROCKSTEADY_BULLET_SPEED  6   // px/frame horizontal (03/10, video: 6)
 #define ROCKSTEADY_BULLET_DMG    1   // Barras de vida al impactar
 #define ROCKSTEADY_CHARGE_DMG    4   // Barras de vida al conectar la embestida (30/08, a pedido de Gustavo)
 #define ROCKSTEADY_SHOT_COUNT    3   // Balas por ráfaga
-#define ROCKSTEADY_SHOT_TICKS    5   // Ticks entre frames de la anim de disparo
+#define ROCKSTEADY_SHOT_TICKS    4   // Ticks entre frames de la anim de disparo
+                                     // (03/10: una bala cada 8 frames, video)
 // --- Sub-rangos de la anim [9] (8 frames) segun hacia donde dispara --------
 // La fila NO es una secuencia sola: son DOS poses de dos frames cada una, con
 // sus frames de retroceso en el medio. Medido sobre el arte:
@@ -311,6 +327,8 @@ typedef struct {
                              // Se decide UNA vez al abrir fuego, no por bala:
                              // si no, la pose y la bala podian contradecirse.
     BossFlash   flash;       // (03/10) parpadeo de vida baja (arena.flashPal)
+    u8          accX, accY;  // (03/10) restos Q8 del movimiento
+    s8          slideDir;    // (03/10) hacia donde desliza al caer
 } Rocksteady;
 
 // (01/10) ARENA: lo que depende del escenario. rocksteadySpawn usa la del
@@ -344,6 +362,9 @@ bool rocksteadyCanBeHit(const Rocksteady* r);
 s16  rocksteadyGetCenterX(const Rocksteady* r);
 s16  rocksteadyGetCenterY(const Rocksteady* r);
 void rocksteadyDamage(Rocksteady* r, s16 dmg);
+// (03/10) special = el especial de la tortuga: lo DERRIBA (como en el arcade).
+// rocksteadyDamage lo deduce del dano (>= ROCKSTEADY_SPECIAL_DMG).
+void rocksteadyDamageEx(Rocksteady* r, s16 dmg, bool special);
 
 // --- Balas del disparo (misma estructura que el sistema de shurikens) ---
 void rocksteadyBulletInit(void);

@@ -168,8 +168,9 @@ SPRITE lid_sprite "sprites/tapa_voladora.png" 4 3 FAST 0
 // jefes: en el garage Rocksteady tambien se dibuja en PAL3.
 SPRITE bebop_boss "sprites/bebop_boss_gen.png" 14 15 FAST 8
 
-// El disparo: 5 frames, un aro mas en cada uno (el tiro se va formando).
-// bebop_shot_gen.png sale del mismo generador (los aros vienen en el mismo rip,
-// a la derecha de la fila del disparo), con la paleta del jefe, asi que NO
-// lleva PALETTE propia: se dibuja con PAL3.
-SPRITE bebop_shot_spr "sprites/bebop_shot_gen.png" 9 5 FAST 0
+// El disparo: (03/10, como el arcade) cada aro es un proyectil aparte que
+// crece mientras vuela: 5 frames, frame k = el aro k solo, en una celda de
+// 16x40 (2x5 tiles). bebop_shot_gen.png sale del mismo generador (los aros
+// vienen en el mismo rip, a la derecha de la fila del disparo), con la paleta
+// del jefe, asi que NO lleva PALETTE propia: se dibuja con PAL3.
+SPRITE bebop_shot_spr "sprites/bebop_shot_gen.png" 2 5 FAST 0

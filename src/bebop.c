@@ -150,26 +150,14 @@ static void bebopFlashUpdate(Bebop* b) {
 // ---------------------------------------------------------------------------
 // DISPARO — los aros
 // ---------------------------------------------------------------------------
-// El proyectil se va FORMANDO mientras viaja: el sprite tiene 5 frames y cada
-// uno agrega un aro, asi que arranca con el aro chico (el que sale del caño) y
-// termina con los cinco. Vuela recto por X hasta pegarle a una tortuga o
-// salirse de camara. 'y' es la LANE del que disparo y no cambia; la altura
-// vive en 'z', igual que las balas de Rocksteady.
-//
-// (25/09) DOS ARREGLOS, los dos por lo mismo: el tiro no se veia.
-// 1. 'x' es el BORDE TRASERO de la celda, no su centro. El aro chico esta en
-//    la columna BEBOP_SHOT_REAR y el grande termina en la 71; antes se centraba
-//    la celda en la boca del arma, asi que el primer aro nacia 30 px ADENTRO
-//    del cuerpo de Bebop.
-// 2. La hitbox era una caja fija de +-50 px alrededor del centro de la celda:
-//    contra una tortuga a menos de ~140 px el tiro pegaba EN EL PRIMER FRAME y
-//    se liberaba antes de dibujarse -- el jugador perdia vida sin ver ningun
-//    aro. Ahora pega solo el FRENTE del disparo: el aro mas adelantado del
-//    frame actual (shotFront, medido sobre bebop_shot_gen.png), asi que el
-//    golpe llega cuando el dibujo llega.
-#define BEBOP_SHOT_REAR     7    // columna del aro chico dentro de la celda
-#define BEBOP_SHOT_FRONT_W 14    // ancho del tramo del frente que golpea
-static const u8 shotFront[BEBOP_SHOT_FRAMES] = { 13, 24, 38, 53, 71 };
+// (03/10) COMO EL ARCADE: cada aro es un proyectil aparte. Sale chico de la
+// boca del arma y CRECE mientras vuela (un tamano cada BEBOP_SHOT_GROW frames:
+// en el video 10, 16 y 24 px de alto); el disparo agachado tira tres, uno cada
+// BEBOP_CSHOT_RING_GAP frames. Vuela recto por X a BEBOP_SHOT_SPEED (4 px/f,
+// medido) hasta pegarle a una tortuga o salirse de camara. 'x' es el CENTRO
+// del aro; 'y' es la LANE del que disparo y no cambia; la altura vive en 'z'.
+// Golpea con el aro entero (mitad de su ancho en cada tamano).
+static const u8 ringHalfW[BEBOP_SHOT_FRAMES] = { 4, 5, 6, 7, 8 };
 static struct {
     u8      active;
     Sprite* sprite;
@@ -235,14 +223,11 @@ static void bebopShotUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             continue;
         }
 
-        // Impacto: el FRENTE del disparo contra el cuerpo, lane en Y y altura
-        // contra el torso. La celda se espeja con dir < 0, asi que el frente
-        // se mide siempre desde el borde trasero en la direccion del viaje.
-        s16 front = (s16)(shots[i].x + shots[i].dir * shotFront[shots[i].frame]);
-        s16 back  = (s16)(front - shots[i].dir * BEBOP_SHOT_FRONT_W);
-        s16 lo = (front < back) ? front : back;
-        s16 hi = (front < back) ? back : front;
-        s16 hx = front;
+        // Impacto: el aro (su ancho del tamano actual) contra el cuerpo, lane
+        // en Y y altura contra el torso.
+        s16 lo = (s16)(shots[i].x - ringHalfW[shots[i].frame]);
+        s16 hi = (s16)(shots[i].x + ringHalfW[shots[i].frame]);
+        s16 hx = shots[i].x;
         for (u8 k = 0; k < nPl; k++) {
             if (!playerCanBeHitAir(pls[k])) continue;
             s16 pcx = getPlayerHurtCX(pls[k]);   // (02/10) centro de la hurtbox
@@ -259,7 +244,7 @@ static void bebopShotUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
 
         if (!shots[i].active || !shots[i].sprite) continue;
         SPR_setPosition(shots[i].sprite,
-                        (s16)(shots[i].x - camX - (shots[i].dir < 0 ? BEBOP_SHOT_W : 0)),
+                        (s16)(shots[i].x - camX - BEBOP_SHOT_W / 2),
                         (s16)(shots[i].y - shots[i].z - camY - BEBOP_SHOT_H / 2));
         SPR_setDepth(shots[i].sprite, (s16)(-(shots[i].y) - 2));
     }
@@ -302,6 +287,10 @@ void bebopInit(Bebop* b) {
     b->cameraOffsetX = 0;
     b->cameraOffsetY = 0;
     b->arena = &arena21;
+    b->accX = b->accY = 0;
+    b->chargeWind = 0;
+    b->actT = 0;
+    b->slideDir = 1;
     bebopShotInit();
 }
 
@@ -323,6 +312,9 @@ void bebopSpawnArena(Bebop* b, const BebopArena* arena) {
     b->comboHits = 0;
     b->armored   = 0;
     b->armorTimer = 0;
+    b->accX = b->accY = 0;
+    b->chargeWind = 0;
+    b->actT = 0;
     bebopBuildPalettes();
     // (26/09) PAL3 la venia usando la TV de la vidriera del 2-1: la paleta
     // del jefe se carga recien ahora, cuando entra.
@@ -405,7 +397,22 @@ static void bebopStartCounter(Bebop* b) {
     bebopManual(b, BEBOP_ANIM_UPPER, 0);
 }
 
+static void bebopStartDown(Bebop* b) {
+    b->hitsTaken = 0;
+    b->comboHits = 0;
+    b->state = BEBOP_DOWN;
+    b->timer = 0;                       // (03/10) cuenta hacia ARRIBA
+    b->frameTick = 0;
+    b->slideDir = (s8)-b->dir;          // desliza alejandose de quien le pego
+    b->accX = 0;
+    bebopManual(b, BEBOP_ANIM_HURT, 3);
+}
+
 bool bebopDamage(Bebop* b, s16 dmg) {
+    return bebopDamageEx(b, dmg, (bool)(dmg >= BEBOP_SPECIAL_DMG));
+}
+
+bool bebopDamageEx(Bebop* b, s16 dmg, bool special) {
     if (!bebopCanBeHit(b)) return FALSE;
     b->hp -= dmg;
     b->calmTimer = 0;
@@ -424,13 +431,11 @@ bool bebopDamage(Bebop* b, s16 dmg) {
 
     b->hitsTaken++;
     b->comboHits++;
-    if (b->hitsTaken >= BEBOP_KD_INTERVAL) {
-        b->hitsTaken = 0;
-        b->comboHits = 0;
-        b->state = BEBOP_DOWN;
-        b->timer = BEBOP_KD_HOLD;
-        b->frameTick = 0;
-        bebopManual(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_HIT);
+    // (03/10) Arcade: el especial y el golpe SEGUIDO numero BEBOP_KD_COMBO lo
+    // tiran (la cuenta total de BEBOP_KD_INTERVAL queda como respaldo).
+    if (special || b->comboHits >= BEBOP_KD_COMBO ||
+        b->hitsTaken >= BEBOP_KD_INTERVAL) {
+        bebopStartDown(b);
     } else if (b->comboHits > BEBOP_COUNTER_HITS) {
         // Ya aguanto la racha: este golpe lo absorbe y responde.
         bebopStartCounter(b);
@@ -466,22 +471,37 @@ static void bebopToIdle(Bebop* b) {
     bebopAuto(b, BEBOP_ANIM_IDLE, TRUE);
 }
 
-static void bebopStartWalk(Bebop* b, bool alignOnly) {
+// Paso de movimiento en Q8 (256 = 1 px por frame) con resto acumulado.
+static s16 bebopStepQ(u8* acc, u16 q) {
+    u16 t = (u16)(*acc + q);
+    *acc = (u8)(t & 0xFF);
+    return (s16)(t >> 8);
+}
+
+// alignOnly: 0 se acerca, 1 solo alinea la lane (para disparar), 2 (03/10) se
+// ALEJA para tomar carrera y embestir (en el video, antes de cada embestida
+// camina hasta el otro lado).
+static void bebopStartWalk(Bebop* b, u8 alignOnly) {
     b->state = BEBOP_WALK;
-    b->alignOnly = (u8)alignOnly;
-    b->timer = alignOnly ? BEBOP_ALIGN_TICKS : 90;   // tope: no camina para siempre
+    b->alignOnly = alignOnly;
+    b->timer = alignOnly == 1 ? BEBOP_ALIGN_TICKS : (alignOnly == 2 ? 150 : 120);
     b->frameTick = 0;
     b->frame = 0;
     bebopManual(b, BEBOP_ANIM_WALK, 0);
 }
 
+static const u8 chargeOrder[4] = { 0, 1, 3, 2 };   // orden del arcade
 static void bebopStartCharge(Bebop* b, s8 dir) {
     b->state = BEBOP_CHARGE;
     b->timer = BEBOP_CHARGE_MAX;
     b->dir = dir;
     b->chargeDir = dir;
     b->chargeHit = 0;
-    bebopAuto(b, BEBOP_ANIM_CHARGE, TRUE);
+    b->chargeWind = BEBOP_CHARGE_WINDUP;   // (03/10) amaga en el lugar
+    b->frameTick = 0;
+    b->actT = 0;
+    b->accX = 0;
+    bebopManual(b, BEBOP_ANIM_CHARGE, chargeOrder[0]);
 }
 
 static void bebopStartUpper(Bebop* b) {
@@ -496,6 +516,8 @@ static void bebopStartShoot(Bebop* b, bool crouch) {
     b->state = BEBOP_SHOOT;
     b->crouchShot = (u8)crouch;
     b->frameTick = 0;
+    b->actT = 0;
+    if (crouch) { bebopManual(b, BEBOP_ANIM_SHOOT, 0); return; }   // se para y apunta
     bebopManual(b, BEBOP_ANIM_SHOOT,
                 crouch ? BEBOP_SHOOT_FR_CROUCH : BEBOP_SHOOT_FR_STAND);
 }
@@ -504,6 +526,7 @@ static void bebopStartTaunt(Bebop* b) {
     b->state = BEBOP_TAUNT;
     b->frameTick = 0;
     b->calmTimer = 0;
+    b->actT = 0;
     bebopManual(b, BEBOP_ANIM_TAUNT, 0);
 }
 
@@ -627,30 +650,31 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 // Agachado contra el que esta en el piso, parado contra el que
                 // salta (el tiro parado sale mas alto).
                 if (distX > BEBOP_SHOOT_RANGE) {
-                    bebopStartWalk(b, FALSE);          // demasiado lejos: acercarse
+                    bebopStartWalk(b, 0);              // demasiado lejos: acercarse
                 } else if (aligned) {
                     b->step++;
                     bebopStartShoot(b, (bool)!isPlayerJumping(t));
                 } else {
-                    bebopStartWalk(b, TRUE);           // alinearse y disparar
+                    bebopStartWalk(b, 1);              // alinearse y disparar
                 }
             } else {
-                // Paso de CUERPO: lejos embiste, cerca dispara a quemarropa.
+                // Paso de CUERPO (03/10, como el arcade): embestida. Si no
+                // hay carrera, primero se aleja para tomarla.
                 b->step = 0;
-                if (distX >= BEBOP_CHARGE_DIST && abs(distY) <= BEBOP_HIT_TOL_Y) {
+                if (distX >= BEBOP_CHARGE_DIST) {
                     bebopStartCharge(b, (s8)((tcx < cx) ? -1 : 1));
-                } else if (distX <= BEBOP_CLOSE_RANGE && abs(distY) <= BEBOP_HIT_TOL_Y) {
-                    bebopStartShoot(b, TRUE);
                 } else {
-                    bebopStartWalk(b, FALSE);
+                    bebopStartWalk(b, 2);
                 }
             }
         }
         break;
 
     case BEBOP_TAUNT:
-        if (bebopStepFrames(b, BEBOP_ANIM_TAUNT, 0, 2, BEBOP_TAUNT_TICKS))
-            bebopToIdle(b);
+        // (03/10) Vitoreo del arcade: alterna los frames 0 y 1 cada 8.
+        b->actT++;
+        bebopManual(b, BEBOP_ANIM_TAUNT, (u8)((b->actT / BEBOP_TAUNT_LOOP_TICKS) & 1));
+        if (b->actT >= BEBOP_TAUNT_SHOT_F) bebopToIdle(b);
         break;
 
     case BEBOP_WALK: {
@@ -658,17 +682,31 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         b->dir = (tcx < cx) ? -1 : 1;
         // Normal: se acerca en X y alinea la lane. Modo ALINEARSE: solo lane,
         // que es lo que necesita para disparar (el tiro va por su lane).
-        if (!b->alignOnly && distX > BEBOP_CLOSE_RANGE)
-            b->x = (s16)(b->x + b->dir * BEBOP_SPEED);
-        if (distY > BEBOP_ALIGN_Y)       b->y += BEBOP_SPEED;
-        else if (distY < -BEBOP_ALIGN_Y) b->y -= BEBOP_SPEED;
+        // Modo ALEJARSE: camina para atras (mirando a la tortuga) a tomar
+        // carrera. (03/10) Velocidades del arcade en Q8.
+        {
+            s16 vx = bebopStepQ(&b->accX, BEBOP_WALK_X_Q);
+            s16 vy = bebopStepQ(&b->accY, BEBOP_WALK_Y_Q);
+            if (b->alignOnly == 0 && distX > BEBOP_CLOSE_RANGE)
+                b->x = (s16)(b->x + b->dir * vx);
+            else if (b->alignOnly == 2)
+                b->x = (s16)(b->x - b->dir * vx);
+            if (distY > BEBOP_ALIGN_Y)       b->y += vy;
+            else if (distY < -BEBOP_ALIGN_Y) b->y -= vy;
+        }
 
         if (++b->frameTick >= BEBOP_WALK_TICKS) {
             b->frameTick = 0;
             bebopManual(b, BEBOP_ANIM_WALK, (u8)((b->frame + 1) % 6));
         }
         if (b->timer > 0) b->timer--;
-        if (b->alignOnly && abs(distY) <= BEBOP_ALIGN_Y &&
+        if (b->alignOnly == 2) {
+            // Tomo carrera (o llego a la punta de la arena): embiste.
+            bool edge = (bool)(bebopGetCenterX(b) <= b->arena->xMin + 2 ||
+                               bebopGetCenterX(b) >= b->arena->xMax - 2);
+            if (distX >= BEBOP_CHARGE_DIST || edge || b->timer == 0)
+                bebopStartCharge(b, (s8)((tcx < cx) ? -1 : 1));
+        } else if (b->alignOnly && abs(distY) <= BEBOP_ALIGN_Y &&
             distX <= BEBOP_SHOOT_RANGE) {
             b->step++;
             bebopStartShoot(b, (bool)!isPlayerJumping(t));
@@ -681,7 +719,25 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
     }
 
     case BEBOP_CHARGE:
-        b->x = (s16)(b->x + b->chargeDir * BEBOP_CHARGE_SPEED);
+        // (03/10) Arcade: anim en orden 0,1,3,2 a 4 ticks; primero AMAGA en el
+        // lugar (BEBOP_CHARGE_WINDUP, girando hacia la tortuga) y recien
+        // despues corre a 3,5 px/f corrigiendo la lane.
+        if (++b->frameTick >= BEBOP_CHARGE_TICKS) {
+            b->frameTick = 0;
+            b->actT++;
+            bebopManual(b, BEBOP_ANIM_CHARGE, chargeOrder[b->actT & 3]);
+        }
+        if (b->chargeWind > 0) {
+            b->chargeWind--;
+            if (t) b->dir = b->chargeDir = (s8)((tcx < cx) ? -1 : 1);
+            break;
+        }
+        b->x = (s16)(b->x + b->chargeDir * bebopStepQ(&b->accX, BEBOP_CHARGE_Q));
+        {
+            s16 vy = bebopStepQ(&b->accY, BEBOP_CHARGE_LANE_Q);
+            if (distY > BEBOP_ALIGN_Y)       b->y += vy;
+            else if (distY < -BEBOP_ALIGN_Y) b->y -= vy;
+        }
         b->dir = b->chargeDir;
         if (b->timer > 0) b->timer--;
         // Golpea por CONTACTO real de los cuerpos, como la de Rocksteady.
@@ -737,6 +793,25 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
     }
 
     case BEBOP_SHOOT: {
+        if (b->crouchShot) {
+            // (03/10) Disparo del arcade: parado apuntando (0, 1), agachado
+            // (4, 2, 4) y TRES aros, uno cada BEBOP_CSHOT_RING_GAP frames.
+            u16 a = b->actT++;
+            u8 f = (a < 6) ? 0 : (a < 12) ? 1 : (a < 24) ? 4 : (a < 30) ? 2 : 4;
+            bebopManual(b, BEBOP_ANIM_SHOOT, f);
+            if (a >= BEBOP_CSHOT_RING1 &&
+                ((a - BEBOP_CSHOT_RING1) % BEBOP_CSHOT_RING_GAP) == 0 &&
+                a < BEBOP_CSHOT_RING1 + 3 * BEBOP_CSHOT_RING_GAP)
+                bebopShotSpawn((s16)(bebopGetCenterX(b) + b->dir * (BEBOP_MUZZLE_CROUCH_X + 4)),
+                               b->y, BEBOP_MUZZLE_CROUCH_Z, b->dir);
+            if (a + 1 >= BEBOP_CSHOT_F) {
+                b->cooldown = BEBOP_COOLDOWN;
+                // Despues de disparar, vitorea (como en el arcade).
+                if ((u16)(random() % 100) < BEBOP_TAUNT_SHOT_PCT) bebopStartTaunt(b);
+                else bebopToIdle(b);
+            }
+            break;
+        }
         u8 first = b->crouchShot ? BEBOP_SHOOT_FR_CROUCH : BEBOP_SHOOT_FR_STAND;
         u8 last  = b->crouchShot ? 4 : 1;
         u8 prev  = b->frame;
@@ -749,9 +824,8 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         if (prev != b->frame && b->frame == last) {
             s16 mx = b->crouchShot ? BEBOP_MUZZLE_CROUCH_X : BEBOP_MUZZLE_STAND_X;
             s16 mz = b->crouchShot ? BEBOP_MUZZLE_CROUCH_Z : BEBOP_MUZZLE_STAND_Z;
-            // El aro chico (columna BEBOP_SHOT_REAR de la celda) justo en
-            // la boca del arma.
-            bebopShotSpawn((s16)(bebopGetCenterX(b) + b->dir * (mx - BEBOP_SHOT_REAR)),
+            // El aro chico (centro de la celda) justo en la boca del arma.
+            bebopShotSpawn((s16)(bebopGetCenterX(b) + b->dir * (mx + 4)),
                            b->y, mz, b->dir);
         }
         break;
@@ -768,25 +842,32 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         break;
 
     case BEBOP_DOWN:
-        if (b->timer > 0) b->timer--;
-        if (b->timer > BEBOP_KD_HOLD - 10) {
-            bebopManual(b, BEBOP_ANIM_HURT, 1);          // sigue cayendo
+        // (03/10) Caida del arcade: sentado deslizando hacia atras (frame 3),
+        // arrodillado (4) y levantandose (5).
+        b->timer++;
+        if (b->timer <= BEBOP_KD_SLIDE_F) {
+            b->x = (s16)(b->x + b->slideDir * bebopStepQ(&b->accX, BEBOP_KD_SLIDE_Q));
+            bebopManual(b, BEBOP_ANIM_HURT, 3);
+        } else if (b->timer <= BEBOP_KD_SLIDE_F + BEBOP_KD_KNEEL_F) {
+            bebopManual(b, BEBOP_ANIM_HURT, 4);
         } else {
-            bebopManual(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_DOWN);   // tirado
+            bebopManual(b, BEBOP_ANIM_HURT, 5);
         }
-        if (b->timer == 0) {
+        if (b->timer >= BEBOP_KD_SLIDE_F + BEBOP_KD_KNEEL_F + BEBOP_KD_RISE_F) {
             b->state = BEBOP_GETUP;
-            b->frameTick = 0;
-            bebopManual(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_GETUP);
+            b->timer = BEBOP_GETUP_WAIT;
+            b->armorTimer = BEBOP_GETUP_ARMOR;
+            b->comboHits  = 0;
+            bebopManual(b, BEBOP_ANIM_IDLE, 0);
         }
         break;
 
     case BEBOP_GETUP:
-        if (bebopStepFrames(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_GETUP, 5,
-                            BEBOP_GETUP_TICKS)) {
-            b->armorTimer = BEBOP_GETUP_ARMOR;
-            b->comboHits  = 0;
-            // Tortuga encima esperandolo: se levanta pegando.
+        // (03/10) Ya parado: un instante y suelta el uppercut (el arcade lo
+        // hace SIEMPRE al levantarse).
+        if (t) b->dir = (tcx < cx) ? -1 : 1;
+        if (b->timer > 0) b->timer--;
+        if (b->timer == 0) {
             if (t && distX <= BEBOP_WAKE_RANGE && abs(distY) <= BEBOP_HIT_TOL_Y) {
                 bebopStartCounter(b);
             } else {

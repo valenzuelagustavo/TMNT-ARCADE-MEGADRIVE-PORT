@@ -139,30 +139,29 @@ def build_grid(frames):
 
 
 def build_shot(a):
-    """Los 5 aros del disparo, de menor a mayor, en celdas iguales. Cada frame
-    ACUMULA los aros anteriores: el disparo se va formando aro por aro, que es
-    como lo pidio Gustavo ('aparecer de a uno')."""
+    """(03/10) Los aros del disparo como en el ARCADE: cada aro es un proyectil
+    aparte que crece mientras vuela (en el video: 10, 16 y 24 px de alto, uno
+    cada ~7 frames). Frame k = SOLO el aro k (de menor a mayor), centrado en
+    una celda chica de 16x40 (2x5 tiles). bebop.c tira tres aros por disparo.
+    (Antes cada frame acumulaba los aros anteriores en una celda de 72x40.)"""
     art = a != 0
     cols = runs(art.any(axis=0))
     if len(cols) < 2:
         sys.exit("El disparo tiene %d aros" % len(cols))
-    ys = np.nonzero(art.any(axis=1))[0]
-    y0, y1 = int(ys.min()), int(ys.max())
-    x0 = cols[0][0]
-    x1 = cols[-1][1]
-    w = ((x1 - x0 + 1 + PAD - 1) // PAD) * PAD
-    h = ((y1 - y0 + 1 + PAD - 1) // PAD) * PAD
+    w = ((max(c1 - c0 + 1 for c0, c1 in cols) + PAD - 1) // PAD) * PAD
+    hs = []
+    for c0, c1 in cols:
+        ys = np.nonzero(art[:, c0:c1 + 1].any(axis=1))[0]
+        hs.append((int(ys.min()), int(ys.max())))
+    h = ((max(y1 - y0 + 1 for y0, y1 in hs) + PAD - 1) // PAD) * PAD
     print("disparo: %d aros, celda %dx%d px (%dx%d tiles)"
           % (len(cols), w, h, w // 8, h // 8))
-
     out = np.zeros((h, w * len(cols)), np.uint8)
-    # El aro mas grande es el ultimo: se alinean todos por ABAJO y por el
-    # borde DERECHO del recorte, que es por donde avanza el disparo.
-    for i in range(len(cols)):
-        piece = a[y0:y1 + 1, x0:cols[i][1] + 1]
+    for i, ((c0, c1), (y0, y1)) in enumerate(zip(cols, hs)):
+        piece = a[y0:y1 + 1, c0:c1 + 1]
         ph, pw = piece.shape
-        ox = i * w + (w - (x1 - x0 + 1))            # mismo origen en todos
-        oy = h - ph
+        ox = i * w + (w - pw) // 2
+        oy = (h - ph) // 2
         out[oy:oy + ph, ox:ox + pw] = piece
     return out
 

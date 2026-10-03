@@ -21,8 +21,15 @@ static s16 rclamp(s16 v, s16 a, s16 b) { return (v < a) ? a : ((v > b) ? b : v);
 
 // Velocidades del jefe. (13/09) Se quito el "anger" que las subia tras N
 // golpes: colgaba de la fase 2, que ya no existe como progresion.
-static s16 rocksteadyMoveSpeed(const Rocksteady* r)   { (void)r; return ROCKSTEADY_SPEED; }
-static s16 rocksteadyChargeSpeed(const Rocksteady* r) { (void)r; return ROCKSTEADY_CHARGE_SPEED; }
+// (03/10) Velocidades del arcade en Q8 (256 = 1 px por frame), con el resto
+// acumulado: 1,25 px/f sale 1-1-1-2...
+static s16 rsStep(u8* acc, u16 q) {
+    u16 t = (u16)(*acc + q);
+    *acc = (u8)(t & 0xFF);
+    return (s16)(t >> 8);
+}
+static s16 rsStepX(Rocksteady* r, u16 q) { return rsStep(&r->accX, q); }
+static s16 rsStepY(Rocksteady* r, u16 q) { return rsStep(&r->accY, q); }
 
 // Cambia de anim (con auto-animación ON: las animaciones se reproducen solas
 // al ritmo del 'time' del recurso, 6 frames por frame de animación).
@@ -233,6 +240,8 @@ void rocksteadyInit(Rocksteady* r) {
     r->shotUp = 0;
     r->farTimer = 0;
     bossFlashReset(&r->flash);
+    r->accX = r->accY = 0;
+    r->slideDir = 1;
 }
 
 void rocksteadySpawn(Rocksteady* r) {
@@ -311,7 +320,27 @@ static bool rocksteadySwapDue(const Rocksteady* r) {
                                         : ROCKSTEADY_UNARMED_ATTACKS));
 }
 
+// (03/10) Caida: anim [4] a mano (ver ROCKSTEADY_KD_* en rocksteady.h).
+static void rocksteadyStartKnockdown(Rocksteady* r) {
+    r->hitsTaken = 0;
+    r->comboHits = 0;      // tirado: la cuenta de "seguidos" arranca de nuevo
+    r->counterPending = 0; // desde el piso no hay contraataque
+    r->knockdowns++;
+    r->state = ROCKSTEADY_KNOCKDOWN;
+    r->timer = 0;          // cuenta hacia ARRIBA
+    r->slideDir = (s8)-r->dir;
+    r->accX = 0;
+    XGM2_stopPCM(SOUND_PCM_CH2);   // por si lo tiraron en plena embestida
+    rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_HURT, FALSE);
+    SPR_setAutoAnimation(r->sprite, FALSE);
+    SPR_setFrame(r->sprite, 2);
+}
+
 void rocksteadyDamage(Rocksteady* r, s16 dmg) {
+    rocksteadyDamageEx(r, dmg, (bool)(dmg >= ROCKSTEADY_SPECIAL_DMG));
+}
+
+void rocksteadyDamageEx(Rocksteady* r, s16 dmg, bool special) {
     if (!rocksteadyCanBeHit(r)) return;
     r->hp -= dmg;
 
@@ -345,14 +374,10 @@ void rocksteadyDamage(Rocksteady* r, s16 dmg) {
     // SIN ARMA, cada ROCKSTEADY_KD_INTERVAL golpes el jefe CAE (knock-down).
     // Con el arma NO cae: la anim de caida [4] lo dibuja desarmado y el arma
     // desapareceria de golpe.
-    if (!r->armed && r->hitsTaken >= ROCKSTEADY_KD_INTERVAL) {
-        r->hitsTaken = 0;
-        r->comboHits = 0;      // tirado: la cuenta de "seguidos" arranca de nuevo
-        r->counterPending = 0; // desde el piso no hay contraataque
-        r->knockdowns++;
-        r->state = ROCKSTEADY_KNOCKDOWN;
-        r->timer = ROCKSTEADY_KD_HOLD;
-        rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_HURT, FALSE);
+    // (03/10) El ESPECIAL lo tira SIEMPRE, armado o no (en el video cae con
+    // el arma en la mano y se levanta apuntando).
+    if (special || (!r->armed && r->hitsTaken >= ROCKSTEADY_KD_INTERVAL)) {
+        rocksteadyStartKnockdown(r);
         return;
     }
 
@@ -446,7 +471,7 @@ static void rocksteadyStartArmsIntro(Rocksteady* r) {
 // Vuelve a IDLE tras un flinch / cooldown.
 static void rocksteadyToIdle(Rocksteady* r) {
     r->state = ROCKSTEADY_IDLE;
-    r->timer = ROCKSTEADY_IDLE_MIN;
+    r->timer = r->armed ? ROCKSTEADY_ARMED_IDLE : ROCKSTEADY_IDLE_MIN;
     if (r->attackCooldown < ROCKSTEADY_ATTACK_COOLDOWN)
         r->attackCooldown = ROCKSTEADY_ATTACK_COOLDOWN;
     // Anim de reposo según la fase.
@@ -547,14 +572,17 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             // (ya no se queda con el IDLE del taunt).
             rocksteadySetAnim(r, ROCKSTEADY_ANIM_WALK, TRUE);
             r->dir = (pcx >= bcx) ? 1 : -1;
-            r->x = rclamp(r->x + r->dir * rocksteadyMoveSpeed(r), ra.xMin, ra.xMax);
-            if (r->y < ra.emergeY) r->y = rclamp(r->y + rocksteadyMoveSpeed(r), r->y, ra.emergeY);
+            r->x = rclamp(r->x + r->dir * rsStepX(r, ROCKSTEADY_WALK_X_Q), ra.xMin, ra.xMax);
+            if (r->y < ra.emergeY) r->y = rclamp(r->y + rsStepY(r, ROCKSTEADY_WALK_Y_Q), r->y, ra.emergeY);
             if (r->y >= ra.emergeY) {
                 // Garantiza el primer golpe del combate (informe, sección 1):
                 // en vez de arrancar pasivo en IDLE, dispara una embestida
                 // scripteada hacia el jugador apenas termina de bajar, sin
                 // importar la distancia (igual que en el arcade original).
                 rocksteadyStartCharge(r, (pcx >= bcx) ? 1 : -1);
+                // (03/10) Arcade: despues de esta embestida va a PATEAR
+                // (embestida + patada y saca el arma).
+                r->unarmedStep = 2;
             }
             break;
         }
@@ -638,10 +666,12 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             // escala a EMBESTIDA en vez de perseguir caminando para siempre.
             if (distX > ROCKSTEADY_CHARGE_TRIGGER_DIST) { rocksteadyStartCharge(r, (pcx >= bcx) ? 1 : -1); break; }
             r->dir = (pcx >= bcx) ? 1 : -1;
-            s16 spd = rocksteadyMoveSpeed(r);
-            r->x += r->dir * spd;
-            if      (py > r->y + 2) r->y += spd;
-            else if (py < r->y - 2) r->y -= spd;
+            r->x += r->dir * rsStepX(r, ROCKSTEADY_WALK_X_Q);
+            {
+                s16 vy = rsStepY(r, ROCKSTEADY_WALK_Y_Q);
+                if      (py > r->y + 2) r->y += vy;
+                else if (py < r->y - 2) r->y -= vy;
+            }
             r->y = rclamp(r->y, ra.laneTop, ra.laneBot);
             r->x = rclamp(r->x, ra.xMin, ra.xMax);
             if (distX <= ROCKSTEADY_KICK_RANGE) {
@@ -674,11 +704,12 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                 break;
             }
             r->dir = r->chargeDir;
-            s16 chgSpd = rocksteadyChargeSpeed(r);
-            r->x += r->dir * chgSpd;
-            s16 ms = rocksteadyMoveSpeed(r);
-            if      (py > r->y + 2) r->y += ms;
-            else if (py < r->y - 2) r->y -= ms;
+            r->x += r->dir * rsStepX(r, ROCKSTEADY_CHARGE_Q);
+            {
+                s16 vy = rsStepY(r, ROCKSTEADY_LANE_Q);
+                if      (py > r->y + 2) r->y += vy;
+                else if (py < r->y - 2) r->y -= vy;
+            }
             r->y = rclamp(r->y, ra.laneTop, ra.laneBot);
 
             // "La embestida golpea al player si lo toca": el impacto se mide
@@ -734,8 +765,25 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
         }
 
         case ROCKSTEADY_KNOCKDOWN: {
-            if (r->timer > 0) { r->timer--; break; }
-            rocksteadyResumeFromHit(r);   // se levanta y sigue peleando
+            // (03/10) Caida del arcade: vuela deslizando hacia atras, queda en
+            // el piso y se levanta en dos pasos.
+            u16 t = ++r->timer;
+            if (t <= ROCKSTEADY_KD_FLY_F) {
+                r->x = rclamp(r->x + r->slideDir * rsStepX(r, ROCKSTEADY_KD_FLY_Q),
+                              ra.xMin, ra.xMax);
+                SPR_setFrame(r->sprite, 2);
+            } else if (t <= ROCKSTEADY_KD_FLY_F + ROCKSTEADY_KD_DOWN_F) {
+                SPR_setFrame(r->sprite, 3);
+            } else if (t <= ROCKSTEADY_KD_FLY_F + ROCKSTEADY_KD_DOWN_F + ROCKSTEADY_KD_UP1_F) {
+                SPR_setFrame(r->sprite, 4);
+            } else if (t <= ROCKSTEADY_KD_FLY_F + ROCKSTEADY_KD_DOWN_F +
+                            ROCKSTEADY_KD_UP1_F + ROCKSTEADY_KD_UP2_F) {
+                SPR_setFrame(r->sprite, 5);
+            } else {
+                SPR_setAutoAnimation(r->sprite, TRUE);
+                r->anim = 0xFF;            // que toIdle vuelva a poner su anim
+                rocksteadyResumeFromHit(r);   // se levanta y sigue peleando
+            }
             break;
         }
 
@@ -760,10 +808,12 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             //     pero visualmente esta por encima), o
             //   - el jugador esta alineado en Y -> tiro horizontal.
             r->dir = (pcx >= bcx) ? 1 : -1;
-            s16 spd = rocksteadyMoveSpeed(r);
-            r->x += r->dir * spd;
-            if      (py > r->y + 2) r->y += spd;
-            else if (py < r->y - 2) r->y -= spd;
+            r->x += r->dir * rsStepX(r, ROCKSTEADY_AIM_X_Q);
+            {
+                s16 vy = rsStepY(r, ROCKSTEADY_WALK_Y_Q);
+                if      (py > r->y + 2) r->y += vy;
+                else if (py < r->y - 2) r->y -= vy;
+            }
             r->y = rclamp(r->y, ra.laneTop, ra.laneBot);
             r->x = rclamp(r->x, ra.xMin, ra.xMax);
             if (distX <= ROCKSTEADY_SHOOT_RANGE &&
