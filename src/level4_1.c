@@ -32,9 +32,11 @@
 // los dos a la vez; con dos tortugas no hay VRAM, asi que Rocksteady espera
 // en el ascensor y sale cuando hay lugar (en la practica, cuando cae Bebop).
 // (03/10) Bebop y Rocksteady comparten PALETA (las hojas nuevas de Gustavo):
-// los dos se dibujan en PAL3 (la carga Bebop al salir) y PAL2 queda para los
-// soldiers. OJO: el parpadeo de vida baja de Bebop alterna PAL3 entera, asi
-// que mientras dure Rocksteady parpadea con el.
+// los dos se dibujan en PAL3 (la carga Bebop al salir), con April. El
+// parpadeo de vida baja NO toca PAL3: al salir Bebop se carga en PAL2 la
+// version quemada de la paleta compartida (en las peleas con jefes nunca hay
+// foot soldiers) y el jefe con poca vida pasa SU sprite a PAL2 cada 4 frames
+// (flashPal de las arenas, boss_flash.h). Asi parpadea solo ese jefe.
 //
 // Musica (01/10): "11 - Parking Garage (Scene 2-3)" (music_garage).
 // Al ganar: Scene 5 (la autopista).
@@ -478,7 +480,8 @@ static const BebopArena arena41 = {
     stageWalkTopAt, lvl41BotAt,
     1106, 114,          // parado en el piso del ascensor
     1100, 172,          // salta al estacionamiento
-    TRUE, 50
+    TRUE, 50,
+    PAL2                // parpadeo: el sprite pasa a PAL2 (quemada)
 };
 
 // Rocksteady sale caminando del ascensor (el borde izquierdo del frame de
@@ -489,7 +492,8 @@ static const RocksteadyArena rockArena41 = {
     1054, 118,
     176, 40,
     PAL3,       // (03/10) paleta compartida con Bebop
-    0           // vida: ROCKSTEADY_HP (01/10: igual que Bebop, antes 80 aca)
+    0,          // vida: ROCKSTEADY_HP (01/10: igual que Bebop, antes 80 aca)
+    PAL2        // (03/10) parpadeo: el sprite pasa a PAL2 (quemada)
 };
 
 #define DOOR_STEP_TICKS      4   // ticks por paso de la persiana (8 px)
@@ -611,6 +615,9 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
         bossVoStart(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
                     music_boss, 80);
         bebopSpawnArena(&bebop, &arena41);
+        // PAL2 (ya sin soldiers): la paleta compartida "quemada", para el
+        // parpadeo de vida baja de los dos jefes.
+        bossFlashLoadLine(PAL2, bebop_boss.palette->data);
     }
 
     // --- Rocksteady: cuando Bebop ya salto del ascensor Y hay VRAM ---

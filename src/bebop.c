@@ -36,7 +36,8 @@ static const BebopArena arena21 = {
     lvl21TopAt, lvl21BotAt,
     BEBOP_CAR_X, BEBOP_CAR_Y,
     BEBOP_LAND_X, BEBOP_LAND_Y,
-    FALSE, 0
+    FALSE, 0,
+    0           // parpadeo: colores de PAL3 (PAL3 es solo de Bebop)
 };
 
 static s16 bebopClampLane(const BebopArena* A, s16 cx, s16 lane) {
@@ -98,9 +99,11 @@ static void bebopRender(Bebop* b) {
 // ---------------------------------------------------------------------------
 // Dos copias de la paleta del jefe: la normal y una "quemada" con cada canal
 // duplicado (clampeado a 0xF). Por debajo de BEBOP_FLASH_HP se alternan cada
-// BEBOP_FLASH_TICKS frames, y por debajo de BEBOP_FLASH_CRIT_HP cada
-// BEBOP_FLASH_CRIT_TICKS. Vive aca y no en el nivel porque en el 2-1 PAL3 es
-// SOLO del jefe (y de su disparo, que parpadea con el -- queda bien).
+// BEBOP_FLASH_TICKS frames (03/10: 4/4 constante, como el arcade).
+// En el 2-1 PAL3 es SOLO del jefe (y de su disparo, que parpadea con el), asi
+// que se cambian los colores de PAL3. En el garage (arena->flashPal != 0) PAL3
+// la comparten Rocksteady y April: ahi se cambia la LINEA del sprite de Bebop
+// a arena->flashPal, donde el nivel cargo la paleta quemada.
 static u16 bebopPal[16];
 static u16 bebopFlashPal[16];
 
@@ -117,22 +120,30 @@ static void bebopBuildPalettes(void) {
     }
 }
 
+static void bebopFlashApply(Bebop* b) {
+    u8 line = b->arena ? b->arena->flashPal : 0;
+    if (line) {
+        if (b->sprite) SPR_setPalette(b->sprite, b->flashOn ? line : PAL3);
+    } else {
+        PAL_setPalette(PAL3, b->flashOn ? bebopFlashPal : bebopPal, DMA);
+    }
+}
+
 static void bebopFlashOff(Bebop* b) {
     if (!b->flashOn) return;
     b->flashOn = 0;
-    PAL_setPalette(PAL3, bebopPal, DMA);
+    bebopFlashApply(b);
 }
 
 static void bebopFlashUpdate(Bebop* b) {
     if (b->hp <= 0) { bebopFlashOff(b); return; }
-    u8 interval = (b->hp <= BEBOP_FLASH_CRIT_HP) ? BEBOP_FLASH_CRIT_TICKS
-                : ((b->hp <= BEBOP_FLASH_HP) ? BEBOP_FLASH_TICKS : 0);
+    u8 interval = (b->hp <= BEBOP_FLASH_HP) ? BEBOP_FLASH_TICKS : 0;
     if (interval == 0) { bebopFlashOff(b); return; }
     if (b->flashTick > 0) b->flashTick--;
     if (b->flashTick == 0) {
         b->flashTick = interval;
         b->flashOn ^= 1;
-        PAL_setPalette(PAL3, b->flashOn ? bebopFlashPal : bebopPal, DMA);
+        bebopFlashApply(b);
     }
 }
 

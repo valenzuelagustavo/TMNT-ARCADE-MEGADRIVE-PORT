@@ -4,6 +4,7 @@
 #include <genesis.h>
 #include "level2.h"      // rocksteady_boss, boss_bullet (SPRITE)
 #include "player.h"      // el jefe interactúa con el/los jugador(es)
+#include "boss_flash.h"  // (03/10) parpadeo de vida baja por linea de sprite
 
 // ===========================================================================
 // ROCKSTEADY — jefe final del nivel 2 (pasillo en llamas)
@@ -309,6 +310,7 @@ typedef struct {
     u8          shotUp;      // 1 = TODA esta ráfaga es el tiro hacia arriba.
                              // Se decide UNA vez al abrir fuego, no por bala:
                              // si no, la pose y la bala podian contradecirse.
+    BossFlash   flash;       // (03/10) parpadeo de vida baja (arena.flashPal)
 } Rocksteady;
 
 // (01/10) ARENA: lo que depende del escenario. rocksteadySpawn usa la del
@@ -322,6 +324,11 @@ typedef struct {
     u16 emergeStand;        // frames quieto al aparecer (taunt)
     u8  pal;                // linea de paleta (sprite y balas); la carga el nivel
     s16 hp;                 // vida (0 = ROCKSTEADY_HP)
+    // (03/10) Parpadeo de vida baja hecho aca: 0 = no (en el 1-2 lo hace
+    // scenes.c cambiando los colores de PAL3). Si no, la LINEA a la que pasa
+    // el sprite en la fase "quemada" (el nivel carga ahi la paleta quemada;
+    // garage: PAL2, porque PAL3 la comparte con Bebop y April).
+    u8  flashPal;
 } RocksteadyArena;
 
 // --- API pública ---

@@ -13,7 +13,8 @@ static const RocksteadyArena raLevel2 = {
     ROCKSTEADY_PATROL_LEFT, ROCKSTEADY_PATROL_RIGHT,
     ROCKSTEADY_SPAWN_X, 156,
     ROCKSTEADY_LANE_BOTTOM, ROCKSTEADY_EMERGE_STAND,
-    PAL3, 0
+    PAL3, 0,
+    0           // parpadeo: lo hace scenes.c (colores de PAL3)
 };
 static RocksteadyArena ra;
 static s16 rclamp(s16 v, s16 a, s16 b) { return (v < a) ? a : ((v > b) ? b : v); }
@@ -231,6 +232,7 @@ void rocksteadyInit(Rocksteady* r) {
     r->shotTimer = 0;
     r->shotUp = 0;
     r->farTimer = 0;
+    bossFlashReset(&r->flash);
 }
 
 void rocksteadySpawn(Rocksteady* r) {
@@ -248,6 +250,7 @@ void rocksteadySpawnArena(Rocksteady* r, const RocksteadyArena* a) {
     r->dir = -1;
     r->armed = 0;   // entra SIN arma: la primera tanda es de embestidas
     r->hp = ra.hp ? ra.hp : ROCKSTEADY_HP;
+    bossFlashReset(&r->flash);
     r->hitsTaken = 0;
     r->knockdowns = 0;
     r->comboHits = 0;
@@ -827,6 +830,12 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
 
         default: break;
     }
+
+    // (03/10) Parpadeo de vida baja por linea de sprite (garage): pasa a la
+    // linea con la paleta quemada sin tocar los colores que comparte.
+    if (ra.flashPal && r->sprite &&
+        bossFlashStep(&r->flash, r->hp, ra.hp ? ra.hp : ROCKSTEADY_HP))
+        SPR_setPalette(r->sprite, r->flash.on ? ra.flashPal : ra.pal);
 
     rocksteadyRender(r);
 }

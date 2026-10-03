@@ -2,6 +2,7 @@
 #define _BEBOP_H_
 
 #include <genesis.h>
+#include "boss_flash.h"
 #include "enemies.h"     // bebop_boss, bebop_shot_spr (SPRITE)
 #include "player.h"
 
@@ -174,10 +175,9 @@
 // --- Flash por vida baja (igual que Rocksteady) ------------------------------
 // Alterna la paleta normal con una "quemada" (cada canal x2): lento por debajo
 // de un tercio de la vida, rapido por debajo de un sexto.
-#define BEBOP_FLASH_HP        (BEBOP_HP / 3)
-#define BEBOP_FLASH_CRIT_HP   (BEBOP_HP / 6)
-#define BEBOP_FLASH_TICKS      8
-#define BEBOP_FLASH_CRIT_TICKS 3
+// (03/10) Ritmo del arcade: 4/4 constante desde el ultimo tercio (boss_flash.h).
+#define BEBOP_FLASH_HP        (BEBOP_HP / BOSS_FLASH_DIV)
+#define BEBOP_FLASH_TICKS     BOSS_FLASH_TICKS
 
 // --- ARENA (26/09) -----------------------------------------------------------
 // Con la Scene 4 Bebop dejo de ser solo del 2-1: todo lo que depende del
@@ -194,6 +194,11 @@ typedef struct {
     s16 landX, landY;        // donde apoya y arranca la pelea
     u8  startOnCar;          // TRUE: aparece YA parado en el apoyo (sin caida)
     u16 carHold;             // frames en el apoyo (0 = BEBOP_CAR_HOLD)
+    // (03/10) Parpadeo de vida baja: 0 = cambia los colores de PAL3 (el 2-1,
+    // donde PAL3 es solo suya). Si no, la LINEA a la que pasa el sprite en la
+    // fase "quemada" (el nivel carga ahi la paleta quemada, boss_flash.h):
+    // en el garage PAL3 la comparte con Rocksteady y April.
+    u8  flashPal;
 } BebopArena;
 
 typedef enum {

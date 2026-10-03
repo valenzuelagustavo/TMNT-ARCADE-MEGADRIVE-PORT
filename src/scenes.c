@@ -4155,15 +4155,15 @@ static void smokeUpdate(s16 cameraX) {
 // Flash de paleta por HP bajo del jefe (efecto "quemado" brillante). Con <= 20
 // HP la paleta de Rocksteady alterna entre la normal y una versión quemada cada
 // ROCKSTEADY_FLASH_TICKS frames; con <= ROCKSTEADY_FLASH_CRIT_HP (crítico) alterna cada
-// ROCKSTEADY_FLASH_CRIT_TICKS (más rápido). El índice 1 (texto del HUD) queda
-// blanco en ambas paletas, así el HUD no parpadea.
+// ROCKSTEADY_FLASH_CRIT_TICKS. (03/10) Los dos a 4 frames: el arcade alterna
+// 4/4 constante, sin fase mas rapida (boss_flash.h).
 // Umbrales RELATIVOS al HP total del jefe (1/3 y 1/6), no numeros sueltos: al
 // duplicar ROCKSTEADY_HP los valores fijos (20 y 10) pasaban de avisar al 32% y
 // al 16% de vida a avisar al 16% y al 8%, o sea casi encima de la muerte.
 #define ROCKSTEADY_FLASH_HP        (ROCKSTEADY_HP / 3)
 #define ROCKSTEADY_FLASH_CRIT_HP   (ROCKSTEADY_HP / 6)
-#define ROCKSTEADY_FLASH_TICKS      8
-#define ROCKSTEADY_FLASH_CRIT_TICKS 3
+#define ROCKSTEADY_FLASH_TICKS      BOSS_FLASH_TICKS
+#define ROCKSTEADY_FLASH_CRIT_TICKS BOSS_FLASH_TICKS
 
 // Temblor horizontal determinista para la emergencia del taladro. Devuelve un
 // offset en -AMP..+AMP según el tick. Se suma SOLO al scroll (fondo/fuego/humo)
