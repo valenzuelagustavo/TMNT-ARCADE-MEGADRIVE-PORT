@@ -3,8 +3,8 @@
 // ===========================================================================
 // Entra DESPUES de la seleccion de personaje y ANTES del titulo del nivel 1.
 // Reconstruida a partir del analisis frame a frame del clip original
-// (res/images/roof_april_scene/ANALISIS_INTRO_SGDK.md): 323 frames a 30 fps
-// reales, tres escenas separadas por dos cortes duros a negro con wipe.
+// (323 frames a 30 fps
+// reales), tres escenas separadas por dos cortes duros a negro con wipe.
 //
 //   A    1..121   Calle: Splinter y las 4 tortugas ven el incendio, gritan y
 //                 saltan a la fachada del edificio de April

@@ -3,7 +3,7 @@
 // =============================================================================
 // Va DESPUES de la seleccion de personaje y ANTES del titulo del nivel 1.
 // Reconstruida a partir del analisis frame a frame del clip original
-// (323 frames @ 30 fps, ver images/roof_april_scene/ANALISIS_INTRO_SGDK.md).
+// (323 frames @ 30 fps).
 // Todos los PNG los genera tools/gen_roof_assets.py dentro de
 // images/roof_april_scene/genesis/ a partir del arte suelto de
 // images/roof_april_scene/Assets/.
