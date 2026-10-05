@@ -4,22 +4,27 @@
 #include <genesis.h>
 #include "granitor_res.h"   // granitor_boss, granitor_flame (rescomp)
 #include "player.h"
+#include "boss_flash.h"
 
 // ===========================================================================
 // TENIENTE GRANITOR — jefe de la Scene 7 (la fabrica) (26/09)
 // ===========================================================================
-// Portado del proyecto del companero (Ray Project, src/granitor.c) a nuestro
-// motor: N jugadores (los que estan sin vidas no cuentan como objetivo),
-// golpes de las tortugas con playerAttackHitsBox (un golpe por swing), el
+// Base portada del proyecto del companero (Ray Project, src/granitor.c).
+// Golpes de las tortugas con playerAttackHitsBox (un golpe por swing), el
 // culatazo derriba (playerHitBarsKnockdown), las llamas pegan como proyectil
 // y respetan el tope caminable del nivel.
 //
 // Tanque de piedra con LANZALLAMAS. Celda 144x144, pies en la fila 130.
-//   QUIETO    se da vuelta hacia el objetivo y decide.
-//   CAMINA    se acerca y se alinea en lane.
-//   DISPARA   de lejos: suelta una llamarada que avanza CRECIENDO y al final
-//             queda FIJA ardiendo un rato en el piso.
-//   CULATAZO  de cerca: 4 frames de avance, golpe en el 5to y remate.
+// Pelea (05/10):
+//   QUIETO (40)   alineado con la tortuga y cerca -> culatazo. Si no: 50%
+//                 camina, 50% SALTA.
+//   CAMINA        la persigue (lane exacta, hasta GRAN_MIN_DIST). Alineado y
+//                 cerca -> culatazo; alineado y lejos -> 2/3 lanzallamas.
+//   CULATAZO (21) pega en el frame del impacto y derriba.
+//   LANZALLAMAS (60) un chorro: una llama cada GRAN_FLAME_EVERY frames.
+//   SALTA         en el lugar; al caer tiembla el piso y le saca una barra a
+//                 toda tortuga que este parada.
+//   Solo recibe dano quieto o caminando. Sin caida ni contraataque.
 //   MUERTE    parpadea, se quiebra y queda un montoncito que desaparece.
 // ===========================================================================
 
@@ -40,53 +45,56 @@
 #define GRAN_BODY_HALF_W    24     // hurtbox (como la tortuga, un poco mas ancho)
 #define GRAN_BODY_H         80
 
-#define GRAN_HP             96     // el doble que Rocksteady
-#define GRAN_SPECIAL_DMG     2
-#define GRAN_INVULN         12     // frames sin recibir otro golpe (1 por swing)
+#define GRAN_HP             40
+#define GRAN_SPECIAL_DMG     5
+#define GRAN_JUMPKICK_DMG    2
 
-#define GRAN_WALK_Q          3     // velocidad en 1/4 px
-#define GRAN_WALK_DY        14
-#define GRAN_MIN_DIST       46
-#define GRAN_PUNCH_RANGE    92
-#define GRAN_FIRE_RANGE     96
-#define GRAN_IDLE_DECIDE     8
-#define GRAN_FIRE_CD        80
-#define GRAN_PUNCH_CD       28
+// Movimiento (Q8: 256 = 1 px por frame)
+#define GRAN_WALK_Q        149     // 0,58 px/f
+#define GRAN_MIN_DIST       25     // persiguiendo se acerca hasta aca
+#define GRAN_WALK_MAX      240     // tope de una caminata sin decidir
+#define GRAN_IDLE_T         40
 
-#define GRAN_FIRE_HOLD      40
-#define GRAN_FLAME_DX       54
-#define MAX_GRANITOR_FLAMES  2
+// Decisiones (centro a centro)
+#define GRAN_ALIGN_DY        2     // "alineado": lane a +-2 px
+#define GRAN_NEAR_DX        57     // culatazo a esta distancia o menos
+#define GRAN_FAR_DX         87     // lanzallamas mas lejos que esto
 
-#define GRAN_PUNCH_TICKS     8
-#define GRAN_PUNCH_IMPACT_T 12
-#define GRAN_PUNCH_RECOV_T  18
-#define GRAN_PUNCH_ADV       1
+// Culatazo
+#define GRAN_PUNCH_T        21
+#define GRAN_PUNCH_HIT_T     4     // frames que pega desde el impacto
 #define GRAN_PUNCH_HIT_DX   64
 #define GRAN_PUNCH_HIT_W    40
-#define GRAN_PUNCH_TOL_Y    24     // |dy| de pies para que conecte
-#define GRAN_PUNCH_DMG       2
+#define GRAN_HIT_DY_UP       5     // lane de la tortuga respecto de la suya
+#define GRAN_HIT_DY_DOWN     7
+#define GRAN_PUNCH_DMG       1
+
+// Lanzallamas
+#define GRAN_FIRE_T         60
+#define GRAN_FLAME_EVERY     5
+#define GRAN_FLAME_DX       54     // la boca del arma delante del centro
+#define GRAN_FLAME_Q      1067     // 4,17 px/f
+#define GRAN_FLAME_LIFE     23
+#define GRAN_FLAME_HALF_W   12
+#define GRAN_FLAME_DY_UP     3     // lane de la tortuga respecto de la llama
+#define GRAN_FLAME_DY_DOWN   5
+#define GRAN_FLAME_DMG       1
+#define MAX_GRANITOR_FLAMES  5
+
+// Salto
+#define GRAN_JUMP_VQ       507     // 1,98 px/f para arriba
+#define GRAN_GRAV_Q         27     // 0,104 px/f2
+#define GRAN_LAND_T         30     // medio segundo despues de caer
+#define GRAN_QUAKE_DMG       1
 
 #define GRAN_HURT_TICKS     12
-// (port) Anti-trabado, como Bebop: las tortugas lo encadenaban a golpes y
-// nunca podia responder. Aguanta GRAN_COUNTER_HITS golpes seguidos con
-// flinch; el siguiente lo absorbe y contraataca en el acto con el culatazo.
-// La racha se corta sola tras GRAN_COMBO_RESET frames sin recibir golpes.
-#define GRAN_COUNTER_HITS    3
-#define GRAN_COMBO_RESET    50
 #define GRAN_DEATH_BLINK     4
 #define GRAN_DEATH_BREAK_T  30
 #define GRAN_DEATH_PILE_T   70
 
-#define GRAN_FLAME_SPEED     3
-#define GRAN_FLAME_GROW_T    7
-#define GRAN_FLAME_TRAVEL_T 70
-#define GRAN_FLAME_BURN_T  150
-#define GRAN_FLAME_DMG       1
-#define GRAN_FLAME_TOL_Y    16     // |dy| de lane para que la llama queme
-
 typedef enum {
     GRAN_INACTIVE, GRAN_ENTER, GRAN_IDLE, GRAN_WALK,
-    GRAN_FIRE, GRAN_PUNCH, GRAN_HURT, GRAN_DEATH, GRAN_GONE
+    GRAN_FIRE, GRAN_PUNCH, GRAN_JUMP, GRAN_HURT, GRAN_DEATH, GRAN_GONE
 } GranitorState;
 
 // Tope caminable por X de mundo (para no meterse en la pared).
@@ -96,20 +104,19 @@ typedef struct {
     Sprite*       sprite;
     GranitorState state;
     s16           xq, yq;       // centro / pies, en 1/4 px (mundo)
+    s16           z;            // altura del salto (px)
+    s16           zq, vz;       // salto en Q8
+    u8            landed;
     s16           camX;
     s8            dir;
     s16           hp;
     u8            anim;
     u16           timer;
-    u16           attackCd;
-    u8            flash;
+    u8            flash;        // golpe: parpadeo corto
     u8            invuln;
-    u8            idleToggle;
-    u8            pFrame, pLanded;
-    u8            fFired;
-    u8            comboHits;    // golpes recibidos seguidos (anti-trabado)
-    u8            calm;         // frames sin recibir golpes
+    u8            accX, accY;   // restos Q8 de la caminata
     u8            dPhase, blinks;
+    BossFlash     flashLow;     // parpadeo de vida baja
     s16           arenaLeft, arenaRight;
     s16           laneTop, laneBot;
     GranitorTopAtFn topAt;

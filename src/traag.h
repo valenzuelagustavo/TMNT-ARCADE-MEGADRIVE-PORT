@@ -4,18 +4,23 @@
 #include <genesis.h>
 #include "traag_res.h"   // traag_boss, traag_missil, traag_explosao (rescomp)
 #include "player.h"
+#include "boss_flash.h"
 
 // ===========================================================================
 // GENERAL TRAAG — jefe de la Scene 8 (el Technodrome) (27/09)
 // ===========================================================================
-// Portado del proyecto del companero (Ray Project, src/traag.c) con el mismo
-// esquema que Granitor (granitor.c): N jugadores, un golpe por swing,
-// culatazo que derriba, anti-trabado. Diferencias con Granitor: dispara
-// MISILES rectos (a veces de a dos) que revientan en una explosion que quema
-// un ratito, el culatazo tiene 6 frames reales y vive en un nivel con camara
-// vertical (camY).
-//   QUIETO / CAMINA / DISPARA (alineado) / CULATAZO / MUERTE (parpadea, se
-//   quiebra, queda un montoncito).
+// Base portada del proyecto del companero (Ray Project, src/traag.c).
+// Mismo esqueleto que Granitor (granitor.c): N jugadores, un golpe por swing,
+// culatazo que derriba. Vive en un nivel con camara vertical (camY).
+// Pelea (05/10):
+//   QUIETO (40)   alineado con la tortuga y cerca -> culatazo; si no, camina.
+//   CAMINA        la persigue (lane exacta, hasta TRAAG_MIN_DIST). Alineado
+//                 y cerca -> culatazo; alineado y lejos -> 2/3 BOMBA.
+//   CULATAZO (23) pega en el frame del impacto y derriba.
+//   BOMBA         la tira con el brazo en arco hacia adelante; revienta al
+//                 tocar el piso y voltea al que este cerca. Despues RECARGA.
+//   Solo recibe dano quieto o caminando. Sin caida ni contraataque.
+//   MUERTE (parpadea, se quiebra, queda un montoncito).
 // ===========================================================================
 
 #define TRAAG_ANIM_IDLE1    0
@@ -35,53 +40,50 @@
 #define TRAAG_BODY_HALF_W    24     // hurtbox (como la tortuga, un poco mas ancho)
 #define TRAAG_BODY_H         80
 
-#define TRAAG_HP             96     // el doble que Rocksteady
-#define TRAAG_SPECIAL_DMG     2
-#define TRAAG_INVULN         12     // frames sin recibir otro golpe (1 por swing)
+#define TRAAG_HP             40
+#define TRAAG_SPECIAL_DMG     5
+#define TRAAG_JUMPKICK_DMG    2
 
-#define TRAAG_WALK_Q          3     // velocidad en 1/4 px
-#define TRAAG_WALK_DY        14
-#define TRAAG_MIN_DIST       46
-#define TRAAG_PUNCH_RANGE    92
-#define TRAAG_FIRE_RANGE     96
-#define TRAAG_IDLE_DECIDE     8
-#define TRAAG_FIRE_CD        70     // misil frecuente
-#define TRAAG_PUNCH_CD       28
+// Movimiento (Q8: 256 = 1 px por frame)
+#define TRAAG_WALK_Q        149     // 0,58 px/f
+#define TRAAG_MIN_DIST       25     // persiguiendo se acerca hasta aca
+#define TRAAG_WALK_MAX      240     // tope de una caminata sin decidir
+#define TRAAG_IDLE_T         40
 
-// disparo (2 frames: el misil nace en el f0, f1 retroceso)
-#define TRAAG_FIRE_F0_TICKS 14
-#define TRAAG_FIRE_F1_TICKS 26
-#define TRAAG_GUN_DX        54     // boca del arma delante del centro
-#define TRAAG_GUN_DY        76     // altura del cano sobre los pies
-#define MAX_TRAAG_MISSILES   2
-#define MAX_TRAAG_EXPLOSIONS 3
+// Decisiones (centro a centro)
+#define TRAAG_ALIGN_DY        2     // "alineado": lane a +-2 px
+#define TRAAG_NEAR_DX        57     // culatazo a esta distancia o menos
+#define TRAAG_FAR_DX         87     // bomba mas lejos que esto
 
-#define TRAAG_PUNCH_TICKS     8
-#define TRAAG_PUNCH_IMPACT_T 12
-#define TRAAG_PUNCH_RECOV_T  18
-#define TRAAG_PUNCH_ADV       1
+// Culatazo
+#define TRAAG_PUNCH_T        23
+#define TRAAG_PUNCH_HIT_T     4     // frames que pega desde el impacto
 #define TRAAG_PUNCH_HIT_DX   64
 #define TRAAG_PUNCH_HIT_W    40
-#define TRAAG_PUNCH_TOL_Y    24     // |dy| de pies para que conecte
-#define TRAAG_PUNCH_DMG       2
+#define TRAAG_HIT_DY_UP       5     // lane de la tortuga respecto de la suya
+#define TRAAG_HIT_DY_DOWN     7
+#define TRAAG_PUNCH_DMG       1
+
+// Bomba
+#define TRAAG_GUN_DX         54     // el brazo delante del centro
+#define TRAAG_GUN_DY         76     // altura del brazo sobre los pies
+#define TRAAG_THROW_T        20     // tira (frame 0) ...
+#define TRAAG_RELOAD_T       26     // ... y recarga (frame 1)
+#define TRAAG_BOMB_XQ       352     // 1,375 px/f hacia adelante
+#define TRAAG_BOMB_VQ       373     // 1,46 px/f para arriba al salir
+#define TRAAG_BOMB_GRAV_Q    27     // 0,104 px/f2
+#define MAX_TRAAG_MISSILES    2
+#define MAX_TRAAG_EXPLOSIONS  2
+#define TRAAG_EXPL_TICKS      4     // por frame de la explosion
+#define TRAAG_EXPL_HIT_T      8     // alcanza solo al principio
+#define TRAAG_EXPL_HALF_W    24
+#define TRAAG_EXPL_TOL_Y     16
+#define TRAAG_EXPL_DMG        1     // voltea
 
 #define TRAAG_HURT_TICKS     12
-// (port) Anti-trabado, como Bebop: las tortugas lo encadenaban a golpes y
-// nunca podia responder. Aguanta TRAAG_COUNTER_HITS golpes seguidos con
-// flinch; el siguiente lo absorbe y contraataca en el acto con el culatazo.
-// La racha se corta sola tras TRAAG_COMBO_RESET frames sin recibir golpes.
-#define TRAAG_COUNTER_HITS    3
-#define TRAAG_COMBO_RESET    50
 #define TRAAG_DEATH_BLINK     4
 #define TRAAG_DEATH_BREAK_T  30
 #define TRAAG_DEATH_PILE_T   70
-
-#define TRAAG_MISSILE_SPEED  4
-#define TRAAG_MISSILE_DMG    1
-#define TRAAG_MISSILE_TOL_Y 16     // |dy| de lane para que el misil pegue
-#define TRAAG_EXPL_TICKS     4     // por frame de la explosion
-#define TRAAG_EXPL_HIT_T     8     // la explosion quema solo al principio
-#define TRAAG_EXPL_DMG       1
 
 typedef enum {
     TRAAG_INACTIVE, TRAAG_ENTER, TRAAG_IDLE, TRAAG_WALK,
@@ -93,25 +95,21 @@ typedef s16 (*TraagTopAtFn)(s16 worldX);
 
 typedef struct {
     Sprite*       sprite;
-    TraagState state;
+    TraagState    state;
     s16           xq, yq;       // centro / pies, en 1/4 px (mundo)
     s16           camX, camY;
     s8            dir;
     s16           hp;
     u8            anim;
     u16           timer;
-    u16           attackCd;
-    u8            flash;
+    u8            flash;        // golpe: parpadeo corto
     u8            invuln;
-    u8            idleToggle;
-    u8            pFrame, pLanded;
-    u8            fFired, fFrame, dblShot;
-    u8            comboHits;    // golpes recibidos seguidos (anti-trabado)
-    u8            calm;         // frames sin recibir golpes
+    u8            accX, accY;   // restos Q8 de la caminata
     u8            dPhase, blinks;
+    BossFlash     flashLow;     // parpadeo de vida baja
     s16           arenaLeft, arenaRight;
     s16           laneTop, laneBot;
-    TraagTopAtFn topAt;
+    TraagTopAtFn  topAt;
 } Traag;
 
 void traagInit(Traag* g);
@@ -127,7 +125,7 @@ bool traagIsGone(const Traag* g);
 bool traagPlayerHits(Traag* g, Player** pls, u8 nPl, s8* killer);
 void traagRelease(Traag* g);
 
-// Misiles y explosiones (estado de modulo; traagInit los limpia).
+// Bombas y explosiones (estado de modulo; traagInit las limpia).
 void traagMissileUpdate(Player** pls, u8 nPl, s16 camX, s16 camY);
 void traagMissileReleaseAll(void);
 

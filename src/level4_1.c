@@ -564,7 +564,8 @@ static void bebopHits(Player** pls, u8 nPl) {
     for (u8 k = 0; k < nPl; k++) {
         if (!playerAttackHitsBox(pls[k], bcx, by, BEBOP_BODY_HALF_W, BEBOP_BODY_H))
             continue;
-        s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG : 1;
+        s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG
+                : (isPlayerJumpKicking(pls[k]) ? BEBOP_JUMPKICK_DMG : 1);
         sfxHit();
         if (bebopDamage(&bebop, dmg)) addPlayerScore(pls[k], 5);
         break;
@@ -578,7 +579,8 @@ static void rockHits(Player** pls, u8 nPl) {
         for (u8 k = 0; k < nPl; k++) {
             if (!playerAttackHitsBox(pls[k], bcx, by, ROCKSTEADY_BODY_HALF_W,
                                      ROCKSTEADY_BODY_H)) continue;
-            rocksteadyDamage(&rock, isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG : 1);
+            rocksteadyDamage(&rock, isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG
+                                  : (isPlayerJumpKicking(pls[k]) ? ROCKSTEADY_JUMPKICK_DMG : 1));
             XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
             if (rock.state == ROCKSTEADY_DEAD) addPlayerScore(pls[k], 5);
             break;

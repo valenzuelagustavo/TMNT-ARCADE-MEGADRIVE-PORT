@@ -8,8 +8,8 @@
 // ===========================================================================
 // BAXTER STOCKMAN — jefe de la Scene 3 (sewer) (26/09)
 // ===========================================================================
-// Portado del proyecto del companero (Ray Project, src/baxter.c) a nuestro
-// motor: N jugadores (Player** pls, u8 nPl), los que estan sin vidas no
+// Base portada del proyecto del companero (Ray Project, src/baxter.c) a
+// nuestro motor: N jugadores (Player** pls, u8 nPl), los que estan sin vidas no
 // cuentan como objetivo, hitbox por frame del jugador (playerAttackHitsFlying
 // para la nave, playerAttackHitsBox para las ratas), un golpe por swing
 // (invulnerabilidad corta despues de cada impacto) y ratas que respetan la
@@ -18,26 +18,27 @@
 // NAVE 48x72 (colision 48x62). Todo (nave, ratas y explosiones) comparte UNA
 // paleta: va en PAL3.
 //   anim 0 volando (2f) · 1 portezuela (f0 abriendo, f1 abierta) · 2 dano
-// Ciclo: entra volando desde la izquierda -> vuela en diagonal de esquina a
-// esquina (cada 3 cruces da una vuelta alrededor de su objetivo) -> al llegar
-// a la esquina se para, abre la portezuela y suelta ratas -> repite.
+// Pelea (05/10):
+//   ENTRA en diagonal desde abajo a la derecha.
+//   VUELA en una Lissajous: de lado a lado +-BAXTER_AMP_X px cada
+//   BAXTER_PER_X frames y arriba-abajo +-BAXTER_AMP_Y cada BAXTER_PER_Y. La
+//   nave NO ataca: cada BAXTER_DROP_T frames abre la portezuela y suelta un
+//   Mouser. BAXTER_HP golpes (cualquier golpe saca uno).
 // Con poca vida parpadea en rojo. Al morir explota y con el explotan todas
 // las ratas vivas.
 //
-// RATAS (MOUSERS) 40x40: caen de la nave, persiguen al jugador mas cercano y
-// lo atacan SALTANDO (de cerca un saltito, de media distancia uno largo).
-// (01/10) Filas del sheet (7 frames cada una):
+// RATAS (MOUSERS) 40x40: bajan de la nave y caminan despacio. Las dos
+// primeras persiguen a la tortuga; el resto deambula con pausas. Alineadas y
+// cerca, saltan a morder: se PRENDEN de la tortuga (agarre con mash) y le
+// sacan una barra cada RAT_DRAIN_T. Un golpe las despide y mueren.
+// Filas del sheet (7 frames cada una):
 //   0-1 caminando de FRENTE (las dos filas son UNA caminata: se encadenan)
 //       -- reservada para cuando aparezcan dentro del nivel
 //   2-3 caminando de COSTADO (idem, dos filas encadenadas)
 //   4   caminando hacia ARRIBA (el jugador esta arriba en Y)
-//   5   SALTO de ataque (por ahora un golpe; despues ira combinado con el
-//       jugador)
+//   5   SALTO de ataque (tambien la bajada de la nave y la mordida)
 //   6   golpeado
 //   7   tirado en el piso antes de explotar
-// Antes se leian como 0 cae · 1 frente · 2 costado · 3 muerde · ...: la fila 3
-// (que es la mitad de la caminata de costado) se usaba como mordida y la 0
-// (de frente) como caida.
 // ===========================================================================
 
 #define BAXTER_ANIM_FLY    0
@@ -68,29 +69,45 @@
 #define BAXTER_BOOM_TICKS    7     // ticks por frame (8 x 7 = ~1 s)
 #define BAXTER_BODY_H       62     // la parte que colisiona (sin el escape)
 #define BAXTER_HALF_W       22
-#define BAXTER_HP           48     // la misma energia que Rocksteady
-#define BAXTER_SPECIAL_DMG   3
-#define BAXTER_LOW_HP       12     // de aca para abajo parpadea en rojo
-#define BAXTER_INVULN       12     // frames sin recibir otro golpe (1 por swing)
+#define BAXTER_HP           10     // golpes
+#define BAXTER_LOW_HP        2     // de aca para abajo parpadea en rojo (ultimo cuarto)
+#define BAXTER_INVULN       12     // golpeado: sin recibir otro golpe
+#define BAXTER_ENTER_XQ    640     // entrada: 2,5 px/f a la izquierda ...
+#define BAXTER_ENTER_YQ    384     // ... y 1,5 px/f para arriba
+#define BAXTER_ENTER_DY     60     // arranca esto por debajo del centro del vuelo
+#define BAXTER_AMP_X        75     // Lissajous: de lado a lado ...
+#define BAXTER_PER_X       150     // ... cada 2,5 s
+#define BAXTER_AMP_Y        50     // arriba-abajo (o lo que de la arena) ...
+#define BAXTER_PER_Y       120     // ... cada 2 s
+#define BAXTER_DROP_T      150     // un Mouser cada 2,5 s
+#define BAXTER_DOOR_T       24     // la portezuela se abre antes de soltarlo
 #define MAX_BAXTER_RATS      8     // pool
 #define BAXTER_RATS_ALIVE    6     // tope de vivas (ademas del de VRAM)
 
 #define RAT_FRAME_W         40
 #define RAT_HALF_W          14
 #define RAT_BODY_H          30
-#define RAT_HP               2     // dos golpes comunes; el especial la mata
-#define RAT_SPEED            1
-#define RAT_BITE_RANGE      20
-#define RAT_BITE_Y          12
-#define RAT_BITE_DMG         1
-#define RAT_JUMP_DMG         2     // mordida fuerte
-#define RAT_JUMP_MIN_DX     34
-#define RAT_HURT_TICKS      14
+#define RAT_CHASERS          2     // las que persiguen; el resto deambula
+#define RAT_FALL_Q         747     // baja de la nave a 2,92 px/f
+#define RAT_WALK_Q         107     // camina a 0,42 px/f
+#define RAT_PAUSE_T         80     // pausa al llegar a su punto (las que deambulan)
+#define RAT_ATK_DY           2     // salta si esta en la lane de la tortuga ...
+#define RAT_ATK_DX          37     // ... y a esta distancia o menos
+#define RAT_JUMP_T          20     // el salto dura ...
+#define RAT_JUMP_Q         533     // ... avanza a 2,08 px/f ...
+#define RAT_JUMP_H          14     // ... y sube esto
+#define RAT_BITE_DX         16     // muerde (en la bajada) a esta distancia ...
+#define RAT_BITE_DY          6     // ... y en esta lane
+#define RAT_LATCH_DX         6     // prendida: corrida del centro de la tortuga ...
+#define RAT_LATCH_Z         20     // ... y a esta altura
+#define RAT_DRAIN_T        120     // una barra cada 2 s
+#define RAT_HURT_T          30     // golpeada: despedida ...
+#define RAT_FLING_Q        853     // ... a 3,33 px/f
+#define RAT_DEAD_T          22     // tirada antes de explotar
 
 typedef enum {
     BAXTER_INACTIVE,
     BAXTER_ENTER,
-    BAXTER_DROP,
     BAXTER_FLY,
     BAXTER_DEAD,
     BAXTER_GONE
@@ -104,19 +121,16 @@ typedef struct {
     s16         camX;
     s16         hp;
     u16         timer;
-    u16         flightT;
-    u8          doorPhase;    // 0 cerrada · 1 abriendo · 2 abierta
-    u8          dropsThisCycle;
-    s16         tgx, tgy;
-    u8          orbit;
-    u8          legs;
-    u8          corner;       // (30/09) ultima esquina visitada (0..3)
+    u16         flightT;      // fase de la Lissajous
+    u16         dropT;        // frames desde el ultimo Mouser
+    s16         cx, cy;       // centro de la Lissajous
+    s16         ampY;         // amplitud vertical (la que entra en la arena)
+    u8          accX, accY;   // restos Q8 de la entrada
     u8          hurtFlash;
     u8          invuln;
     s16         arenaLeft, arenaRight;
-    s16         ratLaneTop, ratLaneBot;
     u8          anim;
-    Sprite*     boomSprite[BAXTER_BOOM_PARTS];   // (30/09) los 4 cuartos
+    Sprite*     boomSprite[BAXTER_BOOM_PARTS];   // los 4 cuartos de la explosion
     u8          boomAnim[BAXTER_BOOM_PARTS];     // anim (arte) de cada cuarto
     u8          boomFrame;
     u8          boomTick;

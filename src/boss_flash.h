@@ -7,7 +7,7 @@
 // boss_flash -- parpadeo rojo de los jefes con poca vida (03/10)
 // =============================================================================
 // Ritmo del arcade (medido en el video del arcade):
-// desde el ultimo TERCIO de la vida, 4 frames "quemado" / 4 normal, constante
+// desde el ultimo CUARTO de la vida, 4 frames "quemado" / 4 normal, constante
 // hasta que muere (sin fase mas rapida al final).
 //
 // Dos formas de hacerlo:
@@ -21,7 +21,7 @@
 // =============================================================================
 
 #define BOSS_FLASH_TICKS   4     // frames por fase (4 quemado / 4 normal)
-#define BOSS_FLASH_DIV     3     // parpadea con hp <= vida maxima / 3
+#define BOSS_FLASH_DIV     4     // parpadea con hp <= vida maxima / 4
 
 typedef struct {
     u8 tick;

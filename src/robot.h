@@ -9,10 +9,17 @@
 // ROBOT DEL LÁTIGO — mini-jefe del final del nivel 1
 // ===========================================================================
 // Enemigo único con máquina de estados propia. Aparece saliendo del suelo unos
-// tiles antes de la pared final, patrulla el ancho del arena, y en cada extremo
-// gira (alineándose en Y al jugador) y ataca: LÁSER si el jugador está lejos,
-// LÁTIGO si está en rango. El látigo AHORA está integrado en el sprite del robot
-// (la animación de lanzamiento lo estira); ya NO se usa un sub-sprite para él.
+// tiles antes de la pared final y pelea asi (05/10):
+//   CORRE (120)   a 2 px/f de un lado al otro, cruzando a la tortuga: se da
+//                 vuelta al salir de camara o al quedar ROBOT_FLEE_BEHIND px
+//                 detras de ella. Va un poco por encima de su lane. Es el
+//                 UNICO momento en que se le puede pegar.
+//   FRENA (48)    mira a la tortuga y se alinea en su lane.
+//   ATACA         50% LÁTIGO (si engancha, electrocuta hasta que la tortuga
+//                 zafa) y 50% LÁSER. Despues vuelve a correr.
+//   GOLPEADO (24) retrocede y vuelve a correr.
+// El látigo está integrado en el sprite del robot (la animación de
+// lanzamiento lo estira); ya NO se usa un sub-sprite para él.
 // El LÁSER sí es un sub-sprite (whip_waves) que atraviesa el escenario.
 // Comparte la paleta de los foot soldiers (PAL2).
 //
@@ -53,61 +60,36 @@
 // ---------------------------------------------------------------------------
 // Vida y daño
 // ---------------------------------------------------------------------------
-#define ROBOT_HP               7
-#define ROBOT_SPECIAL_DMG      3
-#define ROBOT_FLASH_FRAMES     6
-#define ROBOT_HURT_FRAMES     16   // duracion total del HURT
-#define ROBOT_HURT_KNOCK_FRAMES 16  // frames de empuje al ser golpeado (dentro de HURT)
-#define ROBOT_HURT_KNOCK_SPEED   4  // px/frame del empuje (16x4 = 64px = 8 tiles; MUY notorio
-                                    // a proposito -- 30/08, para poder ajustarlo a ojo. Bajar
-                                    // este numero para reducir la distancia del empuje.
+// Cinco golpes: cualquier golpe de la tortuga (comun, patada o especial) le
+// saca uno.
+#define ROBOT_HP               5
+#define ROBOT_SPECIAL_DMG      1
 
 // ---------------------------------------------------------------------------
-// Movimiento / patrulla (AJUSTE FINO). r->x es el CENTRO del cuerpo (mundo).
+// Movimiento. r->x es el CENTRO del cuerpo (mundo).
 // La cámara queda fija cerca del final (~1056), arena visible ~1056..1376.
 // ---------------------------------------------------------------------------
-#define ROBOT_SPEED            3   // px/frame de patrulla + alineado en Y (antes 2)
 #define ROBOT_LANE_TOP       142
 #define ROBOT_LANE_BOTTOM    200
-#define ROBOT_Y_ALIGN          2
-#define ROBOT_PATROL_LEFT   1100   // centro del cuerpo, extremo izquierdo
-#define ROBOT_PATROL_RIGHT  1250   // centro del cuerpo, extremo derecho (antes de la pared)
-// Limites SEPARADOS para el empuje del HURT (mas anchos que el corral de
-// patrulla de arriba). Bug encontrado 30/08: el empuje clampeaba contra
-// ROBOT_PATROL_LEFT/RIGHT, un corral de apenas 150px -- si el robot ya
-// estaba cerca de un extremo (algo muy comun, el jugador tiende a
-// arrinconarlo contra una punta a fuerza de golpes), el clamp devoraba
-// el desplazamiento entero y el empuje se sentia como si no hiciera nada.
-// El limite derecho deja margen (250px) sin llegar a la pared real del
-// nivel (ver ENEMY_END_WALL_X_TOP/BOTTOM en enemy.h: 1308..1352 segun la
-// lane). El limite IZQUIERDO (30/08) deja a
-// PROPOSITO que el empuje saque al robot afuera de la camara fija de la
-// zona del robot (ZONE5_ROBOT_LOCK=1056 en scenes.c, pantalla visible
-// 1056..1376) -- se ve mas natural que un golpe fuerte lo mande fuera de
-// cuadro un instante. No hace falta logica extra para el regreso: al
-// terminar el HURT, robotStartWalk() elige como destino el extremo de
-// patrulla MAS LEJANO de donde quedo (ver esa funcion), asi que si el
-// empuje lo dejo a la izquierda de la camara, camina solo de vuelta hacia
-// la derecha a ROBOT_SPEED px/frame, sin teletransportarse.
-// --- RETIRADA post-golpe (13/09) ---------------------------------------------
-// Antes, al terminar el HURT el robot volvia directo a la patrulla: caminaba al
-// extremo mas lejano DE SI MISMO y se realineaba con la lane del jugador en el
-// TURN. O sea que se dejaba acorralar y alcanzaba con machacar en el lugar.
-// Ahora primero RETROCEDE: va al extremo mas lejano DEL JUGADOR y de paso se
-// cruza a la lane opuesta, asi hay que perseguirlo en las dos direcciones.
-#define ROBOT_RETREAT_MAX_FRAMES 120  // tope de seguridad de la retirada
-#define ROBOT_RETREAT_ARRIVE      6   // margen para dar por llegada la lane
-#define ROBOT_HURT_KNOCK_MIN_X  970
-#define ROBOT_HURT_KNOCK_MAX_X 1300
-#define ROBOT_ARRIVE_MARGIN    4
-#define ROBOT_WALK_START_TICKS 24  // cuánto dura la anim de arranque [3] antes de pasar a [12]
+#define ROBOT_MIN_X         1000   // tope de seguridad (el empuje lo puede sacar de cuadro)
+#define ROBOT_MAX_X         1300
+#define ROBOT_FLEE_T         120   // corre ...
+#define ROBOT_FLEE_Q         512   // ... a 2 px/f
+#define ROBOT_FLEE_LANE_Q     32   // corrige la lane a 0,125 px/f ...
+#define ROBOT_FLEE_LANE_DY    10   // ... quedando estos px por ENCIMA de la tortuga
+#define ROBOT_FLEE_BEHIND     67   // se da vuelta al quedar esto detras de la tortuga
+#define ROBOT_BRAKE_T         48   // frena mirando a la tortuga ...
+#define ROBOT_BRAKE_Q        256   // ... alineandose a 1 px/f
+#define ROBOT_WALK_START_TICKS 24  // anim de arranque [3] antes de pasar a [12]
+#define ROBOT_HURT_T          24   // golpeado: retrocede ...
+#define ROBOT_HURT_Q         512   // ... a 2 px/f
 #define ROBOT_SPAWN_CENTER  1256   // centro de mundo donde emerge
 #define ROBOT_SPAWN_TRIGGER 1200   // el jugador supera este worldX -> aparece
 #define ROBOT_SPAWN_Y        150   // lane de pies al aparecer (1 jugador / robot #1)
 #define ROBOT_SPAWN_Y2       195   // lane de pies del 2do robot (modo 2 jugadores),
                                    // mismo eje X que el #1 pero distinto Y
-// (16/09) Modo 4 jugadores: CUATRO robots, mismo eje X, repartidos en las
-// cuatro lanes utiles (BOUND_LANE_TOP 142 .. BOUND_LANE_BOTTOM 200).
+// Modo 4 jugadores: CUATRO robots, mismo eje X, repartidos en las cuatro
+// lanes utiles (BOUND_LANE_TOP 142 .. BOUND_LANE_BOTTOM 200).
 #define LEVEL1_MAX_ROBOTS      4
 #define ROBOT_SPAWN_Y_4P_0   142
 #define ROBOT_SPAWN_Y_4P_1   161
@@ -117,64 +99,52 @@
 // ---------------------------------------------------------------------------
 // Ataques
 // ---------------------------------------------------------------------------
-// Decisión por distancia (centro a centro): más lejos que el alcance del látigo
-// -> láser; en rango -> látigo.
-// Valores MEDIDOS sobre robot_whip.png (celda 184x80, cuerpo a la izquierda,
-// centro en ROBOT_BODY_CX=28). Alcance = X de la punta del látigo − 28.
+// Al terminar de frenar: 50% latigo, 50% laser.
+// Alcance del látigo MEDIDO sobre robot_whip.png (celda 184x80, cuerpo a la
+// izquierda, centro en ROBOT_BODY_CX=28). Alcance = X de la punta − 28.
 //   fila [5] THROW, 11 frames: punta en 79,87,95…159 → alcance 51,59,67…131
 #define ROBOT_WHIP_REACH_MIN  51   // alcance del látigo en el primer frame del throw
 #define ROBOT_WHIP_STEP        8   // px de alcance que suma cada frame del throw
-#define ROBOT_WHIP_REACH_MAX 131   // alcance máximo (umbral látigo vs láser)
-#define ROBOT_WHIP_TOL_Y      20   // |dy| máx para poder atrapar
+#define ROBOT_WHIP_REACH_MAX 131   // alcance máximo
+#define ROBOT_WHIP_TOL_Y       7   // |dy| máx para poder atrapar
 
-// --- Enganche: que el cable TERMINE en la tortuga (14/09) ----------------------
-// Las filas [6] CAUGHT y [7]/[8] ELECTRO_A/B NO son animaciones temporales: son
-// 4 VARIANTES DE LARGO del mismo cable tenso. Medidas (punta − 28):
-//   f0 = 37 px | f1 = 69 px | f2 = 101 px | f3 = 133 px
-// Antes el frame se elegía escalando linealmente el frame del throw contra el
-// numFrame de la anim, y el error llegaba a 38px: el cable sobresalía por
-// detrás de la tortuga o le quedaba corto. Y encima CAUGHT se reproducía como
-// animación, así que el cable se estiraba de 37 a 133 delante del jugador.
-// Ahora se elige la variante cuyo largo está MÁS CERCA de la distancia real, se
-// congela ese frame (nada de reproducir la fila), y se pega un tirón al jugador
-// para que la punta caiga justo sobre su cuerpo. El error residual es como
-// mucho medio escalón (16px) y se lo come el tirón.
+// --- Enganche: que el cable TERMINE en la tortuga ------------------------------
+// Las filas [6] CAUGHT y [7]/[8] ELECTRO_A/B son 4 VARIANTES DE LARGO del
+// mismo cable tenso (punta − 28): 37, 69, 101 y 133 px. Se elige la variante
+// mas cercana a la distancia real, se congela ese frame y se le pega un tiron
+// a la tortuga para que la punta caiga justo sobre su cuerpo.
 #define ROBOT_WHIP_GRAB_R0    37
 #define ROBOT_WHIP_GRAB_R1    69
 #define ROBOT_WHIP_GRAB_R2   101
 #define ROBOT_WHIP_GRAB_R3   133
 #define ROBOT_WHIP_GRAB_N      4   // variantes de largo de CAUGHT/ELECTRO
 // px que la punta entra en el cuerpo de la tortuga (0 = justo en su centro).
-// Con 8 el cable muere apenas pasado el borde del torso y se lee "enganchado".
 #define ROBOT_WHIP_GRAB_INSET  8
-// Frames que se muestra la pose CAUGHT congelada antes de pasar a la
-// electrocución (antes se esperaba a que terminara la anim, que ya no corre).
+// Frames que se muestra la pose CAUGHT congelada antes de la electrocución.
 #define ROBOT_CAUGHT_FRAMES   12
-#define ROBOT_THROW_TICKS      3   // ticks por frame del lanzamiento/recogida (antes 5, más rápido)
-#define ROBOT_ATTACK_COOLDOWN 45   // frames entre ataques
-#define ROBOT_TURN_MAX        48   // tope de frames del giro (por si la anim es corta)
+#define ROBOT_THROW_TICKS      3   // ticks por frame del lanzamiento/recogida
 
 // Láser (sub-sprite, horizontal a la altura del robot)
-#define ROBOT_LASER_SPEED      6   // px/frame (ajustable)
-#define ROBOT_LASER_DMG        4   // barras de vida al impactar
-#define ROBOT_LASER_TOL_Y     20
-#define ROBOT_LASER_FIRE_DELAY 8   // frames de la anim [9] antes de soltar el rayo (antes 12)
+#define ROBOT_LASER_T         66   // dura la pose del disparo
+#define ROBOT_LASER_Q        896   // 3,5 px/f
+#define ROBOT_LASER_DMG        1   // barras de vida al impactar
+#define ROBOT_LASER_TOL_Y      5
+#define ROBOT_LASER_FIRE_DELAY 8   // frames de la anim [9] antes de soltar el rayo
 
-// Electrocución del agarre: 1 barra por segundo.
-#define ROBOT_ELECTRO_INTERVAL 60
+// Electrocución del agarre: 1 barra cada 2 segundos.
+#define ROBOT_ELECTRO_SECONDS  2
 
 typedef enum {
     ROBOT_INACTIVE,   // todavía no apareció
     ROBOT_APPEAR,     // saliendo del suelo (inmune)
-    ROBOT_WALK,       // caminando hacia un extremo
-    ROBOT_TURN,       // girando + alineándose en Y
+    ROBOT_FLEE,       // corre de un lado al otro, cruzando a la tortuga
+    ROBOT_BRAKE,      // frena, mira a la tortuga y se alinea
     ROBOT_WINDUP,     // preparando el látigo (antes de lanzar)
     ROBOT_THROW,      // lanzando el látigo (se estira)
     ROBOT_RETRACT,    // recogiendo el látigo (throw al revés, no enganchó)
     ROBOT_GRAB,       // atrapó a la tortuga (electrocución)
     ROBOT_LASER,      // disparando el láser
-    ROBOT_HURT,       // golpeado
-    ROBOT_RETREAT,    // tras el golpe: se aleja del jugador Y cambia de lane
+    ROBOT_HURT,       // golpeado (retrocede)
     ROBOT_DEAD,       // explotando
     ROBOT_GONE        // destruido y removido
 } RobotState;
@@ -186,15 +156,11 @@ typedef struct {
     s16         y;             // Y = pies
     s16         cameraOffsetX;
     s8          dir;           // -1 mira izquierda / +1 mira derecha
-    s8          hurtDir;       // -1/+1: sentido del empuje al ser golpeado (lejos del atacante)
+    s8          hurtDir;       // -1/+1: sentido del retroceso al ser golpeado
     s16         hp;
     u8          anim;          // anim actual (evita re-setear)
-    u8          flashTimer;
-    u16         timer;         // timer genérico del estado
-    s16         patrolTarget;  // X objetivo (centro) al caminar
-    s16         retreatY;      // lane objetivo de la retirada post-golpe
-    u16         walkTimer;     // para pasar de WALK [3] a WALK_LONG [12]
-    u8          attackCooldown;
+    u16         timer;         // frames desde que arranco el estado
+    u8          accX, accY;    // restos Q8 del movimiento
     u16         drainTimer;    // acumulador del drenaje de electrocución
     u8          electroTgl;    // alterna anims de electrocución
     u8          grabFrame;     // frame congelado de la electro (según distancia)
@@ -209,6 +175,7 @@ typedef struct {
     bool        laserActive;
     s16         laserX, laserY;
     s8          laserDir;
+    u8          laserAcc;
 } Robot;
 
 // ---------------------------------------------------------------------------

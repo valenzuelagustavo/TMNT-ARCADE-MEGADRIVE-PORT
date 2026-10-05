@@ -3684,12 +3684,11 @@ SceneId showScene11() {
             }
         }
 
-        // 6-robot. Ataque del jugador → robot del látigo. Golpe normal −1,
-        //          especial −ROBOT_SPECIAL_DMG. Los ataques del robot al jugador
+        // 6-robot. Ataque del jugador → robot del látigo. Cualquier golpe le
+        //          saca uno (ROBOT_HP golpes). Los ataques del robot al jugador
         //          (láser/agarre) se resuelven dentro de robotUpdate. El golpe
-        //          además empuja al robot ~3 tiles en la dirección del golpe
-        //          (lejos del atacante) — se le pasa su X para calcular el
-        //          sentido (ver robotDamage/ROBOT_HURT en robot.c).
+        //          además lo hace retroceder lejos del atacante: se le pasa su
+        //          X para calcular el sentido (ver robotDamage en robot.c).
         // (16/09) Un solo bucle para los N robots (antes habia dos bloques
         // copiados, uno por robot; con cuatro no escalaba).
         for (u8 r = 0; r < nRobots; r++) {
@@ -4152,16 +4151,13 @@ static void smokeUpdate(s16 cameraX) {
 #define CAPSULA_DOOR_TICKS    28    // La puerta se abre a mitad de lo que tardaba antes
 #define CAPSULA_SHAKE_AMP     8     // Amplitud del temblor de pantalla (px)
 
-// Flash de paleta por HP bajo del jefe (efecto "quemado" brillante). Con <= 20
-// HP la paleta de Rocksteady alterna entre la normal y una versión quemada cada
-// ROCKSTEADY_FLASH_TICKS frames; con <= ROCKSTEADY_FLASH_CRIT_HP (crítico) alterna cada
-// ROCKSTEADY_FLASH_CRIT_TICKS. (03/10) Los dos a 4 frames: el arcade alterna
-// 4/4 constante, sin fase mas rapida (boss_flash.h).
-// Umbrales RELATIVOS al HP total del jefe (1/3 y 1/6), no numeros sueltos: al
-// duplicar ROCKSTEADY_HP los valores fijos (20 y 10) pasaban de avisar al 32% y
-// al 16% de vida a avisar al 16% y al 8%, o sea casi encima de la muerte.
-#define ROCKSTEADY_FLASH_HP        (ROCKSTEADY_HP / 3)
-#define ROCKSTEADY_FLASH_CRIT_HP   (ROCKSTEADY_HP / 6)
+// Flash de paleta por HP bajo del jefe (efecto "quemado" brillante). Con poca
+// vida la paleta de Rocksteady alterna entre la normal y una versión quemada
+// cada ROCKSTEADY_FLASH_TICKS frames (4/4 constante, ver boss_flash.h).
+// Umbral RELATIVO al HP total del jefe (el ultimo cuarto, BOSS_FLASH_DIV),
+// no un numero suelto, para que no se desfase si cambia ROCKSTEADY_HP.
+#define ROCKSTEADY_FLASH_HP        (ROCKSTEADY_HP / BOSS_FLASH_DIV)
+#define ROCKSTEADY_FLASH_CRIT_HP   (ROCKSTEADY_HP / (BOSS_FLASH_DIV * 2))
 #define ROCKSTEADY_FLASH_TICKS      BOSS_FLASH_TICKS
 #define ROCKSTEADY_FLASH_CRIT_TICKS BOSS_FLASH_TICKS
 
@@ -5047,7 +5043,8 @@ SceneId showScene12() {
         }
 
         // 6-boss. Colisiones: ataque del jugador → Rocksteady.
-        // Normal −1 barra, especial −ROCKSTEADY_SPECIAL_DMG. Golpear con la
+        // Normal −1 barra, patada en salto −ROCKSTEADY_JUMPKICK_DMG, especial
+        // −ROCKSTEADY_SPECIAL_DMG. Golpear con la
         // patada voladora suena el "pum" (igual que contra los foot soldiers).
         // MISMA geometría box-vs-box que contra los soldiers: la caja del
         // ataque se SOLAPA con la hurtbox del cuerpo del jefe
@@ -5062,13 +5059,15 @@ SceneId showScene12() {
             Player* batt = NULL;
             if (playerAttackHitsBox(&p1, bcx, by, ROCKSTEADY_BODY_HALF_W,
                                     ROCKSTEADY_BODY_H)) {
-                bdmg = isPlayerSpecialAttack(&p1) ? ROCKSTEADY_SPECIAL_DMG : 1;
+                bdmg = isPlayerSpecialAttack(&p1) ? ROCKSTEADY_SPECIAL_DMG
+                     : (isPlayerJumpKicking(&p1) ? ROCKSTEADY_JUMPKICK_DMG : 1);
                 batt = &p1;
             } else {
                 for (u8 k = 1; k < nPl; k++) {
                     if (!playerAttackHitsBox(pls[k], bcx, by, ROCKSTEADY_BODY_HALF_W,
                                              ROCKSTEADY_BODY_H)) continue;
-                    bdmg = isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG : 1;
+                    bdmg = isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG
+                         : (isPlayerJumpKicking(pls[k]) ? ROCKSTEADY_JUMPKICK_DMG : 1);
                     batt = pls[k];
                     break;
                 }

@@ -7,336 +7,219 @@
 #include "boss_flash.h"  // (03/10) parpadeo de vida baja por linea de sprite
 
 // ===========================================================================
-// ROCKSTEADY — jefe final del nivel 2 (pasillo en llamas)
+// ROCKSTEADY — jefe del nivel 2 (pasillo en llamas) y del garage (4-1)
 // ===========================================================================
-// Enemigo único con máquina de estados propia, patrón de robot.c. Aparece
-// saliendo de la CÁPSULA del taladro que emerge del piso del fondo de la sala
-// (sprite en scenes.c) y pelea en el arena (cámara bloqueada en
-// LEVEL2_CAM_MAX_X).
+// Maquina de estados propia. En el 1-2 sale de la CAPSULA del taladro (sprite
+// en scenes.c); en el garage, del ascensor (level4_1.c). Cada nivel le pasa su
+// arena (RocksteadyArena).
 //
-// COMPORTAMIENTO (rehecho el 13/09)
-// Ya NO hay una progresión de dos fases (primero sin arma, después con arma
-// para siempre): ahora ALTERNA los dos modos cada ROCKSTEADY_ATTACKS_PER_SWAP
-// ataques completados, y guarda/saca el arma con la anim [5].
+// COMPORTAMIENTO (05/10, rehecho entero)
+// Cada estado dura lo que dura su animacion y al terminar elige el siguiente,
+// casi siempre con un sorteo:
 //
-//   SIEMPRE          busca ponerse en el EJE Y del jugador (con 2 jugadores
-//                    elige el más cercano en X y lo sigue).
-//   CON ARMA         si el jugador está alineado en Y y en rango, dispara el
-//                    tiro HORIZONTAL (bala frame [0]); si el jugador está
-//                    SALTANDO, dispara el tiro HACIA ARRIBA (bala frame [1]).
-//                    En melee, patada con el arma [8] como contraataque.
-//   SIN ARMA         si está LEJOS, embestida [2], que golpea por CONTACTO
-//                    real de los cuerpos. De cerca se planta y contraataca
-//                    con la patada [3].
+//   QUIETO (108)   mira a la tortuga. Si no esta alineado con ella: 50% la
+//                  persigue caminando, 50% embiste. Si esta alineado: camina
+//                  derecho hacia adelante.
+//   CAMINAR (144)  persiguiendo: se pone en su lane y se acerca hasta
+//                  RS_NEAR_DX; alineado -> patada. Hacia adelante: camina
+//                  derecho y al terminar embiste (o saca el arma si la tiene).
+//   EMBESTIDA      amague (40) y corrida (135) a 5 px/f siguiendo la lane;
+//                  pega por contacto y voltea. Al llegar al borde: 50% quieto,
+//                  50% persigue.
+//   PATADA (19)    pega por contacto desde el frame 1 y voltea.
+//   GOLPEADO (20)  suma golpes seguidos y golpes para la caida. Con 4
+//                  seguidos contraataca (patada); con 10 cae.
+//   CAIDA (60)     desliza hacia atras. Al levantarse CAMBIA de arma: si no la
+//                  tenia, la saca (30); si la tenia, la pierde.
+//   CON ARMA (103) persigue (y patea con el arma), se alinea para disparar, o
+//                  se aleja hacia el borde.
+//   DISPARO (90)   dos balas rectas avanzando despacio. Si ya le pegaron 2
+//                  balas a la tortuga: 50% camina rapido, 50% frenesi.
+//   FRENESI (134)  cuatro tiros: dos rectos y dos en diagonal hacia arriba,
+//                  dandose vuelta entre tiro y tiro (tira a los dos lados).
 //
-// Cada ROCKSTEADY_KD_INTERVAL golpes recibidos SIN el arma, cae (knock-down,
-// anim [4]) y se levanta. Con el arma no cae: la anim de caída lo dibuja
-// desarmado y quedaría fuera de lugar.
+// Solo recibe dano quieto, caminando (con o sin arma) y disparando. En la
+// patada, el frenesi, la caida y mientras saca el arma es intocable. En la
+// EMBESTIDA (amague y corrida) los golpes le sacan vida pero no la cortan.
 //
-// Muerte: anim [4] hasta el último frame y desaparece (ROCKSTEADY_GONE), lo
-// que dispara la victoria del nivel (scenes.c). El golpe del jugador NO es
-// letal al 100% con el especial: normal −1, especial −ROCKSTEADY_SPECIAL_DMG.
+// Muerte: anim [4] hasta el ultimo frame y desaparece (ROCKSTEADY_GONE), lo
+// que dispara la victoria del nivel.
 //
-// Se dibuja en PAL3 (su paleta se carga al aparecer; PAL3[1] se fuerza blanco
-// para el texto del HUD). El arte mira SIEMPRE a la derecha → flip con
-// SPR_setHFlip cuando dir < 0. El frame es CUADRADO (104x104) y el cuerpo
-// centrado → no hace falta compensar la X al espejar (a diferencia del robot).
+// El arte mira SIEMPRE a la derecha -> flip con SPR_setHFlip cuando dir < 0.
+// El frame es CUADRADO (104x104) y el cuerpo esta centrado.
 // ===========================================================================
 
-// --- Índices de animación de rocksteady_boss (filas del spritesheet) ---
+// --- Indices de animacion de rocksteady_boss (filas del spritesheet) ---
 #define ROCKSTEADY_ANIM_IDLE        0   // Quieto
-#define ROCKSTEADY_ANIM_WALK        1   // Caminar (entrada / reposicionarse)
-#define ROCKSTEADY_ANIM_CHARGE      2   // Estampida (carga contra el jugador)
-#define ROCKSTEADY_ANIM_KICK        3   // Patada (fase 1)
-#define ROCKSTEADY_ANIM_HURT        4   // Recibe golpes / cae / muere (fase 1 y muerte)
-#define ROCKSTEADY_ANIM_DRAW        5   // Saca el arma (transición → fase 2)
-#define ROCKSTEADY_ANIM_WALK_ARMS   6   // Camina con el arma (idle de fase 2)
-#define ROCKSTEADY_ANIM_AIM         7   // Camina apuntando (acercarse para disparar)
-#define ROCKSTEADY_ANIM_KICK_ARMS   8   // Patada con el arma en la mano (fase 2)
-#define ROCKSTEADY_ANIM_SHOOT       9   // Dispara (ráfaga de balas)
-#define ROCKSTEADY_ANIM_HURT_ARMS  10   // Recibe golpes con el arma (fase 2)
+#define ROCKSTEADY_ANIM_WALK        1   // Caminar
+#define ROCKSTEADY_ANIM_CHARGE      2   // Embestida (amague y corrida)
+#define ROCKSTEADY_ANIM_KICK        3   // Patada
+#define ROCKSTEADY_ANIM_HURT        4   // Golpeado [0][1] / cae [2][3] / se levanta [4][5] / muere
+#define ROCKSTEADY_ANIM_DRAW        5   // Saca el arma
+#define ROCKSTEADY_ANIM_WALK_ARMS   6   // Camina con el arma
+#define ROCKSTEADY_ANIM_AIM         7   // Camina apuntando
+#define ROCKSTEADY_ANIM_KICK_ARMS   8   // Patada con el arma en la mano
+#define ROCKSTEADY_ANIM_SHOOT       9   // Dispara (frames a mano, ver abajo)
+#define ROCKSTEADY_ANIM_HURT_ARMS  10   // Golpeado con el arma
 
-// --- Geometría del frame (104x104, igual que las tortugas) ---
-// OJO: r->x ancla el BORDE IZQUIERDO del frame en pantalla (SPR_setPosition
-// esquina superior izquierda, sin la compensación de robot.c); el CENTRO
-// visual del cuerpo es r->x + FRAME_W/2 (lo devuelve rocksteadyGetCenterX).
-// r->y son los PIES (lane).
+// --- Geometria del frame (104x104, igual que las tortugas) ---
+// r->x ancla el BORDE IZQUIERDO del frame; el centro del cuerpo es
+// r->x + FRAME_W/2 (rocksteadyGetCenterX). r->y son los PIES (lane).
 #define ROCKSTEADY_FRAME_W      104
 #define ROCKSTEADY_FRAME_H      104
-// (13/09) 104, no 96. El arte del jefe llega HASTA ABAJO DE TODO de la celda:
-// medido frame por frame, la ultima fila con pixeles es la 104 en idle, walk,
-// aim y shoot. Con 96 se lo dibujaba 8px mas abajo que a la tortuga estando los
-// dos en la MISMA lane -- que es justo lo que se ve en la captura de
-// referencia. La tortuga si tiene los pies en 96 (PLAYER_FOOT_OFFSET).
-#define ROCKSTEADY_FOOT_OFFSET  104   // Pies en el borde inferior del frame
+// El arte llega hasta la ultima fila de la celda (los pies en 104, no en 96
+// como la tortuga).
+#define ROCKSTEADY_FOOT_OFFSET  104
 
-// --- Vida y daño ---
-#define ROCKSTEADY_HP           55   // Barras totales. (01/10) Igual que Bebop (BEBOP_HP).
-                                     // Historial: 48 -> 52 -> 57 -> 62 (30/08)
-                                     // -> 124 (13/09) -> 55. Un golpe normal saca 1 barra y el
-                                     // especial ROCKSTEADY_SPECIAL_DMG.
-#define ROCKSTEADY_SPECIAL_DMG   3   // Daño del ataque especial (botón A / B+C)
-// ALTERNANCIA DEL ARMA (13/09): ya no hay progresion de fases. El jefe cuenta
-// los ataques que COMPLETA (una rafaga, una embestida o una patada) y cada
-// ROCKSTEADY_ATTACKS_PER_SWAP guarda o saca el arma. Se cuentan ataques y no
-// tiempo a propósito: si el jugador se esconde, el jefe no cambia de modo solo
-// -- el ritmo lo marca la pelea, no el reloj.
-#define ROCKSTEADY_ATTACKS_PER_SWAP 7   // (03/10) arcade: ~8 ataques armado
-// (01/10) La tanda SIN arma es mas corta: pasaba mucho
-// tiempo de la pelea desarmado (la rotacion sin arma tiene un paso de
-// "esperar" que no cuenta como ataque, mas el acercamiento de la patada).
-// Ahora con UN ataque completado sin arma (la embestida o la patada) ya saca
-// el arma; CON arma sigue haciendo ROCKSTEADY_ATTACKS_PER_SWAP rafagas.
-#define ROCKSTEADY_UNARMED_ATTACKS  2   // (03/10) arcade: embestida + patada
+// --- Vida y dano recibido ---
+// Golpe comun 1, patada en salto 2, especial ROCKSTEADY_SPECIAL_DMG.
+#define ROCKSTEADY_HP           40
+#define ROCKSTEADY_SPECIAL_DMG   3
+#define ROCKSTEADY_JUMPKICK_DMG  2
 
-// --- Movimiento / patrulla ---
-// Arena: cámara bloqueada en LEVEL2_CAM_MAX_X (120) → mundo visible 120..440.
-// (03/10) Velocidades MEDIDAS en el video del arcade (Q8: 256 = 1 px/frame).
-#define ROCKSTEADY_WALK_X_Q    320   // 1,25 px/f caminando (antes 2)
-#define ROCKSTEADY_WALK_Y_Q    256   // 1 px/f en profundidad
-#define ROCKSTEADY_AIM_X_Q     192   // 0,75 px/f avanzando con el arma apuntando
-#define ROCKSTEADY_CHARGE_Q    896   // 3,5 px/f la estampida (antes 5)
-#define ROCKSTEADY_LANE_Q      256   // corrige la lane 1 px/f mientras embiste
-// (01/10) Antes de correr se queda en el lugar con la anim de la embestida
-// estos frames (amaga, mirando al jugador): le da al jugador tiempo de leerla
-// y salir de la lane. La direccion se latchea al terminar la preparacion.
-#define ROCKSTEADY_CHARGE_WINDUP 30
+// --- Arena del 1-2 ---
+// Camara bloqueada en LEVEL2_CAM_MAX_X (120) -> mundo visible 120..440.
 #define ROCKSTEADY_LANE_TOP    142
 #define ROCKSTEADY_LANE_BOTTOM 196
-#define ROCKSTEADY_PATROL_LEFT 150   // centro del cuerpo, extremo izquierdo
-#define ROCKSTEADY_PATROL_RIGHT 330  // centro del cuerpo, extremo derecho
-#define ROCKSTEADY_TALADRO_X   340   // X de mundo de la cápsula del taladro (por donde emerge)
-#define ROCKSTEADY_SPAWN_X     (ROCKSTEADY_TALADRO_X - 64)   // Aparece 8 tiles (64px) a la izquierda de la cápsula
-// Hurtbox del CUERPO del jefe (media anchura desde el centro): los golpes de
-// la tortuga conectan por SOLAPE de cajas (playerAttackHitsBox), igual que
-// contra los foot soldiers, SIN depender del facing del jefe — de frente hay
-// que llegar al contacto real de los sprites y por la espalda se pega igual.
-// 20px ≈ la hurtbox del foot soldier naranja: puño/nunchaku/sai piden contacto,
-// katana/bō llegan ~20px antes (el largo del arma).
+#define ROCKSTEADY_PATROL_LEFT 150   // r->x minimo
+#define ROCKSTEADY_PATROL_RIGHT 330  // r->x maximo
+#define ROCKSTEADY_TALADRO_X   340   // X de mundo de la capsula del taladro
+#define ROCKSTEADY_SPAWN_X     (ROCKSTEADY_TALADRO_X - 64)
+#define ROCKSTEADY_EMERGE_STAND 170  // quieto en la puerta (dura say_your_p)
+
+// Hurtbox del cuerpo (media anchura desde el centro y alto sobre los pies):
+// los golpes de la tortuga conectan por solape de cajas (playerAttackHitsBox).
 #define ROCKSTEADY_BODY_HALF_W  20
-// Alto del cuerpo sobre los pies, medido sobre el arte con la linea de pies
-// corregida (104): idle 74, walk 65-71. Lo usa playerAttackHitsBox para validar
-// la altura del golpe.
 #define ROCKSTEADY_BODY_H       70
 
-// --- Introducción del jefe (cápsula del taladro) ---
-#define ROCKSTEADY_EMERGE_STAND 170  // Frames quieto en la puerta (≈ duración de say_your_p) antes de bajar al arena
+// --- Duraciones de cada estado (frames) ---
+#define RS_IDLE_T          108
+#define RS_WALK_T          144
+#define RS_WINDUP_T         40
+#define RS_CHARGE_T        135
+#define RS_KICK_F0           2    // patada: frame 0 (sin dano)
+#define RS_KICK_T           19    // ... y el frame 1 hasta 19 (pega)
+#define RS_HURT_F           10    // golpeado: 2 frames de 10
+#define RS_HURT_T           20
+#define RS_KD_SLIDE_T       12    // caida: frame [2] deslizando
+#define RS_KD_T             60    // ... y el [3] en el piso hasta 60
+#define RS_GETUP_F           7    // se levanta: [4] 7 frames, [5] 8
+#define RS_GETUP_T          15
+#define RS_DRAW_T           30
+#define RS_ARMS_T          103    // caminar con el arma
+#define RS_ARMS_FAST_T     102    // caminata rapida despues de 2 balas que pegaron
+#define RS_SHOOT_LOOP_T     45    // disparo: 2 vueltas de 45, una bala por vuelta
+#define RS_SHOOT_T          90
+#define RS_FRENZY_T        134
 
-// --- Ataques (distancias medidas desde el CENTRO VISUAL del cuerpo,
-//     r->x + FRAME_W/2) ---
-// Rango de CONTACTO centro-a-centro: hasta acá camina y se planta el jefe, y
-// es el umbral "en alcance" del timer anti-camping. La distancia real de
-// combos es 55-80px (alcance del arma + hurtbox del jefe).
-#define ROCKSTEADY_KICK_RANGE       64
-// (13/09) La embestida ya NO usa un radio fijo: golpea por SOLAPE REAL de los
-// cuerpos (ROCKSTEADY_BODY_HALF_W + PLAYER_BODY_HALF_W = 42), que es lo que
-// se busca -- "la embestida golpea al player si lo toca". Los 56px de
-// antes pegaban bastante antes del contacto visual.
-// Ciclo de acercamiento tipo arcade (ver informe de reverse engineering,
-// seccion 2): en vez de depender solo del timer anti-camping para embestir,
-// el jefe elige EMBESTIR directo (en vez de caminar) apenas la distancia es
-// realmente grande; la caminata (ROCKSTEADY_APPROACH) queda para cerrar el
-// resto del hueco corto. Tambien se usa para garantizar el primer golpe del
-// combate al bajar de la capsula (ver ROCKSTEADY_EMERGE en rocksteady.c).
-#define ROCKSTEADY_CHARGE_TRIGGER_DIST 110
-// La PATADA ya NO es una decisión espontánea: SOLO sale como contraataque
-// cuando recibe ROCKSTEADY_COUNTER_HITS golpes seguidos.
-#define ROCKSTEADY_COUNTER_HITS      3   // (01/10: 2 -> 3)
-// (01/10) La patada se spammeaba: con 2 golpes seguidos ya
-// contraatacaba, o sea que cortaba CADA combo. Ahora, despues de cualquier
-// patada (contra o de la rotacion), no vuelve a patear durante estos frames:
-// el contraataque que caiga en ese lapso se descarta (solo flinchea) y el paso
-// "patear" de la rotacion sin arma cede el turno.
-#define ROCKSTEADY_KICK_COOLDOWN   180
-// Anti-camping: jugador fuera de alcance durante estos frames (~2 s) seguidos
-// mientras el jefe está neutral → EMBESTIDA.
-#define ROCKSTEADY_FAR_FRAMES      120
-#define ROCKSTEADY_SHOOT_RANGE    130   // distX para abrir el disparo (fase 2)
-#define ROCKSTEADY_SHOOT_ALIGN_Y    6   // |dy| máx con el jugador para disparar
-#define ROCKSTEADY_HIT_TOL_Y    25   // |dy| máx (pies) para conectar ataques
-#define ROCKSTEADY_ATTACK_COOLDOWN 40
-#define ROCKSTEADY_HURT_FRAMES  18   // Flinch tras un golpe normal (03/10, video: 18)
-// (03/10) EMBESTIDA CON ARMADURA: durante el amague y la corrida los golpes
-// le sacan vida (y lo pueden matar) pero NO la cortan: ni flinch, ni caida,
-// ni contraataque. Como sin flinch no hay i-frames, despues de cada golpe
-// queda intocable estos frames (uno por swing, el mismo ritmo que el flinch;
-// el especial dura ~38 ticks y pega una sola vez).
-#define ROCKSTEADY_CHARGE_HIT_CD     ROCKSTEADY_HURT_FRAMES
+// --- Velocidades (Q8: 256 = 1 px por frame) ---
+#define RS_WALK_Q          480    // 1,875 px/f caminando / persiguiendo
+#define RS_AWAY_Q          427    // 1,67 px/f alejandose con el arma
+#define RS_CHARGE_Q       1280    // 5 px/f la embestida
+#define RS_SLIDE_Q         853    // 3,33 px/f deslizando al caer
+#define RS_SHOOT_Q          96    // 0,375 px/f avanzando mientras dispara
+
+// --- Distancias (centro a centro) ---
+#define RS_ALIGN_DY          2    // "alineado": misma lane (+-2 px) ...
+#define RS_ALIGN_DX         37    // ... y a esta distancia o menos
+#define RS_NEAR_DX          31    // persiguiendo se acerca hasta aca
+#define RS_FACE_DEADZONE    12    // quieto: no se da vuelta por menos que esto
+#define RS_AIM_DY            1    // apuntando: lane exacta (+-1 px)
+
+// --- Golpes por contacto (patada y embestida) ---
+// Lane de la tortuga respecto de la del jefe: de -5 a +7 px.
+#define RS_HIT_DY_UP         5
+#define RS_HIT_DY_DOWN       7
+#define RS_KICK_FWD         44    // alcance de la patada hacia adelante
+#define RS_KICK_BACK        16    // ... y hacia atras (desde el centro)
+#define RS_CHARGE_DX        32    // la embestida pega a menos de esto
+#define ROCKSTEADY_CONTACT_DMG 1  // barras (voltea)
+
+// --- Contadores ---
+#define RS_COUNTER_HITS      4    // golpes seguidos -> contraataque
+#define RS_KD_HITS          10    // golpes -> caida
+#define RS_SHOT_HITS         2    // balas que pegaron -> cambia de plan
+
+// EMBESTIDA CON ARMADURA: durante el amague y la corrida los golpes sacan vida
+// pero no la cortan. Despues de cada golpe queda intocable estos frames (uno
+// por swing; el especial dura ~38 frames y pega una sola vez).
+#define ROCKSTEADY_CHARGE_HIT_CD     18
 #define ROCKSTEADY_CHARGE_HIT_CD_SP  40
-// (03/10) Caida del arcade (la provoca el ESPECIAL de la tortuga, armado o no;
-// y sin arma, cada ROCKSTEADY_KD_INTERVAL golpes): anim [4] a mano, frame 2
-// volando hacia atras (desliza ~80 px), 3 en el piso, 4 y 5 se levanta.
-#define ROCKSTEADY_KD_FLY_F     18
-#define ROCKSTEADY_KD_FLY_Q   1152   // 4,5 px/f mientras vuela
-#define ROCKSTEADY_KD_DOWN_F    36
-#define ROCKSTEADY_KD_UP1_F      6
-#define ROCKSTEADY_KD_UP2_F      8
-// (03/10) Con el arma se queda mucho mas tiempo parado entre ataques (en el
-// video, 100-180 frames apuntando).
-#define ROCKSTEADY_ARMED_IDLE   75
-// (13/09) SE QUITO el flash BLANCO al recibir daño: reescribia los indices
-// 2..15 de PAL3 durante 8 frames en cada golpe y se saco. Con
-// ROCKSTEADY_HP en 124 son ~124 destellos por pelea. OJO: el parpadeo por HP
-// BAJO sigue -- ese es OTRO efecto, vive en scenes.c (bossPal/flashPal) y es
-// un aviso de vida critica, no una reaccion al golpe.
-#define ROCKSTEADY_KD_INTERVAL  10   // Golpes recibidos entre knock-downs (sin arma)
-#define ROCKSTEADY_KD_HOLD      60   // Frames que queda tirado en el knock-down
-#define ROCKSTEADY_IDLE_MIN     30   // Quieto mínimo antes de atacar
 
-// --- Rotacion del jefe SIN ARMA (14/09) -----------------------------------
-// Antes, sin arma solo tenia dos salidas y ninguna cubria el caso "el jugador
-// esta encima": lejos -> embestida, medio -> caminar hasta contacto, cerca ->
-// NADA. Con el jugador pegado se quedaba plantado para siempre, porque la
-// patada era unicamente el contraataque de ROCKSTEADY_COUNTER_HITS.
-// Ahora rota entre TRES conductas, una por decision:
-//   0 ESPERAR    se queda en el lugar unos frames (le da aire al jugador y
-//                deja que el contraataque siga existiendo)
-//   1 EMBESTIDA  si hay pista suficiente (ver ROCKSTEADY_CHARGE_MIN_DIST)
-//   2 PATADA     camina hasta el rango y patea de verdad, no como contra
-// Se rota en vez de sortear para garantizar variedad: sorteando, tres
-// "esperar" seguidos se ven igual que el bug que se esta arreglando.
-#define ROCKSTEADY_UNARMED_STEPS   3
-// Espera del paso 0: base + hasta 31 frames de azar, para que no quede
-// metronomico.
-#define ROCKSTEADY_WAIT_FRAMES    45
-// Pista minima para que la embestida se lea como embestida. Por debajo de esto
-// el paso 1 cede el turno al paso 2 (patada), que es lo que corresponde de
-// cerca.
-#define ROCKSTEADY_CHARGE_MIN_DIST 80
-#define ROCKSTEADY_CHARGE_MAX   80   // Tope de frames de la estampida
-#define ROCKSTEADY_CHARGE_OVER  18   // Frames que sigue la estampida tras impactar (overshoot)
-
-// --- Balas del disparo ---
-#define MAX_ROCKSTEADY_BULLETS   6   // Proyectiles simultáneos en vuelo
-#define ROCKSTEADY_BULLET_SPEED  6   // px/frame horizontal (03/10, video: 6)
-#define ROCKSTEADY_BULLET_DMG    1   // Barras de vida al impactar
-#define ROCKSTEADY_CHARGE_DMG    4   // Barras de vida al conectar la embestida (30/08)
-#define ROCKSTEADY_SHOT_COUNT    3   // Balas por ráfaga
-#define ROCKSTEADY_SHOT_TICKS    4   // Ticks entre frames de la anim de disparo
-                                     // (03/10: una bala cada 8 frames, video)
-// --- Sub-rangos de la anim [9] (8 frames) segun hacia donde dispara --------
-// La fila NO es una secuencia sola: son DOS poses de dos frames cada una, con
-// sus frames de retroceso en el medio. Medido sobre el arte:
-//   [0][1] horizontal CON fogonazo   [2][3] horizontal, arma retrocedida
-//   [4][5] arma arriba, sin fogonazo [6][7] arma arriba CON fogonazo
-// Asi que el disparo horizontal usa 0-1 y el de arriba 6-7 (13/09).
-// NO hizo falta partir la fila en dos animaciones del sheet: el estado SHOOT
-// ya maneja los frames a mano con SPR_setFrame, asi que alcanza con arrancar
-// en la base que corresponda.
-#define ROCKSTEADY_SHOOT_FR_H    0   // primer frame del par horizontal
-#define ROCKSTEADY_SHOOT_FR_UP   6   // primer frame del par hacia arriba
-// Disparo hacia arriba: sale cuando el jugador esta SALTANDO. Sube 3px por
-// frame de ALTURA (no de lane), asi que en ~19 frames pasa por la altura del
-// apex del salto de la tortuga (107 + torso).
-#define ROCKSTEADY_UPSHOT_DZ  3
-
-// --- BOCA DEL CAÑON (13/09) -------------------------------------------------
-// Las balas salian a una altura fija (40px bajo el tope del frame), que caia a
-// la altura de la BOCA de Rocksteady y no del arma. Estos offsets estan
-// MEDIDOS sobre el fogonazo del sheet, buscando la mancha de color 4/11 mas
-// alejada del cuerpo en cada pose:
-//   anim [9] frame 0 (horizontal): fogonazo centrado en la celda (92, 59)
-//   anim [9] frame 6 (hacia arriba): centrado en la celda (67, 17)
-// La celda es de 104x104 y los pies del jefe estan a ROCKSTEADY_FOOT_OFFSET
-// (104, o sea el borde inferior) del tope, asi que:
-//   X = columna - 52 (centro del frame), con el signo de r->dir
-//   Z = 104 - fila   (altura sobre los PIES; 104 = ROCKSTEADY_FOOT_OFFSET)
-#define ROCKSTEADY_MUZZLE_H_X   40   // 92 - 52
-#define ROCKSTEADY_MUZZLE_H_Z   45   // 104 - 59
-#define ROCKSTEADY_MUZZLE_UP_X  15   // 67 - 52
-#define ROCKSTEADY_MUZZLE_UP_Z  87   // 104 - 17
-// --- Frames del sprite boss_bullet (una fila de 3, sin auto-animacion) ---
-#define ROCKSTEADY_BULLET_FR_H    0   // tiro horizontal
-#define ROCKSTEADY_BULLET_FR_UP   1   // tiro hacia arriba (diagonal)
-#define ROCKSTEADY_BULLET_FR_HIT  2   // impacto contra el jugador
-// Al pegar, la bala NO se borra en el acto: se queda quieta mostrando el frame
-// de impacto estos frames y recien ahi se libera el sprite.
+// --- Balas ---
+#define MAX_ROCKSTEADY_BULLETS   6
+#define ROCKSTEADY_BULLET_Q    960    // 3,75 px/f la recta
+#define ROCKSTEADY_BULLET_DQ   679    // 2,65 px/f en X y en altura (diagonal 45)
+#define ROCKSTEADY_BULLET_DMG    1
+// Anim [9] (8 frames): [0][1] horizontal con fogonazo, [2][3] arma
+// retrocedida, [4][5] arma arriba sin fogonazo, [6][7] arriba con fogonazo.
+#define ROCKSTEADY_SHOOT_FR_H    0
+#define ROCKSTEADY_SHOOT_FR_REC  2
+#define ROCKSTEADY_SHOOT_FR_UP0  4
+#define ROCKSTEADY_SHOOT_FR_UP   6
+// Boca del canon medida sobre el fogonazo del sheet (celda 104x104, pies en
+// la fila 104): X = columna - 52, Z = 104 - fila.
+#define ROCKSTEADY_MUZZLE_H_X   40
+#define ROCKSTEADY_MUZZLE_H_Z   45
+#define ROCKSTEADY_MUZZLE_UP_X  15
+#define ROCKSTEADY_MUZZLE_UP_Z  87
+// Frames del sprite boss_bullet (sin auto-animacion).
+#define ROCKSTEADY_BULLET_FR_H    0
+#define ROCKSTEADY_BULLET_FR_UP   1
+#define ROCKSTEADY_BULLET_FR_HIT  2
 #define ROCKSTEADY_BULLET_HIT_FRAMES 16
-// La bala guarda su ALTURA SOBRE EL PISO en 'z' (misma idea que el jumpZ del
-// jugador) y NO en la lane: la lane es PROFUNDIDAD, y moverla haria que la bala
-// se fuera al fondo de la sala en vez de subir por pantalla.
-// Arranca en la altura de la boca del cañon (ver ROCKSTEADY_MUZZLE_*_Z) y sube
-// dz por frame; se apaga al salirse de la pantalla por arriba.
+// La bala guarda su ALTURA sobre el piso en 'z' y conserva la lane del tiro.
 #define ROCKSTEADY_BULLET_MAX_Z    160
-// Altura del TORSO del jugador sobre sus pies: es contra esto (mas su jumpZ) que
-// se compara la altura de la bala. Con esto, el tiro recto (z 37) le pega al que
-// esta parado y NO al que salta, y el de arriba al reves -- que es justo la
-// gracia de tener dos tiros.
+// Altura del torso de la tortuga sobre sus pies (mas su jumpZ): contra eso se
+// compara la altura de la bala. La recta le pega al que esta parado; la
+// diagonal, con una ventana mas ancha, al que salta.
 #define ROCKSTEADY_BULLET_TARGET_Z  30
 #define ROCKSTEADY_BULLET_HIT_Z     24
-// Tolerancia SEPARADA para el tiro hacia arriba (14/09). El antiaereo sube 3px
-// por frame y avanza otros 3, asi que cuando llega al jugador ya va por
-// z~120-130: con los 24 del tiro recto solo conecta si la tortuga esta muy
-// cerca del apex en ese frame exacto. MEDIDO en emulador, ~30s saltando sin
-// parar: con 24 conecto 1 de 3 impactos; con 48, 2 de 4. Se deja 48 porque la
-// bala llega alta y el antiaereo tiene que castigar la mitad de ARRIBA del
-// salto, no solo el apex. El tiro recto se queda en 24: si se le ampliara,
-// le pegaria tambien al que salta y los dos tiros harian lo mismo.
 #define ROCKSTEADY_BULLET_HIT_Z_UP  48
 
 typedef enum {
-    ROCKSTEADY_INACTIVE,    // Todavía no apareció
-    ROCKSTEADY_EMERGE,      // Quieto en la puerta de la cápsula (IDLE), luego BAJA al arena caminando (WALK [1])
-    ROCKSTEADY_IDLE,        // Quieto (alineando lane), decide el próximo ataque
-    ROCKSTEADY_APPROACH,    // Camina hacia el jugador (sin arma)
-    ROCKSTEADY_CHARGE,      // Embestida contra el jugador (sin arma)
-    ROCKSTEADY_KICK,        // Patada melee (sin arma)
-    ROCKSTEADY_HURT,        // Flinch al recibir golpe (sin arma)
-    ROCKSTEADY_KNOCKDOWN,   // Cayó (anim [4] hasta el suelo), se levanta
-    ROCKSTEADY_ARMS_INTRO,  // Saca O guarda el arma (anim [5]) → cambia de modo
-    ROCKSTEADY_AIM_WALK,    // Se acerca apuntando y alineando lane (con arma)
-    ROCKSTEADY_SHOOT,       // Ráfaga de balas (con arma)
-    ROCKSTEADY_KICK_ARMS,   // Patada con el arma
-    ROCKSTEADY_HURT_ARMS,   // Flinch al recibir golpe (con arma)
+    ROCKSTEADY_INACTIVE,    // Todavia no aparecio
+    ROCKSTEADY_EMERGE,      // Quieto en la puerta y baja a la lane de pelea
+    ROCKSTEADY_IDLE,        // Quieto (decide)
+    ROCKSTEADY_WALK,        // Camina sin arma (persigue o va derecho)
+    ROCKSTEADY_WINDUP,      // Amague de la embestida
+    ROCKSTEADY_CHARGE,      // Embestida
+    ROCKSTEADY_KICK,        // Patada (con o sin arma)
+    ROCKSTEADY_HURT,        // Golpeado
+    ROCKSTEADY_KNOCKDOWN,   // Cae y queda en el piso
+    ROCKSTEADY_GETUP,       // Se levanta
+    ROCKSTEADY_DRAW,        // Saca el arma
+    ROCKSTEADY_WALK_ARMS,   // Camina con el arma (persigue / apunta / se aleja)
+    ROCKSTEADY_SHOOT,       // Dos tiros rectos
+    ROCKSTEADY_FRENZY,      // Frenesi: cuatro tiros a los dos lados
     ROCKSTEADY_DEAD,        // Cayendo (anim [4] hasta el final)
     ROCKSTEADY_GONE         // Muerto y removido
 } RocksteadyState;
 
+// Modos de caminar.
+enum { RS_MODE_CHASE, RS_MODE_AHEAD, RS_MODE_AIM, RS_MODE_AWAY };
+
 typedef struct {
     Sprite*     sprite;
     RocksteadyState state;
-    u8          armed;       // 0 = sin arma (embestida/patada) · 1 = con arma
-                             // (dispara). Alterna cada ROCKSTEADY_ATTACKS_PER_SWAP
-                             // ataques completados; ya NO es una progresión.
+    u8          armed;       // tiene el arma (cambia al levantarse de una caida)
     s16         x;           // X de MUNDO del BORDE IZQUIERDO del frame
-                              // (centro visual = x + FRAME_W/2, ver GetCenterX)
-    s16         y;           // Y = PIES (lane)
+    s16         y;           // PIES (lane)
     s16         cameraOffsetX;
-    s8          dir;         // -1 mira izquierda / +1 mira derecha
+    s8          dir;         // -1 mira a la izquierda / +1 a la derecha
     s16         hp;
-    u8          anim;        // Anim actual (evita re-setear)
-    u16         timer;       // Timer genérico del estado (golpes/KD/idle)
-    u8          attackCooldown;
-    u8          hitsTaken;   // Golpes recibidos desde el último knock-down
-    u8          knockdowns;  // Total de caídas en fase 1
-    u8          comboHits;     // Golpes seguidos sin poder responder (contraataque)
-    u8          counterPending; // 1 = al próximo flinch suelta la patada counter
-    u16         farTimer;      // Frames seguidos con el jugador fuera de alcance (anti-camping)
-    u8          attacksDone;   // Ataques COMPLETADOS desde el último cambio de
-                               // arma (ver ROCKSTEADY_ATTACKS_PER_SWAP)
-    u8          chargeHit;   // 1 = la estampida ya impactó en esta carga (overshoot sin re-dañar)
-    u8          chargeWind;  // Frames de preparacion que le quedan a la embestida
-                             // (ROCKSTEADY_CHARGE_WINDUP): quieto, sin dañar.
-    u8          unarmedStep; // Paso de la rotacion SIN ARMA (ver
-                             // ROCKSTEADY_UNARMED_STEPS): 0 esperar,
-                             // 1 embestida, 2 acercarse y patear.
-    u8          kickOnArrive;// 1 = el APPROACH en curso termina en patada.
-    u8          kickCooldown;// Frames hasta poder volver a patear (ROCKSTEADY_KICK_COOLDOWN)
-    s8          chargeDir;   // Dirección LATCHEADA de la embestida (14/09). Se
-                             // fija al arrancar y no se re-apunta: una vez
-                             // lanzada la corrida, se esquiva.
-    // Ráfaga de disparos (control manual de frames de la anim [9]).
-    u8          shotFrame;   // Paso dentro de la ráfaga (2 por bala: fogonazo
-                             // + segundo frame del par)
-    u8          shotsFired;  // Balas disparadas en esta ráfaga
-    u8          shotTimer;   // Ticks hasta el próximo paso de frame
-    u8          shotUp;      // 1 = TODA esta ráfaga es el tiro hacia arriba.
-                             // Se decide UNA vez al abrir fuego, no por bala:
-                             // si no, la pose y la bala podian contradecirse.
-    BossFlash   flash;       // (03/10) parpadeo de vida baja (arena.flashPal)
-    u8          accX, accY;  // (03/10) restos Q8 del movimiento
-    s8          slideDir;    // (03/10) hacia donde desliza al caer
-    u8          chargeHitCD; // (03/10) intocable tras un golpe en la embestida
+    u8          anim;        // anim actual (evita re-setear)
+    u16         timer;       // frames desde que arranco el estado
+    u16         dur;         // duracion del estado (los que duran fijo)
+    u8          mode;        // RS_MODE_* al caminar
+    u8          fast;        // caminata rapida con el arma
+    u8          combo;       // golpes seguidos (contraataque)
+    u8          kdHits;      // golpes para la caida
+    u8          fr, ft;      // frame y ticks de la anim manejada a mano
+    BossFlash   flash;       // parpadeo de vida baja (arena.flashPal)
+    u8          accX, accY;  // restos Q8 del movimiento
+    s8          slideDir;    // hacia donde desliza al caer
+    u8          chargeHitCD; // intocable tras un golpe en la embestida
 } Rocksteady;
 
 // (01/10) ARENA: lo que depende del escenario. rocksteadySpawn usa la del
@@ -370,8 +253,9 @@ bool rocksteadyCanBeHit(const Rocksteady* r);
 s16  rocksteadyGetCenterX(const Rocksteady* r);
 s16  rocksteadyGetCenterY(const Rocksteady* r);
 void rocksteadyDamage(Rocksteady* r, s16 dmg);
-// (03/10) special = el especial de la tortuga: lo DERRIBA (como en el arcade).
-// rocksteadyDamage lo deduce del dano (>= ROCKSTEADY_SPECIAL_DMG).
+// special = el especial de la tortuga: suma un golpe extra a los contadores
+// de contraataque y de caida. rocksteadyDamage lo deduce del dano
+// (>= ROCKSTEADY_SPECIAL_DMG).
 void rocksteadyDamageEx(Rocksteady* r, s16 dmg, bool special);
 
 // --- Balas del disparo (misma estructura que el sistema de shurikens) ---

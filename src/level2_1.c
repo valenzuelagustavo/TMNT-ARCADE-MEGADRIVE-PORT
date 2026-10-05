@@ -1933,7 +1933,8 @@ SceneId showScene21() {
                     if (!playerAttackHitsBox(pls[k], bcx, by,
                                              BEBOP_BODY_HALF_W, BEBOP_BODY_H))
                         continue;
-                    s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG : 1;
+                    s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG
+                            : (isPlayerJumpKicking(pls[k]) ? BEBOP_JUMPKICK_DMG : 1);
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                    SOUND_PCM_CH2, 15, FALSE, FALSE);
                     if (bebopDamage(&bebop, dmg)) addPlayerScore(pls[k], 5);
