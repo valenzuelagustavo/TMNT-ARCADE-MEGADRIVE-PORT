@@ -57,7 +57,7 @@ IMAGE bg_level1 "images/lvl_1_scene/Arcade---Teenage-Mutant-Ninja-Turtles---Back
 // El fuego NO lleva PALETTE propia: comparte la paleta del foot_soldier
 // (PAL2), los PNGs estan cuantizados sobre la misma paleta indexada.
 // (24/09) El strip lo genera ahora tools/gen_fire_strip.py a partir del sheet
-// nuevo de Gustavo ("CHAMAS 7 CORES.png", 8 frames de banda ancha): elige la
+// nuevo ("CHAMAS 7 CORES.png", 8 frames de banda ancha): elige la
 // ventana de 64 px que menos costura deja al repetirse y la pega abajo de la
 // celda. Los 7 colores del fuego son un subconjunto de la paleta de enemigos.
 TILESET fire_tiles "sprites/fire_strip_new.png" NONE NONE
@@ -178,7 +178,7 @@ SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
 // La animacion YA NO es por rotacion de paleta (indices 5-8 de PAL2): esos
 // mismos indices los usa fire_tiles (el fuego de primer plano, SIEMPRE
 // visible) para su propio dibujo, asi que rotar PAL2 tambien le temblaba el
-// color al fuego de fondo -- reportado por Gustavo, y no hay una 5ta linea
+// color al fuego de fondo -- se notaba en pantalla, y no hay una 5ta linea
 // de paleta libre en el nivel para aislarlas (las 4 ya estan repartidas).
 // Fix: sparksStreamInit/Update en scenes.c streamean tiles REALES (mismo
 // truco que fire_tiles/smoke_tiles), tomados de sparks_strip.png (4 frames
@@ -196,7 +196,7 @@ SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
 // descarta los tiles vacios (13 y 35 tiles, no 15 y 40) -> se veian rotas.
 // Ahora el codigo streamea animations[0]->frames[f]->tileset, en el orden y
 // con la cantidad exacta que decidio rescomp. Tiras: tools/gen_sparks_anim.py.
-// (26/09) Arte NUEVO de Gustavo (chamas-sheet.png, tools/gen_chamas.py): el
+// (26/09) Arte NUEVO (chamas-sheet.png, tools/gen_chamas.py): el
 // hueco ENTERO de la puerta rota -- marco, interior negro, llamas y piso --,
 // 7 frames de 40x80 (el arte son 33x79, exacto el hueco del fondo). El negro
 // del interior es opaco, asi que los 50 tiles estan llenos en todos los

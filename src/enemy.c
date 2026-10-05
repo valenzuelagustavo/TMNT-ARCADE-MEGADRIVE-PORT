@@ -279,7 +279,7 @@ static s16 enemyMinX(const Enemy* e) {
 // ---------------------------------------------------------------------------
 // SUBIDA: la gravedad de las tortugas (apice de 107 px). Al entrar en la zona
 // del apice (vel < WHITE_JUMP_BAND_Q) pasa a la gravedad de la caida lenta
-// (14/09, pedido de Gustavo): el espadazo aereo se ve planeado, no plomada.
+// (14/09): el espadazo aereo se ve planeado, no plomada.
 // El avance en X baja a WHITE_FALL_SPEED_X mientras cae (ver whiteJumpSpeedX).
 static void whiteJumpStart(Enemy* e) {
     e->jumpVel  = WHITE_JUMP_V0_Q;
@@ -1301,7 +1301,7 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     // quedaba congelado en el valor que tuviera -- hasta 107px -- y el sprite
     // se dibujaba flotando a esa altura para SIEMPRE, porque el unico codigo
     // que mueve el arco vive en SPAWNING y en el ataque de salto, y el golpe
-    // saca al enemigo de los dos. (Bug reportado por Gustavo el 13/09: "uno
+    // saca al enemigo de los dos. (Bug del 13/09: "uno
     // salta y queda desfasado, como si su piso estuviera a la altura de la
     // cabeza de April".)
     whiteJumpStop(e);

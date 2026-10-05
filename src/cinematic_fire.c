@@ -68,7 +68,7 @@
 //   Ahora cada escena reserva SOLO lo que necesita (con margen), asi la A
 //   le devuelve al fondo el aire que la B/C no le hacen falta a ella.
 //
-// Sin musica (decision del usuario), igual que la intro arcade.
+// Sin musica (decision de diseno), igual que la intro arcade.
 // START saltea la cinematica completa en cualquier momento.
 // ===========================================================================
 
@@ -135,8 +135,8 @@
 #define T_BAL_HANG_IN        58   // "Hang on, April" entra
 #define T_BAL_HANG_OUT       86   // ...y sale
 
-// (18/09) La musica entra APENAS TERMINA el voice over "Hang on, April", que
-// es lo que pidio Gustavo. Medido sobre el WAV de origen
+// (18/09) La musica entra APENAS TERMINA el voice over "Hang on, April", como
+// tiene que ser. Medido sobre el WAV de origen
 // (res/audio/hang_on_april.wav, mono 11025 Hz, 9030 muestras): dura 0,819 s =
 // 24,6 frames de cinematica, y arranca en T_BAL_HANG_IN. O sea que la voz se
 // apaga en el frame 82,6; el 84 deja un respiro de dos frames y todavia cae
@@ -149,7 +149,7 @@
 #define T_CLIMB_TIME         32   // Duracion del salto: UN solo arco (30/09: de
                                   // 30 a 32 porque ahora el arco sube y ademas
                                   // cae hasta perderse detras del borde).
-// (30/09, Gustavo) Saltan DE A UNA: cada tortuga arranca CLIMB_STAGGER ticks
+// (30/09) Saltan DE A UNA: cada tortuga arranca CLIMB_STAGGER ticks
 // despues de la anterior, en el orden de climbRank (la de mas a la derecha
 // primero, asi ninguna pasa por encima de otra que todavia esta parada).
 #define CLIMB_STAGGER        11
@@ -167,7 +167,7 @@
 #define T_PASS_NEAR           8   // ...y con el grande, hasta salir de cuadro
 #define T_PASS  (T_PASS_TINY + T_PASS_FAR + T_PASS_NEAR)   // 23 por tortuga
 
-// (19/09) Escena C acortada a pedido de Gustavo: caen y caminan mas rapido.
+// (19/09) Escena C acortada: caen y caminan mas rapido.
 // Antes: FALL 16 / DOWN 12 / GETUP 10 / WALK 30 / HOLD 12 y arranques
 // {6,26,58,62} -> 142 ticks = 4,73 s. Ahora son 102 ticks = 3,40 s.
 // OJO al tocar estos numeros: la caminata recorre una distancia FIJA
@@ -199,13 +199,13 @@
 // Recorrido del grupo: 5 puntos = 4 saltos en diagonal hacia arriba-derecha,
 // de saliente en saliente, hasta perderse en el humo. Son coordenadas del
 // CENTRO en X y de los PIES en Y.
-// (30/09, Gustavo) SE DEJAN CAER DEL TECHO. Antes el arco iba de la azotea
+// (30/09) SE DEJAN CAER DEL TECHO. Antes el arco iba de la azotea
 // a lo alto de la fachada de enfrente (una parabola montada sobre una recta
 // que SUBIA 102 px): se leia como un salto hacia adelante y arriba. Ahora es
 // un tiro de verdad: suben CLIMB_RISE px en diagonal hacia la derecha, pasan
 // por el vertice y caen, cada vez mas rapido, hasta perderse detras del borde
 // del techo (el parapeto azul oscuro que corta la azotea en diagonal) o por
-// abajo de la pantalla. Igual que la captura marcada por Gustavo.
+// abajo de la pantalla. Igual que la captura marcada.
 //
 // Pies en funcion de t = lt/T (0..1):  y = FROM_Y - A*t + B*t^2
 // con A y B tales que el vertice queda CLIMB_RISE px arriba del arranque y el
@@ -238,7 +238,7 @@
 // Las 4 tortugas van en bloque pero LIGERAMENTE SEPARADAS (antes se fundian en
 // una sola mancha). Leo (0) adelante, tapando en parte a los otros tres.
 // El juego de offsets chico es el mismo escalado a 2/3.
-// Separacion ampliada (~1.3x los valores originales) a pedido de Gustavo: se
+// Separacion ampliada (~1.3x los valores originales): se
 // veian demasiado pegoteadas paradas al principio, antes de saltar.
 static const s16 climbOffX[4]    = {   0, -28,  26, -53 };
 static const s16 climbOffY[4]    = {   0,   6,  11,   4 };
@@ -285,7 +285,7 @@ static const s16 passDrift[4] = { 0, 20, -16, 10 };
 // Aca se usan las hojas del JUEGO, no el arte ripeado de la cinematica. El
 // anclaje es por los PIES, igual que en el nivel: el sprite se dibuja en
 // (x - PLAYER_SPRITE_W/2, y - PLAYER_FOOT_OFFSET).
-// Trayectoria marcada por Gustavo sobre una captura (medida contra el fondo,
+// Trayectoria marcada sobre una captura (medida contra el fondo,
 // 1:1 con los 320x224): las tortugas entran en diagonal desde el humo de la
 // esquina superior izquierda y aterrizan en el medio de la azotea; de ahi
 // caminan derecho a la derecha, hasta el vano.
@@ -313,7 +313,7 @@ static const s16 passDrift[4] = { 0, 20, -16, 10 };
 // tambien (765 de 1642 pixeles fuera de la zona de la llama, esparcidos
 // hasta el fondo del skyline). Rotar los 4 de punta a punta de PAL0 (primer
 // intento) prendia fuego a la fachada entera de April, no solo a la llama
-// -- el "resultado complicado" que reporto Gustavo.
+// -- el "resultado complicado" que se veia.
 //
 // Los que SI son casi exclusivos de la llama son 5 (naranja) y 6 (amarillo):
 // idx 5 no aparece ni un pixel mas alla de x=63; idx 6 tiene un puñado de
@@ -735,7 +735,7 @@ static bool roofSceneA(void) {
             // numero de loops en el instante del play (misma trampa que
             // music_credits y music_scene_clear).
             //
-            // (19/09) SIN LOOP, a pedido de Gustavo: suena UNA sola vez y se
+            // (19/09) SIN LOOP: suena UNA sola vez y se
             // apaga. Antes iba con loop infinito porque desde aca hasta que
             // arranca el nivel pasan ~17 s y el VGM dura 15,08 s, o sea que
             // quedan un par de segundos de silencio en la cola del titulo;
@@ -951,7 +951,7 @@ static bool roofSceneC(void) {
                 // --- "Toca el piso": recien ACA arranca a caminar ---
                 // Recta pura del punto de caida al umbral (antes tenian un
                 // desvio en Y por "carril" para no pisarse entre si al
-                // cruzarse; a pedido de Gustavo se saco: se veia como un
+                // cruzarse; se saco: se veia como un
                 // zigzageo, y ya alcanza con que arriveStart/arriveDown las
                 // separe en el tiempo para que no se superpongan).
                 s16 lt = e - endGetUp;

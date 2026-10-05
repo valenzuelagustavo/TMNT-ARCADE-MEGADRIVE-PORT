@@ -42,7 +42,7 @@ SPRITE intro_nube_grande "images/intro_tmnt/genesis/intro_nube_grande.png" 26 5 
 SPRITE intro_turtles "images/intro_tmnt/genesis/intro_turtles.png" 9 10 FAST 0
 
 // --- Escena D: los 4 retratos ya compuestos en sus cuadrantes (256x224) ---
-// (22/09) Rip nuevo de Gustavo, con mejor uso de color:
+// (22/09) Rip nuevo, con mejor uso de color:
 // "Arcade---Teenage-Mutant-Ninja-Turtles---TELA-1.png". NO se puede apuntar
 // directo a ese PNG: mide 252 de ancho (rescomp exige multiplo de 8) y su
 // indice 0 es el magenta del fondo de Raph (en Megadrive el 0 es transparente).

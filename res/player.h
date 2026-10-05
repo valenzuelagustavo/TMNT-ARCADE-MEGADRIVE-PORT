@@ -86,7 +86,7 @@ typedef enum {
 //           tortuga "cuelga" 3 frames en lo alto de forma continua, sin
 //           congelarse (y sin depender de si se aprieta una direccion).
 //   CAIDA   sin patada acelera a 1,5 px/frame2 hasta PLAYER_FALL_SPEED (6) y
-//           sigue pareja ahi (la caida constante que pidio Gustavo el 13/09,
+//           sigue pareja ahi (la caida constante del 13/09,
 //           ahora sin el escalon de velocidad al salir del apice).
 //   PATADA  gravedad 1 px/frame2 con tope PLAYER_KICK_FALL_MAX (7).
 // Simulado antes de pasarlo al codigo: apice 107,2 px en el frame 15
@@ -94,7 +94,7 @@ typedef enum {
 // jumpZ (entero) sigue existiendo: es la altura en px que lee todo el resto
 // del juego; la verdad es jumpZq.
 #define PLAYER_JUMP_Q         8
-// (01/10, pedido de Gustavo: un poco mas alto) 3724 -> 4000: apice 123 px en
+// (01/10: un poco mas alto) 3724 -> 4000: apice 123 px en
 // el frame 16 (antes 107,2 en el 15), 41 frames en el aire sin patada (antes
 // 37). Simulado con el mismo integrador de updatePlayer.
 #define PLAYER_JUMP_V0_Q   4000     // 15,6 px/frame hacia arriba
@@ -109,12 +109,12 @@ typedef enum {
 // (antes 15); el saltito sube ~3 px.
 #define PLAYER_DROP_HOP_Q   512
 
-// Velocidad de CAIDA cuando NO se pateo en el aire: pareja (13/09, a pedido
-// de Gustavo). Desde el 28/09 se llega a ella acelerando (PLAYER_FALL_ACCEL_Q)
+// Velocidad de CAIDA cuando NO se pateo en el aire: pareja (13/09).
+// Desde el 28/09 se llega a ella acelerando (PLAYER_FALL_ACCEL_Q)
 // en vez de saltar de golpe. Si la tortuga patea, la caida vuelve a ser
 // acelerada -- patear "pesa" y te tira al piso mas rapido.
 #define PLAYER_FALL_SPEED    6      // px/frame de la caida sin patada (tope)
-// VELOCIDAD TERMINAL de la caida CON patada (14/09, pedido de Gustavo). Antes
+// VELOCIDAD TERMINAL de la caida CON patada (14/09). Antes
 // la gravedad aceleraba sin tope y la tortuga llegaba al piso a 14 px/frame:
 // se sentia una plomada. Ahora acelera igual al principio (patear sigue
 // "pesando") pero la velocidad se corta en este valor, asi que el ultimo tramo
@@ -259,7 +259,7 @@ typedef enum {
 // frame (patrón colbox del manual SGDK). Así un puño que pega en el borde
 // del sprite pero no toca el cuerpo ya no conecta.
 //
-// (02/10) HURTBOX NUEVA, la que marco Gustavo en Pruebas_TMNT_Control: cabeza
+// (02/10) HURTBOX NUEVA, la marcada en Pruebas_TMNT_Control: cabeza
 // y torso, SIN las piernas. En px desde los PIES mirando a la DERECHA (al
 // mirar a la izquierda se espeja): X -16..+7, Y -58..-23. Antes era 22 a cada
 // lado de los pies. Como la caja esta corrida hacia atras (hacia el
@@ -289,7 +289,7 @@ typedef enum {
 // HIT_BEHIND_2), queda TIRADA en el piso un momento y se levanta (GET_UP_2).
 #define PLAYER_KD_HOLD_FRAMES   35   // Frames tirada en el piso antes de levantarse
 #define PLAYER_KD_INVINCIBLE   110   // I-frames de TODA la secuencia (sin parpadeo)
-// ARRASTRE del derribo (13/09, pedido de Gustavo). Las anims 13 (la tumban de
+// ARRASTRE del derribo (13/09). Las anims 13 (la tumban de
 // FRENTE: sale despedida hacia atras dando una vuelta) y 16 (la tumban de
 // ESPALDAS: trastabilla hacia adelante y rueda) son golpes potentes que dan
 // por sentado que el personaje VIAJA -- pero el arte no lleva ese avance

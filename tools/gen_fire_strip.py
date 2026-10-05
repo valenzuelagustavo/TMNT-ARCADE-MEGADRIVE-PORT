@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_fire_strip.py  -  Fuego de primer plano (PAL2) a partir del sheet nuevo
 # =============================================================================
-# Entrada:  res/sprites/CHAMAS 7 CORES.png  (24/09, Gustavo)
+# Entrada:  res/sprites/CHAMAS 7 CORES.png  (24/09)
 #     702x322. Arriba a la izquierda hay una tira de muestras de la paleta
 #     (filas 0..7) y debajo 8 frames de una BANDA ancha de fuego, en 4 filas x
 #     2 columnas de ~345x63 px. Los 7 colores del fuego son un subconjunto de
@@ -117,7 +117,7 @@ def main():
         cost = 0.0
         # Huecos en la ULTIMA fila de la celda: ahi se ve el fondo por debajo
         # del fuego y parece que la llama "salta" hacia arriba en ese frame.
-        # (24/09, reportado por Gustavo.) Penalizacion fuerte, no descarte: si
+        # (24/09) Penalizacion fuerte, no descarte: si
         # ninguna ventana quedara limpia, igual elige la menos mala.
         for b in bands:
             cost += float((b[-1, x:x + CELL] == 0).sum()) * 50.0

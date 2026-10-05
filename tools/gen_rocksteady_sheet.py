@@ -2,12 +2,12 @@
 # =============================================================================
 # gen_rocksteady_sheet.py  -  Rocksteady (jefe) + sus balas desde el rip nuevo
 # =============================================================================
-# (03/10) Gustavo trajo un rip nuevo de Rocksteady que COMPARTE PALETA con
+# (03/10) Rip nuevo de Rocksteady que COMPARTE PALETA con
 # Bebop y April (los tres juntos en el garage entran en una sola linea de
 # paleta). Los dibujos son los mismos que los de la hoja anterior; cambian los
 # colores y la disposicion (frames sueltos, no una grilla).
 #
-# Entrada (la dibuja Gustavo, NO se toca):
+# Entrada (el arte original, NO se toca):
 #   res/sprites/Arcade - Teenage Mutant Ninja Turtles - Bosses - Rocksteady.png
 #       626x990, frames sueltos. A la derecha de la fila del disparo vienen
 #       las balas (horizontal, diagonal e impacto).

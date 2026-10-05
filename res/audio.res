@@ -16,7 +16,7 @@
 // La "Fire con samples" DEJA MUDOS los canales PCM del juego: con ella sonando,
 // un SFX disparado en CH2 (y en CH3) no sale por el DAC -- medido con un tono
 // de 3,7 kHz: +24 dB sobre la musica con el tema viejo y CERO con el nuevo, 20
-// segundos seguidos. La de Fight NO hace eso (probado por Gustavo en la pelea
+// segundos seguidos. La de Fight NO hace eso (probado en la pelea
 // contra Rocksteady), asi que esa se usa.
 //
 // Aparte de eso, en las dos la bateria esta PITCHEADA: traen el mismo bloque
@@ -100,7 +100,7 @@ WAV help_me_april_vo "audio/help_me_april.wav" XGM2
 // --- Tanda del 14/09 -------------------------------------------------------
 // Los cinco llegaron como WAV ESTEREO 8-bit 48000 Hz y se convirtieron a la
 // convencion de la casa: MONO, 8-bit, 11025 Hz, normalizados a pico ~97%
-// (ver claude/audio-mix-voz-vs-musica.md: pico ~100%, y el RMS sale del
+// (medido sobre los wav: pico ~100%, y el RMS sale del
 // contenido). Medidos despues de convertir:
 //   leo_raph_attack        0,33s  pico 96,9%  rms 31,8%   3.672 B
 //   mike_don_attack        0,27s  pico 96,9%  rms 25,8%   3.032 B
@@ -130,7 +130,7 @@ WAV boss_scream_bebop_vo "audio/boss_scream_bebop.wav" XGM2
 // Medido despues de convertir:
 //   who_put_the_light_out   1,301s  pico 96,9%  rms 21,4%  14.340 B
 // El RMS cae justo en la banda de voz (20-24%), asi que se mezcla igual que
-// el resto de los voice over (ver claude/audio-mix-voz-vs-musica.md).
+// el resto de los voice over (mismo criterio de mezcla).
 // El original de 48k queda al lado como who_put_the_light_out_orig48k.wav.
 WAV who_put_light_vo "audio/who_put_the_light_out.wav" XGM2
 

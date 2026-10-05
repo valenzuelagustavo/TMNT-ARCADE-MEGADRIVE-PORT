@@ -83,10 +83,10 @@
 // Izquierda: se mete unos px dentro de la mitad inferior de la luna (34..43,
 // ~9px de solape de los 24px de alto) para taparla parcialmente cuando su
 // deriva la cruza por delante.
-#define NUBE_Y_IZQ            42   // subida 1 tile (8px) a pedido de Gustavo, 30/08 -- antes 50
+#define NUBE_Y_IZQ            42   // subida 1 tile (8px) el 30/08 -- antes 50
 // Derecha: casi pegada al borde inferior de la luna (43) pero sin solape,
 // bastante mas cerca que el hueco original de "un tile por debajo" (48).
-#define NUBE_Y_DER           30   // subida 1 tile (8px) a pedido de Gustavo, 30/08 -- antes 38
+#define NUBE_Y_DER           30   // subida 1 tile (8px) el 30/08 -- antes 38
 // Velocidad de la deriva horizontal, SOLO durante la escena A (cielo quieto):
 // cada nube tiene su PROPIO acumulador fraccionario (estilo Bresenham, ver
 // nubesUpdateDrift), asi pueden ir a velocidades distintas. Ya no hace falta
@@ -101,8 +101,8 @@
 #define NUBE_SPEED_DEN_DER      5
 #define INTRO_MUSIC_VOL      90   // Mismo nivel que el resto de la musica (VOL_MUSIC_* en scenes.c)
 #define INTRO_MUSIC_DELAY    (IS_PAL_SYSTEM ? 50 : 60)   // 1s de espera antes de arrancar la musica
-// Duracion real hasta que "01 - Opening Demo.vgm" se repite, CONFIRMADA por
-// Gustavo en emulador (se escucha repetir justo cuando cae intro_banner.png,
+// Duracion real hasta que "01 - Opening Demo.vgm" se repite, CONFIRMADA
+// en emulador (se escucha repetir justo cuando cae intro_banner.png,
 // tick ~706 de escena - 60 de delay = ~646 frames de musica). Coincide con el
 // campo "loop # samples" del header VGM (470400 @ 44100 Hz = 640 frames NTSC
 // exactos, 533 PAL) -- el primer calculo (basado en "total # samples", 905)

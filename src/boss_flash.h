@@ -6,7 +6,7 @@
 // =============================================================================
 // boss_flash -- parpadeo rojo de los jefes con poca vida (03/10)
 // =============================================================================
-// Ritmo del arcade (medido en el video, doc "analisis-gameplay-arcade-02-10"):
+// Ritmo del arcade (medido en el video del arcade):
 // desde el ultimo TERCIO de la vida, 4 frames "quemado" / 4 normal, constante
 // hasta que muere (sin fase mas rapida al final).
 //

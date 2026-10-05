@@ -22,7 +22,7 @@ s16 stageCamY = 0;   // ver player.h
 // estos valores; playerPersistSave() los actualiza al ganar un nivel;
 // playerPersistReset() los vuelve al default (partida nueva — lo llama
 // scenes.c en la selección de personajes).
-// (13/09) La BARRA DE VIDA tambien persiste, a pedido de Gustavo: al pasar del
+// (13/09) La BARRA DE VIDA tambien persiste: al pasar del
 // 1-1 al apartamento de April se recargaba sola y regalaba la barra entera.
 // Como en el arcade, la barra se arrastra de una parte a la otra; lo unico que
 // la rellena es perder una vida (revivir) o empezar partida nueva.
@@ -242,7 +242,7 @@ static s16 levelEndWallX(const Player* p, s16 y) {
 // ---------------------------------------------------------------------------
 // LÓGICA PRINCIPAL — llamar una vez por frame para cada instancia
 // ---------------------------------------------------------------------------
-// Gruñido de ataque POR PERSONAJE (14/09, pedido de Gustavo). Leo (charIndex 0)
+// Gruñido de ataque POR PERSONAJE (14/09). Leo (charIndex 0)
 // y Raph (3) comparten un wav, Mike (1) y Don (2) el otro. Va en el canal PCM 3,
 // el mismo donde estaba el "Attack!!" generico de los golpes normales: asi el
 // golpe que conecta (hit_turtles, canal 2) se superpone en vez de cortarlo.
@@ -1091,7 +1091,7 @@ static void playerEnterKO(Player* p) {
 
     // Pose de knockeado. ANIM_KO son CUATRO frames (la tortuga tirada con las
     // estrellitas girando), no una pose fija: antes se congelaba en el frame 0
-    // y las estrellas no se movian (13/09, reportado por Gustavo). Ahora corre
+    // y las estrellas no se movian (13/09). Ahora corre
     // en LOOP mientras dura koTimer -- es una animacion de espera, no una que
     // termina. La caida en si no se ve porque el KO entra directo a esta pose.
     // Fallback para sheets viejas sin ANIM_KO: ultimo frame de la caida de
@@ -1160,7 +1160,7 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
     // a prender al aterrizar: si el golpe llega en el aire — cosa que recién
     // ahora puede pasar, con las balas del jefe — la anim de hit quedaba
     // congelada en el frame 0, isAnimationDone nunca daba TRUE y la tortuga se
-    // quedaba trabada en esa pose PARA SIEMPRE (reportado por Gustavo con las
+    // quedaba trabada en esa pose PARA SIEMPRE (visto en las pruebas con las
     // dos tortugas trabadas tras un disparo).
     SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, FALSE);
@@ -1497,7 +1497,7 @@ bool playerCutsceneWalkTo(Player* p, s16 targetX, s16 targetY) {
 // mientras sale); recien al terminar la fase 3 se la teletransporta a
 // (mhOutX, mhOutY), que la escena puso unos px por debajo del agujero. Si
 // reapareciera encima se volveria a caer en el acto, que es justo lo que
-// Gustavo pidio evitar.
+// hay que evitar.
 // ---------------------------------------------------------------------------
 // (22/09) El layout NO es igual en las 4 sheets: Leo tiene 9 frames
 // (3 caida + vacio + 5 salida), Mike y Raph 8 (3+1+4) y Don 7 (2+1+4). Con el

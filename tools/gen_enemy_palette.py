@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_enemy_palette.py  -  Paleta UNICA de enemigos (PAL2) del 24/09
 # =============================================================================
-# Gustavo trajo tres sheets nuevos que comparten una misma paleta de 15 colores:
+# Tres sheets nuevos que comparten una misma paleta de 15 colores:
 #
 #     res/sprites/foot_soldier_purple_13x13.png   (morado, 832x1440)
 #     res/sprites/Foot_Soldier_Orange_new.png     (naranja, 416x936)

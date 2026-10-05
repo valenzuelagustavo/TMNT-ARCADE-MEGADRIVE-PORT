@@ -1,6 +1,6 @@
 // GENERADO POR tools/gen_level2_1_limits.py -- NO EDITAR A MANO
-// Sale de res/images/lvl_2_scene/"Stage 2-_LIMITES.png" (el magenta que pinto
-// Gustavo = limite de pared) + el arte v2 (el ultimo pixel dibujado de cada
+// Sale de res/images/lvl_2_scene/"Stage 2-_LIMITES.png" (el magenta pintado
+// = limite de pared) + el arte v2 (el ultimo pixel dibujado de cada
 // columna = borde de la vereda).
 #ifndef _LEVEL2_1_LIMITS_H_
 #define _LEVEL2_1_LIMITS_H_

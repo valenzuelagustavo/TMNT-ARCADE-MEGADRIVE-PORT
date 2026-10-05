@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_parking_meter.py  -  Parquimetros del nivel 2-1 (25/09)
 # =============================================================================
-# Entrada: res/sprites/packing_meter.png (asi se llama el archivo de Gustavo;
+# Entrada: res/sprites/packing_meter.png (asi se llama el archivo original;
 #          si se renombra a parking_meter.png tambien lo encuentra)
 #          168x64 = 3 frames de 56x64:
 #            0  firme en la vereda

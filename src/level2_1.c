@@ -35,7 +35,7 @@
 //    plano gastaria tiles en filas que la camara nunca muestra.
 //
 // 3. LA CAMARA BAJA LA ESQUINA EN DIAGONAL, COMO EL ARCADE.
-//    Gustavo trajo 16 capturas del arcade original; localizadas dentro del PNG
+//    Con 16 capturas del arcade original, localizadas dentro del PNG
 //    del nivel, los matches limpios caen sobre una recta:
 //        camX = 0,803 * camY + 1289
 //    O sea que el arcade NO hace un codo: se va corriendo a la derecha 0,8px
@@ -49,8 +49,8 @@
 //    camX (ver el bucle), porque el corredor se estrecha al bajar.
 //
 //    (17/09) LOS CUATRO ESCALONES. El techo del corredor no es una rampa: es
-//    una ESCALERA, y sus peldanos son exactamente los "topes" que Gustavo
-//    marco con flechas negras sobre el mapa:
+//    una ESCALERA, y sus peldanos son exactamente los "topes"
+//    marcados con flechas negras sobre el mapa:
 //
 //        camY  32..103  ->  tope camX 1344   (piso 1254, el del arte)
 //        camY 104..223  ->  tope camX 1416   (piso 1344 = tope anterior)
@@ -89,7 +89,7 @@
 //       al piso) y la partida real va pegada al techo. El generador ya no
 //       simula un camino: calcula la envolvente de todos los posibles.
 //
-// (19/09) YA NO HAY SPAWN AL AZAR: los enemigos son los que Gustavo marco
+// (19/09) YA NO HAY SPAWN AL AZAR: los enemigos son los marcados
 // sobre el arte -- cinco bocas de tormenta y un tirador de dinamita. Ver el
 // bloque "ENEMIGOS GUIONADOS" mas abajo.
 //
@@ -152,7 +152,7 @@ extern u8 cantidadJugadores;
 // grados, con ocho numeros de calibracion que habia que retocar cada vez que
 // se tocaba el arte. Ahora sale del dibujo.
 //
-// Gustavo pinto de MAGENTA, encima del arte, el "limite de pared" de todo el
+// Pintado de MAGENTA, encima del arte, el "limite de pared" de todo el
 // nivel ("Stage 2-_LIMITES.png"). tools/gen_level2_1_limits.py lee ese PNG y
 // arma dos tablas de 320 entradas (una por tile de ancho): para cada columna,
 // el primer Y de pies caminable (el borde inferior del magenta) y el ultimo
@@ -172,7 +172,7 @@ extern u8 cantidadJugadores;
 // ENEMIGOS GUIONADOS (19/09)
 // ---------------------------------------------------------------------------
 // (19/09) SE ELIMINO el spawn al azar que habia (un soldier cada 220px de
-// avance de camara, entrando por un costado). Gustavo marco sobre el arte las
+// avance de camara, entrando por un costado). Se marcaron sobre el arte las
 // posiciones reales y mientras se prueban no tiene que haber nada mas en
 // pantalla que las enturbie.
 //
@@ -190,7 +190,7 @@ extern u8 cantidadJugadores;
 // La PRIMERA es la unica que ataca POR LA ESPALDA: se dispara cuando los
 // jugadores YA PASARON la tapa (trigX 174 > holeX 96), asi que la tapa sale
 // hacia la derecha. (25/09) Era 283 y el agujero quedaba fuera de cuadro al
-// disparar; 174 es la X de pies que marco Gustavo en una captura (Leo parado
+// disparar; 174 es la X de pies marcada en una captura (Leo parado
 // a ~80 px de la boca), y con la camara arrancando en 32 la boca queda a la
 // vista en pantalla x=64. Las otras cuatro se disparan cuando el jugador ESTA POR
 // LLEGAR, con LVL21_MANHOLE_LEAD px de anticipo, y tiran hacia la izquierda.
@@ -239,7 +239,7 @@ extern u8 cantidadJugadores;
 // Las distancias al punto de caida son las mismas del 1-1, medidas desde el
 // CENTRO del que tira: -99 px en X y +23 en profundidad.
 //
-// (19/09) Corrido un tile a la IZQUIERDA y dos tiles ARRIBA, a ojo de Gustavo
+// (19/09) Corrido un tile a la IZQUIERDA y dos tiles ARRIBA, a ojo
 // sobre la captura: 379 -> 371 -> 363 en X, y los 16px de alto van por
 // LVL21_TNT_Z, NO bajandole la lane. Motivo: la tabla de limites da
 // walkTop = 160 en toda esa cuadra, o sea que una lane de 155 cae DENTRO de la
@@ -276,7 +276,7 @@ extern u8 cantidadJugadores;
 #define LVL21_HOLE_HALF_H    10
 // Donde reaparece al salir: los mismos px por debajo del centro del agujero
 // para las cinco. Tiene que ser mayor que LVL21_HOLE_HALF_H o vuelve a caer en
-// el acto -- que es justo lo que pidio Gustavo evitar.
+// el acto -- que es justo lo que hay que evitar.
 #define LVL21_HOLE_OUT_DY    22
 
 // Globo "Duuuh, who put the light out": se crea cuando una tortuga toca fondo
@@ -683,14 +683,14 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 //
 // VRAM: son 42 tiles de sprites (mas los 32 del globo) y el presupuesto del
 // nivel esta hecho a la medida de 2 tortugas + 2 soldiers (ver SPR_initEx).
-// (30/09, Gustavo) Ya no se reserva lugar para los soldiers ni la tele se
+// (30/09) Ya no se reserva lugar para los soldiers ni la tele se
 // suelta para dejarles lugar: MIENTRAS LA TELE ESTA PRENDIDA (o esperando
 // prenderse) NO ENTRA NINGUN FOOT SOLDIER. Las bocas de tormenta y la cola del
 // guion quedan en espera (tvHoldsSpawns) y retoman cuando la tele termina. La
 // tele se prende en cuanto entran ella y su globo (sprVramFits: la medicion
 // que no se engana con la VRAM partida, ver enemy.h).
 //
-// (27/09, Gustavo) UNA SOLA VEZ: la tele se prende cuando una tortuga (el
+// (27/09) UNA SOLA VEZ: la tele se prende cuando una tortuga (el
 // centro de su cuerpo) llega a 2 tiles en X del televisor, pasa los 4 frames
 // una vez (April, April, April, Shredder) y el sprite se suelta para siempre:
 // queda la pantalla apagada del fondo. Si al llegar no hay VRAM, se prende
@@ -1824,7 +1824,7 @@ SceneId showScene21() {
                          PLAYER_BODY_HALF_W, &lx)) continue;
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                            SOUND_PCM_CH2, 15, FALSE, FALSE);
-            damagePlayer(pls[k], lx);     // una barra, como pidio Gustavo
+            damagePlayer(pls[k], lx);     // una barra
         }
 
         // --- Parquimetros (25/09) -------------------------------------------

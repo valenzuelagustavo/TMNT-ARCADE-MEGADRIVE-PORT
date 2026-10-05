@@ -80,7 +80,7 @@
 // el desplazamiento entero y el empuje se sentia como si no hiciera nada.
 // El limite derecho deja margen (250px) sin llegar a la pared real del
 // nivel (ver ENEMY_END_WALL_X_TOP/BOTTOM en enemy.h: 1308..1352 segun la
-// lane). El limite IZQUIERDO, a pedido de Gustavo (30/08), deja a
+// lane). El limite IZQUIERDO (30/08) deja a
 // PROPOSITO que el empuje saque al robot afuera de la camara fija de la
 // zona del robot (ZONE5_ROBOT_LOCK=1056 en scenes.c, pantalla visible
 // 1056..1376) -- se ve mas natural que un golpe fuerte lo mande fuera de
@@ -89,7 +89,7 @@
 // patrulla MAS LEJANO de donde quedo (ver esa funcion), asi que si el
 // empuje lo dejo a la izquierda de la camara, camina solo de vuelta hacia
 // la derecha a ROBOT_SPEED px/frame, sin teletransportarse.
-// --- RETIRADA post-golpe (13/09, pedido de Gustavo) -------------------------
+// --- RETIRADA post-golpe (13/09) ---------------------------------------------
 // Antes, al terminar el HURT el robot volvia directo a la patrulla: caminaba al
 // extremo mas lejano DE SI MISMO y se realineaba con la lane del jugador en el
 // TURN. O sea que se dejaba acorralar y alcanzaba con machacar en el lugar.
@@ -127,7 +127,7 @@
 #define ROBOT_WHIP_REACH_MAX 131   // alcance máximo (umbral látigo vs láser)
 #define ROBOT_WHIP_TOL_Y      20   // |dy| máx para poder atrapar
 
-// --- Enganche: que el cable TERMINE en la tortuga (14/09, pedido de Gustavo) --
+// --- Enganche: que el cable TERMINE en la tortuga (14/09) ----------------------
 // Las filas [6] CAUGHT y [7]/[8] ELECTRO_A/B NO son animaciones temporales: son
 // 4 VARIANTES DE LARGO del mismo cable tenso. Medidas (punta − 28):
 //   f0 = 37 px | f1 = 69 px | f2 = 101 px | f3 = 133 px

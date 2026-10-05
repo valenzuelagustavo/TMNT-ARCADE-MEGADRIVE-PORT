@@ -59,7 +59,7 @@ static void rocksteadyRender(Rocksteady* r) {
     SPR_setDepth(r->sprite, -(r->y));
 }
 
-// (13/09) SE QUITO el flash BLANCO al recibir daño, a pedido de Gustavo.
+// (13/09) SE QUITO el flash BLANCO al recibir daño, porque molestaba.
 // Escribia 0x0EEE en los indices 2..15 de PAL3 durante 8 frames en CADA golpe
 // que conectaba; con ROCKSTEADY_HP en 124 eran ~124 destellos por pelea.
 // El parpadeo por HP BAJO no se toco: es otro efecto y vive en scenes.c
@@ -351,7 +351,7 @@ void rocksteadyDamageEx(Rocksteady* r, s16 dmg, bool special) {
         r->hp = 0;
         r->state = ROCKSTEADY_DEAD;
         rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_HURT, FALSE);
-        // Grito de muerte (14/09, pedido de Gustavo), en el instante exacto del
+        // Grito de muerte (14/09), en el instante exacto del
         // golpe fatal. Canal PCM 2 y prioridad 15: pisa el hit_turtles / boss_hit
         // del mismo golpe, que es lo que se quiere -- el grito manda.
         // ENTRA JUSTO: el wav dura 1,69s = 101 frames NTSC, y desde acá hasta
@@ -411,7 +411,7 @@ void rocksteadyDamageEx(Rocksteady* r, s16 dmg, bool special) {
 // Inicio de los ataques
 // ---------------------------------------------------------------------------
 // El llamador ya fijo r->dir mirando al jugador: esa direccion queda LATCHEADA
-// para toda la embestida (14/09, pedido de Gustavo). Antes el caso CHARGE
+// para toda la embestida (14/09). Antes el caso CHARGE
 // re-apuntaba cada frame y el jefe podia frenar y volverse a mitad de la
 // corrida, que es justo lo que una embestida no tiene que poder hacer: una vez
 // que arranca, se esquiva.
@@ -607,7 +607,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             //
             // Y si se está moviendo, tiene que VERSE caminando. Antes se
             // quedaba con la pose de IDLE (o la de andar con el arma) mientras
-            // se deslizaba en Y, que era lo que reportó Gustavo: "cuando se
+            // se deslizaba en Y, que era el bug: "cuando se
             // mueve en el eje Y varias veces no activa la imagen de caminar".
             bool moved = FALSE;
             if (py > r->y + 2)      { r->y += 1; moved = TRUE; }
@@ -639,7 +639,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                 rocksteadyStartAimWalk(r);
             } else {
                 // SIN ARMA: ROTA entre esperar / embestir / acercarse a patear
-                // (14/09, pedido de Gustavo). Ver el bloque
+                // (14/09). Ver el bloque
                 // ROCKSTEADY_UNARMED_* de rocksteady.h: antes, con el jugador
                 // pegado, ninguna de las dos ramas viejas aplicaba y el jefe se
                 // quedaba plantado para siempre.
@@ -734,7 +734,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                 rabs(getPlayerHurtCX(tgt) - bcx) < (ROCKSTEADY_BODY_HALF_W + PLAYER_BODY_HALF_W) &&
                 rabs(py - r->y) < ROCKSTEADY_HIT_TOL_Y &&
                 playerCanBeHit(tgt)) {
-                playerHitBars(tgt, r->x, ROCKSTEADY_CHARGE_DMG);   // 4 barras (30/08, a pedido de Gustavo)
+                playerHitBars(tgt, r->x, ROCKSTEADY_CHARGE_DMG);   // 4 barras (30/08)
                 r->chargeHit = 1;
                 r->timer = ROCKSTEADY_CHARGE_OVER;   // sigue embistiendo un tramo
             }

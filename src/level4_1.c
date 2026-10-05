@@ -4,7 +4,7 @@
 // El motor es stage_level.c, el mismo de la cloaca: aca van los datos, los
 // PROPS del estacionamiento y los dos jefes.
 //
-// FONDO (01/10): bg_garage_new.png de Gustavo, armado por
+// FONDO (01/10): bg_garage_new.png, armado por
 // tools/gen_level4_1_bg.py (ver el encabezado del script). Mismo encuadre que
 // el de Ray mas 16 px de piso abajo: la camara baja hasta ahi (camYMax). El
 // AUTO estacionado y la PUERTA del ascensor estan pintados en el fondo; cuando
@@ -31,7 +31,7 @@
 // ROCKSTEADY. Juntos son 210 + 169 tiles de sprites: con una tortuga entran
 // los dos a la vez; con dos tortugas no hay VRAM, asi que Rocksteady espera
 // en el ascensor y sale cuando hay lugar (en la practica, cuando cae Bebop).
-// (03/10) Bebop y Rocksteady comparten PALETA (las hojas nuevas de Gustavo):
+// (03/10) Bebop y Rocksteady comparten PALETA (las hojas nuevas):
 // los dos se dibujan en PAL3 (la carga Bebop al salir), con April. El
 // parpadeo de vida baja NO toca PAL3: al salir Bebop se carga en PAL2 la
 // version quemada de la paleta compartida (en las peleas con jefes nunca hay
@@ -432,7 +432,7 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
     }
     case CAR_DRIVE: {
         // Sale en diagonal hacia abajo a la derecha (hacia la camara),
-        // acelerando: el curso que marco Gustavo sobre la captura va a
+        // acelerando: el curso marcado sobre la captura va a
         // ~40 grados de la vertical (dx/dy ~ 27/32), que es para donde
         // apunta el auto.
         if (car.vq < CAR_VMAX_Q) car.vq += CAR_ACCEL_Q;

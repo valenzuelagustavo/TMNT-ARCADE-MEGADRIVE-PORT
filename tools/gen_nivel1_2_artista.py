@@ -23,14 +23,14 @@
 # humo y capsula van TODOS en PAL0.
 #
 # ---------------------------------------------------------------------------
-# DECISIONES (ver claude/nivel1-2-arte-artista.md)
+# DECISIONES
 # ---------------------------------------------------------------------------
 # FONDO. El fondo nuevo es el MISMO dibujo que bg_test.png con 3px de mas a la
 # izquierda, 5 a la derecha y 32 arriba (verificado: el viejo encaja en (3,32)
 # con 88% de pixeles iguales; el resto es la paleta nueva). En X se recorta a la
 # ventana del viejo (440) para que todas las coordenadas del nivel (paredes,
 # sofa, April, capsula, Rocksteady) sigan valiendo. En Y va COMPLETO (224 =
-# toda la pantalla, pedido de Gustavo): las 32 filas de arriba son la pared y
+# toda la pantalla): las 32 filas de arriba son la pared y
 # el tope de la biblioteca, y ocupan la franja que antes quedaba negra.
 # Como la pantalla empieza justo en la fila 0 del dibujo nuevo, la Y de
 # pantalla sigue siendo la Y del collage (lo usa la capsula, abajo).
@@ -145,7 +145,7 @@ def main():
     BG = A[BG_BOX[1]:BG_BOX[3], BG_BOX[0]:BG_BOX[2]]
 
     # --- 0. Cuantas filas de tiles del humo son violeta LISO en los 3 frames --
-    # (22/09, idea de Gustavo) Esas filas no se animan: pasan al FONDO, junto
+    # (22/09) Esas filas no se animan: pasan al FONDO, junto
     # con la franja de detras del HUD, y en el plano de adelante queda solo la
     # parte que se mueve. Medido: son las 4 primeras (la 5ta ya tiene chispas).
     solid = 0

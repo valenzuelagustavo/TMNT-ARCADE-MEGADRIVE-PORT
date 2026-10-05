@@ -2,7 +2,7 @@
 // props_2_1.res  Objetos fisicos del nivel 2-1 (25/09)
 // =============================================================================
 // PARQUIMETROS. Los dos PNG los genera tools/gen_parking_meter.py a partir del
-// sprite de Gustavo (res/sprites/packing_meter.png, 3 frames de 56x64). Estan
+// sprite original (res/sprites/packing_meter.png, 3 frames de 56x64). Estan
 // reindexados contra la paleta del FONDO del 2-1 (lvl21_pal): se dibujan con
 // PAL0 y no llevan paleta propia en uso.
 //

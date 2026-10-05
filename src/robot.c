@@ -70,7 +70,7 @@ static void robotUpdateLaser(Robot* r, Player** ps, u8 n) {
     // ancho del nivel (1376), asi que el laser seguia vivo cientos de px fuera
     // de pantalla; como la X de sprite del VDP son 9 bits con el origen
     // corrido 128, apenas la X de pantalla baja de -128 el valor ENVUELVE y el
-    // sprite reaparece por el otro borde -- que es lo que reporto Gustavo
+    // sprite reaparece por el otro borde -- que es lo que se veia
     // ("sale por un lado y sigue atravesandola por el otro"). El sprite es
     // ancho (96px) asi que llegaba a esa zona enseguida.
     // De paso arregla algo que no se veia: fuera de pantalla el laser seguia

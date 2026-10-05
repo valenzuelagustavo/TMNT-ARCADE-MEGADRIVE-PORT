@@ -4,7 +4,7 @@
 #include <genesis.h>
 
 // ===========================================================================
-// VOICE OVER DE ENTRADA DE LOS JEFES (01/10, pedido de Gustavo)
+// VOICE OVER DE ENTRADA DE LOS JEFES (01/10)
 // ===========================================================================
 // Cuando un jefe con voice over entra a escena: primero se escucha la frase
 // COMPLETA y recien despues arranca el tema del jefe. Asi la voz no queda

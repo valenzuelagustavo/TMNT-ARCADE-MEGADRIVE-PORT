@@ -26,7 +26,7 @@
 //
 // RATAS (MOUSERS) 40x40: caen de la nave, persiguen al jugador mas cercano y
 // lo atacan SALTANDO (de cerca un saltito, de media distancia uno largo).
-// (01/10) Filas del sheet segun Gustavo (7 frames cada una):
+// (01/10) Filas del sheet (7 frames cada una):
 //   0-1 caminando de FRENTE (las dos filas son UNA caminata: se encadenan)
 //       -- reservada para cuando aparezcan dentro del nivel
 //   2-3 caminando de COSTADO (idem, dos filas encadenadas)

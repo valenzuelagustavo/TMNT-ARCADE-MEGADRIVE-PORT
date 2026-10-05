@@ -1,7 +1,7 @@
 // =============================================================================
 // level3_1.res  Scene 3: la cloaca (sewer) -- 26/09, fondo nuevo el 28-29/09
 // =============================================================================
-// Fuentes: bg_sewer.png y bg_sewer_fg.png (las exporta Gustavo, 1252x288, las
+// Fuentes: bg_sewer.png y bg_sewer_fg.png (exportadas de Aseprite, 1252x288, las
 // dos capas del arcade). tools/gen_level3_1_bg.py las prepara (*_md.png, los
 // .bin y la tira de caños de arriba). Ver el encabezado del script.
 //

@@ -72,7 +72,7 @@
 // índices 5-8 de PAL2 (colores de fuego del foot soldier morado). SE SACÓ
 // (29/08): fire_tiles (el fuego de primer plano, SIEMPRE en pantalla) usa
 // esos MISMOS índices para dibujarse, así que la rotación también le
-// temblaba el color al fuego de fondo -- reportado por Gustavo. No hay una
+// temblaba el color al fuego de fondo -- se notaba en pantalla. No hay una
 // 5ta línea de paleta libre en el nivel para aislarlas (PAL0 fondo, PAL1
 // tortugas, PAL2 foot soldiers (morado Y naranja)+fuego+chispas+robot, PAL3 foot soldier
 // naranja: las 4 ya están repartidas).
@@ -119,7 +119,7 @@
 // streamea) -- su bloque de 35 tiles vuelve al motor de sprites.
 
 // (15/09) Con 4 jugadores se APAGAN los sparks de las PUERTAS y el del PISO
-// (sparks_2), a pedido de Gustavo, para darle aire a las cuatro tortugas. El
+// (sparks_2), para darle aire a las cuatro tortugas. El
 // del ASCENSOR se mantiene: es el que acompaña la apertura de los ascensores,
 // que es un momento clave del nivel.
 // Se gana por dos lados:
@@ -225,8 +225,8 @@ static Sprite* sparksAddSprite(const SpriteDefinition* sizeDef, u16 vramInd,
 // mismo punto: media pantalla, en la lane del medio de la franja caminable
 // (142..200), que es donde se pelea.
 //
-// (18/09, 2da pasada) La posicion y la orientacion salen del montaje que armo
-// Gustavo. Localizando su sprite pegado dentro de la captura (con la camara
+// (18/09, 2da pasada) La posicion y la orientacion salen del montaje de
+// referencia. Localizando su sprite pegado dentro de la captura (con la camara
 // clavada en 300) da origen de frame en pantalla x=187 y pies en y=132, o sea
 // mundo x=487, y SIN espejar.
 //
@@ -335,7 +335,7 @@ u8 personaje4Seleccionado = 3;  // P4: Raph (fijo, solo se usa en modo 4P)
 //
 // JOY_2 queda RESERVADO para el mando directo del puerto 2. O sea que con el
 // tap en el puerto 1 y el mapeo ingenuo JOY_1..JOY_4 pasaba exactamente lo que
-// reporto Gustavo: el jugador 2 (JOY_2) no respondia NUNCA, y los jugadores 3 y
+// pasaba en las pruebas: el jugador 2 (JOY_2) no respondia NUNCA, y los jugadores 3 y
 // 4 en realidad estaban leyendo los pads 2 y 3 del tap -- el pad 4 (JOY_5) no
 // lo leia nadie. Tres se movian y uno no.
 //
@@ -672,10 +672,10 @@ static void fireUpdate(s16 cameraX) {
 // mundo fija) y BAJA rebotando en DIAGONAL hacia el frente-derecha, cruzando las
 // lanes hasta salir por abajo (como en el arcade). Si toca a un jugador le
 // resta 1 barra de vida (via damagePlayer, con sus i-frames -> un solo golpe
-// por pasada). NO daña a los foot soldiers (a pedido de Gustavo, 30/08: antes
+// por pasada). NO daña a los foot soldiers (30/08: antes
 // los aplastaba; ver nota en ironBallUpdate).
 //
-// Dos bolas (30/08, a pedido de Gustavo): MISMO arco (misma físca, misma
+// Dos bolas (30/08): MISMO arco (misma físca, misma
 // escalera) pero cadencia distinta (IRON_BALL_PERIOD vs IRON_BALL_PERIOD2),
 // para que no caigan siempre sincronizadas. Antes había una sola instancia
 // como variable global; ahora las funciones toman un puntero a IronBall y
@@ -799,7 +799,7 @@ static void ironBallUpdate(IronBall* b, s16 cameraX, Player** pls, u8 nPl) {
     // --- Colisiones ---
     // Jugador: 1 barra por pasada (los i-frames de damagePlayer evitan el
     // multi-golpe). attackerX = centro de la bola -> knockback alejándose.
-    // NO daña a los foot soldiers (a pedido de Gustavo, 30/08 -- antes los
+    // NO daña a los foot soldiers (30/08 -- antes los
     // aplastaba con damageEnemy/IRON_BALL_ENEMY_DMG; se sacó esa colisión
     // por completo, la bola les pasa por encima sin efecto).
     for (u8 k = 0; k < nPl; k++) {
@@ -1568,7 +1568,7 @@ SceneId showVramClear() {
 #define COWABUNGA_HOLD_FRAMES     78
 
 // ---------------------------------------------------------------------------
-// CODIGO SECRETO: modo de CUATRO tortugas (14/09, pedido de Gustavo)
+// CODIGO SECRETO: modo de CUATRO tortugas (14/09)
 // ---------------------------------------------------------------------------
 // IZQ ABAJO IZQ DER ABAJO DER IZQ IZQ DER DER en la pantalla de cantidad de
 // jugadores. Al acertarlo suena el "COWABUNGA!" y aparece la opcion "4
@@ -1775,14 +1775,14 @@ SceneId showPlayerSelect() {
             // El multitap ya se declaro al arrancar (ver main.c): los 4 mandos
             // salen del TeamPlayer del puerto 1 y se leen como JOY_1..JOY_4.
             // Tortuga fija por jugador: no se pasa por la seleccion de
-            // personaje (pedido de Gustavo).
+            // personaje.
             personajeSeleccionado  = 0;   // Leo
             personaje2Seleccionado = 1;   // Mike
             personaje3Seleccionado = 2;   // Don
             personaje4Seleccionado = 3;   // Raph
         }
-        // "COWABUNGA!" al confirmar la cantidad de jugadores (14/09, pedido de
-        // Gustavo). Se sostiene la pantalla lo que dura el wav ANTES de irse a
+        // "COWABUNGA!" al confirmar la cantidad de jugadores (14/09).
+        // Se sostiene la pantalla lo que dura el wav ANTES de irse a
         // la seleccion de personaje: la escena siguiente arranca su propia
         // musica con XGM2_play, que reinicia el driver y cortaria el PCM a
         // mitad. 1,22s a 60fps ≈ 73 frames; se dejan 78 de margen.
@@ -2220,7 +2220,7 @@ SceneId showCharSelect() {
 // Dibuja el texto letra a letra con 'delay' frames entre letras.
 // Devuelve TRUE si se pidió saltar con START.
 // ---------------------------------------------------------------------------
-// HUD EN LAS PANTALLAS DE TITULO (01/10, pedido de Gustavo)
+// HUD EN LAS PANTALLAS DE TITULO (01/10)
 // ---------------------------------------------------------------------------
 // Los titulos de nivel muestran el HUD de la partida (marcos, puntaje, vidas y
 // barra) y la barra de cada jugador se RECARGA de a una raya mientras dura el
@@ -2991,7 +2991,7 @@ SceneId showScene11() {
     // los costados) · 3=oleada 1 activa, esperando que caigan todos · 4=oleada
     // 2 activa (emboscada completa por ambos lados, se dispara sola al limpiar
     // la 1) · 5=hecho, ambas oleadas despejadas (no vuelve a disparar).
-    // Ampliado a pedido de Gustavo (30/08): antes elevPhase==2 terminaba el
+    // Ampliado (30/08): antes elevPhase==2 terminaba el
     // encuentro con solo 2 enemigos; ahora es una emboscada de dos oleadas.
     static const s16 elevCenterX[LEVEL1_ELEV_COUNT] = { 972, 1100 };
     Sprite* elevSpr[LEVEL1_ELEV_COUNT];
@@ -3258,7 +3258,7 @@ SceneId showScene11() {
                             SPR_setAutoAnimation(elevSpr[ev], FALSE);
                         }
                         // (16/09) Con 4 jugadores tampoco va el spark del
-                        // ascensor, a pedido de Gustavo: son otros 15 tiles de
+                        // ascensor: son otros 15 tiles de
                         // fondo y unos cuantos sprites de hardware menos.
                         if (sparksFullOn && !elevSparkSpr[ev]) {
                             elevSparkSpr[ev] = sparksAddSprite(&spark_ascensor, elevSparkVramInd,
@@ -3298,7 +3298,7 @@ SceneId showScene11() {
             } else if (elevPhase == 2) {
                 // Remover ambas puertas y spawnear la OLEADA 1: un foot
                 // soldier de cada hueco de ascensor + 2 refuerzos entrando
-                // por ambos lados de la cámara (a pedido de Gustavo, 30/08:
+                // por ambos lados de la cámara (30/08:
                 // antes salían solo los 2 de los ascensores).
                 for (u16 ev = 0; ev < LEVEL1_ELEV_COUNT; ev++) {
                     if (elevSpr[ev]) { SPR_releaseSprite(elevSpr[ev]); elevSpr[ev] = NULL; }
@@ -3333,7 +3333,7 @@ SceneId showScene11() {
                 elevPhase = 3;   // oleada 1 activa: esperar a que caigan todos
             } else if (elevPhase == 3) {
                 // Oleada 1 despejada -> disparar la OLEADA 2, una emboscada
-                // completa por ambos lados (a pedido de Gustavo, 30/08). Solo
+                // completa por ambos lados (30/08). Solo
                 // al limpiar ESTA oleada se desbloquea la cámara (ver
                 // combatZone == 7 más abajo).
                 if (activeEnemies == 0) {
@@ -3348,7 +3348,7 @@ SceneId showScene11() {
                                 else if (s == 1)
                                     // Este era el 2do morado de la emboscada;
                                     // desde el 13/09 es el foot soldier BLANCO
-                                    // de espada larga (pedido de Gustavo), que
+                                    // de espada larga, que
                                     // entra saltando por la derecha. Desde el
                                     // 24/09 PAL3 es SOLO suya: el naranja se
                                     // mudo a PAL2 (comparte sheet de colores
@@ -3417,7 +3417,7 @@ SceneId showScene11() {
                                 initEnemyKickSpawn(&enemies[i], camR, 166,
                                                    -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
                             else
-                                // Cuarto morado (a pedido de Gustavo, 30/08): entra por
+                                // Cuarto morado (30/08): entra por
                                 // la espalda con voltereta, Y=190 (>=24px de separación
                                 // del resto de la oleada, vuelve a la proporción "2 y 2"
                                 // del viejo sistema de oleadas antes de desactivarse).
@@ -3468,7 +3468,7 @@ SceneId showScene11() {
                                 enemies[i].dir = -1;
                                 enemies[i].state = ENEMY_STATE_CHASE;
                             } else {
-                                // Tercer morado (a pedido de Gustavo, 30/08): entra
+                                // Tercer morado (30/08): entra
                                 // de frente, Y=185 (>=24px de separación del resto).
                                 initEnemySpawn(&enemies[i], camR, 185,
                                                0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
@@ -3506,7 +3506,7 @@ SceneId showScene11() {
                                 enemies[i].dir = -1;
                                 enemies[i].state = ENEMY_STATE_CHASE;
                             } else {
-                                // Tercer enemigo (a pedido de Gustavo, 30/08): morado
+                                // Tercer enemigo (30/08): morado
                                 // de frente, Y=186 (>=24px de separación del resto).
                                 initEnemySpawn(&enemies[i], camR, 186,
                                                0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
@@ -3962,7 +3962,7 @@ SceneId showScene11() {
 // la derecha, que ya viene resuelto por otro lado) y el player lo podia
 // atravesar caminando. Mismo patron que levelEndWallX (res/player.c):
 // interpolacion lineal de un limite en X segun la Y (profundidad) del
-// jugador, medido a ojo sobre el overlay que paso Gustavo el 30/08.
+// jugador, medido a ojo sobre el overlay del 30/08.
 // Si al jugarlo queda muy ajustado o muy suelto, tocar estas 2 constantes.
 #define SOFA_WALL_X_TOP      75   // limite en X cuando Y=BOUND_LANE_TOP (fondo)
 #define SOFA_WALL_X_BOTTOM   17   // limite en X cuando Y=BOUND_LANE_BOTTOM (frente)
@@ -3991,7 +3991,7 @@ static s16 sofaWallX(s16 y) {
 // (22/09) El fondo lleva pintada una franja de violeta liso detras del HUD
 // (filas 0-3), y en el plano de adelante (BG_A) va SOLO la parte animada del
 // humo, justo debajo: las SMOKE2_SOLID_ROWS filas lisas de arriba de la celda
-// se CORTARON (pedido de Gustavo: con ellas el humo bajaba hasta y=95 y tapaba
+// se CORTARON (con ellas el humo bajaba hasta y=95 y tapaba
 // demasiado fondo). El HUD (texto en BG_A, filas 0-3) no se toca. La union no
 // se nota aunque BG_A tenga parallax y BG_B no: cae adentro del violeta liso.
 #define SMOKE_Y_TILE         4    // justo debajo del HUD (filas 0-3)
@@ -4139,7 +4139,7 @@ static void smokeUpdate(s16 cameraX) {
 // Profundidad de la capsula. ANTES salia de -(CAPSULA_CENTER_Y) = -103, y al
 // mover el centro a 108 quedo EMPATADA con Shredder (-APRIL_LANE_Y + 40 =
 // -108): con el empate, Shredder pasaba por DETRAS de la capsula al saltar a la
-// ventana (22/09, reporte de Gustavo). Ahora es fija y no depende de la
+// ventana (22/09). Ahora es fija y no depende de la
 // geometria: -103 = detras de Shredder (-108), de los jugadores y del jefe
 // (-y con y >= 118).
 #define CAPSULA_DEPTH         (-103)
@@ -4268,7 +4268,7 @@ SceneId showScene12() {
     // 16/09 el HUD de 4 tambien lleva los cuatro MARCOS (4x36 = 144 tiles de
     // sprite). Con cuatro tortugas de 64 el pico se pasa del presupuesto en
     // los momentos cargados y el motor deja de dibujar algun sprite -- es un
-    // modo de PRUEBA y se acepto asi (parpadeo tolerable, pedido de Gustavo).
+    // modo de PRUEBA y se acepto asi (parpadeo tolerable).
     SPR_initEx((numJugadores() > 2) ? 760 : 768);
 
     // --- Fondo (sala de 440px): dibujo completo + scroll (sin streaming) ---
@@ -4329,8 +4329,8 @@ SceneId showScene12() {
     // lane 148) y con la MISMA convención de depth por Y que los jugadores/
     // el jefe (-y, ver player.c y rocksteady.c): antes tenía un +20 fijo que
     // la mandaba siempre detrás de cualquier jugador (el mínimo Y posible de
-    // un jugador, BOUND_LANE_TOP=142, ya perdía contra 148-20=128). A pedido
-    // de Gustavo, ahora tiene prioridad sobre una tortuga cuando esa tortuga
+    // un jugador, BOUND_LANE_TOP=142, ya perdía contra 148-20=128). Ahora
+    // tiene prioridad sobre una tortuga cuando esa tortuga
     // está más arriba en Y que ella (Y < 148): con -y puro, quien tenga
     // mayor Y (más "adelante" en el lane) dibuja al frente, igual que entre
     // dos jugadores o un jugador y un enemigo.
@@ -4464,7 +4464,7 @@ SceneId showScene12() {
     // --- Fases del nivel ---
     // 0 = oleada A (2 morados)  ·  1 = oleada B (2 blancos + 1 naranja)
     // 2 = sala libre (camara desbloqueada)  ·  3 = pelea con Rocksteady
-    // La oleada B se agrego el 13/09 a pedido de Gustavo: hasta entonces la
+    // La oleada B se agrego el 13/09: hasta entonces la
     // sala libre era la fase 1 y el jefe la 2, por eso todos los `phase == 3`
     // de mas abajo eran `phase == 2`.
     u8   phase       = 0;
@@ -4548,7 +4548,7 @@ SceneId showScene12() {
             // --- Oleada A limpia -> OLEADA B ---
             // Dos foot soldiers BLANCOS (espada larga) entrando POR LA
             // IZQUIERDA y un NARANJA por la derecha, antes de Rocksteady
-            // (13/09, pedido de Gustavo). La camara sigue bloqueada: es una
+            // (13/09). La camara sigue bloqueada: es una
             // emboscada, no se puede escapar hacia adelante.
             // Los blancos entran SALTANDO (su anim 6, el arco de 107px), uno
             // por lane para que no vengan en fila india; el naranja entra con
@@ -4981,7 +4981,7 @@ SceneId showScene12() {
         // competirian con music_boss a volumen pleno; despues de eso la
         // cutscene corta la musica sola (XGM2_stop en cutScene 1). Mismo
         // criterio que el taunt del principio: una voz no se gana subiendo el
-        // PCM, se gana bajando los FM (ver claude/audio-mix-voz-vs-musica.md).
+        // PCM, se gana bajando los FM (mismo criterio de mezcla que en audio.res).
         if (boss.state == ROCKSTEADY_DEAD && bossMusicVol > VOL_MUSIC_BOSS_DUCK) {
             bossMusicVol = VOL_MUSIC_BOSS_DUCK;
             XGM2_setFMVolume(VOL_MUSIC_BOSS_DUCK);

@@ -16,7 +16,7 @@
 // terminaba el nivel; ahora dispara la pelea y el nivel termina cuando el
 // jefe cae.
 //
-// ENTRADA (24/09, sobre la captura que marco Gustavo)
+// ENTRADA (24/09, sobre la captura marcada)
 // Cae desde ARRIBA de la pantalla en diagonal hacia la derecha, apoya un pie
 // en el TECHO DEL AUTO del fondo, se sostiene ahi un instante y pega el
 // segundo salto hasta la calle, delante del auto. Recien ahi empieza la
@@ -25,8 +25,8 @@
 //
 // CONDUCTA
 //   IDLE      quieto unos frames; si pasa mucho sin que lo golpeen, VITOREA
-//             (anim [1], estira los brazos) -- es el "cada tanto" que pidio
-//             Gustavo, y le da al jugador la ventana para acercarse.
+//             (anim [1], estira los brazos) -- es el "cada tanto" que se
+//             buscaba, y le da al jugador la ventana para acercarse.
 //   WALK      se alinea en lane y se acerca al jugador mas cercano.
 //   EMBESTIDA lejos: corre en linea recta (anim [3]) y pega por CONTACTO real
 //             de los cuerpos, como la de Rocksteady.
@@ -154,7 +154,7 @@
 #define BEBOP_TAUNT_SHOT_F   64
 #define BEBOP_TAUNT_LOOP_TICKS 8
 // --- Anti-trabado (26/09) ---------------------------------------------------
-// Gustavo lo trababa a golpes: cada golpe lo mandaba al flinch, al salir del
+// En las pruebas se lo trababa a golpes: cada golpe lo mandaba al flinch, al salir del
 // flinch quedaba golpeable de nuevo con cooldown 0, y la tortuga encadenaba
 // combos hasta tirarlo; se levantaba y vuelta a empezar, sin que el jefe
 // pudiera responder nunca. Tres frenos:

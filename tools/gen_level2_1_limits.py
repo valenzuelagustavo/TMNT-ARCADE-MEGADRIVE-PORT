@@ -4,12 +4,12 @@
 # ============================================================================
 # ENTRADA
 #   res/images/lvl_2_scene/Stage 2-_LIMITES.png
-#       El MISMO arte que "Stage 2-_16_colors_v2.png" con dos anotaciones que
-#       pinto Gustavo encima (16/09/2026):
+#       El MISMO arte que "Stage 2-_16_colors_v2.png" con dos anotaciones
+#       pintadas encima (16/09/2026):
 #
 #       * MAGENTA (255,0,128) = "LIMITE DE PARED". Es la franja que separa lo
 #         caminable de lo que no: TODO lo que queda por ENCIMA del pixel
-#         magenta mas bajo de esa columna es pared. Gustavo NO pinto la pared
+#         magenta mas bajo de esa columna es pared. NO esta pintada la pared
 #         entera, solo la linea/franja del limite, asi que lo que importa de
 #         cada columna es el BORDE INFERIOR del magenta.
 #
@@ -54,7 +54,7 @@ MAGENTA       = (255, 0, 128)
 BOX_RGB       = (41, 66, 99)    # caja de texto azul de la plataforma
 BOX_MIN_RUN   = 120             # px seguidos para considerar que es la caja
 
-# Margenes de la propia plataforma: la caja que dibujo Gustavo es un cartel,
+# Margenes de la propia plataforma: la caja dibujada es un cartel,
 # no una medicion al pixel. Se le come un poco arriba y abajo para que los
 # pies queden sobre la cornisa y no flotando en el aire ni metidos en la pared.
 PLAT_INSET_TOP = 1
@@ -68,7 +68,7 @@ PLAT_INSET_BOT = 1
 # sus pies, o sea que para que entre ENTERO en pantalla sus pies no pueden
 # estar mas arriba de 32 + 64 = 96.
 #
-# La caja de Gustavo arranca en y=76: parado ahi, sobre el filo de arriba de
+# La caja dibujada arranca en y=76: parado ahi, sobre el filo de arriba de
 # la cornisa, a la tortuga se le va la cabeza fuera de la pantalla (probado en
 # emulador el 16/09). Asi que la franja jugable de la cornisa se recorta a
 # y >= 96, que cae justo sobre la moldura clara de abajo: la tortuga queda
@@ -114,8 +114,8 @@ def main():
     ART = (A != 0)
 
     # ---------------------------------------------------------------- pared
-    # Borde INFERIOR del magenta por columna. El texto blanco que Gustavo
-    # escribio adentro de la franja deja agujeros, pero como se toma el pixel
+    # Borde INFERIOR del magenta por columna. El texto blanco
+    # escrito adentro de la franja deja agujeros, pero como se toma el pixel
     # magenta MAS BAJO de la columna no molesta.
     wall = np.full(W, -1, np.int32)
     for x in range(W):
@@ -233,8 +233,8 @@ def main():
 
 
 HEADER_H = """// GENERADO POR tools/gen_level2_1_limits.py -- NO EDITAR A MANO
-// Sale de res/images/lvl_2_scene/"Stage 2-_LIMITES.png" (el magenta que pinto
-// Gustavo = limite de pared) + el arte v2 (el ultimo pixel dibujado de cada
+// Sale de res/images/lvl_2_scene/"Stage 2-_LIMITES.png" (el magenta pintado
+// = limite de pared) + el arte v2 (el ultimo pixel dibujado de cada
 // columna = borde de la vereda).
 #ifndef _LEVEL2_1_LIMITS_H_
 #define _LEVEL2_1_LIMITS_H_

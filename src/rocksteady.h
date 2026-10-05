@@ -14,7 +14,7 @@
 // (sprite en scenes.c) y pelea en el arena (cámara bloqueada en
 // LEVEL2_CAM_MAX_X).
 //
-// COMPORTAMIENTO (rehecho el 13/09 a pedido de Gustavo)
+// COMPORTAMIENTO (rehecho el 13/09)
 // Ya NO hay una progresión de dos fases (primero sin arma, después con arma
 // para siempre): ahora ALTERNA los dos modos cada ROCKSTEADY_ATTACKS_PER_SWAP
 // ataques completados, y guarda/saca el arma con la anim [5].
@@ -66,13 +66,13 @@
 // (13/09) 104, no 96. El arte del jefe llega HASTA ABAJO DE TODO de la celda:
 // medido frame por frame, la ultima fila con pixeles es la 104 en idle, walk,
 // aim y shoot. Con 96 se lo dibujaba 8px mas abajo que a la tortuga estando los
-// dos en la MISMA lane -- que es justo lo que se ve en la captura que mando
-// Gustavo. La tortuga si tiene los pies en 96 (PLAYER_FOOT_OFFSET).
+// dos en la MISMA lane -- que es justo lo que se ve en la captura de
+// referencia. La tortuga si tiene los pies en 96 (PLAYER_FOOT_OFFSET).
 #define ROCKSTEADY_FOOT_OFFSET  104   // Pies en el borde inferior del frame
 
 // --- Vida y daño ---
-#define ROCKSTEADY_HP           55   // Barras totales. (01/10) Igual que Bebop (BEBOP_HP), a
-                                     // pedido de Gustavo. Historial: 48 -> 52 -> 57 -> 62 (30/08)
+#define ROCKSTEADY_HP           55   // Barras totales. (01/10) Igual que Bebop (BEBOP_HP).
+                                     // Historial: 48 -> 52 -> 57 -> 62 (30/08)
                                      // -> 124 (13/09) -> 55. Un golpe normal saca 1 barra y el
                                      // especial ROCKSTEADY_SPECIAL_DMG.
 #define ROCKSTEADY_SPECIAL_DMG   3   // Daño del ataque especial (botón A / B+C)
@@ -82,7 +82,7 @@
 // tiempo a propósito: si el jugador se esconde, el jefe no cambia de modo solo
 // -- el ritmo lo marca la pelea, no el reloj.
 #define ROCKSTEADY_ATTACKS_PER_SWAP 7   // (03/10) arcade: ~8 ataques armado
-// (01/10, pedido de Gustavo) La tanda SIN arma es mas corta: pasaba mucho
+// (01/10) La tanda SIN arma es mas corta: pasaba mucho
 // tiempo de la pelea desarmado (la rotacion sin arma tiene un paso de
 // "esperar" que no cuenta como ataque, mas el acercamiento de la patada).
 // Ahora con UN ataque completado sin arma (la embestida o la patada) ya saca
@@ -130,7 +130,7 @@
 #define ROCKSTEADY_KICK_RANGE       64
 // (13/09) La embestida ya NO usa un radio fijo: golpea por SOLAPE REAL de los
 // cuerpos (ROCKSTEADY_BODY_HALF_W + PLAYER_BODY_HALF_W = 42), que es lo que
-// pidio Gustavo -- "la embestida golpea al player si lo toca". Los 56px de
+// se busca -- "la embestida golpea al player si lo toca". Los 56px de
 // antes pegaban bastante antes del contacto visual.
 // Ciclo de acercamiento tipo arcade (ver informe de reverse engineering,
 // seccion 2): en vez de depender solo del timer anti-camping para embestir,
@@ -142,7 +142,7 @@
 // La PATADA ya NO es una decisión espontánea: SOLO sale como contraataque
 // cuando recibe ROCKSTEADY_COUNTER_HITS golpes seguidos.
 #define ROCKSTEADY_COUNTER_HITS      3   // (01/10: 2 -> 3)
-// (01/10, pedido de Gustavo) La patada se spammeaba: con 2 golpes seguidos ya
+// (01/10) La patada se spammeaba: con 2 golpes seguidos ya
 // contraatacaba, o sea que cortaba CADA combo. Ahora, despues de cualquier
 // patada (contra o de la rotacion), no vuelve a patear durante estos frames:
 // el contraataque que caiga en ese lapso se descarta (solo flinchea) y el paso
@@ -175,7 +175,7 @@
 // video, 100-180 frames apuntando).
 #define ROCKSTEADY_ARMED_IDLE   75
 // (13/09) SE QUITO el flash BLANCO al recibir daño: reescribia los indices
-// 2..15 de PAL3 durante 8 frames en cada golpe y Gustavo lo pidio sacar. Con
+// 2..15 de PAL3 durante 8 frames en cada golpe y se saco. Con
 // ROCKSTEADY_HP en 124 son ~124 destellos por pelea. OJO: el parpadeo por HP
 // BAJO sigue -- ese es OTRO efecto, vive en scenes.c (bossPal/flashPal) y es
 // un aviso de vida critica, no una reaccion al golpe.
@@ -183,7 +183,7 @@
 #define ROCKSTEADY_KD_HOLD      60   // Frames que queda tirado en el knock-down
 #define ROCKSTEADY_IDLE_MIN     30   // Quieto mínimo antes de atacar
 
-// --- Rotacion del jefe SIN ARMA (14/09, pedido de Gustavo) -----------------
+// --- Rotacion del jefe SIN ARMA (14/09) -----------------------------------
 // Antes, sin arma solo tenia dos salidas y ninguna cubria el caso "el jugador
 // esta encima": lejos -> embestida, medio -> caminar hasta contacto, cerca ->
 // NADA. Con el jugador pegado se quedaba plantado para siempre, porque la
@@ -210,7 +210,7 @@
 #define MAX_ROCKSTEADY_BULLETS   6   // Proyectiles simultáneos en vuelo
 #define ROCKSTEADY_BULLET_SPEED  6   // px/frame horizontal (03/10, video: 6)
 #define ROCKSTEADY_BULLET_DMG    1   // Barras de vida al impactar
-#define ROCKSTEADY_CHARGE_DMG    4   // Barras de vida al conectar la embestida (30/08, a pedido de Gustavo)
+#define ROCKSTEADY_CHARGE_DMG    4   // Barras de vida al conectar la embestida (30/08)
 #define ROCKSTEADY_SHOT_COUNT    3   // Balas por ráfaga
 #define ROCKSTEADY_SHOT_TICKS    4   // Ticks entre frames de la anim de disparo
                                      // (03/10: una bala cada 8 frames, video)
@@ -219,7 +219,7 @@
 // sus frames de retroceso en el medio. Medido sobre el arte:
 //   [0][1] horizontal CON fogonazo   [2][3] horizontal, arma retrocedida
 //   [4][5] arma arriba, sin fogonazo [6][7] arma arriba CON fogonazo
-// Asi que el disparo horizontal usa 0-1 y el de arriba 6-7 (13/09, Gustavo).
+// Asi que el disparo horizontal usa 0-1 y el de arriba 6-7 (13/09).
 // NO hizo falta partir la fila en dos animaciones del sheet: el estado SHOOT
 // ya maneja los frames a mano con SPR_setFrame, asi que alcanza con arrancar
 // en la base que corresponda.

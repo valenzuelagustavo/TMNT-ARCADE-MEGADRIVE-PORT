@@ -76,7 +76,7 @@ SPRITE say_your_prayers "sprites/say_your_prayers.png" 12 4 NONE 0
 // dejaria a Rocksteady congelado en el frame 0. 6 = ~10 fps, igual que robot_whip.
 // Se dibuja en PAL3 (paleta del boss, que se carga al aparecer).
 // (03/10) Hoja GENERADA por tools/gen_rocksteady_sheet.py desde el rip nuevo
-// de Gustavo ("Arcade - ... - Rocksteady.png"), con la PALETA COMPARTIDA con
+// ("Arcade - ... - Rocksteady.png"), con la PALETA COMPARTIDA con
 // Bebop y April. Los frames quedan en la misma posicion de la celda que en la
 // hoja anterior (rocksteady_boss.png, que el generador usa de referencia).
 // La paleta nueva SI usa el indice 1 (el negro de los contornos): ya no se

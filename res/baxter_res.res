@@ -6,7 +6,7 @@
 //   baxter_boss 48x72: fila 0 volando · 1 portezuela (f0 abriendo, f1 abierta)
 //               · 2 dano. time 6: el vuelo se mueve solo; portezuela y dano
 //               los pone el codigo a mano.
-//   baxter_rat  40x40 (Mouser), 7 frames por fila. (01/10, segun Gustavo)
+//   baxter_rat  40x40 (Mouser), 7 frames por fila. (01/10)
 //               0-1 caminando de frente (una caminata en dos filas; para
 //               cuando aparezcan en el nivel) · 2-3 caminando de costado
 //               (idem) · 4 hacia arriba · 5 salto de ataque · 6 golpeado

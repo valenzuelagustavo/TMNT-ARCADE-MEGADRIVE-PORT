@@ -83,8 +83,8 @@ def measure(path):
     a_all = alpha_mask(im)
     # (02/10) En las PATADAS pega el PIE: no cuentan el arma (grises 10/13 de
     # la paleta unica de las tortugas) ni la sombra (4). Antes la katana que
-    # cuelga en la patada en salto agrandaba el alcance (pedido de Gustavo,
-    # medido en Pruebas_TMNT_Control).
+    # cuelga en la patada en salto agrandaba el alcance (medido en
+    # Pruebas_TMNT_Control).
     idx = np.array(im) if im.mode == "P" else None
     a_kick = a_all & ~np.isin(idx, KICK_IGNORE) if idx is not None else a_all
     h, w = a_all.shape

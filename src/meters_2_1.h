@@ -8,7 +8,7 @@
 // ===========================================================================
 // PARQUIMETROS del nivel 2-1 (25/09)
 // ===========================================================================
-// Cinco parquimetros sobre la vereda de arriba, en las X que marco Gustavo
+// Cinco parquimetros sobre la vereda de arriba, en las X marcadas en el mapa
 // sobre el mapa. Son OBJETOS FISICOS:
 //
 //   PARADOS  no se los puede atravesar caminando: su base es una caja chica

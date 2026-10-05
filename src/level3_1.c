@@ -15,9 +15,9 @@
 // tiles) en BG_A con prioridad alta; las tortugas pasan por detras.
 //
 // ESCALON (28/09): la vereda y el canal ya no son una sola franja. La cara
-// del escalon (el recuadro negro que pinto Gustavo en "ejemplo de escalon.png":
+// del escalon (el recuadro negro pintado en "ejemplo de escalon.png":
 // filas 192..213 del fondo = Y de mundo 160..181; el 29/09 se agrando un tile
-// hacia abajo, hasta 189, a pedido de Gustavo) no se pisa: desde la vereda
+// hacia abajo, hasta 189) no se pisa: desde la vereda
 // uno se deja caer al agua, y desde el agua hay que SALTAR para subir (ver
 // ledgeTop/ledgeBot en stage_level.h).
 //
@@ -67,7 +67,7 @@ static const StageWave waves31[] = {
 #undef O
 
 // ---------------------------------------------------------------------------
-// MISILES DEL AGUA (29/09, pedido de Gustavo)
+// MISILES DEL AGUA (29/09)
 // ---------------------------------------------------------------------------
 // Si una tortuga se queda en el CANAL (pies >= LVL31_LEDGE_BOT) unos 4
 // segundos, sale un misil del agua. Uno cada 4 segundos mientras siga en el

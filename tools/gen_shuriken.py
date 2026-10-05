@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_shuriken.py  (27/09) -- shuriken del foot soldier naranja, 3 frames
 # =============================================================================
-# Gustavo dibujo el shuriken en tres PNG sueltos de 16x16 (shuriken1..3.png,
+# El shuriken esta dibujado en tres PNG sueltos de 16x16 (shuriken1..3.png,
 # misma paleta que el viejo shuriken.png). Este script los pega en una tira
 # horizontal de 48x16 (res/sprites/shuriken_anim.png) para el SPRITE de
 # rescomp: una sola animacion de 3 frames que gira en loop.

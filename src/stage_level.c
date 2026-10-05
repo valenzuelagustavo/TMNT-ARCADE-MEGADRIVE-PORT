@@ -126,7 +126,7 @@ static void clampWalk(s16* x, s16* y, s16 px, s16 py, s16 footDx) {
 #define LEDGE_Z_UP        2     // px por frame que trepa
 
 // (29/09) Durante la pelea con el JEFE el escalon no existe: la franja vuelve
-// a ser una sola, como antes del 28/09 (pedido de Gustavo: el escalon no
+// a ser una sola, como antes del 28/09 (el escalon no
 // tiene que afectar la pelea del jefe). Se apaga al arrancar el jefe y vuelve
 // a prenderse en cada stageLevelRun.
 static bool ledgeOff;

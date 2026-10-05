@@ -3,7 +3,7 @@
 # gen_hud_bar.py -- arte del HUD de 1-2 jugadores (barra de vida + vidas)
 # ============================================================================
 # Genera dos PNG indexados sobre PAL1 (la paleta de las tortugas, la misma que
-# usa el marco del HUD), a partir de la captura del arcade que trajo Gustavo:
+# usa el marco del HUD), a partir de una captura del arcade:
 #
 #   res/sprites/hp_bar.png          32x176 = 11 frames de 32x16
 #       La barra de vida, del doble de alto que la anterior (era 32x8). 10

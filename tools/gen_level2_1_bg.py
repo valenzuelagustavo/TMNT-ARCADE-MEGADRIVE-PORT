@@ -35,7 +35,7 @@
 #       (seccion << 9) | indice-dentro-de-la-seccion), las tablas de
 #       secciones y el corredor de camara.
 #
-# El recorte superior que pidio Gustavo NO se hace pisando la imagen: la
+# El recorte superior NO se hace pisando la imagen: la
 # camara arranca en camY=32, o sea que muestra la banda y=32..255 de la
 # imagen (224px, el alto de pantalla) y los 32px de arriba quedan fuera. El
 # HUD se dibuja encima de la franja superior igual que en el nivel 1.
@@ -63,7 +63,7 @@ PLANE_W, PLANE_H   = 64, 32          # plano BG_B circular (512x256 px)
 VIS_COLS, VIS_ROWS = 41, 29
 
 # --- Trayectoria REAL de la camara del arcade -------------------------------
-# Sacada de 16 capturas del arcade original que trajo Gustavo (13/09): cada
+# Sacada de 16 capturas del arcade original (13/09): cada
 # frame se localizo dentro del PNG del nivel por minimos cuadrados sobre el
 # fondo, y los 7 matches limpios cayeron sobre una RECTA:
 #
@@ -82,7 +82,7 @@ CAM_X_MIN, CAM_X_MAX = 0, 2240       # 2240 = 2560 - 320 (fin del nivel)
 # Al rip le falta un pedazo de calle abajo a la izquierda del codo que el
 # arcade SI dibuja: con el viewport a camY 144..216 quedaban hasta 4800 px
 # (6,7% de la pantalla) sin arte, hiciera lo que hiciera la camara. Se rellena
-# EN MEMORIA (el PNG de Gustavo no se toca) copiando en diagonal: la calle baja
+# EN MEMORIA (el PNG original no se toca) copiando en diagonal: la calle baja
 # a 45 grados, asi que el pixel (x, y) es equivalente al (x+D, y+D).
 FILL_ZONE = (340, 470, 1300, 1620)   # y0, y1, x0, x1
 FILL_DIAG = 192                      # desplazamiento diagonal de la copia
@@ -210,7 +210,7 @@ def build_corridor(covered):
     # --- Los PELDANOS (17/09) ----------------------------------------------
     # El techo es una escalera: se queda clavado en un valor durante todo un
     # tramo de camY y ahi pega el salto al peldano siguiente. Esos saltos son
-    # los "topes" que marco Gustavo con flechas.
+    # los "topes" marcados con flechas.
     #
     # El piso que sale del arte es muy bajo (1254..1304 durante TODO el
     # descenso), asi que la camara podria bajar entera pegada a la izquierda.
@@ -222,13 +222,13 @@ def build_corridor(covered):
     # Asi que el piso de cada peldano se sube al TECHO DEL PELDANO ANTERIOR:
     # una vez que la camara bajo al escalon k, no puede estar a la izquierda
     # del tope del escalon k-1. Como camY tiene el freno de no adelantarse a
-    # camX, el efecto en la partida es exactamente el que pidio Gustavo: la
+    # camX, el efecto en la partida es exactamente el buscado: la
     # camara se clava en el tope del escalon, el jugador queda topado contra
     # el borde derecho, y recien cuando baja se libera el escalon siguiente.
     # El piso de cada peldano se sube al TECHO DEL PELDANO ANTERIOR. Dos
     # motivos:
     #
-    # 1. ES LO QUE PIDIO GUSTAVO. Como camY tiene el freno de no adelantarse a
+    # 1. ES LO QUE SE BUSCA. Como camY tiene el freno de no adelantarse a
     #    camX (ver el bucle en level2_1.c), para BAJAR al escalon k+1 la camara
     #    tiene que haber llegado antes al tope del escalon k. O sea: la camara
     #    se clava en el tope, el jugador queda topado contra el borde derecho
@@ -262,7 +262,7 @@ def main():
     if img.mode != "P":
         sys.exit("El PNG tiene que ser indexado de 16 colores")
     pix = np.array(img).copy()
-    # (16/09) El PNG v2 que trajo Gustavo mide 2560x722: el arte sigue estando
+    # (16/09) El PNG v2 mide 2560x722: el arte sigue estando
     # en las filas 0..639 y las 82 de abajo son transparentes (sobra del
     # export). Como 722 no es multiplo de 8, se recorta a filas completas de
     # tiles y se descartan las filas vacias del final.
@@ -283,8 +283,8 @@ def main():
     lo_tab, hi_tab = build_corridor(close_holes(pix))
     print("corredor: camX %d..%d (camY=%d)  ->  %d..%d (camY=%d)"
           % (lo_tab[0], hi_tab[0], CAM_Y_MIN, lo_tab[-1], hi_tab[-1], CAM_Y_MAX))
-    # Los ESCALONES: los saltos del techo son los "topes" de camara que marco
-    # Gustavo con flechas. Se imprimen para poder cotejarlos con la captura.
+    # Los ESCALONES: los saltos del techo son los "topes" de camara marcados
+    # con flechas. Se imprimen para poder cotejarlos con la captura.
     prev = None
     for i, v in enumerate(hi_tab):
         if v != prev:

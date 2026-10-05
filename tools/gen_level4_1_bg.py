@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_level4_1_bg.py (01/10) -- fondo nuevo del garage + regiones variables
 # =============================================================================
-# FUENTES (las exporta Gustavo, res/images/lvl_4_garage/):
+# FUENTES (exportadas de Aseprite, res/images/lvl_4_garage/):
 #   bg_garage_new.png   1282x240, 15 colores, indice 0 sin usar. Mismo encuadre
 #                       que el bg_garage.png de Ray (las Y de mundo no cambian)
 #                       mas 16 filas de piso abajo. Tiene VACIOS el lugar del

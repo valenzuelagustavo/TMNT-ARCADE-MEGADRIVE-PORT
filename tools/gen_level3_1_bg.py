@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_level3_1_bg.py  (28/09, reescrito el 29/09) -- fondo y caños del sewer
 # =============================================================================
-# FUENTES (las exporta Gustavo, 1252x288, 16 colores, indice 0 = magenta):
+# FUENTES (exportadas de Aseprite, 1252x288, 16 colores, indice 0 = magenta):
 #   res/images/lvl_3_sewer/bg_sewer.png      el fondo COMPLETO (sin recortar)
 #   res/images/lvl_3_sewer/bg_sewer_fg.png   los caños que pasan por delante
 # (son exactamente las dos capas de "Arcade - ... Backgrounds - Stage 3.png").

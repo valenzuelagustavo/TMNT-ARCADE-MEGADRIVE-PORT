@@ -1,7 +1,7 @@
 // =============================================================================
 // level4_1.res  Scene 4: el estacionamiento (garage) -- 26/09, fondo nuevo 01/10
 // =============================================================================
-// (01/10) Fondo y props nuevos de Gustavo (bg_garage_new.png + assets, ver
+// (01/10) Fondo y props nuevos (bg_garage_new.png + assets, ver
 // tools/gen_level4_1_bg.py, que arma todo lo de abajo).
 //
 // pal_garage / bg_garage_tiles / bg_garage_map / bg_garage_var

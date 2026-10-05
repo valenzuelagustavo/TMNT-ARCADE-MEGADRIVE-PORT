@@ -6,7 +6,7 @@
 
 #define METER_SCREEN_W  320
 
-// Posiciones MEDIDAS sobre el mapa que marco Gustavo: la captura coincide
+// Posiciones MEDIDAS sobre el mapa marcado: la captura coincide
 // 1:1 con "Stage 2-_16_colors_v2.png" (offset 0,0), asi que las coordenadas
 // son las de mundo. cx = centro del palo, y = fila de los pies (la ultima con
 // pixeles del parquimetro pegado en la captura). La vereda ahi va de y=160 a
@@ -78,7 +78,7 @@ bool metersPlayerHits(Player** pls, u8 nPl) {
             // se decide por el LADO en que esta la tortuga, no por hacia donde
             // mira. Con el facing, un golpe que conectaba de espaldas (el giro
             // del especial, o los 12 px de tolerancia hacia atras) lo mandaba
-            // hacia la tortuga y con el flip al reves. (27/09) Gustavo: el flip
+            // hacia la tortuga y con el flip al reves. (27/09) El flip
             // estaba invertido; el arte del sheet es el de un golpe HACIA LA
             // IZQUIERDA, asi que se espeja cuando sale volando a la DERECHA
             // (ver METER_FLIPPED).

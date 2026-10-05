@@ -36,9 +36,9 @@
 // con ENEMY_KICK_TIME / ENEMY_PUNCH_TIME de enemy.h.
 // =============================================================================
 
-// (19/09) SE DECLARA EL SHEET DE GUSTAVO, DIRECTO. Antes habia un PNG
+// (19/09) SE DECLARA EL SHEET ORIGINAL, DIRECTO. Antes habia un PNG
 // intermedio (foot_soldier_purple_gen.png) que generaba tools/gen_foot_purple.py
-// y era lo que compilaba; el sheet de Gustavo no se tocaba. Salio mal: arreglo
+// y era lo que compilaba; el sheet original no se tocaba. Salio mal: arreglo
 // un frame del walk, recompilo y seguia saliendo roto, porque el intermedio
 // habia quedado viejo. Se elimino el paso: ahora lo que el edita es lo que
 // compila.
@@ -84,10 +84,10 @@ SPRITE foot_soldier_orange "sprites/Foot_Soldier_Orange_new.png" 13 13 FAST 8
 //
 // OJO: el PNG que se declara es foot_soldier_white_gen.png, GENERADO por
 // tools/gen_foot_white.py a partir de foot_soldier_white_sword.png (el rip
-// original de Gustavo, que NO se toca). El generador repinta el parche del
+// original, que NO se toca). El generador repinta el parche del
 // piso que traia el rip abajo de las botas: venia con el indice 2 (rojo
 // 219,36,0) y quedaba como un charco; pasa al indice 10 (146,109,146), lo mas
-// parecido al marron de la sombra del morado que hay en PAL3. Si Gustavo
+// parecido al marron de la sombra del morado que hay en PAL3. Si se
 // actualiza el sheet, hay que volver a correr el generador.
 SPRITE foot_soldier_white "sprites/foot_soldier_white_gen.png" 13 13 FAST 8
 
@@ -148,14 +148,14 @@ SPRITE lid_sprite "sprites/tapa_voladora.png" 4 3 FAST 0
 
 // --- BEBOP: jefe del 2-1 (24/09) --------------------------------------------
 // El sheet que compila es bebop_boss_gen.png, GENERADO por
-// tools/gen_bebop_sheet.py a partir del rip de Gustavo (03/10: "Arcade -
+// tools/gen_bebop_sheet.py a partir del rip original (03/10: "Arcade -
 // Teenage Mutant Ninja Turtles - Bosses - Bebop.png", con la PALETA
 // COMPARTIDA con Rocksteady y April; antes Bebop_Boss.png), con
 // los frames sueltos y de distinto ancho). El generador los re-pega en una
 // grilla de 112x120 px (14x15 tiles) anclados por los PIES: el borde inferior
 // de la celda es la linea de pies y la X sale del centro de las PIERNAS, no
 // del bounding box -- si no, el cuerpo se corre solo cada vez que estira el
-// arma. Si Gustavo actualiza el rip, hay que volver a correr el generador.
+// arma. Si se actualiza el rip, hay que volver a correr el generador.
 //
 // Animaciones (filas):
 //   [0] idle (3f) | [1] vitoreo, estira los brazos (3f) | [2] camina (6f)

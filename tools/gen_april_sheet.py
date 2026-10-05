@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_april_sheet.py  -  April en grilla (y la version del 1-2 en PAL1)
 # =============================================================================
-# (03/10) Entrada (la dibuja Gustavo, NO se toca):
+# (03/10) Entrada (el arte original, NO se toca):
 #   res/sprites/april.png   166x84, 4 frames sueltos en una fila:
 #       [0..1] parada (el balanceo del 1-2)
 #       [2..3] atada sentada en el piso (el garage)

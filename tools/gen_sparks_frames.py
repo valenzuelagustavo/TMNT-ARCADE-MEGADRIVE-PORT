@@ -6,7 +6,7 @@ vez de por rotacion de paleta.
 
 Por que: las tres (chispas de puerta, ascensor y piso) fingian su animacion
 rotando los indices 5-8 de PAL2 en CRAM cada pocos ticks (sparksPalAnim en
-scenes.c). El problema (reportado por Gustavo): el fuego de primer plano
+scenes.c). El problema: el fuego de primer plano
 (fire_strip.png) usa ESOS MISMOS indices para su propio dibujo (verificado
 con PIL: fire_strip usa {5,6,8}, exactamente el mismo conjunto que las
 chispas) -- no hay forma de rotar solo las chispas sin que el fuego de fondo
@@ -24,7 +24,7 @@ pixel al que ya se veia -- solo que ahora son 4 frames de tile REALES
 (como fire_strip.png/smoke_lvl1.png), streameados con VDP_loadTileData en
 vez de con PAL_setColors.
 
-BUG encontrado en el primer intento (capturas de Gustavo: las chispas y el
+BUG encontrado en el primer intento (en las capturas: las chispas y el
 decorado de piso se veian "en bloques", no como fuego): un recurso TILESET
 (NONE NONE) exporta los tiles en orden de LECTURA normal (fila por fila),
 pero un recurso SPRITE los exporta en el orden que espera el HARDWARE de

@@ -49,7 +49,7 @@ for name in ('sparks', 'sparks_2', 'spark_ascensor'):
     assert strip.size[0] == w and strip.size[1] % fh == 0, name
     nfr = strip.size[1] // fh
     # El frame 0 de la tira es el PNG base. Si coincide tal cual, la tira ya
-    # esta en orden raster (caso de spark_ascensor_strip.png, que Gustavo
+    # esta en orden raster (caso de spark_ascensor_strip.png, que se
     # redibujo a mano con 3 frames); si no, viene de gen_sparks_frames.py y
     # hay que deshacerle el reorden por columna.
     raw0 = strip.crop((0, 0, w, fh))

@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_intro_quad_tela.py  -  Cuadro de las 4 tortugas de la intro (escena D)
 # =============================================================================
-# (22/09) Gustavo trajo un rip nuevo con mejor uso de color:
+# (22/09) Rip nuevo con mejor uso de color:
 #     res/images/intro_tmnt/genesis/Arcade---Teenage-Mutant-Ninja-Turtles---TELA-1.png
 # y hay que pasarlo a algo que rescomp acepte. Dos problemas del PNG tal cual:
 #

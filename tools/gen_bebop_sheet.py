@@ -2,7 +2,7 @@
 # =============================================================================
 # gen_bebop_sheet.py  -  Jefe del 2-1: grilla uniforme + frames del disparo
 # =============================================================================
-# Entrada (la dibuja Gustavo, NO se toca):
+# Entrada (el arte original, NO se toca):
 #     res/sprites/Arcade - Teenage Mutant Ninja Turtles - Bosses - Bebop.png
 #         536x735, 7 filas de frames sueltos. En la fila del disparo, a la
 #         derecha, vienen los 5 aros del proyectil (x >= RINGS_X).
@@ -15,7 +15,7 @@
 #     res/sprites/bebop_shot_gen.png   5 frames, el disparo formandose
 #
 # POR QUE HAY QUE REARMARLO: rescomp exige una GRILLA (todas las celdas del
-# mismo tamano, una fila por animacion). El sheet de Gustavo tiene los frames
+# mismo tamano, una fila por animacion). El sheet original tiene los frames
 # pegados uno al lado del otro con el ancho de cada dibujo, asi que hay que
 # recortarlos y re-pegarlos centrados.
 #

@@ -67,7 +67,7 @@
 #define ENEMY_BODY_H_WHITE         62
 
 #define ENEMY_BODY_HALF_W_PURPLE   13   // (02/10) era 16: ancho de la hurtbox nueva (ver abajo)
-// (02/10) HURTBOX NUEVA del morado, la que marco Gustavo en
+// (02/10) HURTBOX NUEVA del morado, la marcada en
 // Pruebas_TMNT_Control: cabeza y torso, SIN las piernas, un poco corrida hacia
 // adelante. Desde los PIES, mirando a la DERECHA (se espeja con e->dir):
 // X -11 (atras) .. +14 (adelante), Y -63 .. -28. La usa playerAttackHitsEnemy.
@@ -255,7 +255,7 @@
 //     es el sentido de este enemigo: pega desde donde el morado no llega.
 // [4] la espada sale horizontal a +41.
 // [5] mide bastante menos sobre el arte (+14: es un corte DESCENDENTE, la
-//     hoja termina apuntando al piso), pero Gustavo lo describio como "igual
+//     hoja termina apuntando al piso), pero se lo toma como "igual
 //     alcance que el [4]" y en juego barre el mismo frente a la altura del
 //     cuerpo, asi que se le deja un valor intermedio en vez del medido.
 #define WHITE_SLASH_LONG_REACH 50
@@ -437,7 +437,7 @@
 //
 //   f0            la tapa quieta en el piso, el soldier todavia abajo
 //   f1 SOSTENIDO  el SALTO de salida: sube, cae y aterriza unos px por
-//                 delante de la boca (pedido de Gustavo, 19/09)
+//                 delante de la boca (19/09)
 //   f2..f5        la tirada propiamente dicha, 8 ticks cada uno
 //
 // La tapa sale de las manos entre el f3 (brazos arriba, la tapa todavia

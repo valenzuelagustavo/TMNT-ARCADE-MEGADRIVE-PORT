@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-gen_chamas.py - (26/09) Recorta de res/sprites/chamas-sheet.png (arte nuevo de
-Gustavo, paleta = la del foot soldier naranja = PAL2 del 1-1) las dos
+gen_chamas.py - (26/09) Recorta de res/sprites/chamas-sheet.png (arte nuevo,
+paleta = la del foot soldier naranja = PAL2 del 1-1) las dos
 animaciones que se usan en el nivel 1-1:
 
   floor_fire_gen.png  FUEGO DEL PISO, decorativo. 9 frames de 56x32 en fila
