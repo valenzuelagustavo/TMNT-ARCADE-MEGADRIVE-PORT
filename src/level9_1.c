@@ -11,11 +11,14 @@
 //         portal y de las dos ventanitas. Filas 0-3: el HUD encima.
 //   BG_B  el portal (PAL3). Su indice 0 es un color de las rayas: el color
 //         de fondo del VDP se fija a PAL3[0], asi cicla con el resto.
-// PAL2 es de Shredder (en la sala no hay foot soldiers).
+// PAL2 es de Krang y despues de Shredder (en la sala no hay foot soldiers).
 //
-// JEFE: SHREDDER (shredder_boss.c). Aparece delante del portal al rato de
-// entrar. Al vencerlo: jingle y la pantalla final (showTheEnd).
-// Musica: el tema de jefe desde el principio.
+// JEFES (06/10, como en el remake de PC): primero KRANG (krang.c), que cae
+// del techo al rato de entrar. Al vencerlo estalla y su cabeza se escapa
+// hablando; recien entonces aparece SHREDDER (shredder_boss.c) delante del
+// portal, con la risa, y al lado su COPIA. Al vencer al verdadero: jingle y
+// la pantalla final (showTheEnd).
+// Musica: el tema de jefe con cada uno (se corta cuando cae Krang).
 // ===========================================================================
 
 #include <genesis.h>
@@ -25,6 +28,7 @@
 #include "player.h"
 #include "hud.h"
 #include "shredder_boss.h"
+#include "krang.h"             // (06/10)
 #include "pause_menu.h"
 #include "audio.h"
 #include "boss_vo.h"           // (01/10)
@@ -46,6 +50,8 @@ extern u8 cantidadJugadores;
 #define L9_BOSS_X         256          // delante del portal
 #define L9_BOSS_Y         170
 #define L9_BOSS_DELAY      90          // frames antes de que aparezca
+#define L9_KRANG_LANE_T   172          // Krang es alto: no sube tanto (HUD), y las
+                                       // tortugas tampoco mientras pelean con el
 #define L9_CLEAR_SECS       5
 #define VOL_MUSIC          80
 
@@ -148,12 +154,18 @@ SceneId showScene91() {
         hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
                       (u16)(hudVram + k * HUD_VRAM_PER_PLAYER));
 
-    static ShredderBoss shred;
+    static Krang krang;
+    static ShredderBoss shred, clone;
+    krangInit(&krang);
     shredderInit(&shred);
-    bool bossStarted = FALSE;
+    shredderInit(&clone);
+    u8 phase = 0;                       // 0 espera, 1 Krang, 2 Shredder
+    s16 laneTop = L9_LANE_T;
+    bool cloneOut = FALSE, cloneGone = FALSE;
+    const s16 arenaL = L9_CAM_X + 24, arenaR = L9_CAM_X + SCREEN_W - 24;
 
-    // Revelado: PAL0 la sala, PAL1 las tortugas, PAL2 en negro (la carga
-    // Shredder al aparecer), PAL3 el portal.
+    // Revelado: PAL0 la sala, PAL1 las tortugas, PAL2 en negro (la cargan
+    // Krang y despues Shredder al aparecer), PAL3 el portal.
     u16 target[64];
     for (u16 i = 0; i < 16; i++) {
         target[i]      = final_room.palette->data[i];
@@ -165,8 +177,9 @@ SceneId showScene91() {
     drawPlayers(pls, nPl);
     SPR_update();
 
-    // (01/10) El tema NO arranca con la sala: primero la risa de Shredder al
-    // aparecer (completa y con prioridad) y despues el tema (boss_vo.h).
+    // (01/10) El tema NO arranca con la sala: arranca cuando cae Krang, y para
+    // Shredder primero la risa (completa y con prioridad) y despues el tema
+    // (boss_vo.h).
     XGM2_stop();
 
     static const u16 black[64] = { 0 };
@@ -194,7 +207,7 @@ SceneId showScene91() {
                 cantidadJugadores = 2;
                 initPlayer(&p2, ch2, playerJoy(1), PAL1,
                            (s16)(getPlayerWorldX(&p1) - 48), getPlayerY(&p1));
-                setPlayerLane(&p2, L9_LANE_T, L9_LANE_B);
+                setPlayerLane(&p2, laneTop, L9_LANE_B);
                 setPlayerEndWall(&p2, 0, 0);
                 setPlayerCamera(&p2, L9_CAM_X);
                 setPlayerLeftBound(&p2, L9_CAM_X);
@@ -206,23 +219,57 @@ SceneId showScene91() {
         }
         for (u8 k = 0; k < nPl; k++) hudPlayerUpdate(&huds[k]);
 
-        if (!shredderIsDying(&shred) && continueStepAll(conts, pls, huds, nPl, fps)) {
+        bool bossDying = (phase == 2) && shredderIsDying(&shred);
+        if (!bossDying && continueStepAll(conts, pls, huds, nPl, fps)) {
             allOut = TRUE;
             break;
         }
 
-        if (!bossStarted && tick >= L9_BOSS_DELAY) {
-            bossStarted = TRUE;
-            shredderSpawn(&shred, L9_BOSS_X, L9_BOSS_Y,
-                          L9_CAM_X + 24, L9_CAM_X + SCREEN_W - 24, L9_LANE_T, L9_LANE_B);
-            bossVoStart(shredder_laugh_sfx, sizeof(shredder_laugh_sfx),
-                        music_boss, VOL_MUSIC);   // (01/10) risa y despues el tema
+        if (phase == 0 && tick >= L9_BOSS_DELAY) {
+            phase = 1;
+            krangSpawn(&krang, L9_BOSS_X, arenaL, arenaR, L9_KRANG_LANE_T, L9_LANE_B);
+            laneTop = L9_KRANG_LANE_T;
+            for (u8 k = 0; k < nPl; k++) setPlayerLane(pls[k], laneTop, L9_LANE_B);
+            XGM2_setLoopNumber(-1);
+            playMusicVol(music_boss, VOL_MUSIC);
         }
-        if (bossStarted) {
-            shredderUpdate(&shred, pls, nPl, L9_CAM_X, L9_CAM_Y);
+        if (phase == 1) {
+            // Primero los golpes de las tortugas y despues la IA (asi el golpe
+            // entra en el mismo frame en que el jefe decidiria atacar).
+            s8 killer = -1;
+            if (krangPlayerHits(&krang, pls, nPl, &killer) && killer >= 0)
+                addPlayerScore(pls[(u8)killer], 10);
+            krangUpdate(&krang, pls, nPl, L9_CAM_X, L9_CAM_Y);
+            krangShotsUpdate(pls, nPl, L9_CAM_X, L9_CAM_Y);
+            if (krangIsGone(&krang)) {
+                // La cabeza se fue: aparece Shredder.
+                krangRelease(&krang);
+                phase = 2;
+                laneTop = L9_LANE_T;
+                for (u8 k = 0; k < nPl; k++) setPlayerLane(pls[k], laneTop, L9_LANE_B);
+                shredderSpawn(&shred, L9_BOSS_X, L9_BOSS_Y, arenaL, arenaR, L9_LANE_T, L9_LANE_B, FALSE);
+                bossVoStart(shredder_laugh_sfx, sizeof(shredder_laugh_sfx),
+                            music_boss, VOL_MUSIC);   // (01/10) risa y despues el tema
+            }
+        }
+        if (phase == 2) {
+            if (!cloneOut && shredderIsReady(&shred) && !shredderIsDying(&shred)) {
+                cloneOut = TRUE;
+                shredderSpawn(&clone, (s16)(L9_BOSS_X - SHRED_CLONE_DX), L9_BOSS_Y,
+                              arenaL, arenaR, L9_LANE_T, L9_LANE_B, TRUE);
+            }
             s8 killer = -1;
             if (shredderPlayerHits(&shred, pls, nPl, &killer) && killer >= 0)
                 addPlayerScore(pls[(u8)killer], 10);
+            killer = -1;
+            if (cloneOut && shredderPlayerHits(&clone, pls, nPl, &killer) && killer >= 0)
+                addPlayerScore(pls[(u8)killer], 2);
+            shredderUpdate(&shred, pls, nPl, L9_CAM_X, L9_CAM_Y);
+            if (cloneOut) shredderUpdate(&clone, pls, nPl, L9_CAM_X, L9_CAM_Y);
+            if (shredderIsDying(&shred) && !cloneGone) {
+                cloneGone = TRUE;               // la copia se va con el
+                shredderVanish(&clone);
+            }
             if (shredderIsGone(&shred)) { win = TRUE; running = FALSE; }
         }
 
@@ -247,6 +294,8 @@ SceneId showScene91() {
         XGM2_setLoopNumber(-1);
     }
 
+    krangRelease(&krang);
+    shredderRelease(&clone);
     shredderRelease(&shred);
     VDP_setTextPriority(0);
     VDP_setTextPalette(PAL0);

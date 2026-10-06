@@ -93,6 +93,14 @@ WAV capsule_door_sfx "audio/capsule_door.wav" XGM2
 WAV say_your_p_sfx "audio/say_your_p.wav" XGM2
 WAV shredder_laugh_sfx "audio/shredder_laugh.wav" XGM2
 
+// (06/10) Sala final (9-1). Sacados del remake de PC (tmntarcadehd) y pasados
+// a la convencion de la casa: MONO, 8-bit, 11025 Hz, puntas recortadas y
+// normalizados a pico 96,9%.
+//   krang_speech_vo    1,92 s  la cabeza de Krang al escaparse del cuerpo
+//   shredder_death_vo  3,11 s  el grito de Shredder al caer
+WAV krang_speech_vo    "audio/krang_speech.wav" XGM2
+WAV shredder_death_vo  "audio/shredder_death.wav" XGM2
+
 // Voice over de la cinematica de rescate (SCENE_CINEMATIC_FIRE, escena A,
 // globos "Fire!!" / "Hang on, April") y del arranque de la 2da parte del
 // nivel 1 (SCENE_LEVEL2, "April's Room") y del robot del latigo (final de
