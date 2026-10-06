@@ -327,7 +327,7 @@ SceneId showScene81() {
     SPR_update();
 
     XGM2_setLoopNumber(-1);
-    playMusicVol(music_stage2_1, VOL_MUSIC);
+    playMusicVol(music_technodrome, VOL_MUSIC);
 
     static const u16 black[64] = { 0 };
     PAL_setColors(0, black, 64, DMA);

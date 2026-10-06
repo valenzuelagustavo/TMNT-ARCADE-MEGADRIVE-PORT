@@ -41,6 +41,13 @@ XGM2 music_level3    "music/10 - The Sewers (Stage 2-2).vgm"
 XGM2 music_garage    "music/11 - Parking Garage (Scene 2-3) & The Factory (Scene 4).vgm"
 XGM2 music_freeway   "music/13 - Highway Blockade (Scene 3-1).vgm"
 
+// (06/10) Highway Chaser (Scene 3-2): el skate del 6-1. 45,5 s con loop de
+// 29,3 s; trae el bloque PCM de bateria pero no lo dispara (FM+PSG puro).
+XGM2 music_skate     "music/14 - Highway Chaser (Scene 3-2).vgm"
+// (06/10) The Technodrome (Scene 5): el 8-1 hasta que aparece Traag. 66,5 s
+// con loop de 47 s, sin PCM. La sala de Shredder (9-1) sigue con el del jefe.
+XGM2 music_technodrome "music/16 - The Technodrome (Scene 5).vgm"
+
 // (24/09) Tema del Stage 2-1 (Downtown). 77,7 s con punto de loop a los 38,5 s
 // (loop de 39,2 s), asi que con XGM2_setLoopNumber(-1) repite solo. Trae un
 // bloque PCM de 7690 bytes (el mismo de bateria que los "con samples"), pero
