@@ -844,7 +844,13 @@ static Sprite* hudSprite2    = NULL;
 static Sprite* portraitSpr1  = NULL;
 static Sprite* portraitSpr2  = NULL;
 // Modo 4 jugadores: cuatro marcos, sin retratos (ver hud.h).
+// (06/10) El marco es UN contorno compartido (hud4_outline: los cuatro
+// sprites apuntan a los mismos tiles) mas el cartel "1UP".."4UP" de cada uno
+// (hud4_label). Antes eran cuatro sprites enteros de 35 tiles cada uno: con
+// 4 jugadores no quedaba VRAM para los foot soldiers en la cloaca y la camara
+// se quedaba clavada esperando la primera oleada. Ahora son 28 + 4 x 6.
 static Sprite* hud4Spr[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
+static Sprite* hud4Lbl[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
 // El spritesheet de los marcos tiene las filas en orden Leo/Mike/Don/Raph del
 // ARTE (0=Leo 1=Mike(rojo) 2=Don(purpura) 3=Raph(dorado)) y el cursor del
 // juego usa 0=Leo 1=Mike 2=Don 3=Raph: esta tabla traduce.
@@ -871,7 +877,7 @@ static void hudForgetSprites(void) {
     hudSprite2   = NULL;
     portraitSpr1 = NULL;
     portraitSpr2 = NULL;
-    for (u8 k = 0; k < MAX_PLAYERS; k++) hud4Spr[k] = NULL;
+    for (u8 k = 0; k < MAX_PLAYERS; k++) { hud4Spr[k] = NULL; hud4Lbl[k] = NULL; }
 }
 
 // Crea los marcos del HUD y los retratos de tortuga como sprites de alto
@@ -899,13 +905,25 @@ void hudInit(void) {
     // 0=Leo 1=Mike 2=Don 3=Raph -> filas 0/3/2/1 del PNG).
     if (numJugadores() > 2) {
         static const u8 hudAnimForChar4[] = { 0, 3, 2, 1 };
-        const SpriteDefinition* const marco[MAX_PLAYERS] =
-            { &hud_1p, &hud_2p, &hud_3p, &hud_4p };
         for (u8 k = 0; k < MAX_PLAYERS; k++) {
-            hud4Spr[k] = SPR_addSprite(marco[k], (s16)(HUD4_X0 + k * (HUD_TILE_W * 8)),
-                                       HUD_FRAME_Y, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-            if (hud4Spr[k])
-                SPR_setAnim(hud4Spr[k], hudAnimForChar4[playerChar(k) & 3]);
+            s16 x = (s16)(HUD4_X0 + k * (HUD_TILE_W * 8));
+            // El contorno: el primero reserva y sube los tiles; los otros
+            // tres apuntan ahi (hudSharedSync los sigue si se mueven).
+            if (k == 0)
+                hud4Spr[0] = SPR_addSprite(&hud4_outline, x, HUD_FRAME_Y,
+                                           TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+            else if (hud4Spr[0])
+                hud4Spr[k] = SPR_addSpriteEx(&hud4_outline, x, HUD_FRAME_Y,
+                                             TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE,
+                                                 hud4Spr[0]->attribut & TILE_INDEX_MASK),
+                                             SPR_FLAG_AUTO_VISIBILITY);
+            // El cartel: fila = jugador, frame = color de la tortuga.
+            hud4Lbl[k] = SPR_addSprite(&hud4_label, (s16)(x + HUD4_LABEL_DX), HUD_FRAME_Y,
+                                       TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+            if (hud4Lbl[k]) {
+                SPR_setAutoAnimation(hud4Lbl[k], FALSE);
+                SPR_setAnimAndFrame(hud4Lbl[k], k, hudAnimForChar4[playerChar(k) & 3]);
+            }
         }
         return;
     }
@@ -944,8 +962,9 @@ static Sprite* hudPortraitShow(u8 k, u8 ch) {
 void hudFramesToFront(void) {
     hudFront = TRUE;
     Sprite* s[] = { hudSprite1, hudSprite2, portraitSpr1, portraitSpr2,
-                    hud4Spr[0], hud4Spr[1], hud4Spr[2], hud4Spr[3] };
-    for (u8 i = 0; i < 8; i++)
+                    hud4Spr[0], hud4Spr[1], hud4Spr[2], hud4Spr[3],
+                    hud4Lbl[0], hud4Lbl[1], hud4Lbl[2], hud4Lbl[3] };
+    for (u8 i = 0; i < 12; i++)
         if (s[i]) SPR_setDepth(s[i], SPR_MIN_DEPTH);
 }
 static void hudPortraitHide(u8 k) {
@@ -1068,7 +1087,19 @@ void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram) {
 }
 
 // Redibuja SOLO los elementos que cambiaron. Llamar una vez por frame.
+// (06/10) Los contornos 1..3 del HUD de 4 jugadores usan los tiles del 0.
+// Si el motor de sprites desfragmenta la VRAM (SPR_defragVRAM, tambien
+// adentro de SPR_addSpriteSafe) el del 0 puede mudarse: se los sigue.
+static void hudSharedSync(void) {
+    if (!hud4Spr[0]) return;
+    u16 idx = hud4Spr[0]->attribut & TILE_INDEX_MASK;
+    for (u8 k = 1; k < MAX_PLAYERS; k++)
+        if (hud4Spr[k] && (hud4Spr[k]->attribut & TILE_INDEX_MASK) != idx)
+            SPR_setVRAMTileIndex(hud4Spr[k], idx);
+}
+
 void hudPlayerUpdate(HudPlayer* h) {
+    hudSharedSync();
     s16 hp    = getPlayerHealth(h->pl);
     s16 lives = (s16)getPlayerLives(h->pl);
     s32 score = (s32)getPlayerScore(h->pl);
@@ -1861,6 +1892,8 @@ static const SoundTrack soundTracks[] = {
     { "SEWERS",       music_level3 },
     { "GARAGE",       music_garage },
     { "HIGHWAY",      music_freeway },
+    { "HWY CHASER",   music_skate },
+    { "TECHNODROME",  music_technodrome },
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 

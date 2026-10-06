@@ -145,6 +145,7 @@ bool continueStepAll(ContPlayer* conts, Player** pls, HudPlayer* huds,
 #define HUD4_X0            16                      // x del marco del jugador 0
 #define HUD4_BASECOL0      (HUD4_X0 / 8)           // 2
 #define HUD4_BLOCK_COLS    HUD_TILE_W              // 9 columnas: marcos pegados
+#define HUD4_LABEL_DX      8                       // (06/10) cartel "1UP" dentro del marco
 #define HUD4_LABEL_COL     1                       // (legacy) etiqueta dentro del bloque
 
 // Columna de tile donde arranca el HUD del jugador k (0..3), segun el modo.

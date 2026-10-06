@@ -79,6 +79,11 @@ SPRITE hud_2p "images/hud/hud_2p.png" 9 4 NONE 0
 // Misma paleta y mismas 4 filas de color -> NO llevan PALETTE propia.
 SPRITE hud_3p "images/hud/hud_3p.png" 9 4 NONE 0
 SPRITE hud_4p "images/hud/hud_4p.png" 9 4 NONE 0
+// (06/10) HUD de 3-4 jugadores: el contorno compartido y los carteles
+// "1UP".."4UP" (tools/gen_hud4_shared.py). El contorno va optimizado por
+// TILES (28 en vez de 35): los cuatro marcos usan esos mismos tiles.
+SPRITE hud4_outline "images/hud/hud4_outline.png" 9 4 NONE 0 NONE TILE MAX
+SPRITE hud4_label   "images/hud/hud4_label.png"   3 2 NONE 0
 
 // --- Retrato de la tortuga elegida (32x32, 4 filas en ORDEN DE PERSONAJE) ---
 // frames_hud.png (32x128): fila 0=Leo 1=Mike 2=Don 3=Raph. time 0 -> sin

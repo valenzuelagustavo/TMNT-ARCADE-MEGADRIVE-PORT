@@ -24,6 +24,8 @@ extern u8 cantidadJugadores;
 
 #define SCREEN_W            320
 #define STAGE_HUD_ROWS        4     // filas de BG_A que no scrollean (HUD)
+#define STAGE_VRAM_WAIT      30     // (06/10) sin VRAM y sin nadie vivo: se cambia por un morado
+#define STAGE_VRAM_SKIP     150     // ... y si ni el morado entra, se saltea
 #define STAGE_ROWS           28
 #define CAM_DEAD_ZONE_RIGHT 120
 #define CAM_MAX_SPEED_X       4
@@ -452,6 +454,7 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     s16 waveIdx     = -1;       // ultima oleada disparada
     u8  waveSpawned = 0;
+    u16 vramWait    = 0;        // frames sin VRAM para el siguiente de la oleada
     s16 camLockX    = -1;       // -1 = camara libre
 
     // Revelado: PAL0 el fondo, PAL1 las tortugas, PAL2 los foot soldiers,
@@ -588,13 +591,28 @@ SceneId stageLevelRun(const StageLevel* L) {
                 // (29/09) Sin VRAM de sprites para su sheet, espera (con la
                 // camara vertical de la cloaca el presupuesto quedo justo): un
                 // soldier sin sprite no se puede animar.
-                {
-                    u8 ty = w->type[waveSpawned];
-                    if (!sprVramFits(enemySheetDef(ty)->maxNumTile)) break;
+                // (06/10) Con 4 jugadores la VRAM puede no alcanzar NUNCA (ni con
+                // la pantalla vacia): la camara quedaba clavada para siempre.
+                // Si no hay nadie vivo y el que toca no entra en medio segundo
+                // (lo que tardan en irse misiles y explosiones), sale un morado
+                // (la hoja mas chica); si tampoco entra, a los 2,5 s se lo
+                // saltea. La oleada nunca se traba.
+                u8 ty = w->type[waveSpawned];
+                if (!sprVramFits(enemySheetDef(ty)->maxNumTile)) {
+                    if (alive > 0) { vramWait = 0; break; }
+                    vramWait++;
+                    if (vramWait < STAGE_VRAM_WAIT) break;
+                    ty = ENEMY_TYPE_FOOT_SOLDIER;
+                    if (!sprVramFits(enemySheetDef(ty)->maxNumTile)) {
+                        if (vramWait < STAGE_VRAM_SKIP) break;
+                        vramWait = 0;
+                        waveSpawned++;
+                        continue;
+                    }
                 }
+                vramWait = 0;
                 eStepZ[i] = 0;
-                spawnWaveEnemy(&enemies[i], w->type[waveSpawned],
-                               w->side[waveSpawned], cameraX);
+                spawnWaveEnemy(&enemies[i], ty, w->side[waveSpawned], cameraX);
                 waveSpawned++;
                 alive++;
             }
