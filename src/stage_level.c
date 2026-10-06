@@ -322,8 +322,7 @@ static void applyScroll(s16 camX, TransferMethod tm) {
 // izquierda con la voltereta y por la derecha con la patada (spawns del 1-1).
 // ---------------------------------------------------------------------------
 static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX) {
-    s16 w  = (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_SPRITE_W_ORANGE
-                                                      : ENEMY_SPRITE_W_PURPLE;
+    s16 w  = enemySpriteW(type);
     s16 x  = (side < 0) ? (s16)(camX - w) : (s16)(camX + SCREEN_W);
     s16 fx = (s16)((side < 0) ? camX + 24 : camX + SCREEN_W - 24);
     s16 top = stageWalkTopAt(fx);
@@ -332,10 +331,8 @@ static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX) {
     y = ledgeSnap(y);
     // (29/09) Solo el MORADO tiene voltereta y patada de entrada. El naranja
     // no tiene la anim 15: con la voltereta aparecia de golpe o con pixeles
-    // basura. El naranja y el blanco entran CAMINANDO.
+    // basura. El naranja, el blanco y los de arma (06/10) entran CAMINANDO.
     if (type != ENEMY_TYPE_FOOT_SOLDIER) {
-        if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)
-            x = (side < 0) ? (s16)(camX - ENEMY_SPRITE_W_WHITE) : (s16)(camX + SCREEN_W);
         initEnemyWalkInSpawn(e, x, y, (s8)((side < 0) ? 1 : -1),
                              (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) ? PAL3 : PAL2, type);
     }
@@ -593,12 +590,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 // soldier sin sprite no se puede animar.
                 {
                     u8 ty = w->type[waveSpawned];
-                    const SpriteDefinition* def =
-                        (ty == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? &foot_soldier_orange :
-                        (ty == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? &foot_soldier_white  :
-                        (ty == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? &foot_soldier_yellow :
-                                                                 &foot_soldier;
-                    if (!sprVramFits(def->maxNumTile)) break;
+                    if (!sprVramFits(enemySheetDef(ty)->maxNumTile)) break;
                 }
                 eStepZ[i] = 0;
                 spawnWaveEnemy(&enemies[i], w->type[waveSpawned],

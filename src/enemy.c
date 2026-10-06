@@ -38,6 +38,9 @@ static u8 enemyAnimIdle(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_IDLE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_IDLE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_IDLE;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_IDLE;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_IDLE;
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return SPEAR_ANIM_IDLE;
         default:                             return ENEMY_ANIM_IDLE;
     }
 }
@@ -46,6 +49,9 @@ static u8 enemyAnimWalk(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_WALK;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_WALK;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_WALK;
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return SPEAR_ANIM_WALK;
         default:                             return ENEMY_ANIM_WALK;
     }
 }
@@ -54,6 +60,9 @@ static u8 enemyAnimWalkUp(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_WALK_UP;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_WALK_UP;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_WALK_UP;
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return SPEAR_ANIM_WALK_UP;
         default:                             return ENEMY_ANIM_WALK_UP;
     }
 }
@@ -86,12 +95,18 @@ static u8 enemyAnimExplode(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_EXPLODE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_EXPLODE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_EXPLODE;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_EXPLODE;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_EXPLODE;
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return SPEAR_ANIM_EXPLODE;
         default:                             return ENEMY_ANIM_EXPLODE;
     }
 }
 static u8 enemyAnimHit(Enemy* e) {
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return ORANGE_ANIM_HIT;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  return WHITE_ANIM_HIT;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    return GUN_ANIM_HIT;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) return HAMMER_ANIM_HIT;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)  return SPEAR_ANIM_HIT;
     u8 hitAnim = (u8)(((e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW)
                        ? YELLOW_ANIM_HIT_1 : ENEMY_ANIM_HIT_1) + e->hitToggle);
     if (++e->hitToggle >= 3) e->hitToggle = 0;
@@ -111,6 +126,12 @@ static u16 enemyAttackTime(const Enemy* e) {
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW)
         return (e->attackType == ENEMY_ATTACK_CATCH) ? YELLOW_CATCH_TIME
                                                      : YELLOW_THROW_TIME;
+    switch (e->attackType) {                      // (06/10) los de arma
+        case ENEMY_ATTACK_GUN:         return GUN_SHOOT_TIME;
+        case ENEMY_ATTACK_TAUNT:       return GUN_TAUNT_TIME;
+        case ENEMY_ATTACK_SPEAR_THROW: return SPEAR_THROW_TIME;
+        default: break;
+    }
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
         switch (e->attackType) {
             case ENEMY_ATTACK_KICK:    return ORANGE_KICK_TIME;
@@ -129,6 +150,9 @@ static u16 enemyExplodeTime(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_EXPLODE_TIME;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return FW_EXPLODE_TIME;
         default:                             return ENEMY_EXPLODE_TIME;
     }
 }
@@ -204,9 +228,32 @@ static const ComboStep whiteComboPunch[] = {
       WHITE_MID_HIT_START, WHITE_MID_HIT_END, WHITE_SLASH_MID2_REACH, 0 }
 };
 
+// ---------------------------------------------------------------------------
+// GOLPES DE LOS FOOT SOLDIERS CON ARMA (06/10): un solo paso cada uno.
+// ---------------------------------------------------------------------------
+static const ComboStep gunComboButt[] = {
+    { GUN_ANIM_BUTT, GUN_BUTT_TIME, GUN_BUTT_HIT_START, GUN_BUTT_HIT_END, GUN_BUTT_REACH, 0 }
+};
+static const ComboStep hammerComboSwing[] = {
+    { HAMMER_ANIM_SWING, HAMMER_SWING_TIME, HAMMER_HIT_START, HAMMER_HIT_END, HAMMER_REACH, 0 }
+};
+static const ComboStep spearComboThrust[] = {
+    { SPEAR_ANIM_THRUST, SPEAR_THRUST_TIME, SPEAR_HIT_START, SPEAR_HIT_END, SPEAR_REACH, 0 }
+};
+
+static bool enemyHasWeapon(u8 type) {
+    return type == ENEMY_TYPE_FOOT_SOLDIER_GUN ||
+           type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER ||
+           type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR;
+}
+
 // Devuelve la tabla del combo según el tipo de enemigo y de ataque. El naranja
 // no usa combos → comboLen queda en 0 y va por el camino simple.
 static const ComboStep* comboStepsFor(u8 type, u8 attackType) {
+    (void)attackType;
+    if (type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    return gunComboButt;
+    if (type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) return hammerComboSwing;
+    if (type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)  return spearComboThrust;
     if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
         return (attackType == ENEMY_ATTACK_PUNCH) ? whiteComboPunch
                                                   : whiteComboFront;
@@ -219,6 +266,7 @@ static const ComboStep* comboStepsFor(u8 type, u8 attackType) {
 }
 
 static u8 comboLengthFor(u8 type, u8 attackType) {
+    if (enemyHasWeapon(type)) return 1;
     if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
         // El salto va por fuera del motor de combos (necesita el arco en Z).
         if (attackType == ENEMY_ATTACK_JUMP) return 0;
@@ -271,6 +319,11 @@ static s16 enemyMinX(const Enemy* e) {
     if (e->state == ENEMY_STATE_SPAWNING) return -(s16)e->w;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE ||
         e->type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) return e->cameraOffsetX;
+    // (06/10) Fusil y lanza tiran desde lejos: el CENTRO no sale de camara
+    // (la celda es ancha por el arma, el borde de la celda si puede salir).
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_GUN ||
+        e->type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)
+        return (s16)(e->cameraOffsetX - e->w / 2 + 16);
     return -(s16)e->w;
 }
 
@@ -336,7 +389,10 @@ static void releaseTarget(u8 target) {
 static bool attackIsRanged(u8 attackType) {
     return attackType == ENEMY_ATTACK_SHURIKEN ||
            attackType == ENEMY_ATTACK_BOOMERANG ||
-           attackType == ENEMY_ATTACK_CATCH;
+           attackType == ENEMY_ATTACK_CATCH ||
+           attackType == ENEMY_ATTACK_GUN ||
+           attackType == ENEMY_ATTACK_TAUNT ||
+           attackType == ENEMY_ATTACK_SPEAR_THROW;
 }
 
 static void leaveAttackState(Enemy* e) {
@@ -359,51 +415,137 @@ void shurikenInit(void) {
     }
 }
 
+static void shotFree(u16 i) {
+    if (shurikens[i].sprite) SPR_releaseSprite(shurikens[i].sprite);
+    shurikens[i].sprite = NULL;
+    shurikens[i].active = 0;
+}
+
+// Slot libre del pool (o -1).
+static s16 shotSlot(void) {
+    for (u16 i = 0; i < MAX_SHURIKENS; i++)
+        if (!shurikens[i].active) return (s16)i;
+    return -1;
+}
+
 void shurikenSpawn(s16 x, s16 y, s8 dir, u8 palette) {
-    for (u16 i = 0; i < MAX_SHURIKENS; i++) {
-        if (shurikens[i].active) continue;
-        shurikens[i].x = x;
-        shurikens[i].y = y;
-        shurikens[i].dir = dir;
-        shurikens[i].cameraOffsetX = 0;
-        shurikens[i].active = 1;
-        shurikens[i].sprite = SPR_addSprite(&shuriken_sprite,
-                                            x, y - ENEMY_FOOT_OFFSET_ORANGE + 40,
-                                            TILE_ATTR(palette, FALSE, FALSE, FALSE));
-        if (shurikens[i].sprite) {
-            SPR_setDepth(shurikens[i].sprite, -(y) - 1);
-            SPR_setHFlip(shurikens[i].sprite, (dir < 0));
-        }
-        return;   // slot encontrado
+    s16 i = shotSlot();
+    if (i < 0) return;
+    shurikens[i].x = x;
+    shurikens[i].y = y;
+    shurikens[i].dir = dir;
+    shurikens[i].cameraOffsetX = 0;
+    shurikens[i].active = 1;
+    shurikens[i].kind = SHOT_SHURIKEN;
+    shurikens[i].spark = 0;
+    shurikens[i].acc = 0;
+    shurikens[i].zq = 0;
+    shurikens[i].sprite = SPR_addSprite(&shuriken_sprite,
+                                        x, y - ENEMY_FOOT_OFFSET_ORANGE + 40,
+                                        TILE_ATTR(palette, FALSE, FALSE, FALSE));
+    if (shurikens[i].sprite) {
+        SPR_setDepth(shurikens[i].sprite, -(y) - 1);
+        SPR_setHFlip(shurikens[i].sprite, (dir < 0));
+    }
+}
+
+// (06/10) Bala del fusil: 'cx' es el centro (mundo), sale a la altura del cano
+// y baja en diagonal. Sin sprite (VRAM llena) vuela igual.
+void enemyBulletSpawn(s16 cx, s16 lane, s8 dir) {
+    s16 i = shotSlot();
+    if (i < 0) return;
+    shurikens[i].x = cx;
+    shurikens[i].y = lane;
+    shurikens[i].dir = dir;
+    shurikens[i].cameraOffsetX = 0;
+    shurikens[i].active = 1;
+    shurikens[i].kind = SHOT_BULLET;
+    shurikens[i].spark = 0;
+    shurikens[i].acc = 0;
+    shurikens[i].zq = (s16)(GUN_MUZZLE_Z << 8);
+    shurikens[i].sprite = SPR_addSprite(&foot_gun_fx, -32, -32,
+                                        TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    if (shurikens[i].sprite) {
+        SPR_setDepth(shurikens[i].sprite, -(lane) - 1);
+        SPR_setAnimAndFrame(shurikens[i].sprite, 0, 0);
+    }
+}
+
+// (06/10) Lanza tirada: 'cx' es el centro (mundo), recta a la altura de la mano.
+void enemySpearSpawn(s16 cx, s16 lane, s8 dir) {
+    s16 i = shotSlot();
+    if (i < 0) return;
+    shurikens[i].x = cx;
+    shurikens[i].y = lane;
+    shurikens[i].dir = dir;
+    shurikens[i].cameraOffsetX = 0;
+    shurikens[i].active = 1;
+    shurikens[i].kind = SHOT_SPEAR;
+    shurikens[i].spark = 0;
+    shurikens[i].acc = 0;
+    shurikens[i].zq = (s16)(SPEAR_PROJ_Z << 8);
+    shurikens[i].sprite = SPR_addSprite(&foot_spear_fx, -100, -32,
+                                        TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    if (shurikens[i].sprite) {
+        SPR_setDepth(shurikens[i].sprite, -(lane) - 1);
+        SPR_setHFlip(shurikens[i].sprite, (dir < 0));
     }
 }
 
 void shurikenUpdate(s16 camX) {
     for (u16 i = 0; i < MAX_SHURIKENS; i++) {
-        if (!shurikens[i].active) continue;
-        shurikens[i].cameraOffsetX = camX;
-        shurikens[i].x += shurikens[i].dir * ORANGE_SHURIKEN_SPEED;
+        Shuriken* s = &shurikens[i];
+        if (!s->active) continue;
+        s->cameraOffsetX = camX;
 
-        // Fuera de pantalla (con margen de 32px a cada lado)
-        if (shurikens[i].x < camX - 32 || shurikens[i].x > camX + 320 + 32) {
-            if (shurikens[i].sprite) SPR_releaseSprite(shurikens[i].sprite);
-            shurikens[i].sprite = NULL;
-            shurikens[i].active = 0;
+        if (s->kind == SHOT_BULLET) {
+            if (s->spark) {
+                // Chispas en el piso: no se mueve ni pega.
+                if (--s->spark == 0) { shotFree(i); continue; }
+            } else {
+                u16 t = (u16)(s->acc + GUN_BULLET_Q);
+                s->acc = (u8)(t & 0xFF);
+                s->x += s->dir * (s16)(t >> 8);
+                s->zq -= GUN_BULLET_DZQ;
+                if (s->zq <= 0) {               // toco el piso: chispas
+                    s->zq = 0;
+                    s->spark = GUN_SPARK_TIME;
+                    if (s->sprite) SPR_setAnimAndFrame(s->sprite, 1, 0);
+                }
+            }
+            if (s->x < camX - 32 || s->x > camX + 320 + 32) { shotFree(i); continue; }
+            if (s->sprite)
+                SPR_setPosition(s->sprite, s->x - camX - 8,
+                                s->y - (s->zq >> 8) - 12 - stageCamY);
             continue;
         }
-        if (shurikens[i].sprite)
-            SPR_setPosition(shurikens[i].sprite,
-                            shurikens[i].x - shurikens[i].cameraOffsetX,
-                            shurikens[i].y - ENEMY_FOOT_OFFSET_ORANGE + 40 - stageCamY);
+        if (s->kind == SHOT_SPEAR) {
+            u16 t = (u16)(s->acc + SPEAR_PROJ_Q);
+            s->acc = (u8)(t & 0xFF);
+            s->x += s->dir * (s16)(t >> 8);
+            if (s->x < camX - SPEAR_PROJ_W || s->x > camX + 320 + SPEAR_PROJ_W) { shotFree(i); continue; }
+            if (s->sprite)
+                SPR_setPosition(s->sprite, s->x - camX - SPEAR_PROJ_W / 2,
+                                s->y - SPEAR_PROJ_Z - 4 - stageCamY);
+            continue;
+        }
+
+        s->x += s->dir * ORANGE_SHURIKEN_SPEED;
+
+        // Fuera de pantalla (con margen de 32px a cada lado)
+        if (s->x < camX - 32 || s->x > camX + 320 + 32) {
+            shotFree(i);
+            continue;
+        }
+        if (s->sprite)
+            SPR_setPosition(s->sprite,
+                            s->x - s->cameraOffsetX,
+                            s->y - ENEMY_FOOT_OFFSET_ORANGE + 40 - stageCamY);
     }
 }
 
 void shurikenReleaseAll(void) {
-    for (u16 i = 0; i < MAX_SHURIKENS; i++) {
-        if (shurikens[i].sprite) SPR_releaseSprite(shurikens[i].sprite);
-        shurikens[i].sprite = NULL;
-        shurikens[i].active = 0;
-    }
+    for (u16 i = 0; i < MAX_SHURIKENS; i++) shotFree(i);
 }
 
 bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
@@ -412,17 +554,31 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
     s16 pcy = py;                         // pies del jugador
 
     for (u16 i = 0; i < MAX_SHURIKENS; i++) {
-        if (!shurikens[i].active) continue;
+        Shuriken* s = &shurikens[i];
+        if (!s->active) continue;
 
-        s16 scx = shurikens[i].x + 8;   // centro del shuriken (16px wide → +8)
-        s16 scy = shurikens[i].y;
+        if (s->kind != SHOT_SHURIKEN) {
+            // Bala (en vuelo) y lanza: el centro contra el de la tortuga y la
+            // lane de -5 a +7 respecto de la del que tiro.
+            if (s->kind == SHOT_BULLET && s->spark) continue;
+            s16 dy = pcy - s->y;
+            s16 reachX = (s->kind == SHOT_SPEAR) ? 24 : 12;
+            if (absS16(pcx - s->x) < reachX &&
+                dy >= -FW_PROJ_DY_UP && dy <= FW_PROJ_DY_DOWN) {
+                if (hitX) *hitX = s->x;
+                shotFree(i);
+                return TRUE;
+            }
+            continue;
+        }
+
+        s16 scx = s->x + 8;   // centro del shuriken (16px wide → +8)
+        s16 scy = s->y;
 
         if (absS16(pcx - scx) < 16 && absS16(pcy - scy) < 16) {
             // Impacto: destruir el shuriken
             if (hitX) *hitX = scx;
-            if (shurikens[i].sprite) SPR_releaseSprite(shurikens[i].sprite);
-            shurikens[i].sprite = NULL;
-            shurikens[i].active = 0;
+            shotFree(i);
             return TRUE;
         }
     }
@@ -438,17 +594,17 @@ bool shurikenBreakByPlayerAttack(const Player* p) {
     // (23/09) SOLO cuerpo a cuerpo: la patada voladora NO rompe shurikens.
     // El jugador no puede limpiar la pantalla saltando; para cortar el tiro
     // hay que estar en el piso y golpear.
+    // (06/10) La lanza tirada tambien se rompe; la bala del fusil no.
     if (isPlayerJumpKicking(p)) return FALSE;
 
     bool broke = FALSE;
     for (u16 i = 0; i < MAX_SHURIKENS; i++) {
-        if (!shurikens[i].active) continue;
-        s16 scx = shurikens[i].x + 8;   // centro del shuriken (16px wide → +8)
+        if (!shurikens[i].active || shurikens[i].kind == SHOT_BULLET) continue;
+        s16 scx = (shurikens[i].kind == SHOT_SPEAR) ? shurikens[i].x
+                                                     : shurikens[i].x + 8;
         s16 scy = shurikens[i].y;       // lane (pies) del lanzador = la del shuriken
         if (playerAttackHits(p, scx, scy)) {
-            if (shurikens[i].sprite) SPR_releaseSprite(shurikens[i].sprite);
-            shurikens[i].sprite = NULL;
-            shurikens[i].active = 0;
+            shotFree(i);
             broke = TRUE;
         }
     }
@@ -988,6 +1144,31 @@ void lidReleaseAll(void) {
 // ---------------------------------------------------------------------------
 // SPAWN DE ENEMIGOS
 // ---------------------------------------------------------------------------
+// (06/10) Hoja y ancho de celda de cada tipo.
+const SpriteDefinition* enemySheetDef(u8 type) {
+    switch (type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return &foot_soldier_orange;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return &foot_soldier_white;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return &foot_soldier_yellow;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return &foot_gun;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return &foot_hammer;
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return &foot_spear;
+        default:                             return &foot_soldier;
+    }
+}
+
+s16 enemySpriteW(u8 type) {
+    switch (type) {
+        case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_SPRITE_W_ORANGE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_SPRITE_W_WHITE;
+        case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_SPRITE_W_YELLOW;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return ENEMY_SPRITE_W_GUN;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return ENEMY_SPRITE_W_HAMMER;
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return ENEMY_SPRITE_W_SPEAR;
+        default:                             return ENEMY_SPRITE_W_PURPLE;
+    }
+}
+
 void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8 type) {
     e->x           = spawnX;
     e->y           = y;
@@ -1007,6 +1188,9 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->hp          = (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_HP_ORANGE
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? ENEMY_HP_WHITE
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? ENEMY_HP_YELLOW
+                   : (type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    ? ENEMY_HP_GUN
+                   : (type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) ? ENEMY_HP_HAMMER
+                   : (type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)  ? ENEMY_HP_SPEAR
                                                               : ENEMY_HP_PURPLE;
     e->invincible  = 0;
     e->palette     = palette;
@@ -1036,6 +1220,9 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->jumpVel    = 0;
     e->gravTick = 0;
     e->boomSlot = -1;
+    // (06/10) La mitad de los de la lanza la pueden tirar (como el remaster,
+    // que se lo marca a unos si y a otros no).
+    e->spearThrow = (type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR) ? (u8)(random() & 1) : 0;
 
     // Dimensiones de frame según el tipo (sheet morada 64x80 con los pies en
     // el borde; la naranja mantiene la grilla vieja 104x104).
@@ -1051,6 +1238,13 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
         e->w          = ENEMY_SPRITE_W_YELLOW;
         e->h          = ENEMY_SPRITE_H_YELLOW;
         e->footOffset = ENEMY_FOOT_OFFSET_YELLOW;
+    } else if (enemyHasWeapon(type)) {
+        // (06/10) Celdas de las hojas con arma, pies en el borde de abajo.
+        e->w          = enemySpriteW(type);
+        e->h          = (type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    ? ENEMY_SPRITE_H_GUN :
+                        (type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) ? ENEMY_SPRITE_H_HAMMER :
+                                                                   ENEMY_SPRITE_H_SPEAR;
+        e->footOffset = e->h;
     } else {
         e->w          = ENEMY_SPRITE_W_PURPLE;
         e->h          = ENEMY_SPRITE_H_PURPLE;
@@ -1074,14 +1268,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->retargetTimer = ENEMY_RETARGET_INTERVAL;
 
     // Elegir spritesheet y paleta según el tipo
-    const SpriteDefinition* sheetDef = &foot_soldier;
-    if (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
-        sheetDef = &foot_soldier_orange;
-    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
-        sheetDef = &foot_soldier_white;
-    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
-        sheetDef = &foot_soldier_yellow;
-    }
+    const SpriteDefinition* sheetDef = enemySheetDef(type);
     e->sprite = SPR_addSprite(sheetDef, e->x, e->y,
                               TILE_ATTR(palette, FALSE, FALSE, FALSE));
 
@@ -1089,8 +1276,10 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     // (29/09) El amarillo NO: su PNG tiene el mismo orden de indices que el
     // morado pero con los colores del rip un poco distintos, y PAL2 es
     // compartida. Se dibuja con la del morado.
+    // (06/10) Los de arma tampoco: misma paleta unica (PAL2).
     const SpriteDefinition* palDef =
-        (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? &foot_soldier : sheetDef;
+        (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW || enemyHasWeapon(type))
+        ? &foot_soldier : sheetDef;
     PAL_setPalette(palette, palDef->palette->data, DMA);
 
     if (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
@@ -1356,6 +1545,9 @@ s16 enemyBodyHalfW(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_HALF_W_ORANGE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_HALF_W_WHITE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_BODY_HALF_W_YELLOW;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return ENEMY_BODY_HALF_W_FW;
         default:                             return ENEMY_BODY_HALF_W_PURPLE;
     }
 }
@@ -1366,6 +1558,9 @@ bool playerAttackHitsEnemy(const Player* p, const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE:
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW:
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:
             return playerAttackHitsBox(p, cx, e->y, enemyBodyHalfW(e), enemyBodyH(e));
         default: {
             // morado: caja asimetrica -> centro corrido hacia adelante
@@ -1382,8 +1577,28 @@ s16 enemyBodyH(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_H_ORANGE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_H_WHITE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_BODY_H_YELLOW;
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return ENEMY_BODY_H_GUN;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return ENEMY_BODY_H_FW;
         default:                             return ENEMY_BODY_H_PURPLE;
     }
+}
+
+// (06/10) El de la lanza, despues de tirarla, pasa a ser un foot soldier
+// MORADO comun (como en el remaster): misma vida, misma posicion, otra hoja.
+static void enemySpearToPurple(Enemy* e) {
+    s16 cx = getEnemyCenterX(e);
+    e->type       = ENEMY_TYPE_FOOT_SOLDIER;
+    e->w          = ENEMY_SPRITE_W_PURPLE;
+    e->h          = ENEMY_SPRITE_H_PURPLE;
+    e->footOffset = ENEMY_FOOT_OFFSET_PURPLE;
+    e->x          = (s16)(cx - ENEMY_SPRITE_W_PURPLE / 2);
+    e->flankTimer = 0;
+    e->hitToggle  = 0;
+    SPR_setDefinition(e->sprite, &foot_soldier);
+    SPR_setAutoAnimation(e->sprite, TRUE);
+    e->anim = 0xFF;
+    enemySetAnim(e, ENEMY_ANIM_IDLE, TRUE);
 }
 
 // ---------------------------------------------------------------------------
@@ -1440,6 +1655,11 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 return;
             }
         }
+        // (06/10) Los de arma no tienen explosion en la hoja: quedan tirados y
+        // parpadean hasta desaparecer.
+        if (enemyHasWeapon(e->type))
+            SPR_setVisibility(e->sprite, (e->timer < FW_BLINK_TIME && (e->timer & 2))
+                                         ? HIDDEN : VISIBLE);
         SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
         return;
     }
@@ -1694,6 +1914,48 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                         wantAttack = TRUE;
                     }
                 }
+            } else if (enemyHasWeapon(e->type)) {
+                // --- Con ARMA (06/10): encaran de frente, sin flanquear ---
+                // Distancias de CENTRO a centro (las celdas son de otro ancho
+                // que la de la tortuga).
+                s16  ecx      = getEnemyCenterX(e);
+                s16  cdist    = absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - ecx));
+                s16  screenX  = ecx - e->cameraOffsetX;
+                bool onScreen = (screenX > 16) && (screenX < ENEMY_SCREEN_W - 16);
+                bool meleeOk  = (e->attackCooldown == 0 &&
+                                 enemiesAttacking < ENEMY_MAX_ATTACKERS &&
+                                 absS16(dy) <= ENEMY_ATTACK_TOL_Y);
+                if (e->type == ENEMY_TYPE_FOOT_SOLDIER_GUN) {
+                    if (meleeOk && cdist <= GUN_SHOOT_MIN) {
+                        e->attackType = ENEMY_ATTACK_FRONT;          // culatazo
+                        wantAttack = TRUE;
+                    } else if (e->attackCooldown == 0 && onScreen &&
+                               absS16(dy) <= GUN_ALIGN_Y && cdist <= GUN_SHOOT_RANGE) {
+                        // Alineado y a tiro: 1/3 rafaga, 1/3 burla, 1/3 espera.
+                        u8 r = (u8)(random() % 3);
+                        if (r == 0)      { e->attackType = ENEMY_ATTACK_GUN;   wantAttack = TRUE; }
+                        else if (r == 1) { e->attackType = ENEMY_ATTACK_TAUNT; wantAttack = TRUE; }
+                        else e->attackCooldown = (u8)(30 + (random() & 31));
+                    }
+                } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) {
+                    if (meleeOk && cdist <= HAMMER_RANGE) {
+                        e->attackType = ENEMY_ATTACK_FRONT;          // martillazo
+                        wantAttack = TRUE;
+                    }
+                } else {
+                    // LANZA: si la puede tirar y esta cerca del centro de la
+                    // pantalla, la tira; si no, estocada.
+                    s16 fromMid = absS16((s16)(screenX - ENEMY_SCREEN_W / 2));
+                    if (e->spearThrow && e->attackCooldown == 0 &&
+                        fromMid <= SPEAR_THROW_SCREEN && absS16(dy) <= SPEAR_ALIGN_Y &&
+                        cdist >= SPEAR_THROW_MIN) {
+                        e->attackType = ENEMY_ATTACK_SPEAR_THROW;
+                        wantAttack = TRUE;
+                    } else if (meleeOk && cdist <= SPEAR_RANGE) {
+                        e->attackType = ENEMY_ATTACK_FRONT;          // estocada
+                        wantAttack = TRUE;
+                    }
+                }
             } else {
                 // Morado (y cualquier otro melee): ataca si está en rango y —
                 // mientras dure el flanqueo— sólo desde la espalda del jugador.
@@ -1724,7 +1986,8 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 // arcade ATTACK S0/S1/S2): comboLen > 0 activa la tabla de
                 // pasos; el naranja deja comboLen en 0 (ataque simple).
                 e->comboLen   = (e->type == ENEMY_TYPE_FOOT_SOLDIER ||
-                                 e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)
+                                 e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE ||
+                                 (enemyHasWeapon(e->type) && !attackIsRanged(e->attackType)))
                                 ? comboLengthFor(e->type, e->attackType) : 0;
                 e->comboStep  = 0;
                 e->timer      = enemyAttackTime(e);
@@ -1780,6 +2043,28 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                     moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;
                 } else if (dist > WHITE_SLASH_LONG_REACH) {
                     moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
+                }
+            } else if (enemyHasWeapon(e->type)) {
+                // Con ARMA (06/10): derecho hacia la tortuga hasta su distancia
+                // de ataque; en el cooldown, si quedo encima, retrocede un poco
+                // (sin salirse de camara). El de la lanza que todavia la tiene
+                // se queda mas lejos, a distancia de tiro.
+                s16  ecx      = getEnemyCenterX(e);
+                s16  cdx      = (s16)(targetX + PLAYER_SPRITE_W / 2 - ecx);
+                s16  cdist    = absS16(cdx);
+                s16  screenX  = ecx - e->cameraOffsetX;
+                bool onScreen = (screenX > 16) && (screenX < ENEMY_SCREEN_W - 16);
+                s16  standoff = (e->type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    ? GUN_STANDOFF :
+                                (e->type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) ? HAMMER_STANDOFF :
+                                e->spearThrow ? SPEAR_THROW_STANDOFF : SPEAR_STANDOFF;
+                if (!onScreen) {
+                    moveX = (cdx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
+                } else if (e->attackCooldown > 0 && cdist < standoff - 12) {
+                    moveX = (cdx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;
+                    s16 nx = (s16)(screenX + moveX);
+                    if (nx < 16 || nx > ENEMY_SCREEN_W - 16) moveX = 0;
+                } else if (cdist > standoff) {
+                    moveX = (cdx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
                 }
             } else {
                 // Morado: apunta a un punto DETRÁS del jugador (espalda = lado
@@ -1951,6 +2236,18 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                     shurikenSpawn(spawnX, e->y, e->dir, e->palette);
                 }
 
+                // (06/10) Rafaga del fusil: dos balas con los fogonazos.
+                if (e->attackType == ENEMY_ATTACK_GUN &&
+                    (e->timer == GUN_SHOT1_TIMER || e->timer == GUN_SHOT2_TIMER))
+                    enemyBulletSpawn((s16)(getEnemyCenterX(e) + e->dir * GUN_MUZZLE_DX),
+                                     e->y, e->dir);
+                // (06/10) La lanza sale al empezar el 4to frame del tiro.
+                if (e->attackType == ENEMY_ATTACK_SPEAR_THROW &&
+                    e->timer == SPEAR_RELEASE_TIMER && e->spearThrow) {
+                    enemySpearSpawn((s16)(getEnemyCenterX(e) + e->dir * 24), e->y, e->dir);
+                    e->spearThrow = 0;
+                }
+
                 // Boomerang del amarillo: sale al empezar el frame 6.
                 if (e->attackType == ENEMY_ATTACK_BOOMERANG &&
                     e->timer == YELLOW_RELEASE_TIMER && e->boomSlot < 0)
@@ -1961,6 +2258,9 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             } else {
                 if (e->attackType == ENEMY_ATTACK_CATCH)
                     SPR_setAutoAnimation(e->sprite, TRUE);
+                // (06/10) Sin la lanza sigue como un foot soldier morado comun.
+                if (e->attackType == ENEMY_ATTACK_SPEAR_THROW)
+                    enemySpearToPurple(e);
                 leaveAttackState(e);
                 e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
                 newState = ENEMY_STATE_CHASE;
@@ -2060,6 +2360,12 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                     atkAnim = ORANGE_ANIM_SHURIKEN;
                 else if (e->attackType == ENEMY_ATTACK_BOOMERANG)
                     atkAnim = YELLOW_ANIM_THROW;
+                else if (e->attackType == ENEMY_ATTACK_GUN)
+                    atkAnim = GUN_ANIM_SHOOT;
+                else if (e->attackType == ENEMY_ATTACK_TAUNT)
+                    atkAnim = GUN_ANIM_TAUNT;
+                else if (e->attackType == ENEMY_ATTACK_SPEAR_THROW)
+                    atkAnim = SPEAR_ANIM_THROW;
                 else
                     atkAnim = enemyAnimUppercut(e);
                 enemyRestartAnim(e, atkAnim, FALSE);

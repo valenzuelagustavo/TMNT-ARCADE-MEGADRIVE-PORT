@@ -99,19 +99,25 @@ extern u8 cantidadJugadores;
 typedef enum { PH_TOP, PH_RIDE, PH_BOTTOM } TechnoPhase;
 
 // ---------------------------------------------------------------------------
-// OLEADAS (solo soldiers morados: los naranjas tiran shurikens y esos no
-// saben de camara vertical). Arriba se disparan por los pies del lider; la
-// de abajo, al llegar el ascensor.
+// OLEADAS (morados y, desde el 06/10, los de la LANZA, como en el remaster:
+// tres en cada una de las dos ultimas de arriba). Nada que tire proyectiles:
+// los shurikens y la lanza tirada no saben de camara vertical, asi que los de
+// la lanza de aca no la tiran (pelean con la estocada). Arriba se disparan
+// por los pies del lider; la de abajo, al llegar el ascensor.
 // ---------------------------------------------------------------------------
-typedef struct { s16 trigX, lockX; u8 n; s8 side[4]; } TechnoWave;
+#define P ENEMY_TYPE_FOOT_SOLDIER
+#define S ENEMY_TYPE_FOOT_SOLDIER_SPEAR
+typedef struct { s16 trigX, lockX; u8 n; s8 side[4]; u8 type[4]; } TechnoWave;
 static const TechnoWave topWaves[] = {
-    {  200,    0, 2, { +1, -1 } },
-    {  560,  380, 3, { +1, -1, +1 } },
-    {  940,  760, 3, { -1, +1, +1 } },
-    { 1300, 1120, 4, { +1, -1, +1, -1 } },
+    {  200,    0, 2, { +1, -1 },         { P, P } },
+    {  560,  380, 3, { +1, -1, +1 },     { P, P, P } },
+    {  940,  760, 3, { -1, +1, +1 },     { P, S, S } },
+    { 1300, 1120, 4, { +1, -1, +1, -1 }, { S, P, S, S } },
 };
 #define TOP_WAVES ((s16)(sizeof(topWaves) / sizeof(topWaves[0])))
-static const TechnoWave botWave = { 0, 0, 3, { +1, +1, -1 } };
+static const TechnoWave botWave = { 0, 0, 3, { +1, +1, -1 }, { P, P, P } };
+#undef P
+#undef S
 
 static const SbgRaw technoMap = {
     (const u32*) techno_tiles,
@@ -205,13 +211,17 @@ static void drawPlayers(Player** pls, u8 nPl, s16 camX, s16 camY) {
                             pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - camY);
 }
 
-static void spawnWaveEnemy(Enemy* e, s8 side, s16 camX, s16 laneT, s16 laneB) {
-    u8 type = ENEMY_TYPE_FOOT_SOLDIER;
-    s16 x = (side < 0) ? (s16)(camX - ENEMY_SPRITE_W_PURPLE) : (s16)(camX + SCREEN_W);
+static void spawnWaveEnemy(Enemy* e, s8 side, u8 type, s16 camX, s16 laneT, s16 laneB) {
+    s16 x = (side < 0) ? (s16)(camX - enemySpriteW(type)) : (s16)(camX + SCREEN_W);
     s16 span = (s16)(laneB - laneT - 16);
     s16 y = (s16)(laneT + 8 + ((span > 0) ? (s16)(random() % (u16)span) : 0));
-    if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
-    else          initEnemyKickSpawn(e, x, y, -1, PAL2, type);
+    if (type != ENEMY_TYPE_FOOT_SOLDIER) {
+        // (06/10) El de la lanza entra caminando y aca no la tira.
+        initEnemyWalkInSpawn(e, x, y, (s8)((side < 0) ? 1 : -1), PAL2, type);
+        e->spearThrow = 0;
+    }
+    else if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
+    else               initEnemyKickSpawn(e, x, y, -1, PAL2, type);
     setEnemyBounds(e, laneT, laneB, 0, 0, L8_W);
 }
 
@@ -469,7 +479,9 @@ SceneId showScene81() {
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
                 if (i >= MAX_ENEMIES) break;
-                spawnWaveEnemy(&enemies[i], wave->side[waveSpawned], cameraX, lt, lb);
+                if (!sprVramFits(enemySheetDef(wave->type[waveSpawned])->maxNumTile)) break;
+                spawnWaveEnemy(&enemies[i], wave->side[waveSpawned],
+                               wave->type[waveSpawned], cameraX, lt, lb);
                 waveSpawned++;
                 alive++;
             }

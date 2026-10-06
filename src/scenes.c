@@ -3315,15 +3315,19 @@ SceneId showScene11() {
                     // se dispararon las puertas (elevPhase 0->1).
                     s16 camL = cameraLockX;
                     s16 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
+                    // (06/10) Los refuerzos son el del FUSIL (por la
+                    // izquierda) y el del MARTILLO (por la derecha): en el
+                    // remaster de PC los de los ascensores traen armas.
                     for (u16 s = 0; s < 2; s++) {
                         for (u16 i = 0; i < MAX_ENEMIES; i++) {
                             if (enemies[i].state == ENEMY_STATE_INACTIVE) {
                                 if (s == 0)
-                                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 170,
-                                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                    initEnemyWalkInSpawn(&enemies[i],
+                                                         camL - enemySpriteW(ENEMY_TYPE_FOOT_SOLDIER_GUN), 170,
+                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_GUN);
                                 else
-                                    initEnemyKickSpawn(&enemies[i], camR, 196,
-                                                       -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                    initEnemyWalkInSpawn(&enemies[i], camR, 196,
+                                                         -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_HAMMER);
                                 activeEnemies++;
                                 break;
                             }
@@ -3356,8 +3360,10 @@ SceneId showScene11() {
                                     initEnemyWalkInSpawn(&enemies[i], camR, 163, -1, PAL3,   // (29/09) entra caminando
                                                          ENEMY_TYPE_FOOT_SOLDIER_WHITE);
                                 else if (s == 2)
-                                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 196,
-                                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+                                    // (06/10) el de la LANZA (remaster de PC)
+                                    initEnemyWalkInSpawn(&enemies[i],
+                                                         camL - enemySpriteW(ENEMY_TYPE_FOOT_SOLDIER_SPEAR), 196,
+                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_SPEAR);
                                 else
                                     initEnemyWalkInSpawn(&enemies[i], camR, 191,   // (29/09) caminando
                                                          -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);

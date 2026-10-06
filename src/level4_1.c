@@ -77,16 +77,22 @@ static const SbgRegion garageRegs[2] = {
 // ---------------------------------------------------------------------------
 // OLEADAS
 // ---------------------------------------------------------------------------
+// (06/10) Los de la LANZA de entrada y a mitad, y los del FUSIL al final,
+// como en el remaster de PC.
 #define P ENEMY_TYPE_FOOT_SOLDIER
 #define O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
+#define G ENEMY_TYPE_FOOT_SOLDIER_GUN
+#define S ENEMY_TYPE_FOOT_SOLDIER_SPEAR
 static const StageWave waves41[] = {
-    {  160,   0, 3, { P, P, O },    { +1, -1, +1 } },
-    {  440, 260, 3, { O, P, P },    { -1, +1, +1 } },
-    {  720, 540, 4, { P, O, P, O }, { +1, -1, -1, +1 } },
-    {  980, 800, 4, { O, P, O, P }, { -1, +1, +1, -1 } },
+    {  160,   0, 3, { S, P, S },    { +1, -1, +1 } },
+    {  440, 260, 3, { O, S, P },    { -1, +1, +1 } },
+    {  720, 540, 4, { G, O, G, O }, { +1, -1, -1, +1 } },
+    {  980, 800, 4, { O, P, G, P }, { -1, +1, +1, -1 } },
 };
 #undef P
 #undef O
+#undef G
+#undef S
 
 // ===========================================================================
 // PROPS

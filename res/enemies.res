@@ -113,6 +113,28 @@ SPRITE foot_soldier_yellow "sprites/Foot_Soldier_Yellow_boomerang.png" 8 10 FAST
 // [1] le pega a una tortuga (2f) | [2] roto por un golpe de tortuga (3f).
 SPRITE boomerang_sprite "sprites/boomerang.png" 4 4 FAST 4
 
+// --- Foot soldiers con ARMA (06/10): FUSIL, MARTILLO y LANZA ----------------
+// Hojas PROVISORIAS: las arma tools/gen_foot_weapons.py desde foot_gun.png,
+// foot_hammer.png y foot_spear.png (frames sueltos, mirando a la izquierda).
+// Si se toca alguna de esas tres, hay que volver a correr el script. Cuando
+// lleguen las definitivas en grilla se declaran directo aca.
+// Grilla pareja, arte mirando a la DERECHA, cuerpo centrado y pies en el
+// borde de abajo. Paleta unica de enemigos (PAL2). Filas: GUN_ANIM_*,
+// HAMMER_ANIM_* y SPEAR_ANIM_* de enemy.h.
+//   foot_gun     120x72  [0] idle [1] walk 7f [2] walk up 8f [3] rafaga 6f
+//                        [4] culatazo 5f [5] golpe [6] cae 3f [7] burla 6f
+//   foot_hammer  104x96  [0] idle [1] walk 8f [2] walk up 8f
+//                        [3] martillazo 6f [4] golpe 3f [5] cae 4f
+//   foot_spear   136x104 [0] idle [1] walk 8f [2] walk up 8f [3] estocada 5f
+//                        [4] tira la lanza 6f [5] golpe [6] cae 4f
+SPRITE foot_gun "sprites/foot_gun_gen.png" 15 9 FAST 6
+SPRITE foot_hammer "sprites/foot_hammer_gen.png" 13 12 FAST 6
+SPRITE foot_spear "sprites/foot_spear_gen.png" 17 13 FAST 6
+// Proyectiles: la bala del fusil ([0] en vuelo, [1] chispas en el piso, 6f)
+// en celdas de 16x24, y la lanza tirada (96x8).
+SPRITE foot_gun_fx "sprites/foot_gun_fx.png" 2 3 FAST 4
+SPRITE foot_spear_fx "sprites/foot_spear_fx.png" 12 1 FAST 0
+
 // --- Dinamita del foot soldier morado (18/09) --------------------------------
 // TNT: el cartucho que tira con la anim [16]. 192x24 = 8 frames de 24x24px
 // (3x3 tiles) girando sobre si mismo. Frame time 3 (1/20 s): a 8 frames da una

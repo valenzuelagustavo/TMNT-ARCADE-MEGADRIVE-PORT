@@ -25,17 +25,23 @@
 #define SCREEN_W            320
 #define LVL71_W            2024
 
+// (06/10) LANZAS (una por la espalda de entrada) y FUSILES, como en el
+// remaster de PC.
 #define P ENEMY_TYPE_FOOT_SOLDIER
 #define O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
+#define G ENEMY_TYPE_FOOT_SOLDIER_GUN
+#define S ENEMY_TYPE_FOOT_SOLDIER_SPEAR
 static const StageWave waves71[] = {
-    {  200,    0, 3, { P, P, O },    { +1, -1, +1 } },
-    {  560,  380, 3, { O, P, P },    { -1, +1, +1 } },
+    {  200,    0, 3, { P, S, O },    { +1, -1, +1 } },
+    {  560,  380, 3, { O, S, S },    { -1, +1, +1 } },
     {  920,  740, 4, { P, O, P, O }, { +1, -1, +1, -1 } },
-    { 1300, 1120, 4, { O, P, O, P }, { -1, +1, -1, +1 } },
-    { 1680, 1500, 4, { P, O, P, O }, { +1, +1, -1, -1 } },
+    { 1300, 1120, 4, { G, P, G, P }, { -1, +1, -1, +1 } },
+    { 1680, 1500, 4, { S, O, S, O }, { +1, +1, -1, -1 } },
 };
 #undef P
 #undef O
+#undef G
+#undef S
 
 // ---------------------------------------------------------------------------
 // Jefe: Granitor y sus llamas

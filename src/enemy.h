@@ -12,6 +12,9 @@
 #define ENEMY_TYPE_FOOT_SOLDIER_ORANGE 1   // foot soldier naranja (PAL3, shuriken)
 #define ENEMY_TYPE_FOOT_SOLDIER_WHITE  2   // foot soldier blanco, espada larga (PAL3)
 #define ENEMY_TYPE_FOOT_SOLDIER_YELLOW 3   // (29/09) foot soldier amarillo, boomerang (PAL2)
+#define ENEMY_TYPE_FOOT_SOLDIER_GUN    4   // (06/10) naranja del FUSIL (PAL2)
+#define ENEMY_TYPE_FOOT_SOLDIER_HAMMER 5   // (06/10) morado del MARTILLO (PAL2)
+#define ENEMY_TYPE_FOOT_SOLDIER_SPEAR  6   // (06/10) morado de la LANZA (PAL2)
 
 #define MAX_ENEMIES         8
 #define ENEMY_SPEED         1
@@ -352,9 +355,130 @@
 #define ENEMY_ATTACK_JUMP   4    // salto + espadazo cayendo (solo blanco, anims 6/7)
 #define ENEMY_ATTACK_BOOMERANG 5 // tirar el boomerang (solo amarillo, anim 1)
 #define ENEMY_ATTACK_CATCH  6    // atrapar el boomerang (amarillo, anim 1 al reves)
+#define ENEMY_ATTACK_GUN    7    // (06/10) rafaga del fusil (a distancia)
+#define ENEMY_ATTACK_TAUNT  8    // (06/10) burla del fusil (no pega)
+#define ENEMY_ATTACK_SPEAR_THROW 9 // (06/10) tira la lanza (a distancia)
+
+// ===========================================================================
+// FOOT SOLDIERS CON ARMA (06/10): FUSIL, MARTILLO y LANZA
+// ===========================================================================
+// Hojas armadas por tools/gen_foot_weapons.py desde las provisorias
+// (foot_gun/hammer/spear.png): grilla pareja, arte mirando a la DERECHA, el
+// cuerpo centrado en la celda y los pies en el borde de abajo. Las tres usan
+// la paleta unica de enemigos (PAL2). Frame time 6 en las tres.
+//
+// Conducta (la del remaster de PC):
+//   FUSIL    se acerca; alineado en la lane y a menos de GUN_SHOOT_RANGE:
+//            1/3 rafaga (dos balas que bajan en diagonal hasta el piso),
+//            1/3 burla, 1/3 espera. Pegado: culatazo.
+//   MARTILLO va derecho a la tortuga y a HAMMER_RANGE o menos, martillazo.
+//   LANZA    si tiene la lanza para tirar (la mitad, al azar) y esta en
+//            pantalla, la tira; despues sigue como un foot soldier MORADO
+//            comun (cambia de hoja). Si no, estocada a SPEAR_RANGE o menos.
+//   Ninguno flanquea ni agarra: encaran de frente.
+#define FW_TICKS                 6    // frame time de las tres hojas
+
+#define GUN_ANIM_IDLE            0
+#define GUN_ANIM_WALK            1    // 7f
+#define GUN_ANIM_WALK_UP         2    // 8f
+#define GUN_ANIM_SHOOT           3    // 6f: apunta, fogonazos, apunta
+#define GUN_ANIM_BUTT            4    // 5f: culatazo (pega en el 4to)
+#define GUN_ANIM_HIT             5    // 1f
+#define GUN_ANIM_EXPLODE         6    // 3f: golpeado y cae
+#define GUN_ANIM_TAUNT           7    // 6f: para el fusil
+
+#define HAMMER_ANIM_IDLE         0
+#define HAMMER_ANIM_WALK         1    // 8f
+#define HAMMER_ANIM_WALK_UP      2    // 8f
+#define HAMMER_ANIM_SWING        3    // 6f: sube, baja, golpea el piso (4to y 5to)
+#define HAMMER_ANIM_HIT          4    // 3f
+#define HAMMER_ANIM_EXPLODE      5    // 4f: cae
+
+#define SPEAR_ANIM_IDLE          0
+#define SPEAR_ANIM_WALK          1    // 8f
+#define SPEAR_ANIM_WALK_UP       2    // 8f
+#define SPEAR_ANIM_THRUST        3    // 5f: estocada (pega en el 3ro y 4to)
+#define SPEAR_ANIM_THROW         4    // 6f: la lanza sale al empezar el 4to
+#define SPEAR_ANIM_HIT           5    // 1f
+#define SPEAR_ANIM_EXPLODE       6    // 4f: cae (frames de la caida del martillo)
+
+// Celdas (px). Pies en el borde de abajo.
+#define ENEMY_SPRITE_W_GUN     120
+#define ENEMY_SPRITE_H_GUN      72
+#define ENEMY_SPRITE_W_HAMMER  104
+#define ENEMY_SPRITE_H_HAMMER   96
+#define ENEMY_SPRITE_W_SPEAR   136
+#define ENEMY_SPRITE_H_SPEAR   104
+// Cuerpo (como el morado: el arma no cuenta como cuerpo).
+#define ENEMY_BODY_HALF_W_FW     14
+#define ENEMY_BODY_H_GUN         56
+#define ENEMY_BODY_H_FW          60
+
+#define ENEMY_HP_GUN             4
+#define ENEMY_HP_HAMMER          4
+#define ENEMY_HP_SPEAR           4
+
+// Muerte: la caida de la hoja y despues parpadea hasta desaparecer.
+#define FW_EXPLODE_TIME         48
+#define FW_BLINK_TIME           24
+
+// Distancias de decision (centro a centro, px)
+#define GUN_SHOOT_RANGE        100    // rafaga a esto o menos ...
+#define GUN_SHOOT_MIN           40    // ... y a mas que esto (pegado: culatazo)
+#define GUN_STANDOFF            72    // se planta aca para tirar
+#define GUN_ALIGN_Y              6    // |dy| para tirar (la bala va por su lane)
+#define HAMMER_RANGE            57
+#define HAMMER_STANDOFF         40
+#define SPEAR_RANGE             62
+#define SPEAR_STANDOFF          48
+#define SPEAR_THROW_STANDOFF    90    // el que todavia tiene la lanza para tirar
+#define SPEAR_THROW_MIN         50    // tira la lanza a mas que esto ...
+#define SPEAR_THROW_SCREEN     100    // ... con el centro a esto o menos del
+                                      // centro de la camara
+#define SPEAR_ALIGN_Y            6
+
+// Ataques: duracion (frames x FW_TICKS) y ventana del golpe (timer, cuenta
+// hacia atras).
+#define GUN_SHOOT_TIME          36    // 6f
+#define GUN_SHOT1_TIMER         30    // primera bala (2do frame, fogonazo)
+#define GUN_SHOT2_TIMER         21    // segunda bala
+#define GUN_TAUNT_TIME          36
+#define GUN_BUTT_TIME           30    // 5f, pega en el 4to (18..23)
+#define GUN_BUTT_HIT_START       7
+#define GUN_BUTT_HIT_END        12
+#define GUN_BUTT_REACH          44
+#define HAMMER_SWING_TIME       36    // 6f, pega en el 4to y 5to (18..29)
+#define HAMMER_HIT_START         7
+#define HAMMER_HIT_END          18
+#define HAMMER_REACH            60
+#define SPEAR_THRUST_TIME       30    // 5f, pega en el 3ro y 4to (12..23)
+#define SPEAR_HIT_START          7
+#define SPEAR_HIT_END           18
+#define SPEAR_REACH             64
+#define SPEAR_THROW_TIME        36
+#define SPEAR_RELEASE_TIMER     18    // sale al empezar el 4to frame
+
+// --- Proyectiles (van en el pool de los shurikens) ---
+// La bala del fusil: avanza GUN_BULLET_Q y baja GUN_BULLET_DZQ desde la
+// altura del cano hasta el piso, donde salta en chispas (no pega). En vuelo
+// le pega a la tortuga de su lane.
+#define GUN_MUZZLE_DX           30
+#define GUN_MUZZLE_Z            30
+#define GUN_BULLET_Q           960    // 3,75 px/f (Q8)
+#define GUN_BULLET_DZQ         320    // 1,25 px/f hacia abajo
+#define GUN_SPARK_TIME          24    // chispas: 6 frames x 4
+// La lanza tirada: recta, a la altura de la mano.
+#define SPEAR_PROJ_Q          1600    // 6,25 px/f
+#define SPEAR_PROJ_Z            40
+#define SPEAR_PROJ_W            96    // celda del sprite
+// Lane de la tortuga respecto de la del que tiro: de -5 a +7 (como los jefes).
+#define FW_PROJ_DY_UP            5
+#define FW_PROJ_DY_DOWN          7
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
-#define MAX_SHURIKENS           4   // proyectiles simultáneos en pantalla
+#define MAX_SHURIKENS           8   // proyectiles simultáneos en pantalla
+                                    // (06/10: 4 -> 8, comparten pool con las
+                                    // balas del fusil y la lanza tirada)
 #define ORANGE_SHURIKEN_SPEED   3   // px/frame de desplazamiento en X
 #define ORANGE_SHURIKEN_DMG     1   // barras de vida al impactar
 #define ORANGE_SHURIKEN_SPAWN_TIMER 16  // timer del ataque al que se spawnea (frame 1 de 3)
@@ -592,6 +716,8 @@ typedef struct {
     u8          deathTick;
     // --- Boomerang del AMARILLO (29/09) ---
     s8          boomSlot;     // boomerang propio en vuelo (-1 = en la mano)
+    // --- Foot soldier de la LANZA (06/10) ---
+    u8          spearThrow;   // 1 = todavia tiene la lanza para tirar
 } Enemy;
 
 // --- Shuriken (proyectil del foot soldier naranja) ---
@@ -602,7 +728,16 @@ typedef struct {
     s8          dir;         // +1 derecha, -1 izquierda
     s16         cameraOffsetX;
     u8          active;      // 1 = en vuelo, 0 = inactivo
+    // (06/10) El pool tambien lleva las balas del fusil y la lanza tirada.
+    u8          kind;        // SHOT_SHURIKEN / SHOT_BULLET / SHOT_SPEAR
+    u8          spark;       // bala: >0 = chispas en el piso (frames que quedan)
+    u8          acc;         // resto Q8 del avance
+    s16         zq;          // altura sobre la lane, Q8 (bala y lanza)
 } Shuriken;
+
+#define SHOT_SHURIKEN 0
+#define SHOT_BULLET   1
+#define SHOT_SPEAR    2
 
 // Resetea el estado global de la IA (contador de atacantes simultáneos y
 // reparto de targets) e informa cuántos jugadores hay (1 o 2).
@@ -722,6 +857,18 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX);
 // desaparece sin dañar al jugador. Devuelve TRUE si rompió alguno. Llamar por
 // jugador y ANTES de shurikenCheckHitPlayer.
 bool shurikenBreakByPlayerAttack(const Player* p);
+
+// (06/10) Proyectiles de los foot soldiers con arma (mismo pool): las
+// actualizan y chequean shurikenUpdate / shurikenCheckHitPlayer, asi que
+// cualquier nivel que maneje shurikens ya los maneja. La bala no se puede
+// romper; la lanza tirada si, como el shuriken.
+void enemyBulletSpawn(s16 cx, s16 lane, s8 dir);
+void enemySpearSpawn(s16 cx, s16 lane, s8 dir);
+
+// (06/10) Hoja y ancho de celda de cada tipo (para los spawns de las escenas
+// y el chequeo de VRAM antes de crear el sprite).
+const SpriteDefinition* enemySheetDef(u8 type);
+s16 enemySpriteW(u8 type);
 
 // ---------------------------------------------------------------------------
 // BOOMERANG del foot soldier AMARILLO (29/09)

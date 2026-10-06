@@ -35,18 +35,23 @@ static const SbgRaw road51 = {
     &pal_freeway,
 };
 
+// (06/10) LANZAS y MARTILLOS alternados, como en el remaster de PC.
 #define P ENEMY_TYPE_FOOT_SOLDIER
 #define O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
+#define H ENEMY_TYPE_FOOT_SOLDIER_HAMMER
+#define S ENEMY_TYPE_FOOT_SOLDIER_SPEAR
 static const StageWave waves51[] = {
     {  160,    0, 3, { P, P, O },    { +1, -1, +1 } },
-    {  500,  320, 3, { O, P, O },    { -1, +1, +1 } },
-    {  860,  680, 4, { P, O, P, P }, { +1, -1, +1, -1 } },
-    { 1240, 1060, 4, { O, P, O, P }, { -1, +1, -1, +1 } },
+    {  500,  320, 3, { S, P, S },    { -1, +1, +1 } },
+    {  860,  680, 4, { H, O, H, P }, { +1, -1, +1, -1 } },
+    { 1240, 1060, 4, { O, S, O, S }, { -1, +1, -1, +1 } },
     { 1620, 1440, 4, { P, O, O, P }, { +1, +1, -1, -1 } },
-    { 1960, 1784, 4, { O, P, P, O }, { -1, +1, -1, +1 } },
+    { 1960, 1784, 4, { O, H, H, O }, { -1, +1, -1, +1 } },
 };
 #undef P
 #undef O
+#undef H
+#undef S
 
 static const StageLevel level51 = {
     .bg           = NULL,

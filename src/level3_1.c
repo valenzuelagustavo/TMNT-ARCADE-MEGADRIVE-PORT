@@ -55,16 +55,20 @@ static const SbgRaw sewer31 = {
 // OLEADAS: se disparan cuando los PIES del que va adelante pasan trigX; la
 // camara queda clavada en lockX hasta que caen todos los de la oleada.
 // ---------------------------------------------------------------------------
+// (06/10) Los del MARTILLO, donde los pone el remaster de PC: uno por
+// delante y otro por detras, dos veces.
 #define P ENEMY_TYPE_FOOT_SOLDIER
 #define O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
+#define H ENEMY_TYPE_FOOT_SOLDIER_HAMMER
 static const StageWave waves31[] = {
     {  150,   0, 2, { P, P },       { +1, +1 } },
-    {  420, 240, 3, { P, O, P },    { -1, +1, +1 } },
+    {  420, 240, 3, { H, O, H },    { -1, +1, +1 } },
     {  700, 500, 4, { O, P, P, O }, { -1, +1, -1, +1 } },
-    {  980, 780, 4, { P, P, O, P }, { +1, +1, -1, -1 } },
+    {  980, 780, 4, { H, P, O, H }, { +1, +1, -1, -1 } },
 };
 #undef P
 #undef O
+#undef H
 
 // ---------------------------------------------------------------------------
 // MISILES DEL AGUA (29/09)
