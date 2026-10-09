@@ -143,6 +143,15 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->mhTimer       = 0;
     p->mhOutX        = 0;
     p->mhOutY        = 0;
+    p->walkAccX      = 0;
+    p->walkAccY      = 0;
+    p->walkTick      = 0;
+    p->kdArcade      = 0;
+    p->kdIdx         = 0;
+    p->kdT           = 0;
+    p->kdAirT        = 0;
+    p->kdAirTotal    = 0;
+    p->koPhase       = 0;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     // Las 4 tortugas comparten la misma paleta unificada (PAL1); la carga el
@@ -352,6 +361,64 @@ static bool specialStep(Player* p) {
     return TRUE;
 }
 
+static void koArcadeStep(Player* p, s16 effRight);
+static bool volteoStep(Player* p, s16 effRight, bool stopAtFloor);
+
+// ---------------------------------------------------------------------------
+// CAMINAR (09/10) -- ver PLAYER_WALK_* en player.h
+// ---------------------------------------------------------------------------
+// Movimiento de este frame segun el pad, en el piso y en el aire. Control
+// arcade: velocidades Q8 por eje con acumulador (1,75 px/f sale 1-2-2-2).
+// allowX = FALSE en el golpe en el aire (avanza solo, ver STATE_JUMPING).
+// Devuelve TRUE si hay alguna direccion apretada (en *dyOut la vertical).
+static bool walkStep(Player* p, u16 joy, s16 effRight, bool allowX, s8* dyOut) {
+    s8 dx = 0, dy = 0;
+    if (allowX) {
+        if (joy & BUTTON_RIGHT) { dx =  1; SPR_setHFlip(p->sprite, FALSE); p->dir =  1; }
+        if (joy & BUTTON_LEFT)  { dx = -1; SPR_setHFlip(p->sprite, TRUE);  p->dir = -1; }
+    }
+    if (joy & BUTTON_UP)   dy = -1;
+    if (joy & BUTTON_DOWN) dy =  1;
+    if (dyOut) *dyOut = dy;
+    if (!dx) p->walkAccX = 0;
+    if (!dy) p->walkAccY = 0;
+    if (!dx && !dy) return FALSE;
+
+    s16 mx, my;
+    if (PLAYER_ARCADE_CONTROL) {
+        bool diag = (dx != 0) && (dy != 0);
+        if (dx) p->walkAccX += dx * (diag ? PLAYER_DIAG_X_Q : PLAYER_WALK_X_Q);
+        if (dy) p->walkAccY += dy * (diag ? PLAYER_DIAG_Y_Q : PLAYER_WALK_Y_Q);
+        mx = p->walkAccX / 256;  p->walkAccX -= mx * 256;
+        my = p->walkAccY / 256;  p->walkAccY -= my * 256;
+    } else {
+        mx = dx * PLAYER_SPEED;
+        my = dy * PLAYER_SPEED;
+    }
+    p->x = clampS16(p->x + mx, p->boundLeft, effRight);
+    p->y = clampS16(p->y + my, p->laneTop, p->laneBottom);
+    return TRUE;
+}
+
+// Pose de la caminata. Control arcade: frames a mano, PLAYER_WALK_TICKS cada
+// uno (la auto-animacion del .res va a 5).
+static void walkAnim(Player* p, u16 anim) {
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    if (!PLAYER_ARCADE_CONTROL) {
+        SPR_setAutoAnimation(p->sprite, TRUE);
+        SPR_setAnim(p->sprite, anim);
+        return;
+    }
+    if (p->sprite->animInd != (s16)anim || SPR_getAutoAnimation(p->sprite))
+        p->walkTick = 0;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    u16 n = p->sprite->definition->animations[anim]->numFrame;
+    if (n == 0) n = 1;
+    if (p->walkTick >= n * PLAYER_WALK_TICKS) p->walkTick = 0;
+    SPR_setAnimAndFrame(p->sprite, anim, p->walkTick / PLAYER_WALK_TICKS);
+    p->walkTick++;
+}
+
 void updatePlayer(Player* p) {
     // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
     // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
@@ -394,26 +461,22 @@ void updatePlayer(Player* p) {
         case STATE_IDLE:
         case STATE_WALKING: {
             p->bcWindow = 0;   // la ventana B+C solo vive dentro del golpe/salto
-            s16 moveX = 0;
-            s16 moveY = 0;
+            s8 moveY = 0;
 
-            if (joy & BUTTON_RIGHT) { moveX =  PLAYER_SPEED; SPR_setHFlip(p->sprite, FALSE); p->dir = 1; }
-            if (joy & BUTTON_LEFT)  { moveX = -PLAYER_SPEED; SPR_setHFlip(p->sprite, TRUE);  p->dir = -1; }
-            if (joy & BUTTON_UP)    { moveY = -PLAYER_SPEED; }
-            if (joy & BUTTON_DOWN)  { moveY =  PLAYER_SPEED; }
-
-            if (moveX != 0 || moveY != 0) {
-                p->x = clampS16(p->x + moveX, p->boundLeft, effRight);
-                p->y = clampS16(p->y + moveY, p->laneTop, p->laneBottom);
+            if (walkStep(p, joy, effRight, TRUE, &moveY)) {
                 p->state = STATE_WALKING;
                 // Reiniciar el timer de la pose de espera: hubo movimiento
                 p->idleTimer = 0;
                 p->idleTwice = 0;
-                SPR_setAnimationLoop(p->sprite, TRUE);
-                if (moveY < 0) SPR_setAnim(p->sprite, ANIM_WALK_BACK);
-                else           SPR_setAnim(p->sprite, ANIM_WALK_FRONT);
+                walkAnim(p, (moveY < 0) ? ANIM_WALK_BACK : ANIM_WALK_FRONT);
             } else {
                 p->state = STATE_IDLE;
+                // La caminata arcade va con los frames a mano
+                if (!SPR_getAutoAnimation(p->sprite)) {
+                    SPR_setAutoAnimation(p->sprite, TRUE);
+                    SPR_setAnimationLoop(p->sprite, TRUE);
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                }
                 if (p->numAnims > ANIM_IDLE2) {
                     // Pose de espera nueva: tras PLAYER_IDLE_ANIM_DELAY frames
                     // quieto se reproduce ANIM_IDLE2 UNA vez (sin loop) y se
@@ -476,6 +539,7 @@ void updatePlayer(Player* p) {
                 p->idleTimer = 0;
                 p->idleTwice = 0;
                 p->bcWindow  = PLAYER_SPECIAL_BC_WINDOW;   // C tardio -> especial
+                SPR_setAutoAnimation(p->sprite, TRUE);
                 SPR_setAnimationLoop(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_1, 0);
                 playAttackGrunt(p);
@@ -514,15 +578,17 @@ void updatePlayer(Player* p) {
                 break;
 
             // Swing terminado: ¿se encadena el siguiente golpe del combo?
-            bool canChain = (p->comboStep > 0 && p->comboStep < 3);
+            // (09/10) La hoja nueva trae un 4to golpe (ANIM_ATTACK_4).
+            u8 comboLen = playerHasNewSheet(p) ? PLAYER_COMBO_LEN_NEW : 3;
+            bool canChain = (p->comboStep > 0 && p->comboStep < comboLen);
 
             if (canChain && p->comboBuffered) {
                 p->comboStep++;
                 p->comboBuffered = 0;
                 p->comboLinger   = COMBO_LINK_WINDOW;
                 SPR_setAnimAndFrame(p->sprite,
-                                    (p->comboStep == 2) ? ANIM_ATTACK_2
-                                                        : ANIM_ATTACK_3, 0);
+                                    (p->comboStep == 2) ? ANIM_ATTACK_2 :
+                                    (p->comboStep == 3) ? ANIM_ATTACK_3 : ANIM_ATTACK_4, 0);
                 playAttackGrunt(p);
             } else if (canChain && p->comboLinger > 0) {
                 // Ventana de enlace: quedarse unos frames en la pose final
@@ -582,7 +648,17 @@ void updatePlayer(Player* p) {
             // rápido que el control normal) y la trayectoria queda
             // comprometida: sin control manual en ese caso. Sin patada
             // (o con la débil), control aéreo normal en ambos ejes.
-            if (p->isJumpKicking == JUMPKICK_STRONG) {
+            if (PLAYER_ARCADE_CONTROL) {
+                // (09/10) Arcade: con el golpe en el aire (con o sin
+                // direccion) sale disparada hacia donde mira; arriba/abajo
+                // siguen moviendo la lane. Sin golpe, el control de caminar.
+                if (p->isJumpKicking) {
+                    walkStep(p, joy, effRight, FALSE, NULL);
+                    p->x = clampS16(p->x + p->dir * PLAYER_AIR_ATK_VX, p->boundLeft, effRight);
+                } else {
+                    walkStep(p, joy, effRight, TRUE, NULL);
+                }
+            } else if (p->isJumpKicking == JUMPKICK_STRONG) {
                 // Desplazamiento con ímpetu + el extra fraccional del
                 // kickCarry (~+16px sobre el vuelo completo).
                 p->kickCarry += PLAYER_JUMPKICK_EXTRA_Q;
@@ -614,6 +690,14 @@ void updatePlayer(Player* p) {
                 // SIEMPRE los dos ultimos; si hay un tercero se muestra primero
                 // PLAYER_JUMPKICK_TUCK_TICKS y despues se estira la patada.
                 // airTimer no se usa mientras se patea: hace de contador.
+                if (playerHasNewSheet(p)) {
+                    // (09/10) Hoja nueva: cada golpe en el aire es su propia
+                    // anim (sin direccion / con direccion) y corre sola una
+                    // vez, quedando en el ultimo frame hasta aterrizar.
+                    SPR_setAutoAnimation(p->sprite, TRUE);
+                    SPR_setAnimationLoop(p->sprite, FALSE);
+                    SPR_setAnimAndFrame(p->sprite, fuerte ? ANIM_JUMP_KICK_DIR : ANIM_JUMP_KICK, 0);
+                } else {
                 SPR_setAnim(p->sprite, ANIM_JUMP_KICK);
                 {
                     u16 nk = p->sprite->animation->numFrame;
@@ -626,7 +710,8 @@ void updatePlayer(Player* p) {
                         p->airTimer = 0;
                     }
                 }
-            } else if (p->isJumpKicking && p->airTimer > 0) {
+                }
+            } else if (p->isJumpKicking && !playerHasNewSheet(p) && p->airTimer > 0) {
                 if (--p->airTimer == 0) {
                     u16 nk = p->sprite->animation->numFrame;
                     SPR_setFrame(p->sprite,
@@ -638,7 +723,22 @@ void updatePlayer(Player* p) {
             // Subida: frame 0. Ápice y caída: loop del frame 1 al anteúltimo.
             // Justo antes de tocar el suelo (~2 frames de anticipación,
             // predicho con la velocidad actual): último frame.
-            if (!p->isJumpKicking) {
+            if (!p->isJumpKicking && playerHasNewSheet(p)) {
+                // (09/10) Hoja nueva (10 frames: despegue, 8 de vuelta en el
+                // aire y aterrizaje): frame 0 los primeros 2 frames, los del
+                // medio repartidos en PLAYER_JUMP_AIR_F y el ultimo justo
+                // antes de tocar el piso.
+                u16 n = p->sprite->animation->numFrame;
+                u16 f = 0;
+                if (p->jumpVq > 0 && p->jumpZq <= (p->jumpVq << 1)) {
+                    f = n - 1;
+                } else if (n > 2 && p->airTimer > 2) {
+                    f = 1 + ((u16)(p->airTimer - 2) * (n - 2)) / PLAYER_JUMP_AIR_F;
+                    if (f > n - 2) f = n - 2;
+                }
+                if (p->airTimer < 255) p->airTimer++;
+                SPR_setFrame(p->sprite, f);
+            } else if (!p->isJumpKicking) {
                 u16 n = p->sprite->animation->numFrame;
                 if (p->jumpVq < 0) {
                     SPR_setFrame(p->sprite, 0);
@@ -689,6 +789,7 @@ void updatePlayer(Player* p) {
         }
 
         case STATE_KO: {
+            if (PLAYER_ARCADE_CONTROL) { koArcadeStep(p, effRight); break; }
             // Tortuga knockeada: la anim de caída (ANIM_HIT_BEHIND_2) corre una
             // vez y queda CONGELADA en su último frame (tortuga tirada). Un
             // pequeño deslizamiento inicial, y se mantiene 'un momento'.
@@ -721,6 +822,17 @@ void updatePlayer(Player* p) {
         }
 
         case STATE_KNOCKED_DOWN: {
+            if (p->kdArcade) {
+                // (09/10) Volteo del control arcade
+                if (volteoStep(p, effRight, FALSE)) {
+                    p->kdArcade = 0;
+                    p->state    = STATE_IDLE;
+                    SPR_setAutoAnimation(p->sprite, TRUE);
+                    SPR_setAnimationLoop(p->sprite, TRUE);
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                }
+                break;
+            }
             // Derribo: la secuencia de anims va a mano — de frente HIT_3 (13),
             // de espaldas HIT_BEHIND_1 (15) → HIT_BEHIND_2 (16) — y después
             // tirada en el piso un momento → GET_UP_1/2 → IDLE.
@@ -1043,6 +1155,178 @@ s16 getPlayerY(const Player* p) {
 }
 
 // ---------------------------------------------------------------------------
+// VOLTEO (09/10) -- golpe recibido del control arcade, ver PLAYER_KD_* en
+// player.h. Cada paso es un frame de una anim, cuantos frames dura y si va
+// en el aire (los pasos en el aire arman la parabola).
+// ---------------------------------------------------------------------------
+typedef struct { u8 anim, frame, ticks, air; } KdStep;
+
+// Leo, hoja nueva: HIT_3 f0-2 volando, f3-8 en el piso, GET_UP_1 levantandose
+// (los tiempos del volteo medido en el video, Pruebas_TMNT_Control).
+static const KdStep kdLeoNew[] = {
+    { ANIM_HIT_3, 0, 3, 1 }, { ANIM_HIT_3, 1, 8, 1 }, { ANIM_HIT_3, 2, 7, 1 },
+    { ANIM_HIT_3, 3, 3, 0 }, { ANIM_HIT_3, 4, 3, 0 }, { ANIM_HIT_3, 5, 4, 0 },
+    { ANIM_HIT_3, 6, 3, 0 }, { ANIM_HIT_3, 7, 3, 0 }, { ANIM_HIT_3, 8, 3, 0 },
+    { ANIM_GET_UP_1, 0, 4, 0 }, { ANIM_GET_UP_1, 1, 4, 0 },
+};
+// Don, hoja nueva: su HIT_3 cae antes (el f2 ya esta tirado de espaldas), asi
+// que vuela con f0-1 el mismo tiempo total (18 frames).
+static const KdStep kdDonNew[] = {
+    { ANIM_HIT_3, 0, 3, 1 }, { ANIM_HIT_3, 1, 15, 1 },
+    { ANIM_HIT_3, 2, 3, 0 }, { ANIM_HIT_3, 3, 3, 0 }, { ANIM_HIT_3, 4, 4, 0 },
+    { ANIM_HIT_3, 5, 3, 0 }, { ANIM_HIT_3, 6, 3, 0 }, { ANIM_HIT_3, 7, 3, 0 },
+    { ANIM_GET_UP_1, 0, 4, 0 }, { ANIM_GET_UP_1, 1, 4, 0 },
+};
+// Hojas viejas (Mike y Raph en el modo de 4): HIT_3 de 6 + GET_UP_1 de 4.
+static const KdStep kdOld[] = {
+    { ANIM_HIT_3, 0, 3, 1 }, { ANIM_HIT_3, 1, 8, 1 }, { ANIM_HIT_3, 2, 7, 1 },
+    { ANIM_HIT_3, 3, 4, 0 }, { ANIM_HIT_3, 4, 4, 0 }, { ANIM_HIT_3, 5, 5, 0 },
+    { ANIM_GET_UP_1, 0, 4, 0 }, { ANIM_GET_UP_1, 1, 4, 0 },
+    { ANIM_GET_UP_1, 2, 4, 0 }, { ANIM_GET_UP_1, 3, 4, 0 },
+};
+#define KD_N(t) ((u8)(sizeof(t) / sizeof(t[0])))
+
+static const KdStep* kdTable(const Player* p, u8* n) {
+    if (playerHasNewSheet(p)) {
+        if (p->charIndex == 2) { *n = KD_N(kdDonNew); return kdDonNew; }
+        *n = KD_N(kdLeoNew); return kdLeoNew;
+    }
+    *n = KD_N(kdOld); return kdOld;
+}
+
+static void kdShow(Player* p) {
+    u8 n;
+    const KdStep* k = &kdTable(p, &n)[p->kdIdx];
+    u16 nf = p->sprite->definition->animations[k->anim]->numFrame;
+    u16 f = (k->frame < nf) ? k->frame : (u16)(nf - 1);
+    SPR_setAnimAndFrame(p->sprite, k->anim, f);
+}
+
+// Arranca el volteo. 'side' = de que lado esta quien pego (+1 a la derecha):
+// la tortuga se da vuelta hacia el y sale despedida hacia el otro lado.
+static void startVolteo(Player* p, s8 side) {
+    u8 n;
+    const KdStep* t = kdTable(p, &n);
+    u16 air = 0;
+    for (u8 i = 0; i < n; i++) if (t[i].air) air += t[i].ticks;
+    p->dir        = side;
+    p->hurtDir    = -side;
+    SPR_setHFlip(p->sprite, side < 0);
+    p->kdIdx      = 0;
+    p->kdT        = 0;
+    p->kdAirT     = 0;
+    p->kdAirTotal = (u8)(air ? air : 1);
+    p->jumpZ      = 0;
+    p->jumpZq     = 0;
+    p->jumpVq     = 0;
+    p->isJumpKicking = JUMPKICK_NONE;
+    p->kickCarry  = 0;
+    p->hurtTimer  = 0;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    kdShow(p);
+}
+
+static u16 volteoTotal(const Player* p) {
+    u8 n;
+    const KdStep* t = kdTable(p, &n);
+    u16 tot = 0;
+    for (u8 i = 0; i < n; i++) tot += t[i].ticks;
+    return tot;
+}
+
+// Un frame del volteo. TRUE al terminar. stopAtFloor (muerte): corta al tocar
+// el piso, despues viene la pose de knockeada.
+static bool volteoStep(Player* p, s16 effRight, bool stopAtFloor) {
+    u8 n;
+    const KdStep* t = kdTable(p, &n);
+    const KdStep* k = &t[p->kdIdx];
+    if (k->air) {
+        s32 tt = ++p->kdAirT, T = p->kdAirTotal;
+        p->jumpZ = (s16)((4 * PLAYER_KD_Z * tt * (T - tt)) / (T * T));
+        p->x = clampS16(p->x + p->hurtDir * PLAYER_KD_VX, p->boundLeft, effRight);
+    } else {
+        p->jumpZ = 0;
+        if (p->kdT < PLAYER_KD_ROLL_F && p->kdIdx > 0 && t[p->kdIdx - 1].air)
+            p->x = clampS16(p->x + p->hurtDir, p->boundLeft, effRight);   // rueda al caer
+    }
+    if (++p->kdT >= k->ticks) {
+        p->kdT = 0;
+        p->kdIdx++;
+        if (p->kdIdx >= n) { p->jumpZ = 0; return TRUE; }
+        if (stopAtFloor && !t[p->kdIdx].air) { p->jumpZ = 0; return TRUE; }
+        kdShow(p);
+    }
+    return FALSE;
+}
+
+// Pose de knockeada (sin vida): ANIM_KO en loop; sheets viejas sin ella, el
+// frame tirado de HIT_BEHIND_2.
+static void showKoPose(Player* p) {
+    if (p->numAnims > ANIM_KO) {
+        SPR_setAutoAnimation(p->sprite, TRUE);
+        SPR_setAnimationLoop(p->sprite, TRUE);
+        SPR_setAnimAndFrame(p->sprite, ANIM_KO, 0);
+    } else {
+        SPR_setAutoAnimation(p->sprite, FALSE);
+        SPR_setAnimAndFrame(p->sprite, ANIM_HIT_BEHIND_2, PLAYER_KO_FRAME);
+    }
+}
+
+// Muerte del control arcade (STATE_KO): vuela, tirada, se esfuma, invisible y
+// reaparece parpadeando. Ver PLAYER_DEAD_* en player.h.
+static void koArcadeStep(Player* p, s16 effRight) {
+    switch (p->koPhase) {
+        case 0:                                     // volando
+            if (volteoStep(p, effRight, TRUE)) {
+                p->koPhase = 1;
+                p->koTimer = PLAYER_DEAD_LIE_F;
+                showKoPose(p);
+            }
+            break;
+        case 1:                                     // tirada
+            if (p->koTimer > 0) p->koTimer--;
+            if (p->koTimer == 0) {
+                if (p->lives == 0) {
+                    // Sin vidas: queda tirada; scenes.c lo detecta.
+                    p->gameOver = TRUE;
+                    p->koPhase  = 4;
+                } else {
+                    p->koPhase = 2;
+                    p->koTimer = PLAYER_DEAD_FADE_F;
+                }
+            }
+            break;
+        case 2:                                     // se esfuma parpadeando 2/2
+            if (p->koTimer > 0) p->koTimer--;
+            SPR_setVisibility(p->sprite, (p->koTimer & 2) ? HIDDEN : VISIBLE);
+            if (p->koTimer == 0) {
+                p->koPhase = 3;
+                p->koTimer = PLAYER_DEAD_GONE_F;
+                SPR_setVisibility(p->sprite, HIDDEN);
+            }
+            break;
+        case 3:                                     // invisible
+            if (p->koTimer > 0) p->koTimer--;
+            if (p->koTimer == 0) {
+                p->koPhase    = 0;
+                p->health     = PLAYER_MAX_HEALTH;
+                p->state      = STATE_IDLE;
+                p->jumpZ      = 0;
+                p->invincible = PLAYER_ARCADE_RESPAWN_INV;
+                p->blinkTimer = PLAYER_ARCADE_RESPAWN_INV;
+                SPR_setVisibility(p->sprite, VISIBLE);
+                SPR_setAutoAnimation(p->sprite, TRUE);
+                SPR_setAnimationLoop(p->sprite, TRUE);
+                SPR_setAnim(p->sprite, ANIM_IDLE);
+            }
+            break;
+        default:                                    // fuera de juego
+            break;
+    }
+}
+
+// ---------------------------------------------------------------------------
 // DAÑO RECIBIDO
 // ---------------------------------------------------------------------------
 bool playerCanBeHit(const Player* p) {
@@ -1089,6 +1373,24 @@ static void playerEnterKO(Player* p) {
     p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
     p->invincible = PLAYER_KO_FRAMES;           // intocable en el piso (SIN parpadeo)
 
+    // (09/10) Control arcade: sale volando hacia atras (si el golpe vino de un
+    // lado) y sigue la secuencia de koArcadeStep.
+    if (PLAYER_ARCADE_CONTROL) {
+        p->kdArcade   = 0;
+        p->hurtTimer  = 0;
+        p->invincible = 0;                      // STATE_KO ya no recibe golpes
+        if (p->hurtDir != 0) {
+            p->koPhase = 0;
+            startVolteo(p, (s8)(-p->hurtDir));
+        } else {
+            p->koPhase = 1;
+            p->koTimer = PLAYER_DEAD_LIE_F;
+            p->jumpZ   = 0;
+            showKoPose(p);
+        }
+        return;
+    }
+
     // Pose de knockeado. ANIM_KO son CUATRO frames (la tortuga tirada con las
     // estrellitas girando), no una pose fija: antes se congelaba en el frame 0
     // y las estrellas no se movian (13/09). Ahora corre
@@ -1108,7 +1410,7 @@ static void playerEnterKO(Player* p) {
 
 // Núcleo del daño recibido: resta 'bars' barras. Si llega a 0 -> knockout; si
 // no, reacción de golpe (frente/espalda) con knockback e i-frames.
-static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
+static void playerTakeHit(Player* p, s16 attackerX, u8 bars, bool volteo) {
     // Golpe recibido EN EL AIRE (sólo lo permite playerCanBeHitAir, hoy las
     // balas del jefe): hay que bajar la tortuga al piso a mano, porque el
     // estado pasa a HURT y nadie más vuelve a tocar jumpZ — si no, se queda
@@ -1138,6 +1440,16 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars) {
     else                       p->health = 0;
 
     if (p->health == 0) { playerEnterKO(p); return; }
+
+    // (09/10) Control arcade: el golpe VOLTEA a la tortuga (ver PLAYER_KD_*).
+    if (PLAYER_ARCADE_CONTROL && volteo && p->state != STATE_GRABBED) {
+        p->state      = STATE_KNOCKED_DOWN;
+        p->kdArcade   = 1;
+        startVolteo(p, side);
+        u16 inv = volteoTotal(p) + PLAYER_KD_INV_EXTRA;
+        p->invincible = (u8)((inv > 255) ? 255 : inv);
+        return;
+    }
 
     // Golpe normal (todavía con vida). Por la espalda si el atacante está del
     // lado contrario a la mirada (la tortuga NO se da vuelta).
@@ -1186,13 +1498,15 @@ void damagePlayer(Player* p, s16 attackerX) {
         return;
     }
     if (!playerCanBeHit(p)) return;
-    playerTakeHit(p, attackerX, 1);
+    // Control arcade: 2 barras y volteo (el golpe tipico del arcade).
+    if (PLAYER_ARCADE_CONTROL) playerTakeHit(p, attackerX, PLAYER_ARCADE_HIT_BARS, TRUE);
+    else                       playerTakeHit(p, attackerX, 1, FALSE);
 }
 
 // Golpe que resta VARIAS barras (p.ej. el láser del robot = 4).
 void playerHitBars(Player* p, s16 attackerX, u8 bars) {
     if (!playerCanBeHit(p)) return;
-    playerTakeHit(p, attackerX, bars);
+    playerTakeHit(p, attackerX, bars, TRUE);
 }
 
 // Golpe de PROYECTIL: igual que damagePlayer pero también conecta con la
@@ -1203,7 +1517,7 @@ void playerHitBars(Player* p, s16 attackerX, u8 bars) {
 // así que el tiro recto sigue pasando por debajo del que está en el ápex.
 void playerHitProjectile(Player* p, s16 attackerX, u8 bars) {
     if (!playerCanBeHitAir(p)) return;
-    playerTakeHit(p, attackerX, bars);
+    playerTakeHit(p, attackerX, bars, FALSE);   // balas: golpe liviano
 }
 
 // Golpe fuerte que DERRIBA (patada de Rocksteady): cae de espaldas, queda
@@ -1212,7 +1526,11 @@ void playerHitProjectile(Player* p, s16 attackerX, u8 bars) {
 void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     if (!playerCanBeHit(p)) return;
     if (p->state == STATE_GRABBED) {
-        playerTakeHit(p, attackerX, bars);
+        playerTakeHit(p, attackerX, bars, FALSE);
+        return;
+    }
+    if (PLAYER_ARCADE_CONTROL) {
+        playerTakeHit(p, attackerX, bars, TRUE);
         return;
     }
 
@@ -1240,6 +1558,7 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     // Secuencia de derribo, animaciones a MANO con auto-anim encendida y sin
     // loop (mismo patrón que STATE_HURT: isAnimationDone marca el paso).
     p->state      = STATE_KNOCKED_DOWN;
+    p->kdArcade   = 0;
     p->kdTimer    = 0;
     p->hurtTimer  = 0;                          // el arrastre lo lleva kdSlide
     p->invincible = PLAYER_KD_INVINCIBLE;       // intocable toda la secuencia
@@ -1574,7 +1893,7 @@ void playerDropIn(Player* p, s16 height) {
     p->jumpZq        = (s32)height << PLAYER_JUMP_Q;
     p->jumpVq        = (s32)PLAYER_FALL_SPEED << PLAYER_JUMP_Q;   // ya cayendo
     p->airFrame      = 1;
-    p->airTimer      = 0;
+    p->airTimer      = 3;            // hoja nueva: ya en los frames del aire
     p->isJumpKicking = JUMPKICK_NONE;
     p->comboStep     = 0;
     p->hurtTimer     = 0;

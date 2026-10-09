@@ -29,9 +29,17 @@
 //   Fila 18 -> ANIM_HELD (4 frames: 0-2 agarrado, 3 = golpe en pleno agarre)
 //   Fila 19 -> ANIM_WHIP_SHOCK (látigo del robot)
 //   Fila 20 -> ANIM_KO (4 frames)
+//   Fila 21 -> ANIM_MANHOLE (boca de tormenta)
+//   Fila 22 -> ANIM_ATTACK_4      (solo hojas nuevas)
+//   Fila 23 -> ANIM_JUMP_KICK_DIR (solo hojas nuevas)
+//
+// (09/10) Leo y Don usan las hojas NUEVAS (sprites/players/*_new_13x13.png,
+// tools/gen_players_new.py desde los rips 50886_leo.png / 50888_don.png). Su
+// paleta es la nueva de las tortugas y pasa a ser PAL1 en todo el juego (los
+// niveles la toman de leo_player). Mike y Raph siguen con las hojas viejas.
 // =============================================================================
 
-SPRITE leo_player  "/sprites/leo_anim_13x13.png"  13 13 FAST 5
+SPRITE leo_player  "/sprites/players/leo_new_13x13.png"  13 13 FAST 5
 SPRITE mike_player "/sprites/mike_anim_13x13.png" 13 13 FAST 5
 SPRITE raph_player "/sprites/raph_anim_13x13.png" 13 13 FAST 5
-SPRITE don_player  "/sprites/don_anim_13x13.png"  13 13 FAST 5
+SPRITE don_player  "/sprites/players/don_new_13x13.png"  13 13 FAST 5

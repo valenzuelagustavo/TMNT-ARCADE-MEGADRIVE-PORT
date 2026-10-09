@@ -47,17 +47,19 @@ BAND  = 8           # alto de cada franja (un tile)
 BANDS = CELL // BAND
 NONE  = -128        # centinela: esa franja no tiene un solo pixel opaco
 
-CHARS = [("leo",  "leo_anim_13x13.png"),
+# (09/10) Leo y Don con las hojas nuevas (tools/gen_players_new.py).
+CHARS = [("leo",  "players/leo_new_13x13.png"),
          ("mike", "mike_anim_13x13.png"),
-         ("don",  "don_anim_13x13.png"),
+         ("don",  "players/don_new_13x13.png"),
          ("raph", "raph_anim_13x13.png")]
 
 # Animaciones que pueden golpear, en el orden en que van a la tabla.
 # (indice en PlayerAnim, nombre)
 ATK_ANIMS = [(2, "KICK"), (3, "ATTACK_1"), (4, "ATTACK_2"), (5, "ATTACK_3"),
-             (7, "JUMP_KICK"), (10, "SPECIAL")]
-NUM_ANIMS = 21      # filas de PlayerAnim
-KICK_ANIMS = (2, 7)         # KICK y JUMP_KICK: pega el pie, no el arma
+             (7, "JUMP_KICK"), (10, "SPECIAL"),
+             (22, "ATTACK_4"), (23, "JUMP_KICK_DIR")]   # solo hojas nuevas
+NUM_ANIMS = 24      # filas de PlayerAnim
+KICK_ANIMS = (2, 7, 23)     # KICK y JUMP_KICK(_DIR): pega el pie, no el arma
 KICK_IGNORE = [4, 10, 13]   # sombra y grises del arma (paleta unica)
 
 # Enemigos, solo para imprimir de referencia el alto real de su cuerpo.

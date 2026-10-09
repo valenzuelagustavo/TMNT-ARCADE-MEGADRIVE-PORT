@@ -22,11 +22,11 @@
 // Personaje: mismo orden que initPlayer() -- 0=Leo 1=Mike 2=Don 3=Raph.
 // ---------------------------------------------------------------------------
 #define PHB_CHARS   4
-#define PHB_SLOTS   6      // animaciones que pueden golpear
+#define PHB_SLOTS   8      // animaciones que pueden golpear
 #define PHB_FRAMES  12
 #define PHB_BANDS   13
 #define PHB_BAND    8      // px de alto de cada franja
-#define PHB_ANIMS   21     // filas de PlayerAnim
+#define PHB_ANIMS   24     // filas de PlayerAnim
 #define PHB_NONE    (-128)  // franja sin un solo pixel opaco
 
 extern const s8 phbSlotOfAnim[PHB_ANIMS];

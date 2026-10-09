@@ -314,7 +314,7 @@ static Sprite* sparksAddSprite(const SpriteDefinition* sizeDef, u16 vramInd,
 // Estado global de selección (necesario entre escenas)
 // ---------------------------------------------------------------------------
 u8 personajeSeleccionado  = 0;  // P1: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
-u8 personaje2Seleccionado = 3;  // P2: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
+u8 personaje2Seleccionado = 2;  // P2: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
 // (14/09) Modo secreto de CUATRO tortugas: cantidadJugadores puede valer 1..4.
 // Con 4 no se pasa por la seleccion de personaje -- cada joystick tiene su
 // tortuga fija (P1 Leo, P2 Mike, P3 Don, P4 Raph, ver showPlayerSelect).
@@ -470,11 +470,26 @@ static bool justPressedJoy(u16 joy, u16 prev, u16 button) {
 // Mueve la selección en 'dir' (+1/-1) sin pisar al otro jugador ni salir de
 // rango [0..3]. Si la celda contigua está ocupada por el otro jugador, la
 // saltea. Como hay 4 personajes y 2 jugadores, siempre queda una celda libre.
+// (09/10) Rama de las hojas nuevas: solo Leo (0) y Don (2) se pueden elegir.
+// Mike y Raph siguen con las hojas viejas, pensadas para la paleta anterior de
+// las tortugas (PAL1 ahora es la de las hojas nuevas): quedan fijos en el
+// modo de 4 y no se ofrecen en la seleccion ni en el continue.
+#define CHAR_SELECTABLE(c) ((c) == 0 || (c) == 2)
+
 static s8 charMove(s8 self, s8 other, s8 dir) {
-    s8 c = self + dir;
-    if (c < 0 || c > 3) return self;
-    if (c == other) { c += dir; if (c < 0 || c > 3) return self; }
-    return c;
+    s8 c = self;
+    for (;;) {
+        c += dir;
+        if (c < 0 || c > 3) return self;
+        if (c != other && CHAR_SELECTABLE(c)) return c;
+    }
+}
+
+// Primera tortuga elegible que no es 'other'.
+static u8 charFirstFree(s8 other) {
+    for (s8 c = 0; c < 4; c++)
+        if (c != other && CHAR_SELECTABLE(c)) return (u8)c;
+    return 0;
 }
 
 // ===========================================================================
@@ -1438,8 +1453,7 @@ u8 p2JoinPoll(u16 baseCol) {
         }
         if (justPressedJoy(joy, p2jPrevJoy, BUTTON_START)) {
             // Arranca en la primera tortuga libre (la del P1 no se puede).
-            p2jSel    = (u8)charMove((s8)personajeSeleccionado,
-                                     (s8)personajeSeleccionado, +1);
+            p2jSel    = charFirstFree((s8)personajeSeleccionado);
             p2jState  = P2J_SELECTING;
             p2DrawInvite(baseCol, FALSE);
             hudPortraitShow(1, p2jSel);
@@ -2138,7 +2152,7 @@ SceneId showCharSelect() {
 
     // Jugadores: 1 o 2 (con 4 esta pantalla se saltea, ver showPlayerSelect).
     const u8 nSel = (cantidadJugadores >= 2) ? 2 : 1;
-    s8      sel[2]   = { 0, 3 };            // P2 arranca en Raph
+    s8      sel[2]   = { 0, 2 };            // P2 arranca en Don
     bool    ready[2] = { FALSE, FALSE };
     u16     prev[2]  = { 0, 0 };
     Sprite* badge[2] = { NULL, NULL };

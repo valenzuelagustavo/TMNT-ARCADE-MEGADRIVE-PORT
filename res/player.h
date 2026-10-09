@@ -37,7 +37,7 @@ typedef enum {
                              // golpe en pleno agarre)
     ANIM_WHIP_SHOCK   = 19,  // Atrapado por el látigo (frame 0) + electrocución (frames 1-2)
     ANIM_KO           = 20,  // Knockeado — pose dedicada (4 frames)
-    ANIM_MANHOLE      = 21   // (20/09) Se cae por una boca de tormenta destapada
+    ANIM_MANHOLE      = 21,  // (20/09) Se cae por una boca de tormenta destapada
                              // del 2-1. No se reproduce sola. Cantidad de
                              // frames distinta por sheet (Leo 9, Mike/Raph 8,
                              // Don 7), siempre con la forma:
@@ -48,7 +48,16 @@ typedef enum {
                              // El vacio se detecta en runtime (numSprite == 0).
                              // El frame lo maneja playerManholeStep() a mano
                              // (ver la seccion de abajo).
+    // (09/10) Solo en las hojas NUEVAS (Leo y Don, tools/gen_players_new.py):
+    ANIM_ATTACK_4     = 22,  // Combo paso 4 (finalizador)
+    ANIM_JUMP_KICK_DIR = 23  // Golpe en el aire con direccion (el otro es
+                             // ANIM_JUMP_KICK, sin direccion)
 } PlayerAnim;
+
+// Hoja NUEVA (09/10): trae ANIM_ATTACK_4 y ANIM_JUMP_KICK_DIR. Las hojas viejas
+// (Mike y Raph, que solo salen en el modo de 4) llegan hasta ANIM_MANHOLE.
+#define PLAYER_NEW_SHEET_ANIMS  24
+#define playerHasNewSheet(p)    ((p)->numAnims >= PLAYER_NEW_SHEET_ANIMS)
 
 // ---------------------------------------------------------------------------
 // Estados lógicos del personaje
@@ -169,6 +178,49 @@ typedef enum {
 // (C) de siempre, y si el otro llega dentro de esta ventana se convierte en el
 // especial.
 #define PLAYER_SPECIAL_BC_WINDOW  4
+
+// ---------------------------------------------------------------------------
+// CONTROL ARCADE (09/10) -- el "modo Arcade" de Pruebas_TMNT_Control, medido
+// en el video del arcade (doc analisis-gameplay-arcade-02-10). El SALTO NO
+// cambia: sigue la fisica Q8 de arriba (~123 px de alto), que es la que se
+// eligio para el port; del arcade se toma solo el avance de la patada.
+// ---------------------------------------------------------------------------
+// 1 = control arcade; 0 = el control anterior del port (2 px/f, golpe liviano
+// de 1 barra con empujon, KO de 70 frames).
+#define PLAYER_ARCADE_CONTROL    1
+// Caminar: el scroll del arcade va 1-2-2-2 px por frame = 1,75 px/f. Q8 con
+// acumulador (p->walkAccX/Y) para no perder los decimales.
+#define PLAYER_WALK_X_Q        448   // 1,75 px/f en X
+#define PLAYER_WALK_Y_Q        384   // 1,5 px/f en Y
+#define PLAYER_DIAG_X_Q        352   // 1,375 en diagonal (estimado)
+#define PLAYER_DIAG_Y_Q        320   // 1,25 en diagonal (estimado)
+#define PLAYER_WALK_TICKS        4   // frames por pose de la caminata (a mano)
+// Salto con la hoja nueva: el frame 0 los primeros 2 frames y los del medio
+// repartidos en lo que dura en el aire sin patada (41 frames).
+#define PLAYER_JUMP_AIR_F       41
+// Golpe en el aire: sale disparado hacia donde mira a esta velocidad (sin
+// control en X; arriba/abajo siguen moviendo la lane).
+#define PLAYER_AIR_ATK_VX        3
+// Combo: 4 golpes con la hoja nueva (ATTACK_1..4), 3 con las viejas.
+#define PLAYER_COMBO_LEN_NEW     4
+// Golpe de foot soldier: 2 barras y VOLTEO. La tortuga se da vuelta hacia
+// quien le pego y sale despedida hacia atras en una parabola de PLAYER_KD_Z
+// px a PLAYER_KD_VX px/f, cae, rueda PLAYER_KD_ROLL_F px y se levanta. Los
+// frames y su duracion salen de una tabla por hoja (KdStep, player.c).
+// Invulnerable todo el volteo + PLAYER_KD_INV_EXTRA.
+#define PLAYER_ARCADE_HIT_BARS   2
+#define PLAYER_KD_Z             35
+#define PLAYER_KD_VX             3
+#define PLAYER_KD_ROLL_F         6
+#define PLAYER_KD_INV_EXTRA     10
+// Muerte: sale volando (el volteo hasta tocar el piso), tirada PLAYER_DEAD_LIE_F
+// con la pose de knockeada, se esfuma parpadeando 2/2 PLAYER_DEAD_FADE_F,
+// invisible PLAYER_DEAD_GONE_F y reaparece parpadeando (invulnerable)
+// PLAYER_ARCADE_RESPAWN_INV.
+#define PLAYER_DEAD_LIE_F       83
+#define PLAYER_DEAD_FADE_F      58
+#define PLAYER_DEAD_GONE_F      37
+#define PLAYER_ARCADE_RESPAWN_INV 128
 
 // --- Movilidad en el aire ---
 // Como en el arcade original: saltando se puede seguir reposicionando en X
@@ -455,6 +507,18 @@ typedef struct {
     u16         mhTimer;     // Ticks restantes de la fase actual
     s16         mhOutX;      // Donde reaparece al terminar (mundo, borde del frame)
     s16         mhOutY;      // ...y su lane
+
+    // --- Control arcade (09/10) ---
+    s16         walkAccX;    // acumuladores Q8 de la caminata
+    s16         walkAccY;
+    u8          walkTick;    // frames en la caminata (pose = walkTick / PLAYER_WALK_TICKS)
+    u8          kdArcade;    // 1 = el derribo en curso es el VOLTEO (tabla KdStep)
+    u8          kdIdx;       // paso del volteo
+    u8          kdT;         // frames en ese paso
+    u8          kdAirT;      // frames volando
+    u8          kdAirTotal;  // frames que vuela en total (parabola)
+    u8          koPhase;     // muerte: 0 volando, 1 tirada, 2 esfumandose,
+                             // 3 invisible
 } Player;
 
 // ---------------------------------------------------------------------------
