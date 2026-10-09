@@ -341,10 +341,20 @@ def save_sheet(path, pal, rows):
 SKIN = [2, 5, 8]
 AIR_SLOTS = ('JUMP', 'JUMP_KICK', 'JUMP_KICK_DIR', 'SPECIAL')
 NO_SHIFT = ('MANHOLE',)          # cada frame va donde esta el agujero
-# (09/10) La vuelta en el aire del salto gira sobre el centro de la celda (el
-# rip centra cada frame por el dibujo): un ancla por frame la hacia ir y venir
-# hasta 15 px de costado. Toda la anim va con UN solo corrimiento (el promedio).
-CONST_SLOTS = ('JUMP',)
+# (09/10) SALTO medido en el video del arcade (gameplayARCADE/tmnt.avi, el
+# salto en el lugar de los frames 2044..2107): por cada pose de la anim JUMP,
+# donde queda el cuerpo respecto de la del despegue (f0). Se mide con los
+# verdes de la piel (5 y 8):
+#   JUMP_ARC_DX  centro en X de la piel, relativo al de f0 (px, mirando a la
+#                derecha)
+#   JUMP_ARC_DY  cuanto por ENCIMA de la altura del salto queda el punto mas
+#                bajo de la piel (px); f0 y f9 apoyan los pies (0)
+# El rip apoya cada frame en el piso de su celda y lo centra por el dibujo, asi
+# que se pierden esas posiciones: con esto se recuperan (playerFrameDXTab y
+# playerJumpDYTab).
+JUMP_ARC_DX = [0.0, 3.4, -1.1, -1.5, -4.1, -2.1, 1.5, 2.4, 3.5, 3.3]
+JUMP_ARC_DY = [0.0, 10.7, 10.3, 13.5, 11.6, 15.0, 17.8, 28.0, 14.0, 0.0]
+SKIN_LIGHT = [5, 8]
 MAX_DX = 40
 OFF_FRAMES = 12                  # columnas de la tabla (las hojas viejas llegan a 12)
 
@@ -373,6 +383,24 @@ def idle_ref(rows):
     return shadow_center(idle), skin_center(idle)
 
 
+def skin_light(fr):
+    ys, xs = np.nonzero(np.isin(fr, SKIN_LIGHT))
+    return (xs.mean(), int(ys.max())) if len(xs) else (None, None)
+
+
+def jump_offsets(rows):
+    """(dx, dy) de cada frame de JUMP, como en el arcade. dx relativo al idle
+    de la tortuga por la piel; dy = lo que hay que subir el frame."""
+    idle_cx, idle_bot = skin_light(rows[0][1][0])
+    frames = [fr for slot, fr in rows if slot == 'JUMP'][0]
+    dxs, dys = [], []
+    for i, fr in enumerate(frames):
+        cx, bot = skin_light(fr)
+        dxs.append(int(round(idle_cx + JUMP_ARC_DX[i] - cx)))
+        dys.append(int(round(JUMP_ARC_DY[i] - (idle_bot - bot))))
+    return dxs, dys
+
+
 def frame_offsets(rows, ref):
     """-> lista (por fila) de listas de dx (px, mirando a la derecha). 'ref'
     = anclas del idle de LEO: todas las tortugas quedan con el cuerpo en el
@@ -391,13 +419,15 @@ def frame_offsets(rows, ref):
                     g = skin_center(fr)
                     dx = (ref_g - g) if g is not None else 0
             dxs.append(int(max(-MAX_DX, min(MAX_DX, round(dx)))))
-        if slot in CONST_SLOTS and dxs:
-            dxs = [int(round(sum(dxs) / float(len(dxs))))] * len(dxs)
+        if slot == 'JUMP':
+            # relativo a la tortuga misma, mas el corrimiento de su idle
+            jdx, _ = jump_offsets(rows)
+            dxs = [d + out[0][0] for d in jdx]
         out.append(dxs)
     return out
 
 
-def write_offsets(offs):
+def write_offsets(offs, jdy):
     """src/player_offsets.c/.h y res/sprites/players/offsets.json"""
     import json
     with open(os.path.join(DIR, 'offsets.json'), 'w') as f:
@@ -418,6 +448,11 @@ def write_offsets(offs):
                 vals = (vals + [0] * OFF_FRAMES)[:OFF_FRAMES]
                 f.write('    { %s },  // %s\n' % (', '.join('%3d' % v for v in vals), name))
             f.write('  },\n')
+        f.write('};\n\n')
+        f.write('const s8 playerJumpDYTab[PDX_CHARS][PDX_FRAMES] = {\n')
+        for ch in ('leo', 'mike', 'don', 'raph'):
+            vals = (jdy.get(ch, []) + [0] * OFF_FRAMES)[:OFF_FRAMES]
+            f.write('    { %s },  // %s\n' % (', '.join('%3d' % v for v in vals), ch))
         f.write('};\n')
 
 
@@ -436,6 +471,9 @@ OFF_H = """// GENERADO POR tools/gen_players_new.py -- NO EDITAR A MANO
 #define PDX_FRAMES  %(frames)d
 
 extern const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES];
+// Cuanto SUBIR cada frame de ANIM_JUMP (px) para que la vuelta en el aire quede
+// a la altura que tiene en el arcade (el rip apoya todos en el piso).
+extern const s8 playerJumpDYTab[PDX_CHARS][PDX_FRAMES];
 
 #endif
 """
@@ -447,6 +485,7 @@ def main():
         catalog = sys.argv[sys.argv.index('--catalog') + 1]
     pal0 = None
     offs = {}
+    jdy = {}
     ref = None
     for ch, cfg in (('LEO', LEO), ('DON', DON)):
         pal, cat = extract(cfg)
@@ -466,9 +505,11 @@ def main():
         if ref is None:
             ref = idle_ref(rows)                  # Leo va primero
         offs[ch.lower()] = frame_offsets(rows, ref)
+        jdy[ch.lower()] = jump_offsets(rows)[1]
+        print('  JUMP dy %s' % jdy[ch.lower()])
         for i, (slot, frames) in enumerate(rows):
             print('  %2d %-14s %2d  dx %s' % (i, slot, len(frames), offs[ch.lower()][i]))
-    write_offsets(offs)
+    write_offsets(offs, jdy)
 
 
 if __name__ == '__main__':

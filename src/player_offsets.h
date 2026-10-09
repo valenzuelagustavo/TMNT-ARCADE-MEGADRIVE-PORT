@@ -13,5 +13,8 @@
 #define PDX_FRAMES  12
 
 extern const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES];
+// Cuanto SUBIR cada frame de ANIM_JUMP (px) para que la vuelta en el aire quede
+// a la altura que tiene en el arcade (el rip apoya todos en el piso).
+extern const s8 playerJumpDYTab[PDX_CHARS][PDX_FRAMES];
 
 #endif

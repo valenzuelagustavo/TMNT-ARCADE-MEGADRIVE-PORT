@@ -198,13 +198,36 @@ typedef enum {
 #define PLAYER_DIAG_X_Q        352   // 1,375 en diagonal (estimado)
 #define PLAYER_DIAG_Y_Q        320   // 1,25 en diagonal (estimado)
 #define PLAYER_WALK_TICKS        4   // frames por pose de la caminata (a mano)
-// Salto con la hoja nueva: el frame 0 durante toda la subida; desde el apice
-// la vuelta en el aire, a este ritmo (8 frames x 3 = 24, lo que dura la
-// caida desde el apice).
-#define PLAYER_JUMP_ROLL_TICKS   3
-// Golpe en el aire: sale disparado hacia donde mira a esta velocidad (sin
-// control en X; arriba/abajo siguen moviendo la lane).
-#define PLAYER_AIR_ATK_VX        3
+// SALTO DEL ARCADE (09/10, medido cuadro a cuadro en gameplayARCADE/tmnt.avi,
+// el salto en el lugar de los frames 2044..2107; doc salto-arcade-medido-09-10):
+//   - el primer frame ya despega PLAYER_AJ_POP px;
+//   - sube RECTO a 5 px/f; a los PLAYER_AJ_RISE_F frames empieza la gravedad
+//     (0,3125 px/f2), frena, pasa el apice (~118 px, frame 29) y cae
+//     acelerando hasta 5 px/f, que mantiene hasta tocar el piso;
+//   - 62 frames en el aire (el del port era de 41).
+// Con el golpe en el aire, si todavia subia se frena en seco (velocidad 0) y
+// cae con la misma gravedad hasta 7 px/f.
+#define PLAYER_AJ_POP           11
+#define PLAYER_AJ_V_Q         1280   // 5 px/f
+#define PLAYER_AJ_RISE_F        14
+#define PLAYER_AJ_GRAV_Q        80   // 0,3125 px/f2
+#define PLAYER_AJ_FALL_MAX       5
+#define PLAYER_AJ_KICK_FALL_MAX  7
+// Animacion del salto (hoja nueva, 10 frames), igual que el arcade: frame 0
+// los primeros PLAYER_AJ_F0_F frames (casi toda la subida), despues cada pose
+// de la vuelta PLAYER_AJ_POSE_F frames y el ultimo (aterrizaje) queda hasta
+// tocar el piso. Cada pose ademas sube/corre lo que tiene en el arcade
+// (playerJumpDYTab / playerFrameDXTab, tools/gen_players_new.py).
+#define PLAYER_AJ_F0_F          19
+#define PLAYER_AJ_POSE_F         4
+// Caidas que no empiezan con un salto (bajar de una cornisa, entrar desde
+// arriba): el reloj del salto arranca aca, con la gravedad ya andando.
+#define PLAYER_AJ_LATE_T        39
+// Golpe en el aire: sale disparado hacia donde mira (sin control en X;
+// arriba/abajo siguen moviendo la lane). Medido: sin direccion 2 px/f, con
+// direccion 4 px/f.
+#define PLAYER_AIR_ATK_VX        2
+#define PLAYER_AIR_ATK_VX_DIR    4
 // Combo: 4 golpes con la hoja nueva (ATTACK_1..4), 3 con las viejas.
 #define PLAYER_COMBO_LEN_NEW     4
 // Golpe de foot soldier: 2 barras y VOLTEO. La tortuga se da vuelta hacia
@@ -523,6 +546,7 @@ typedef struct {
     u8          kdAirTotal;  // frames que vuela en total (parabola)
     u8          koPhase;     // muerte: 0 volando, 1 tirada, 2 esfumandose,
                              // 3 invisible
+    u8          jumpT;       // frames desde el despegue (salto del arcade)
 } Player;
 
 // ---------------------------------------------------------------------------

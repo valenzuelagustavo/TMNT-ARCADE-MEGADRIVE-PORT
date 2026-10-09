@@ -183,6 +183,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->kdAirT        = 0;
     p->kdAirTotal    = 0;
     p->koPhase       = 0;
+    p->jumpT         = 0;
 
     p->sprite = SPR_addSprite(spriteDef, p->x, p->y, TILE_ATTR(palette, FALSE, FALSE, FALSE));
     // Las 4 tortugas comparten la misma paleta unificada (PAL1); la carga el
@@ -354,6 +355,10 @@ static s16 specialHopZ(const Player* p) {
 
 s16 playerDrawZ(const Player* p) {
     s16 z = p->jumpZ;
+    // (09/10) Cada pose del salto a la altura que tiene en el arcade.
+    if (p->state == STATE_JUMPING && p->sprite && p->sprite->animInd == ANIM_JUMP &&
+        p->charIndex < PDX_CHARS && p->sprite->frameInd >= 0 && p->sprite->frameInd < PDX_FRAMES)
+        z += playerJumpDYTab[p->charIndex][p->sprite->frameInd];
     if (p->state == STATE_ATTACKING && p->attackIsSpecial)
         z += specialHopZ(p);
     return z;
@@ -566,6 +571,13 @@ void updatePlayer(Player* p) {
                 p->jumpVq    = -PLAYER_JUMP_V0_Q;
                 p->jumpZq    = 0;
                 p->jumpZ     = 0;
+                p->jumpT     = 0;
+                if (PLAYER_ARCADE_CONTROL) {
+                    // (09/10) Salto del arcade: ver PLAYER_AJ_* en player.h
+                    p->jumpVq = -PLAYER_AJ_V_Q;
+                    p->jumpZq = (s32)PLAYER_AJ_POP << PLAYER_JUMP_Q;
+                    p->jumpZ  = PLAYER_AJ_POP;
+                }
                 p->airFrame  = 1;
                 p->airTimer  = 0;
                 p->idleTimer = 0;
@@ -664,7 +676,18 @@ void updatePlayer(Player* p) {
             // real de profundidad, libre de moverse con arriba/abajo.
             p->jumpZq -= p->jumpVq;
             p->jumpZ   = (s16)(p->jumpZq >> PLAYER_JUMP_Q);
+            if (p->jumpT < 255) p->jumpT++;
 
+            if (PLAYER_ARCADE_CONTROL) {
+                // (09/10) Salto del arcade: recto hasta PLAYER_AJ_RISE_F,
+                // despues gravedad pareja con tope (mas alto con el golpe).
+                if (p->jumpT >= PLAYER_AJ_RISE_F) {
+                    s32 cap = (s32)(p->isJumpKicking ? PLAYER_AJ_KICK_FALL_MAX
+                                                     : PLAYER_AJ_FALL_MAX) << PLAYER_JUMP_Q;
+                    p->jumpVq += PLAYER_AJ_GRAV_Q;
+                    if (p->jumpVq > cap) p->jumpVq = cap;
+                }
+            } else
             // (28/09) Gravedad en punto fijo (Q8). Ver el bloque "Salto" de
             // player.h: subida frenada por la gravedad, apice con la gravedad
             // a la mitad (cuelga de forma continua, sin congelarse), caida
@@ -697,7 +720,9 @@ void updatePlayer(Player* p) {
                 // siguen moviendo la lane. Sin golpe, el control de caminar.
                 if (p->isJumpKicking) {
                     walkStep(p, joy, effRight, FALSE, NULL);
-                    p->x = clampS16(p->x + p->dir * PLAYER_AIR_ATK_VX, p->boundLeft, effRight);
+                    p->x = clampS16(p->x + p->dir * ((p->isJumpKicking == JUMPKICK_STRONG)
+                                                     ? PLAYER_AIR_ATK_VX_DIR : PLAYER_AIR_ATK_VX),
+                                    p->boundLeft, effRight);
                 } else {
                     walkStep(p, joy, effRight, TRUE, NULL);
                 }
@@ -725,6 +750,8 @@ void updatePlayer(Player* p) {
 
                 bool fuerte = (bool)(joy & (BUTTON_LEFT | BUTTON_RIGHT));
                 p->isJumpKicking = fuerte ? JUMPKICK_STRONG : JUMPKICK_SOFT;
+                // (09/10) Arcade: si todavia subia, el golpe la frena arriba.
+                if (PLAYER_ARCADE_CONTROL && p->jumpVq < 0) p->jumpVq = 0;
                 // Auto-anim ya está apagada desde el inicio del salto: el
                 // frame elegido queda clavado hasta aterrizar.
                 // (22/09) Las sheets no tienen todas los mismos frames: Leo y
@@ -766,13 +793,20 @@ void updatePlayer(Player* p) {
             // Subida: frame 0. Ápice y caída: loop del frame 1 al anteúltimo.
             // Justo antes de tocar el suelo (~2 frames de anticipación,
             // predicho con la velocidad actual): último frame.
-            if (!p->isJumpKicking && playerHasNewSheet(p)) {
-                // (09/10) Hoja nueva (10 frames: despegue, 8 de vuelta y
-                // aterrizaje). SUBIENDO: el frame 0 fijo hasta el punto mas
-                // alto. Desde el apice: la vuelta (1..n-2) a
-                // PLAYER_JUMP_ROLL_TICKS por frame, queda en el n-2 si la
-                // caida es larga, y el ultimo justo antes de tocar el piso.
-                // airTimer cuenta los frames desde el apice.
+            if (!p->isJumpKicking && playerHasNewSheet(p) && PLAYER_ARCADE_CONTROL) {
+                // (09/10) Como el arcade: frame 0 los primeros
+                // PLAYER_AJ_F0_F frames, cada pose de la vuelta
+                // PLAYER_AJ_POSE_F frames y el ultimo hasta tocar el piso.
+                u16 n = p->sprite->animation->numFrame;
+                u16 f = 0;
+                if (p->jumpT >= PLAYER_AJ_F0_F) {
+                    f = 1 + (p->jumpT - PLAYER_AJ_F0_F) / PLAYER_AJ_POSE_F;
+                    if (f > n - 1) f = n - 1;
+                }
+                SPR_setFrame(p->sprite, f);
+            } else if (!p->isJumpKicking && playerHasNewSheet(p)) {
+                // Control del port: frame 0 subiendo, la vuelta desde el
+                // apice (3 frames por pose) y el ultimo antes de tocar el piso.
                 u16 n = p->sprite->animation->numFrame;
                 u16 f = 0;
                 if (p->jumpVq < 0) {
@@ -780,7 +814,7 @@ void updatePlayer(Player* p) {
                 } else if (p->jumpZq <= (p->jumpVq << 1)) {
                     f = n - 1;
                 } else if (n > 2) {
-                    f = 1 + p->airTimer / PLAYER_JUMP_ROLL_TICKS;
+                    f = 1 + p->airTimer / 3;
                     if (f > n - 2) f = n - 2;
                     if (p->airTimer < 255) p->airTimer++;
                 }
@@ -1187,6 +1221,7 @@ void playerFallTo(Player* p, s16 newFeetY) {
         p->isJumpKicking = JUMPKICK_NONE;
         p->airFrame      = 1;
         p->airTimer      = 0;
+        p->jumpT         = PLAYER_AJ_LATE_T;
         SPR_setAutoAnimation(p->sprite, FALSE);
         SPR_setAnimationLoop(p->sprite, FALSE);
         SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
@@ -1941,6 +1976,7 @@ void playerDropIn(Player* p, s16 height) {
     p->jumpVq        = (s32)PLAYER_FALL_SPEED << PLAYER_JUMP_Q;   // ya cayendo
     p->airFrame      = 1;
     p->airTimer      = 3;            // hoja nueva: ya en los frames del aire
+    p->jumpT         = PLAYER_AJ_LATE_T;
     p->isJumpKicking = JUMPKICK_NONE;
     p->comboStep     = 0;
     p->hurtTimer     = 0;
