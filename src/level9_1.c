@@ -77,7 +77,7 @@ static void portalCycle(const u16* base, u16 tick) {
 static void drawPlayers(Player** pls, u8 nPl) {
     for (u8 k = 0; k < nPl; k++)
         if (pls[k]->sprite)
-            SPR_setPosition(pls[k]->sprite, pls[k]->x - L9_CAM_X,
+            playerSetSpritePos(pls[k], pls[k]->x - L9_CAM_X,
                             pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - L9_CAM_Y);
 }
 

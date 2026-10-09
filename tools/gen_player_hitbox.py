@@ -61,6 +61,12 @@ ATK_ANIMS = [(2, "KICK"), (3, "ATTACK_1"), (4, "ATTACK_2"), (5, "ATTACK_3"),
 NUM_ANIMS = 24      # filas de PlayerAnim
 KICK_ANIMS = (2, 7, 23)     # KICK y JUMP_KICK(_DIR): pega el pie, no el arma
 KICK_IGNORE = [4, 10, 13]   # sombra y grises del arma (paleta unica)
+# (09/10) Hojas nuevas: el especial (el giro) solo pega en el frame del arma
+# estirada adelante. El resto de sus frames queda en PHB_NONE.
+SPECIAL_HIT_FRAMES = {"leo": [5], "don": [5]}
+# (09/10) Desplazamiento en X de cada frame (tools/gen_players_new.py): el
+# motor corre el sprite, asi que el alcance se mide con ese corrimiento.
+OFFSETS = os.path.join(SPR, "players", "offsets.json")
 
 # Enemigos, solo para imprimir de referencia el alto real de su cuerpo.
 ENEMIES = [("foot_soldier_16colors.png", 64, 80, 80),
@@ -79,7 +85,7 @@ def alpha_mask(im):
     return np.array(im.convert("RGBA"))[:, :, 3] > 0
 
 
-def measure(path):
+def measure(path, name=None, offs=None):
     """-> (frames_por_anim, {anim: [ [reach por franja] por frame ]})"""
     im = Image.open(path)
     a_all = alpha_mask(im)
@@ -107,15 +113,23 @@ def measure(path):
                 xs = np.nonzero(strip.any(axis=0))[0]
                 # +1 -> borde (primer pixel vacio), no el ultimo lleno
                 bands.append(int(xs[-1]) - half + 1 if len(xs) else NONE)
+            dx = 0
+            if offs and anim < len(offs) and c < len(offs[anim]):
+                dx = offs[anim][c]
+            bands = [b + dx if b != NONE else NONE for b in bands]
+            if anim == 10 and name in SPECIAL_HIT_FRAMES and c not in SPECIAL_HIT_FRAMES[name]:
+                bands = [NONE] * BANDS
             frames.append(bands)
         data[anim] = frames
     return cols, data
 
 
 def main():
+    import json
+    offsets = json.load(open(OFFSETS)) if os.path.exists(OFFSETS) else {}
     sheets, max_cols = {}, 0
     for name, fn in CHARS:
-        cols, data = measure(os.path.join(SPR, fn))
+        cols, data = measure(os.path.join(SPR, fn), name, offsets.get(name))
         sheets[name] = data
         max_cols = max(max_cols, cols)
         print("%-5s %2d frames por animacion" % (name, cols))

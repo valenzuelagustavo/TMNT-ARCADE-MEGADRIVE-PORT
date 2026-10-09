@@ -1,5 +1,6 @@
 #include "player.h"
 #include "player_hitbox.h"   // playerAtkReach: alcance por frame medido sobre el arte
+#include "player_offsets.h"  // playerFrameDXTab: desplazamiento en X de cada frame
 #include "audio.h"
 
 s16 stageCamY = 0;   // ver player.h
@@ -62,6 +63,36 @@ static u8 persistSlot(u16 joyId) {
     for (u8 k = 0; k < MAX_PLAYERS; k++)
         if (playerJoy(k) == joyId) return k;
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// DESPLAZAMIENTO POR FRAME (09/10) -- ver tools/gen_players_new.py
+// ---------------------------------------------------------------------------
+// Las hojas nuevas corren el dibujo dentro de la celda para que entre el arma:
+// cada frame trae cuanto hay que correr el sprite en X para que el CUERPO
+// quede quieto. La posicion "base" (sin el desplazamiento) se guarda en
+// sprite->data junto con el personaje, porque la auto-animacion cambia el
+// frame DENTRO de SPR_update: el callback de cambio de frame vuelve a ubicar
+// el sprite antes de que se arme la tabla de sprites, asi no hay un frame
+// corrido.
+static s16 playerFrameDX(const Sprite* s, u16 ch) {
+    s16 a = s->animInd, f = s->frameInd;
+    if (ch >= PDX_CHARS || a < 0 || a >= PDX_ANIMS || f < 0 || f >= PDX_FRAMES) return 0;
+    s16 dx = playerFrameDXTab[ch][a][f];
+    return (s->attribut & TILE_ATTR_HFLIP_MASK) ? -dx : dx;
+}
+
+static void playerOnFrameChange(Sprite* s) {
+    s16 base = (s16)(u16)(s->data & 0xFFFF);
+    u16 ch   = (u16)(s->data >> 16);
+    SPR_setPosition(s, base + playerFrameDX(s, ch), s->y - 0x80);
+}
+
+// Ubica el sprite de la tortuga: (sx, sy) = esquina del frame en pantalla.
+void playerSetSpritePos(Player* p, s16 sx, s16 sy) {
+    if (!p->sprite) return;
+    p->sprite->data = ((u32)p->charIndex << 16) | (u16)sx;
+    SPR_setPosition(p->sprite, sx + playerFrameDX(p->sprite, p->charIndex), sy);
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +197,11 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     // crashea: devuelve basura. El sintoma es peor que un crash, porque
     // SPR_isAnimationDone() nunca da TRUE y los estados que esperan el fin de
     // una anim (HURT, ATTACKING) se cuelgan para siempre.
-    if (p->sprite) SPR_setAnim(p->sprite, ANIM_IDLE);
+    if (p->sprite) {
+        SPR_setAnim(p->sprite, ANIM_IDLE);
+        p->sprite->data = ((u32)p->charIndex << 16) | (u16)p->x;
+        SPR_setFrameChangeCallback(p->sprite, playerOnFrameChange);
+    }
 
     // (01/10) Venia FUERA de juego del nivel anterior: arranca como quedo,
     // sin vidas, tirado (STATE_KO congelado) e INVISIBLE. El continue lo ve
@@ -279,8 +314,16 @@ static void playAttackGrunt(const Player* p) {
 // el giro se lea entero antes de apoyar.
 static const u8 specialFrameTicks[] = { 5, 8, 8, 8, 9 };
 #define SPECIAL_TICK_TABLE ((u16)(sizeof(specialFrameTicks) / sizeof(specialFrameTicks[0])))
+// (09/10) Hoja nueva: el giro son 7 frames y solo pega el 6to, el del arma
+// estirada adelante (SPECIAL_HIT_FRAMES en tools/gen_player_hitbox.py). 30 ticks en
+// total (con la tabla de arriba eran 56 y se veia muy lento); el frame del
+// golpe dura un poco mas para que se lea.
+static const u8 specialFrameTicksNew[] = { 4, 4, 4, 4, 4, 6, 4 };
+#define SPECIAL_TICK_TABLE_NEW ((u16)(sizeof(specialFrameTicksNew) / sizeof(specialFrameTicksNew[0])))
 
-static u16 specialTicksOf(u16 f) {
+static u16 specialTicksOf(const Player* p, u16 f) {
+    if (playerHasNewSheet(p))
+        return specialFrameTicksNew[(f < SPECIAL_TICK_TABLE_NEW) ? f : (SPECIAL_TICK_TABLE_NEW - 1)];
     return specialFrameTicks[(f < SPECIAL_TICK_TABLE) ? f : (SPECIAL_TICK_TABLE - 1)];
 }
 
@@ -293,7 +336,7 @@ static u16 specialNumFrames(const Player* p) {
 static u16 specialTicksBefore(const Player* p, u16 f) {
     u16 nf = specialNumFrames(p);
     u16 t = 0;
-    for (u16 i = 0; i < f && i < nf; i++) t += specialTicksOf(i);
+    for (u16 i = 0; i < f && i < nf; i++) t += specialTicksOf(p, i);
     return t;
 }
 
@@ -345,7 +388,7 @@ static bool specialStep(Player* p) {
     u16 nf  = specialNumFrames(p);
     u16 acc = 0;
     for (u16 f = 0; f < nf; f++) {
-        acc += specialTicksOf(f);
+        acc += specialTicksOf(p, f);
         if (p->specialTick < acc) {
             if (p->sprite->frameInd != (s16)f)
                 SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, (s16)f);
@@ -941,7 +984,7 @@ void updatePlayer(Player* p) {
     // Durante el ESPECIAL el sprite se dibuja unos px más arriba (el arte es
     // un saltito en el lugar) — offset solo visual, la Y lógica no cambia.
     s16 drawY = p->y - PLAYER_FOOT_OFFSET - playerDrawZ(p);
-    SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, drawY - stageCamY);
+    playerSetSpritePos(p, p->x - p->cameraOffsetX, drawY - stageCamY);
 
     // Prioridad por profundidad (Y-sorting estilo beat-em-up): quien tiene
     // mayor Y de pies está MÁS CERCA de la cámara y debe dibujarse adelante.
@@ -1755,7 +1798,7 @@ static void playerRenderAt(Player* p) {
     // pero el juego sigue.
     if (!p->sprite) return;
 
-    SPR_setPosition(p->sprite, p->x - p->cameraOffsetX, p->y - PLAYER_FOOT_OFFSET - stageCamY);
+    playerSetSpritePos(p, p->x - p->cameraOffsetX, p->y - PLAYER_FOOT_OFFSET - stageCamY);
     SPR_setDepth(p->sprite, -(p->y));
 }
 

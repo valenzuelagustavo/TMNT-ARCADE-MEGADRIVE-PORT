@@ -325,11 +325,123 @@ def save_sheet(path, pal, rows):
     return o.size
 
 
+# -----------------------------------------------------------------------------
+# DESPLAZAMIENTO POR FRAME (09/10)
+# -----------------------------------------------------------------------------
+# El rip centra cada frame en su celda por el dibujo entero: cuando el arma se
+# estira (el bo de Don, la estela de la katana) el CUERPO queda corrido hacia
+# atras y, al animar, la tortuga se mueve de un lado a otro. Para cada frame se
+# busca un ancla del cuerpo y se calcula cuanto hay que correr el frame en X
+# para que el ancla quede donde esta en el idle de Leo:
+#   - en el piso: el centro de la SOMBRA (la elipse gris debajo de los pies);
+#   - en el aire (o sin sombra): el centro de los VERDES (piel), sin el arma.
+# El arte no se toca: el motor corre el sprite al dibujarlo (player.c,
+# playerFrameDX) y el alcance de los golpes ya lleva sumado el desplazamiento
+# (gen_player_hitbox.py lee offsets.json).
+SKIN = [2, 5, 8]
+AIR_SLOTS = ('JUMP', 'JUMP_KICK', 'JUMP_KICK_DIR', 'SPECIAL')
+NO_SHIFT = ('MANHOLE',)          # cada frame va donde esta el agujero
+MAX_DX = 40
+OFF_FRAMES = 12                  # columnas de la tabla (las hojas viejas llegan a 12)
+
+
+def shadow_center(fr):
+    sh = (fr == SHADOW_COLOR)
+    sh[:80] = False
+    lab, n = ndimage.label(sh, structure=np.ones((3, 3)))
+    if n == 0:
+        return None
+    sizes = ndimage.sum(sh, lab, range(1, n + 1))
+    k = int(np.argmax(sizes)) + 1
+    ys, xs = np.nonzero(lab == k)
+    if sizes[k - 1] < 15 or xs.max() - xs.min() < 12 or ys.max() - ys.min() > 10:
+        return None
+    return (xs.min() + xs.max()) / 2.0
+
+
+def skin_center(fr):
+    ys, xs = np.nonzero(np.isin(fr, SKIN))
+    return xs.mean() if len(xs) else None
+
+
+def idle_ref(rows):
+    idle = rows[0][1][0]
+    return shadow_center(idle), skin_center(idle)
+
+
+def frame_offsets(rows, ref):
+    """-> lista (por fila) de listas de dx (px, mirando a la derecha). 'ref'
+    = anclas del idle de LEO: todas las tortugas quedan con el cuerpo en el
+    mismo lugar respecto de x (ahi esta calibrada la hurtbox, PLAYER_HURT_*)."""
+    ref_s, ref_g = ref
+    out = []
+    for slot, frames in rows:
+        dxs = []
+        for fr in frames:
+            dx = 0
+            if fr is not None and fr.any() and slot not in NO_SHIFT:
+                c = None if slot in AIR_SLOTS else shadow_center(fr)
+                if c is not None:
+                    dx = ref_s - c
+                else:
+                    g = skin_center(fr)
+                    dx = (ref_g - g) if g is not None else 0
+            dxs.append(int(max(-MAX_DX, min(MAX_DX, round(dx)))))
+        out.append(dxs)
+    return out
+
+
+def write_offsets(offs):
+    """src/player_offsets.c/.h y res/sprites/players/offsets.json"""
+    import json
+    with open(os.path.join(DIR, 'offsets.json'), 'w') as f:
+        json.dump(offs, f)
+    names = [slot for slot, _, _ in port_layout('LEO')]
+    src = os.path.join(ROOT, 'src')
+    with open(os.path.join(src, 'player_offsets.h'), 'w') as f:
+        f.write(OFF_H % dict(anims=len(names), frames=OFF_FRAMES))
+    with open(os.path.join(src, 'player_offsets.c'), 'w') as f:
+        f.write('// GENERADO POR tools/gen_players_new.py -- NO EDITAR A MANO\n')
+        f.write('#include "player_offsets.h"\n\n')
+        f.write('const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES] = {\n')
+        for ch in ('leo', 'mike', 'don', 'raph'):
+            f.write('  {   // %s\n' % ch)
+            rows = offs.get(ch)
+            for i, name in enumerate(names):
+                vals = rows[i] if rows else []
+                vals = (vals + [0] * OFF_FRAMES)[:OFF_FRAMES]
+                f.write('    { %s },  // %s\n' % (', '.join('%3d' % v for v in vals), name))
+            f.write('  },\n')
+        f.write('};\n')
+
+
+OFF_H = """// GENERADO POR tools/gen_players_new.py -- NO EDITAR A MANO
+#ifndef _PLAYER_OFFSETS_H_
+#define _PLAYER_OFFSETS_H_
+
+#include <genesis.h>
+
+// Desplazamiento en X de cada frame de las tortugas (px, mirando a la
+// DERECHA; espejado se resta). Deja el cuerpo quieto aunque el rip haya
+// corrido el dibujo para que entre el arma. Personaje: 0=Leo 1=Mike 2=Don
+// 3=Raph (Mike y Raph, hojas viejas: todo 0).
+#define PDX_CHARS   4
+#define PDX_ANIMS   %(anims)d
+#define PDX_FRAMES  %(frames)d
+
+extern const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES];
+
+#endif
+"""
+
+
 def main():
     catalog = None
     if '--catalog' in sys.argv:
         catalog = sys.argv[sys.argv.index('--catalog') + 1]
     pal0 = None
+    offs = {}
+    ref = None
     for ch, cfg in (('LEO', LEO), ('DON', DON)):
         pal, cat = extract(cfg)
         if pal0 is None:
@@ -345,8 +457,12 @@ def main():
             rows.append((slot, frames))
         w, h = save_sheet(os.path.join(DIR, cfg['out']), pal, rows)
         print('%s  %dx%d' % (cfg['out'], w, h))
+        if ref is None:
+            ref = idle_ref(rows)                  # Leo va primero
+        offs[ch.lower()] = frame_offsets(rows, ref)
         for i, (slot, frames) in enumerate(rows):
-            print('  %2d %-14s %2d' % (i, slot, len(frames)))
+            print('  %2d %-14s %2d  dx %s' % (i, slot, len(frames), offs[ch.lower()][i]))
+    write_offsets(offs)
 
 
 if __name__ == '__main__':

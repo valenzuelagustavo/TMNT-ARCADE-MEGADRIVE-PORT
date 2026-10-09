@@ -472,7 +472,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         camYApply(TRUE);
         for (u8 k = 0; k < nPl; k++)
             if (pls[k]->sprite)
-                SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
+                playerSetSpritePos(pls[k], pls[k]->x - cameraX,
                                 pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - stageCamY);
         fgTopUpdate(cameraX);
     }
@@ -537,7 +537,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             // updatePlayer ya lo dibujo, pero antes del recorte de la pared y
             // del movimiento de camara de este frame: se lo reubica.
             if (pls[k]->sprite)
-                SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
+                playerSetSpritePos(pls[k], pls[k]->x - cameraX,
                                 pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - stageCamY);
         }
 

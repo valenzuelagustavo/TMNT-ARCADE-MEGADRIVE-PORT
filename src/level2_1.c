@@ -1349,7 +1349,7 @@ SceneId showScene21() {
     // aplicarlo a mano (lo mismo que se hace despues en cada frame).
     for (u8 k = 0; k < nPl; k++)
         if (pls[k]->sprite)
-            SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
+            playerSetSpritePos(pls[k], pls[k]->x - cameraX,
                             pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - cameraY);
     SPR_update();
 
@@ -1478,7 +1478,7 @@ SceneId showScene21() {
         // a mano al dibujar al jugador (updatePlayer solo sabe de cameraX).
         for (u8 k = 0; k < nPl; k++)
             if (pls[k]->sprite)
-                SPR_setPosition(pls[k]->sprite, pls[k]->x - cameraX,
+                playerSetSpritePos(pls[k], pls[k]->x - cameraX,
                                 pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - cameraY);
 
         // --- Globo "who put the light out" (20/09) -------------------------

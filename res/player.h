@@ -601,6 +601,10 @@ bool playerAttackHitsFlying(const Player* p, s16 targetCX, s16 top, s16 bot,
 // niveles que reposicionan el sprite a mano (2-1, por la camara vertical)
 // tienen que usar esto y no jumpZ solo.
 s16  playerDrawZ(const Player* p);
+// (09/10) Ubica el sprite de la tortuga en pantalla ((sx, sy) = esquina del
+// frame) sumando el desplazamiento en X del frame actual (playerFrameDXTab).
+// Usarla en vez de SPR_setPosition para los sprites de las tortugas.
+void playerSetSpritePos(Player* p, s16 sx, s16 sy);
 
 // TRUE si la tortuga está ejecutando la patada con salto (en el aire). Se usa
 // para reproducir el SFX de impacto sólo cuando conecta la patada aérea.

@@ -207,7 +207,7 @@ static void clampToPad(Player* p, s16 ex, s16 ey) {
 static void drawPlayers(Player** pls, u8 nPl, s16 camX, s16 camY) {
     for (u8 k = 0; k < nPl; k++)
         if (pls[k]->sprite)
-            SPR_setPosition(pls[k]->sprite, pls[k]->x - camX,
+            playerSetSpritePos(pls[k], pls[k]->x - camX,
                             pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - camY);
 }
 
