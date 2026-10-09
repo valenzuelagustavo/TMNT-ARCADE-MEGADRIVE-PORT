@@ -14,6 +14,8 @@
 //   D  548..700  Los 4 retratos crecen desde su esquina en cuadrantes
 //   E  700..822  Corte a celeste + banner "TEENAGE MUTANT NINJA"
 //   F  822..940  Entra el logo "TURTLES" + copyright de Konami
+//   (09/10) E/F van a 320 de ancho con el arte nuevo (title_*), como el
+//   arcade: la pantalla completa con el texto de copyright.
 //
 // TECNICA CENTRAL (escenas A/B): la tira del dolly mide 256x1496 px = 32x187
 // tiles y NO entra en ningun plano de la MegaDrive (el maximo es 64x64). Se
@@ -26,7 +28,7 @@
 // PRESUPUESTO DE VRAM (plano 64x32 -> userTileMaxIndex ~1612):
 //   dolly 1001 + haz 11 = 1012 tiles de usuario
 //   sprites: 4 tortugas x 90 + tapa 32 = 392  ->  SPR_initEx(416)
-//   total ~1444 de 1612. La escena D (378 tiles) y las E/F (293) recargan
+//   total ~1444 de 1612. La escena D (378 tiles) y las E/F (522, arte del 09/10) recargan
 //   VRAM desde cero en cada corte duro, tapadas por el fade.
 //   Nubes de la escena A/B (44 + 44 = 88 tiles de sprite, dos instancias de
 //   intro_nube_chica; ya no se usa intro_nube_grande) casi no suman a ese
@@ -52,7 +54,7 @@
 
 #include "scenes.h"
 #include "intro_tmnt.h"   // intro_dolly, intro_luz, intro_tapa, intro_turtles,
-                          // intro_quad, intro_banner, intro_logo, intro_konami,
+                          // intro_quad, title_banner, title_logo, title_rest,
                           // intro_nube_chica (dos instancias: izquierda y derecha)
 #include "audio.h"        // music_intro_arcade ("01 - Opening Demo.vgm")
 
@@ -135,9 +137,9 @@
 #define INTRO_T_QUAD_HOLD   120   // D: cuadro fijo
 #define INTRO_T_SKY_HOLD     15   // E: celeste liso antes del banner
 #define INTRO_T_BANNER_FALL  17   // E: el banner cae desde fuera de cuadro (mas rapido que antes)
-#define INTRO_T_BANNER       70   // E: banner fijo (recortado para que el logo aparezca antes, ver INTRO_MUSIC_LEN)
+#define INTRO_T_BANNER       50   // E: banner fijo (recortado para que el logo aparezca antes, ver INTRO_MUSIC_LEN; 09/10: 70 -> 50, ~1/3 s antes, con la musica)
 #define INTRO_T_LOGO_WIPE    13   // F: entra "TURTLES"
-#define INTRO_T_LOGO_HOLD   105   // F: composicion final fija
+#define INTRO_T_LOGO_HOLD   125   // F: composicion final fija (09/10: +20, lo que se adelanto el logo: la intro dura lo mismo)
 // Total: 880 ticks (~14.7 s) con RAIN_EXTRA_LOOPS = 0 (200->140 en la escena A
 // para el ajuste de sincro con la musica); cada vuelta extra de lluvia suma
 // ~13 ticks al dolly (con 4 vueltas: ~931 ticks, ~15.5 s).
@@ -181,8 +183,11 @@
 #define TAPA_H               32
 #define TAPA_REST_X         (HOLE_CX - TAPA_W / 2)
 #define TAPA_REST_Y         (HOLE_CY - TAPA_H / 2)
-#define TAPA_FLY_VX           2   // Deriva a la derecha mientras vuela
-#define TAPA_FLY_VY          -7   // Velocidad de subida
+// (09/10) La tapa sale disparada derecho hacia ARRIBA, por el eje del haz de
+// luz (centrada en el pozo, sin deriva), y se va por el borde superior de la
+// camara: 182 -> -32 en unos 24 ticks.
+#define TAPA_FLY_VX           0
+#define TAPA_FLY_VY          -9   // Velocidad de subida
 
 #define BEAM_COL             13   // Columna del plano donde arranca el haz (x=104)
 #define BEAM_ROW_SHIFT        2   // El haz se sube 2 filas para calzar en el pozo
@@ -210,42 +215,44 @@ static const s16 turtleTime[4]  = {  46,  52,  50,  48 };  // duracion del vuelo
 // ---------------------------------------------------------------------------
 // Escena D - cuadrantes
 // ---------------------------------------------------------------------------
-#define QUAD_COLS            16   // 128 px
+#define QUAD_COLS            20   // 160 px (09/10: el cuadro nuevo es de 320)
 #define QUAD_ROWS            14   // 112 px
 
 // Tile SOLIDO de cada cuadrante (color de fondo liso) con el que crecen los
-// rectangulos: columna/fila de tile dentro del cuadro de 32x28.
+// rectangulos: columna/fila de tile dentro del cuadro (40x28 desde el 09/10).
 // (22/09) Antes se tomaba siempre la esquina externa. Con el rip nuevo
 // (intro_quad_tela.png) la esquina de arriba a la derecha la cruza el bo de
 // Donatello, y el rectangulo crecia estampando un pedazo de palo repetido. Se
 // usa el tile liso mas cercano a cada esquina, medido sobre el PNG.
-#define QUAD_SOLID_TL_C   0
-#define QUAD_SOLID_TL_R   0
-#define QUAD_SOLID_TR_C  31
+// (09/10) El cuadro nuevo tiene un marco negro de 4 px: los tiles lisos de
+// cada cuadrante estan una fila/columna adentro.
+#define QUAD_SOLID_TL_C   1
+#define QUAD_SOLID_TL_R   1
+#define QUAD_SOLID_TR_C  38
 #define QUAD_SOLID_TR_R   1
-#define QUAD_SOLID_BL_C   0
-#define QUAD_SOLID_BL_R  27
-#define QUAD_SOLID_BR_C  31
-#define QUAD_SOLID_BR_R  27
+#define QUAD_SOLID_BL_C   1
+#define QUAD_SOLID_BL_R  26
+#define QUAD_SOLID_BR_C  38
+#define QUAD_SOLID_BR_R  26
 
 // ---------------------------------------------------------------------------
 // Escenas E/F - banner, logo y copyright
 // ---------------------------------------------------------------------------
-#define INTRO_SKY_PAL_INDEX  13   // Indice del celeste dentro de la PAL0 de E/F
-                                  // (lo reporta tools/gen_intro_assets.py)
-#define BANNER_COL            3    // (32 - 26) / 2 -> centrado
-#define BANNER_ROW            5    // y = 40 (posicion final)
+// (09/10) Arte nuevo a 320 de ancho (tools/gen_title_screens.py). El celeste
+// es el color 0 de la paleta compartida: el backdrop del VDP.
+#define BANNER_COL            0    // Las tres piezas miden 40 tiles: pantalla completa
+#define BANNER_ROW            0    // el banner cae en y = 13..37
 // La caida se hace con el scroll vertical de BG_A: con scrollA = S el banner se
-// dibuja en la pantalla a y = (BANNER_ROW * 8) - S. Arranca en 64 (justo por
-// encima del borde superior) y termina en 0.
-#define BANNER_FALL_FROM     64
+// dibuja en la pantalla a y = 13 - S. Arranca en 42 (todo arriba del borde
+// superior) y termina en 0. No mas de 45: el plano mide 256 px y la copia que
+// da la vuelta (en y = 269 - S) tiene que seguir debajo de la pantalla.
+#define BANNER_FALL_FROM     42
 #define BANNER_BOUNCE         5    // Rebote en px al tocar su lugar
 #define BANNER_BOUNCE_TICKS   8    // Duracion del rebote (parte de la caida)
-#define LOGO_COL              0    // El logo mide 32 tiles: pantalla completa
-#define LOGO_ROW              8    // y = 64
-#define LOGO_TILE_ROWS       10
-#define KONAMI_COL            5    // (32 - 21) / 2 -> centrado (x = 40)
-#define KONAMI_ROW           18    // y = 144
+#define LOGO_COL              0
+#define LOGO_ROW              6    // y = 48 (el logo ocupa y = 49..119)
+#define REST_COL              0
+#define REST_ROW              5    // y = 40: TM, Konami y copyright
 
 // ===========================================================================
 // Estado interno
@@ -655,6 +662,9 @@ static bool introBlockQuad(void) {
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
     VDP_setVerticalScroll(BG_B, 0);
+    // (09/10) El cuadro nuevo mide 320: desde aca la intro va a 320 de ancho
+    // (la pantalla esta en negro, el cambio no se ve).
+    VDP_setScreenWidth320();
 
     VDP_loadTileSet(intro_quad.tileset, TILE_USER_INDEX, DMA);
     u16 attr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX);
@@ -703,21 +713,24 @@ static bool introBlockLogo(void) {
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
 
+    // (09/10) Pantalla completa de 320 (ya viene asi desde la escena D).
+    VDP_setScreenWidth320();
+
     u16 vram = TILE_USER_INDEX;
-    VDP_loadTileSet(intro_banner.tileset, vram, DMA);
+    VDP_loadTileSet(title_banner.tileset, vram, DMA);
     u16 bannerAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, vram);
-    vram += intro_banner.tileset->numTile;
+    vram += title_banner.tileset->numTile;
 
-    VDP_loadTileSet(intro_logo.tileset, vram, DMA);
+    VDP_loadTileSet(title_logo.tileset, vram, DMA);
     u16 logoAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, vram);
-    vram += intro_logo.tileset->numTile;
+    vram += title_logo.tileset->numTile;
 
-    VDP_loadTileSet(intro_konami.tileset, vram, DMA);
-    u16 konamiAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, vram);
+    VDP_loadTileSet(title_rest.tileset, vram, DMA);
+    u16 restAttr = TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, vram);
 
-    // Corte duro al celeste: paleta compartida + backdrop
-    PAL_setPalette(PAL0, intro_banner.palette->data, DMA);
-    VDP_setBackgroundColor(INTRO_SKY_PAL_INDEX);
+    // Corte duro al celeste: paleta compartida + backdrop (su color 0)
+    PAL_setPalette(PAL0, title_banner.palette->data, DMA);
+    VDP_setBackgroundColor(0);
     if (introWait(INTRO_T_SKY_HOLD)) return FALSE;
 
     // ---- Escena E: el banner "TEENAGE MUTANT NINJA" CAE desde fuera de cuadro ----
@@ -726,9 +739,9 @@ static bool introBlockLogo(void) {
     // Como en BG_A no hay nada mas todavia, mover el plano entero es gratis.
     // Al aterrizar se vuelca a BG_B en su fila definitiva y BG_A queda limpio
     // para el wipe del logo.
-    VDP_setTileMapEx(BG_A, intro_banner.tilemap, bannerAttr,
+    VDP_setTileMapEx(BG_A, title_banner.tilemap, bannerAttr,
                      BANNER_COL, BANNER_ROW, 0, 0,
-                     intro_banner.tilemap->w, intro_banner.tilemap->h, DMA);
+                     title_banner.tilemap->w, title_banner.tilemap->h, DMA);
     VDP_setVerticalScroll(BG_A, BANNER_FALL_FROM);
 
     {
@@ -754,30 +767,30 @@ static bool introBlockLogo(void) {
 
     // Aterrizo: pasa a BG_B (fijo) y BG_A vuelve a cero para el logo
     VDP_setVerticalScroll(BG_A, 0);
-    VDP_setTileMapEx(BG_B, intro_banner.tilemap, bannerAttr,
+    VDP_setTileMapEx(BG_B, title_banner.tilemap, bannerAttr,
                      BANNER_COL, BANNER_ROW, 0, 0,
-                     intro_banner.tilemap->w, intro_banner.tilemap->h, DMA);
+                     title_banner.tilemap->w, title_banner.tilemap->h, DMA);
     VDP_clearPlane(BG_A, TRUE);
     if (introWait(INTRO_T_BANNER)) return FALSE;
 
     // ---- Escena F: "TURTLES" entra revelandose de derecha a izquierda ----
-    s16 cols = (s16)intro_logo.tilemap->w;
+    s16 cols = (s16)title_logo.tilemap->w;
     s16 done = cols;
     for (u16 t = 1; t <= INTRO_T_LOGO_WIPE; t++) {
         s16 target = cols - (s16)(((s32)cols * t) / INTRO_T_LOGO_WIPE);
         while (done > target) {
             done--;
-            VDP_setTileMapEx(BG_A, intro_logo.tilemap, logoAttr,
+            VDP_setTileMapEx(BG_A, title_logo.tilemap, logoAttr,
                              LOGO_COL + done, LOGO_ROW, done, 0,
-                             1, intro_logo.tilemap->h, CPU);
+                             1, title_logo.tilemap->h, CPU);
         }
         if (introTick()) return FALSE;
     }
 
-    // ---- Composicion final: se suma el copyright de Konami ----
-    VDP_setTileMapEx(BG_B, intro_konami.tilemap, konamiAttr,
-                     KONAMI_COL, KONAMI_ROW, 0, 0,
-                     intro_konami.tilemap->w, intro_konami.tilemap->h, DMA);
+    // ---- Composicion final: se suma el resto (TM, Konami y copyright) ----
+    VDP_setTileMapEx(BG_B, title_rest.tilemap, restAttr,
+                     REST_COL, REST_ROW, 0, 0,
+                     title_rest.tilemap->w, title_rest.tilemap->h, DMA);
     return !introWait(INTRO_T_LOGO_HOLD);
 }
 

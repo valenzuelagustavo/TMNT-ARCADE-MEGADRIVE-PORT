@@ -8,14 +8,31 @@
 // =============================================================================
 
 // --- Imágenes de fondo (tilemaps) ---
-IMAGE logo "/images/title_scene/logo_tmnt.png" BEST ALL
-IMAGE characters_greyscale "/images/title_scene/characters_greyscale.png" BEST ALL
+// (09/10) Fondo de la seleccion de players y de OPCIONES: la pantalla 2 de
+// "intro_tmnt/Arcade - ... -TELA START.png" (paleta nueva) SIN el menu ni el
+// cursor (van aparte, abajo). La arma tools/gen_title_screens.py. Reemplaza a title_scene/logo_tmnt.png.
+IMAGE title_menu_bg "/images/intro_tmnt/genesis/title_menu_bg.png" BEST ALL
+// El menu, tal cual el arte (letras del arcade, renglones cada 17 px): el
+// de 3 opciones y el del secreto de 4 jugadores (suma "4 TURTLES").
+IMAGE title_menu3 "/images/intro_tmnt/genesis/title_menu3.png" NONE ALL
+IMAGE title_menu4 "/images/intro_tmnt/genesis/title_menu4.png" NONE ALL
 
 // --- Sprites de interfaz ---
-SPRITE selector_turtle "/images/title_scene/selector_turtle.png" 8 8 FAST 0
-SPRITE character_selector "/images/title_scene/character_selector.png" 8 16 FAST
+// (09/10) La cabecita de cursor del arte nuevo (24x16), misma paleta que
+// title_menu_bg (PAL0). Reemplaza a title_scene/selector_turtle.png.
+SPRITE title_cursor "/images/intro_tmnt/genesis/title_cursor.png" 3 2 NONE 0
 SPRITE sega_logo_sprite "/images/title_scene/sega_logo.png" 17 10 FAST 8
-SPRITE faces_hud "/images/title_scene/sprite_sheet_faces.png" 4 4 FAST 4
+
+// --- Seleccion de personaje (08/10) ---
+// Cortados de "hud/select player_15 CORES.png" por tools/gen_char_select.py.
+// Comparten la paleta de 15 colores del PNG fuente (todo en PAL0). Reemplazan
+// a characters_greyscale / character_selector / faces_hud (los PNG viejos
+// siguen en images/title_scene/, sin declarar).
+IMAGE  char_select_bg    "/images/hud/char_select_bg.png" BEST ALL
+// Globo "nUP": fila = jugador (1UP..4UP), frame = tortuga (Leo, Mike, Don, Raph).
+SPRITE char_select_badge "/images/hud/char_select_badge.png" 4 4 NONE 0
+// Cabeza de cada marco: fila = tortuga, frame 0 ojos abiertos / 1 cerrados.
+SPRITE char_select_head  "/images/hud/char_select_head.png" 3 2 NONE 0
 
 // --- Creditos: reconocimiento al adaptador musical ---
 // sansenpai35_logo.png es el nombre del artista (200x32, 1 frame) y

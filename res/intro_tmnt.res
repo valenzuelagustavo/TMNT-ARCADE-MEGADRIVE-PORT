@@ -11,7 +11,7 @@
 //   Escena  A:     intro_nube_chica + intro_nube_grande -> PAL2 (paleta propia,
 //                  no entran en la PAL0 de arriba que ya esta al tope)
 //   Escena  C:     intro_turtles -> PAL1 (paleta unificada de las 4 tortugas)
-//   Escena  D:     intro_quad -> PAL0 (16 col, los 4 retratos juntos)
+//   Escena  D:     intro_quad -> PAL0 (16 col, los 4 retratos juntos, 320x224)
 //   Escenas E/F:   intro_banner + intro_logo + intro_konami -> PAL0 (13 col)
 //
 // COMPRESION: todo NONE. Los tilemaps se indexan/dibujan por partes desde ROM
@@ -41,7 +41,11 @@ SPRITE intro_nube_grande "images/intro_tmnt/genesis/intro_nube_grande.png" 26 5 
 //     time 0 = animacion manual desde el codigo. ---
 SPRITE intro_turtles "images/intro_tmnt/genesis/intro_turtles.png" 9 10 FAST 0
 
-// --- Escena D: los 4 retratos ya compuestos en sus cuadrantes (256x224) ---
+// --- Escena D: los 4 retratos ya compuestos en sus cuadrantes ---
+// (09/10) Reversion a 320x224: "Arcade - Teenage Mutant Ninja Turtles - TELA 1
+// 320X224.png", paleta nueva y marco negro. tools/gen_intro_quad_tela.py la
+// copia a intro_quad_tela.png (ya no hay padding ni corrimiento). Lo de abajo
+// es la historia del rip anterior de 252 de ancho.
 // (22/09) Rip nuevo, con mejor uso de color:
 // "Arcade---Teenage-Mutant-Ninja-Turtles---TELA-1.png". NO se puede apuntar
 // directo a ese PNG: mide 252 de ancho (rescomp exige multiplo de 8) y su
@@ -52,6 +56,13 @@ SPRITE intro_turtles "images/intro_tmnt/genesis/intro_turtles.png" 9 10 FAST 0
 IMAGE  intro_quad    "images/intro_tmnt/genesis/intro_quad_tela.png"    NONE
 
 // --- Escenas E/F: banner, logo TURTLES y copyright de Konami ---
-IMAGE  intro_banner  "images/intro_tmnt/genesis/intro_banner.png"  NONE
-IMAGE  intro_logo    "images/intro_tmnt/genesis/intro_logo.png"    NONE
-IMAGE  intro_konami  "images/intro_tmnt/genesis/intro_konami.png"  NONE
+// (09/10) Arte nuevo con la paleta mejorada: la pantalla 1 de
+// "Arcade - ... -TELA START.png", a 320 de ancho, partida por
+// tools/gen_title_screens.py en el banner (filas de tile 0..4), el logo
+// (6..15, solo los pixeles de "TURTLES") y el resto (desde la fila 5: TM,
+// logo de Konami y el texto de copyright). Comparten paleta; su color 0 es el
+// celeste del fondo. Reemplazan a intro_banner/intro_logo/intro_konami (los
+// PNG viejos quedan en genesis/ sin declarar).
+IMAGE  title_banner  "images/intro_tmnt/genesis/title_banner.png"  NONE
+IMAGE  title_logo    "images/intro_tmnt/genesis/title_logo.png"    NONE
+IMAGE  title_rest    "images/intro_tmnt/genesis/title_rest.png"    NONE

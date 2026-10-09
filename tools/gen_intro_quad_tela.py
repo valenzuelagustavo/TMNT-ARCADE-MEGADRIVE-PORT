@@ -17,6 +17,12 @@
 #    color de backdrop, no el de la paleta. Se corren todos los indices +1 (el
 #    PNG usa 15 colores, entra justo en 16) y el 0 queda sin usar.
 #
+# (09/10) REVERSION a 320x224: "Arcade - Teenage Mutant Ninja Turtles - TELA 1
+# 320X224.png" (en res/images/intro_tmnt/), con la paleta nueva del titulo y
+# un marco negro de 4 px con la cruz en el medio. Ya mide 320 (la escena D
+# pasa a 320 de ancho) y deja libre el indice 0: no hace falta padding ni
+# corrimiento. Si el rip vuelve a traer el indice 0 ocupado, se corre +1.
+#
 # NO se escribe sobre intro_quad.png a proposito: ese archivo lo genera
 # tools/gen_intro_assets.py, y si alguien lo vuelve a correr pisaria el arte
 # nuevo sin avisar (la misma trampa que el foot soldier generado del 18/09).
@@ -31,10 +37,11 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIR  = os.path.join(ROOT, "res", "images", "intro_tmnt", "genesis")
-SRC  = os.path.join(DIR, "Arcade---Teenage-Mutant-Ninja-Turtles---TELA-1.png")
+SRC  = os.path.join(ROOT, "res", "images", "intro_tmnt",
+                    "Arcade - Teenage Mutant Ninja Turtles - TELA 1 320X224.png")
 DST  = os.path.join(DIR, "intro_quad_tela.png")
 
-W_OUT, H_OUT = 256, 224
+W_OUT, H_OUT = 320, 224
 
 
 def main():
@@ -47,22 +54,30 @@ def main():
         sys.exit("Alto %d, se esperaba %d" % (h, H_OUT))
 
     used = sorted(set(a.flatten().tolist()))
-    if len(used) > 15 or max(used) > 14:
-        sys.exit("Usa %d colores (indices %s): con el corrimiento +1 no entra "
-                 "en 16" % (len(used), used))
+    pal = im.getpalette()
 
-    # 1. padding centrado repitiendo los bordes
+    # 1. padding centrado repitiendo los bordes (si hiciera falta)
     pad = W_OUT - w
     if pad < 0 or pad % 2:
         sys.exit("Ancho %d: el padding tiene que ser par y positivo" % w)
-    left = np.repeat(a[:, :1], pad // 2, axis=1)
-    right = np.repeat(a[:, -1:], pad // 2, axis=1)
-    b = np.concatenate([left, a, right], axis=1)
+    if pad:
+        left = np.repeat(a[:, :1], pad // 2, axis=1)
+        right = np.repeat(a[:, -1:], pad // 2, axis=1)
+        b = np.concatenate([left, a, right], axis=1)
+    else:
+        b = a
 
-    # 2. indice 0 libre
-    b = b + 1
-    pal = im.getpalette()[:15 * 3]
-    newpal = [0, 0, 0] + pal
+    # 2. indice 0 libre (transparente en Megadrive)
+    if 0 in used:
+        if len(used) > 15 or max(used) > 14:
+            sys.exit("Usa %d colores (indices %s): con el corrimiento +1 no "
+                     "entra en 16" % (len(used), used))
+        b = b + 1
+        newpal = [0, 0, 0] + pal[:15 * 3]
+    else:
+        if max(used) > 15:
+            sys.exit("Usa indices %s: no entra en 16" % used)
+        newpal = [0, 0, 0] + pal[3:16 * 3]
     newpal += [0] * (768 - len(newpal))
 
     out = Image.fromarray(b, "P")

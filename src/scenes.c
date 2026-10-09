@@ -1,6 +1,6 @@
 #include "scenes.h"
 #include "intro.h"   // sega_logo_spr, rocksteady_spr
-#include "menus.h"   // logo, characters_greyscale, selector_turtle, character_selector, faces_hud
+#include "menus.h"   // title_menu_bg, title_cursor, char_select_bg/badge/head
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
 #include "level2.h"  // bg_test (IMAGE, 440x192 — sala del nivel 2), smoke_tiles (TILESET, 8 frames de 64x64)
 #include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_boss, music_charselect, music_profiles, music_credits, music_ending
@@ -1588,6 +1588,21 @@ SceneId showVramClear() {
 }
 
 // ---------------------------------------------------------------------------
+// (09/10) Fondo de la pantalla del titulo (seleccion de players y OPCIONES):
+// title_menu_bg en BG_B con su paleta en PAL0. El celeste es el color 0 de esa
+// paleta, asi que el resto de la pantalla lo pinta el backdrop del VDP. Por
+// CPU, como estaba (evita carreras con el DMA entre escenas).
+// ---------------------------------------------------------------------------
+static void titleBgLoad(void) {
+    PAL_setPalette(PAL0, title_menu_bg.palette->data, CPU);
+    VDP_setBackgroundColor(0);
+    VDP_loadTileSet(title_menu_bg.tileset, TILE_USER_INDEX, CPU);
+    VDP_setTileMapEx(BG_B, title_menu_bg.tilemap,
+                     TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
+                     0, 0, 0, 0, title_menu_bg.tilemap->w, title_menu_bg.tilemap->h, CPU);
+}
+
+// ---------------------------------------------------------------------------
 // 5. Selección de número de jugadores
 // ---------------------------------------------------------------------------
 // Inactividad que dispara el modo atracto (perfiles de las tortugas).
@@ -1627,27 +1642,32 @@ static const u16 konamiSeq[KONAMI_LEN] = {
     BUTTON_B,    BUTTON_A
 };
 
-// Filas del menu segun este desbloqueado o no.
-#define MENU_ROW0        22   // sin el secreto: 22, 24, 26
-#define MENU_ROW0_4P     20   // con el secreto: 20, 22, 24, 26
-#define MENU_CURSOR_ROW0    18
-#define MENU_CURSOR_ROW0_4P 16
+// (09/10) Fondo nuevo (title_menu_bg) y el menu sacado del mismo arte: las
+// letras del arcade, renglones cada 17 px (y = 147, 164, 181), en x = 132.
+// Va como imagen en BG_A (title_menu3, o title_menu4 con el secreto de 4
+// jugadores: "4 TURTLES" entra en el tercer renglon y OPTIONS baja a 198,
+// todavia arriba del "(C) KONAMI 1989").
+#define MENU_COL         16   // la imagen del menu arranca en x = 128 ...
+#define MENU_ROW         18   // ... e y = 144
+#define MENU_TILE_W      10
+#define MENU_TILE_H       8
+#define MENU_ITEM_Y0    147   // primer renglon
+#define MENU_ITEM_STEP   17
+#define MENU_CURSOR_X   104   // la cabecita, como en el arte
+#define MENU_CURSOR_DY   -5   // 5 px arriba del renglon
+static u16 menuVram;          // tiles de title_menu3/4 (despues del fondo)
 
 // Dibuja el menu de cantidad de jugadores. Con el secreto desbloqueado son 4
 // filas (y arrancan una fila mas arriba, porque la ultima ya estaba al borde).
 static void menuDraw4P(bool with4P) {
     // Limpiar las dos variantes: al desbloquear en vivo hay que borrar la
     // version de 3 filas antes de dibujar la de 4.
-    for (u16 row = 20; row <= 26; row += 2) VDP_clearText(14, row, 12);
-    u16 r = with4P ? MENU_ROW0_4P : MENU_ROW0;
-    VDP_drawText("1 TURTLE",  14, r);
-    VDP_drawText("2 TURTLES", 14, r + 2);
-    if (with4P) {
-        VDP_drawText("4 TURTLES", 14, r + 4);
-        VDP_drawText("OPTIONS",   14, r + 6);
-    } else {
-        VDP_drawText("OPTIONS",   14, r + 4);
-    }
+    const Image* m = with4P ? &title_menu4 : &title_menu3;
+    VDP_clearTileMapRect(BG_A, MENU_COL, MENU_ROW, MENU_TILE_W, MENU_TILE_H);
+    VDP_loadTileSet(m->tileset, menuVram, CPU);
+    VDP_setTileMapEx(BG_A, m->tilemap,
+                     TILE_ATTR_FULL(PAL0, TRUE, FALSE, FALSE, menuVram),
+                     MENU_COL, MENU_ROW, 0, 0, m->tilemap->w, m->tilemap->h, CPU);
 }
 
 SceneId showPlayerSelect() {
@@ -1672,14 +1692,10 @@ SceneId showPlayerSelect() {
     SYS_doVBlankProcess();
     SYS_doVBlankProcess();
 
-    VDP_setBackgroundColor(0);
-    PAL_setPalette(PAL0, logo.palette->data, CPU);
-
     // Fondo: 320x224 px en BG_B. CPU para evitar condiciones de carrera.
-    VDP_loadTileSet(logo.tileset, TILE_USER_INDEX, CPU);
-    VDP_setTileMapEx(BG_B, logo.tilemap,
-                     TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
-                     0, 0, 0, 0, logo.tilemap->w, logo.tilemap->h, CPU);
+    // El celeste es el color 0 de la paleta: el backdrop del VDP.
+    titleBgLoad();
+    menuVram = (u16)(TILE_USER_INDEX + title_menu_bg.tileset->numTile);
 
     // Fuente arcade en PAL2. OJO: title_font_pal tiene 64 entradas
     // (rescomp exporta la paleta completa del PNG). Si copiamos las 64 con
@@ -1693,10 +1709,9 @@ SceneId showPlayerSelect() {
     // Menu (3 filas, o 4 con el secreto de 4 jugadores desbloqueado).
     menuDraw4P(secret4P);
 
-    Sprite *cursor = SPR_addSprite(&selector_turtle, 8 * 8,
-                                   (secret4P ? MENU_CURSOR_ROW0_4P : MENU_CURSOR_ROW0) * 8,
-                                   TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    PAL_setPalette(PAL1, selector_turtle.palette->data, CPU);
+    Sprite *cursor = SPR_addSprite(&title_cursor, MENU_CURSOR_X,
+                                   MENU_ITEM_Y0 + MENU_CURSOR_DY,
+                                   TILE_ATTR(PAL0, TRUE, FALSE, FALSE));
 
     u8  selectedOption = 0;
     u16 prev = 0;
@@ -1778,9 +1793,8 @@ SceneId showPlayerSelect() {
         if (justPressedJoy(value, prev, BUTTON_DOWN)) selectedOption = (u8)((selectedOption + 1) % nOpts);
         if (selectedOption >= nOpts) selectedOption = 0;
 
-        SPR_setPosition(cursor, 8 * 8,
-                        ((secret4P ? MENU_CURSOR_ROW0_4P : MENU_CURSOR_ROW0)
-                         + selectedOption * 2) * 8);
+        SPR_setPosition(cursor, MENU_CURSOR_X,
+                        MENU_ITEM_Y0 + selectedOption * MENU_ITEM_STEP + MENU_CURSOR_DY);
 
         if (value & BUTTON_START) break;
 
@@ -1873,10 +1887,11 @@ SceneId showPlayerSelect() {
 #define OPT_SND_NAME_MAX   11   // caracteres de nombre que entran
 #define OPT_SND_FIELD_W    (OPT_SND_NAME_MAX + 4)
 #define OPT_STATUS_COL     (OPT_SND_COL + OPT_SND_FIELD_W)  // ON/OFF
-#define OPT_ROW_Y          20   // fila de texto de LIVES; las demás van +2
-// El cursor (selector_turtle, 64x64) se dibuja 4 tiles arriba de la fila de
-// texto, igual que en showPlayerSelect (fila de texto 22 -> cursor fila 18).
-#define OPT_CURSOR_Y       (OPT_ROW_Y - 4)
+#define OPT_ROW_Y          19   // fila de texto de LIVES; las demás van +2 (09/10: 20 -> 19, aire sobre el "(C) KONAMI 1989" del fondo nuevo)
+// (09/10) El cursor es la cabecita del arte nuevo (title_cursor, 24x16): a la
+// izquierda del label, 2 px arriba de la fila de texto.
+#define OPT_CURSOR_X       (OPT_LABEL_COL * 8 - 26)
+#define OPT_CURSOR_DY      -4
 
 // Pistas del sound test: nombre en pantalla (ASCII puro) + recurso XGM2.
 typedef struct { const char* name; const u8* track; } SoundTrack;
@@ -1946,14 +1961,8 @@ SceneId showOptions() {
     SYS_doVBlankProcess();
     SYS_doVBlankProcess();
 
-    VDP_setBackgroundColor(0);
-    PAL_setPalette(PAL0, logo.palette->data, CPU);
-
-    // Cargar logo con CPU para evitar condiciones de carrera con DMA.
-    VDP_loadTileSet(logo.tileset, TILE_USER_INDEX, CPU);
-    VDP_setTileMapEx(BG_B, logo.tilemap,
-                     TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
-                     0, 0, 0, 0, logo.tilemap->w, logo.tilemap->h, CPU);
+    // Fondo nuevo (el mismo que la seleccion de players), por CPU.
+    titleBgLoad();
 
     VDP_loadFont(&title_font, CPU);
     // OJO: title_font_pal tiene 64 entradas. Copiar las 64 a partir de PAL2
@@ -1965,8 +1974,8 @@ SceneId showOptions() {
     VDP_drawText("SOUNDTEST", OPT_LABEL_COL, OPT_ROW_Y + 2);
     VDP_drawText("EXIT",      OPT_LABEL_COL, OPT_ROW_Y + 4);
 
-    Sprite *cursor = SPR_addSprite(&selector_turtle, 4 * 8, OPT_CURSOR_Y * 8, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    PAL_setPalette(PAL1, selector_turtle.palette->data, DMA);
+    Sprite *cursor = SPR_addSprite(&title_cursor, OPT_CURSOR_X, OPT_ROW_Y * 8 + OPT_CURSOR_DY,
+                                   TILE_ATTR(PAL0, TRUE, FALSE, FALSE));
 
     // VIDAS arranca reflejando el valor actual del global.
     static const u8 livesValues[] = {3, 5, 7};
@@ -2027,7 +2036,7 @@ SceneId showOptions() {
             }
         }
 
-        SPR_setPosition(cursor, 4 * 8, (OPT_CURSOR_Y + sel * 2) * 8);
+        SPR_setPosition(cursor, OPT_CURSOR_X, (OPT_ROW_Y + sel * 2) * 8 + OPT_CURSOR_DY);
 
         // SALIR: START sobre la fila SALIR, o B en cualquier fila.
         if (((value & BUTTON_START) && sel == OPT_ROW_SALIR) || (value & BUTTON_B))
@@ -2053,181 +2062,160 @@ SceneId showOptions() {
 }
 
 // ---------------------------------------------------------------------------
+// Seleccion de personaje (08/10): geometria de char_select_bg (320x224)
+// ---------------------------------------------------------------------------
+// Retratos de 64x128 en x = 13, 90, 167, 244 (paso de 77 px), y = 66..193.
+// Cabezas de los marcos: 21x16 en x = 15 + 77*t, y = 20.
+#define CSEL_COL_STEP       77
+#define CSEL_PORTRAIT_X0    13
+#define CSEL_PORTRAIT_Y     66
+#define CSEL_HEAD_X0        15
+#define CSEL_HEAD_Y         20
+// Globo "nUP" (30x29, la punta en la columna 10 de la celda): arranca 17 px
+// adentro del retrato y 8 px arriba de su borde superior (el tope del globo
+// queda debajo de "SELECT YOUR TURTLES"), asi la punta entra ~20 px en el
+// retrato, como en el arcade.
+#define CSEL_BADGE_DX       17
+#define CSEL_BADGE_Y        (CSEL_PORTRAIT_Y - 8)
+#define CSEL_BADGE_BLINK    30    // periodo del titileo mientras elige (2/3 visible)
+#define CSEL_BLINK_MIN      90    // frames con los ojos abiertos (minimo)...
+#define CSEL_BLINK_RANGE   150    // ...mas un azar de hasta esto
+#define CSEL_BLINK_SHUT      8    // frames con los ojos cerrados
+#define CSEL_CONFIRM_HOLD   30    // pausa con los globos fijos antes del fade
+#define CSEL_SPR_TILES     160    // area de sprites de esta pantalla (ver showCharSelect)
+
+static s16 csBadgeX(s8 turtle) {
+    return (s16)(CSEL_PORTRAIT_X0 + turtle * CSEL_COL_STEP + CSEL_BADGE_DX);
+}
+
+// ---------------------------------------------------------------------------
 // 6. Selección de personaje
 // ---------------------------------------------------------------------------
 SceneId showCharSelect() {
+    // (08/10) Pantalla nueva, armada como la del arcade a partir del arte de
+    // Gustavo "res/images/hud/select player_15 CORES.png" (ver
+    // tools/gen_char_select.py, que la corta en tres recursos):
+    //   - char_select_bg: la pantalla entera es UNA imagen en BG_B (los marcos
+    //     1UP..4UP con nombre y barra, "SELECT YOUR TURTLES", los cuatro
+    //     retratos a color y la linea de KONAMI).
+    //   - char_select_badge: el globo "nUP" de cada jugador, apoyado arriba
+    //     del retrato que tiene elegido. Fila = jugador, frame = tortuga (el
+    //     globo toma el color de la tortuga que marca). Titila mientras el
+    //     jugador elige y queda fijo cuando confirma con START.
+    //   - char_select_head: las cabezas de los marcos, que parpadean cada
+    //     tanto (frame 0 ojos abiertos, frame 1 cerrados).
+    // Todo comparte la paleta del PNG fuente en PAL0.
     clearScene();
-    // El fondo también es ahora 320x224 px (40x28 tiles), así que usamos el
-    // mismo plano 64x32 que la selección de players.
+
+    // VRAM: el fondo son 715 tiles unicos (16 + 715 = 731), que no entran con
+    // el area de sprites de 752 del resto del juego (empezaria en 688). Aca
+    // alcanza con 160: dos globos (10 tiles c/u) + cuatro cabezas (6 c/u).
+    // Al salir se restaura el 752, igual que hace showOptions.
+    SPR_end();
+    SPR_initEx(CSEL_SPR_TILES);
+
     VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
+    VDP_setBackgroundColor(0);
 
-    PAL_setPalette(PAL0, characters_greyscale.palette->data, DMA);
-    VDP_drawImageEx(BG_B, &characters_greyscale, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX), 0, 0, FALSE, TRUE);
+    // clearScene dejo las paletas en negro: se dibuja todo y se revela con un
+    // fade, asi no se ve la imagen armandose.
+    VDP_drawImageEx(BG_B, &char_select_bg,
+                    TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
+                    0, 0, FALSE, TRUE);
 
+    // Cabezas de los marcos (encima de las que ya trae el fondo).
+    Sprite* heads[4];
+    u16     headTimer[4];
+    for (u8 t = 0; t < 4; t++) {
+        heads[t] = SPR_addSprite(&char_select_head, CSEL_HEAD_X0 + t * CSEL_COL_STEP,
+                                 CSEL_HEAD_Y, TILE_ATTR(PAL0, TRUE, FALSE, FALSE));
+        if (heads[t]) SPR_setAnimAndFrame(heads[t], t, 0);
+        // Desfasados para que no parpadeen las cuatro juntas.
+        headTimer[t] = CSEL_BLINK_MIN + t * 37;
+    }
+
+    // Jugadores: 1 o 2 (con 4 esta pantalla se saltea, ver showPlayerSelect).
+    const u8 nSel = (cantidadJugadores >= 2) ? 2 : 1;
+    s8      sel[2]   = { 0, 3 };            // P2 arranca en Raph
+    bool    ready[2] = { FALSE, FALSE };
+    u16     prev[2]  = { 0, 0 };
+    Sprite* badge[2] = { NULL, NULL };
+    for (u8 k = 0; k < nSel; k++) {
+        badge[k] = SPR_addSprite(&char_select_badge, csBadgeX(sel[k]), CSEL_BADGE_Y,
+                                 TILE_ATTR(PAL0, TRUE, FALSE, FALSE));
+        if (badge[k]) {
+            SPR_setAnimAndFrame(badge[k], k, sel[k]);
+            SPR_setDepth(badge[k], SPR_MIN_DEPTH);   // por delante de todo
+        }
+    }
+    SPR_update();
+
+    PAL_fadeIn(0, 15, char_select_bg.palette->data, 20, FALSE);
     playMusicVol(music_charselect, VOL_MUSIC_SELECT);
 
-    const s16 charPosX[] = {8, 88, 168, 248};
-    const s16 charPosY   = 48;
+    // START puede venir apretado de la pantalla anterior.
+    while (JOY_readJoypad(playerJoy(0)) & BUTTON_START) SYS_doVBlankProcess();
 
-    // Mapa columna → fila de la sheet de caras (sprite_sheet_faces.png).
-    // Columnas en pantalla: 0=Leo 1=Mike 2=Don 3=Raph.
-    // Filas de caras:       0=azul(Leo) 1=dorado(Raph) 2=púrpura(Don) 3=naranja(Mike).
-    const u8  faceRow[]  = {0, 3, 2, 1};
-    const s16 faceXoff   = 16;   // centra la cara de 32px sobre la columna de 64px
-    const s16 faceY      = 26;   // se apoya en la parte superior del retrato elegido
-
-    // HUD en la parte superior, igual que en los niveles. El spritesheet de los
-    // marcos tiene los frames en orden de personaje (0=Leo, 1=Mike, 2=Don, 3=Raph),
-    // pero en esta pantalla el cursor recorre: 0=Leo, 1=Mike, 2=Don, 3=Raph.
-    // Mapeo de índice de cursor → frame del HUD.
-
-    // Paletas: el HUD comparte la de las tortugas en PAL1. El selector de
-    // personaje va en PAL3 para no pisar los colores del HUD.
-    PAL_setPalette(PAL1, hud_1p.palette->data, DMA);
-    PAL_setPalette(PAL2, faces_hud.palette->data, DMA);
-    PAL_setPalette(PAL3, character_selector.palette->data, DMA);
-
-    // Cargar marcos + retratos del HUD. Inicialmente muestran los personajes
-    // que haya en las variables persistentes; luego se fuerza el frame según
-    // la selección actual del cursor.
-    hudInit();
-    hudInitPortraits();   // esta pantalla SI muestra los retratos: es su razon de ser
-
-    // -----------------------------------------------------------------------
-    // MODO 1 JUGADOR
-    // -----------------------------------------------------------------------
-    if (cantidadJugadores == 1) {
-        Sprite* cursor          = SPR_addSprite(&character_selector, charPosX[0], charPosY, TILE_ATTR(PAL3, TRUE, FALSE, FALSE));
-        Sprite* turtle_face_hud = SPR_addSprite(&faces_hud,          charPosX[0] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
-        SPR_setDepth(cursor, 1);            // cursor/retrato coloreado detrás
-        SPR_setDepth(turtle_face_hud, 0);   // la cara va adelante
-
-        s8   sel        = 0;
-        u16  prev       = 0;
-        SPR_setAnim(cursor,          sel);
-        SPR_setAnim(turtle_face_hud, faceRow[sel]);
-        if (hudSprite1)     SPR_setAnim(hudSprite1,     hudAnimForChar[sel]);
-        if (portraitSpr1)   SPR_setAnim(portraitSpr1,   sel);
-
-        while (1) {
-            u16 v = JOY_readJoypad(JOY_1);
-
-            if (justPressedJoy(v, prev, BUTTON_RIGHT) && sel < 3) sel++;
-            if (justPressedJoy(v, prev, BUTTON_LEFT)  && sel > 0) sel--;
-
-            SPR_setAnim(cursor,          sel);
-            SPR_setAnim(turtle_face_hud, faceRow[sel]);
-            if (hudSprite1)     SPR_setAnim(hudSprite1,     hudAnimForChar[sel]);
-            if (portraitSpr1)   SPR_setAnim(portraitSpr1,   sel);
-            SPR_setPosition(cursor, charPosX[sel], charPosY);
-            SPR_setPosition(turtle_face_hud, charPosX[sel] + faceXoff, faceY);
-
-            if (v & BUTTON_START) { personajeSeleccionado = sel; break; }
-
-            prev = v;
-            SPR_update();
-            SYS_doVBlankProcess();
-        }
-
-        XGM2_stop();
-        PAL_fadeOutAll(20, FALSE);
-        while (PAL_isDoingFade()) SYS_doVBlankProcess();
-
-        if (cursor)          SPR_releaseSprite(cursor);
-        if (turtle_face_hud) SPR_releaseSprite(turtle_face_hud);
-        VDP_clearPlane(BG_A, TRUE);
-        VDP_clearPlane(BG_B, TRUE);
-        SPR_update();
-        SYS_doVBlankProcess();
-
-        // Nueva partida: reiniciar vidas/puntaje persistentes y continues
-        // antes del nivel 1.
-        playerPersistReset();
-        continuesLeft = 3;
-        clearScene();
-        return SCENE_CINEMATIC_FIRE;
-    }
-
-    // -----------------------------------------------------------------------
-    // MODO 2 JUGADORES — JOY_1 = P1, JOY_2 = P2. No pueden elegir el mismo.
-    // Cada uno confirma con START; cuando ambos confirman, se avanza.
-    // -----------------------------------------------------------------------
-    s8   sel1 = 0, sel2 = 3;          // empiezan en personajes distintos
-    bool ready1 = FALSE, ready2 = FALSE;
-    u16  prev1 = 0, prev2 = 0;
-
-    Sprite* cur1  = SPR_addSprite(&character_selector, charPosX[sel1], charPosY, TILE_ATTR(PAL3, TRUE, FALSE, FALSE));
-    Sprite* cur2  = SPR_addSprite(&character_selector, charPosX[sel2], charPosY, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
-    Sprite* face1 = SPR_addSprite(&faces_hud, charPosX[sel1] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
-    Sprite* face2 = SPR_addSprite(&faces_hud, charPosX[sel2] + faceXoff, faceY, TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
-
-    // Las caras van adelante; los cursores/retratos coloreados, detrás.
-    SPR_setDepth(cur1, 1);  SPR_setDepth(cur2, 1);
-    SPR_setDepth(face1, 0); SPR_setDepth(face2, 0);
-
-    SPR_setAnim(cur1, sel1);  SPR_setAnim(face1, faceRow[sel1]);
-    SPR_setAnim(cur2, sel2);  SPR_setAnim(face2, faceRow[sel2]);
-    if (hudSprite1)   SPR_setAnim(hudSprite1,   hudAnimForChar[sel1]);
-    if (hudSprite2)   SPR_setAnim(hudSprite2,   hudAnimForChar[sel2]);
-    if (portraitSpr1) SPR_setAnim(portraitSpr1, sel1);
-    if (portraitSpr2) SPR_setAnim(portraitSpr2, sel2);
-
+    u16 tick = 0;
     while (1) {
-        // (17/09) por playerJoy(), no JOY_1/JOY_2 a mano: con un multitap los
-        // mandos NO se numeran asi (ver playerJoy) y el P2 no podia elegir.
-        u16 v1 = JOY_readJoypad(playerJoy(0));
-        u16 v2 = JOY_readJoypad(playerJoy(1));
-
-        // --- Jugador 1 (mientras no haya confirmado) ---
-        if (!ready1) {
-            if (justPressedJoy(v1, prev1, BUTTON_RIGHT)) sel1 = charMove(sel1, sel2, +1);
-            if (justPressedJoy(v1, prev1, BUTTON_LEFT))  sel1 = charMove(sel1, sel2, -1);
-            SPR_setAnim(cur1, sel1);
-            SPR_setAnim(face1, faceRow[sel1]);
-            if (hudSprite1)   SPR_setAnim(hudSprite1,   hudAnimForChar[sel1]);
-            if (portraitSpr1) SPR_setAnim(portraitSpr1, sel1);
-            SPR_setPosition(cur1, charPosX[sel1], charPosY);
-            SPR_setPosition(face1, charPosX[sel1] + faceXoff, faceY);
-            if (justPressedJoy(v1, prev1, BUTTON_START)) ready1 = TRUE;
+        tick++;
+        for (u8 k = 0; k < nSel; k++) {
+            u16 v = JOY_readJoypad(playerJoy(k));
+            if (!ready[k]) {
+                s8 other = (nSel == 2) ? sel[k ^ 1] : -1;
+                s8 before = sel[k];
+                if (justPressedJoy(v, prev[k], BUTTON_RIGHT)) sel[k] = charMove(sel[k], other, +1);
+                if (justPressedJoy(v, prev[k], BUTTON_LEFT))  sel[k] = charMove(sel[k], other, -1);
+                if (sel[k] != before && badge[k]) {
+                    SPR_setAnimAndFrame(badge[k], k, sel[k]);
+                    SPR_setPosition(badge[k], csBadgeX(sel[k]), CSEL_BADGE_Y);
+                }
+                if (justPressedJoy(v, prev[k], BUTTON_START)) ready[k] = TRUE;
+            }
+            // Titila mientras elige, fijo una vez confirmado.
+            if (badge[k])
+                SPR_setVisibility(badge[k],
+                    (ready[k] || (tick % CSEL_BADGE_BLINK) < (CSEL_BADGE_BLINK * 2 / 3))
+                        ? VISIBLE : HIDDEN);
+            prev[k] = v;
         }
 
-        // --- Jugador 2 (mientras no haya confirmado) ---
-        if (!ready2) {
-            if (justPressedJoy(v2, prev2, BUTTON_RIGHT)) sel2 = charMove(sel2, sel1, +1);
-            if (justPressedJoy(v2, prev2, BUTTON_LEFT))  sel2 = charMove(sel2, sel1, -1);
-            SPR_setAnim(cur2, sel2);
-            SPR_setAnim(face2, faceRow[sel2]);
-            if (hudSprite2)   SPR_setAnim(hudSprite2,   hudAnimForChar[sel2]);
-            if (portraitSpr2) SPR_setAnim(portraitSpr2, sel2);
-            SPR_setPosition(cur2, charPosX[sel2], charPosY);
-            SPR_setPosition(face2, charPosX[sel2] + faceXoff, faceY);
-            if (justPressedJoy(v2, prev2, BUTTON_START)) ready2 = TRUE;
+        // Parpadeo de las cabezas.
+        for (u8 t = 0; t < 4; t++) {
+            if (!heads[t]) continue;
+            if (headTimer[t] > 0) { headTimer[t]--; continue; }
+            if (heads[t]->frameInd == 0) {
+                SPR_setFrame(heads[t], 1);
+                headTimer[t] = CSEL_BLINK_SHUT;
+            } else {
+                SPR_setFrame(heads[t], 0);
+                headTimer[t] = CSEL_BLINK_MIN + (random() % CSEL_BLINK_RANGE);
+            }
         }
 
-        if (ready1 && ready2) {
-            personajeSeleccionado  = sel1;
-            personaje2Seleccionado = sel2;
-            break;
-        }
-
-        prev1 = v1;
-        prev2 = v2;
         SPR_update();
         SYS_doVBlankProcess();
+
+        if (ready[0] && (nSel == 1 || ready[1])) break;
     }
+
+    personajeSeleccionado = sel[0];
+    if (nSel == 2) personaje2Seleccionado = sel[1];
+
+    // Un instante con los globos fijos antes de irse.
+    for (u8 k = 0; k < nSel; k++) if (badge[k]) SPR_setVisibility(badge[k], VISIBLE);
+    for (u16 t = 0; t < CSEL_CONFIRM_HOLD; t++) { SPR_update(); SYS_doVBlankProcess(); }
 
     XGM2_stop();
     PAL_fadeOutAll(20, FALSE);
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
-    if (cur1)  SPR_releaseSprite(cur1);
-    if (cur2)  SPR_releaseSprite(cur2);
-    if (face1) SPR_releaseSprite(face1);
-    if (face2) SPR_releaseSprite(face2);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
+    SPR_end();                 // suelta globos y cabezas
+    SPR_initEx(752);           // presupuesto de sprites del resto del juego
     SPR_update();
     SYS_doVBlankProcess();
 
