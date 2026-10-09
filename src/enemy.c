@@ -1,4 +1,5 @@
 #include "enemy.h"
+#include "audio.h"   // foot_soldier_explode (la llave)
 
 // Ancho visible de la MegaDrive en píxeles. Se redefine localmente (igual
 // que en scenes.c/intro_arcade.c) para no acoplar enemy.c a un header de
@@ -1223,6 +1224,10 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     // (06/10) La mitad de los de la lanza la pueden tirar (como el remaster,
     // que se lo marca a unos si y a otros no).
     e->spearThrow = (type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR) ? (u8)(random() & 1) : 0;
+    e->thrown   = 0;
+    e->throwT   = 0;
+    e->throwDir = 1;
+    e->thrower  = NULL;
 
     // Dimensiones de frame según el tipo (sheet morada 64x80 con los pies en
     // el borde; la naranja mantiene la grilla vieja 104x104).
@@ -1552,7 +1557,121 @@ s16 enemyBodyHalfW(const Enemy* e) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// LA LLAVE (09/10) -- ver ENEMY_THROWN_* en enemy.h
+// ---------------------------------------------------------------------------
+static bool playerAttackHitsEnemyBox(const Player* p, const Enemy* e);
+
+// [0] Leo (medido en el video), [1] Don (en la punta del bo, estimado).
+static const s8 thrownCarryDX[2][4] = { { 27, 21, 16, -8 }, { 44, 30, 14,  0 } };
+static const s8 thrownCarryZ[2][4]  = { {  4,  8, 20, 28 }, {  4, 18, 36, 50 } };
+
+bool enemyThrowStart(void* target, Player* p) {
+    Enemy* e = (Enemy*)target;
+    if (!e || !e->sprite || !p) return FALSE;
+    if (e->state == ENEMY_STATE_DEAD || e->state == ENEMY_STATE_INACTIVE ||
+        e->state == ENEMY_STATE_SPAWNING)
+        return FALSE;
+    if (e->jumpZ != 0) return FALSE;                 // en el aire no
+    s16 pcx = (s16)(p->x + PLAYER_SPRITE_W / 2);
+    s16 dx  = (s16)(getEnemyCenterX(e) - pcx);
+    if (dx * p->dir < 0) return FALSE;               // tiene que estar adelante
+    if (dx < 0) dx = -dx;
+    s16 dy  = (s16)(e->y - p->y);
+    if (dy < 0) dy = -dy;
+    if (dx > PLAYER_THROW_RANGE || dy > PLAYER_THROW_TOL_Y) return FALSE;
+
+    // Lo que estuviera haciendo se corta, igual que con un golpe.
+    if (e->state == ENEMY_STATE_GRAB && e->grabbed) {
+        playerReleaseGrab(e->grabbed);
+        e->grabbed = NULL;
+    }
+    leaveAttackState(e);
+    whiteJumpStop(e);
+    e->hp         = 0;
+    e->state      = ENEMY_STATE_DEAD;
+    e->deathDir   = 0;
+    e->deathSpeed = 0;
+    e->timer      = 0;
+    e->thrown     = 1;
+    e->throwT     = 0;
+    e->throwDir   = p->dir;
+    e->thrower    = p;
+    e->dir        = (s8)-p->dir;                     // mira a la tortuga
+    SPR_setAutoAnimation(e->sprite, FALSE);
+    e->anim = enemyAnimHit(e);
+    SPR_setAnimAndFrame(e->sprite, e->anim, 0);
+    return TRUE;
+}
+
+// Cuanto bajar el sprite cabeza abajo para que el cuerpo quede donde estaba:
+// el VFLIP da vuelta el frame entero y los pies pasan arriba de la celda.
+static s16 thrownVFlipShift(const Enemy* e) {
+    return (s16)(2 * e->footOffset - e->h - enemyBodyH(e));
+}
+
+static void thrownStep(Enemy* e) {
+    bool vflip = FALSE;
+    if (e->thrown == 1) {
+        Player* p = e->thrower;
+        if (p && playerIsThrowing(p) && e->throwT < ENEMY_THROWN_CARRY_F) {
+            u8  k   = (u8)(e->throwT / ENEMY_THROWN_POSE_F);
+            s16 pcx = (s16)(p->x + PLAYER_SPRITE_W / 2);
+            u8  c   = (p->charIndex == 2) ? 1 : 0;
+            e->x     = (s16)(pcx + e->throwDir * thrownCarryDX[c][k] - e->w / 2);
+            e->jumpZ = thrownCarryZ[c][k];
+            vflip    = (k >= 2);
+            e->throwT++;
+        } else {
+            // Lo suelta (o le cortaron la llave a la tortuga): sale volando
+            // hacia atras con la pose del golpe que mata.
+            e->thrown  = 2;
+            e->jumpZq  = (s32)e->jumpZ << 8;
+            e->jumpVel = ENEMY_THROWN_VZ_Q;
+            e->dir     = e->throwDir;
+            e->anim    = enemyAnimExplode(e);
+            SPR_setAnimAndFrame(e->sprite, e->anim, 0);
+            if (p) addPlayerScore(p, 1);
+        }
+    }
+    if (e->thrown == 2) {
+        e->x = clampS16((s16)(e->x - e->throwDir * ENEMY_THROWN_VX),
+                        enemyMinX(e), enemyMaxX(e));
+        e->jumpVel -= ENEMY_THROWN_GRAV_Q;
+        e->jumpZq  += e->jumpVel;
+        if (e->jumpZq <= 0) {
+            // Al piso: sigue la muerte de siempre desde el frame tirado.
+            e->thrown  = 0;
+            e->jumpZ   = 0;
+            e->jumpZq  = 0;
+            e->jumpVel = 0;
+            e->timer   = (u16)(enemyExplodeTime(e) - enemyExplodeTime(e) / 6);
+            SPR_setAutoAnimation(e->sprite, TRUE);
+            SPR_setAnimationLoop(e->sprite, FALSE);
+            SPR_setAnimAndFrame(e->sprite, e->anim, 1);
+            XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+        } else {
+            e->jumpZ = (s16)(e->jumpZq >> 8);
+        }
+    }
+    SPR_setVFlip(e->sprite, vflip);
+    SPR_setHFlip(e->sprite, (e->dir < 0));
+    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX,
+                    e->y - e->footOffset - e->jumpZ - stageCamY +
+                    (vflip ? thrownVFlipShift(e) : 0));
+    SPR_setDepth(e->sprite, (s16)(-(e->y) - 1));
+}
+
 bool playerAttackHitsEnemy(const Player* p, const Enemy* e) {
+    bool hit = playerAttackHitsEnemyBox(p, e);
+    // Combo del arcade: el golpe conecto contra ESTE soldier (candidato a la
+    // llave del golpe siguiente).
+    if (hit) playerAttackLanded((Player*)p, (void*)e);
+    return hit;
+}
+
+static bool playerAttackHitsEnemyBox(const Player* p, const Enemy* e) {
     s16 cx = getEnemyCenterX(e);
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE:
@@ -1626,7 +1745,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     // dejaria el offset congelado y el sprite flotando a esa altura para
     // siempre. Asi que fuera de esos dos casos el jumpZ se fuerza a 0: es
     // imposible que un enemigo quede "desfasado del piso" por esta via.
-    if (e->jumpZ != 0 &&
+    if (e->jumpZ != 0 && !e->thrown &&
         !(e->state == ENEMY_STATE_SPAWNING) &&
         !(e->state == ENEMY_STATE_ATTACK && e->attackType == ENEMY_ATTACK_JUMP)) {
         whiteJumpStop(e);
@@ -1635,6 +1754,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     u16 explodeTime = enemyExplodeTime(e);
 
     if (e->state == ENEMY_STATE_DEAD) {
+        if (e->thrown) { thrownStep(e); return; }   // (09/10) la llave
         // (27/09) Empuje de la muerte (ver ENEMY_DEATH_PUSH): se desliza
         // frenando, dentro de los limites del nivel.
         if (e->deathDir && e->deathSpeed) {

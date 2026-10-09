@@ -50,8 +50,11 @@ typedef enum {
                              // (ver la seccion de abajo).
     // (09/10) Solo en las hojas NUEVAS (Leo y Don, tools/gen_players_new.py):
     ANIM_ATTACK_4     = 22,  // Combo paso 4 (finalizador)
-    ANIM_JUMP_KICK_DIR = 23  // Golpe en el aire con direccion (el otro es
+    ANIM_JUMP_KICK_DIR = 23, // Golpe en el aire con direccion (el otro es
                              // ANIM_JUMP_KICK, sin direccion)
+    ANIM_THROW        = 24   // (09/10) La llave: agarra al foot soldier y lo
+                             // tira por encima del hombro. Se dibuja ESPEJADA
+                             // (la tortuga le da la espalda al que agarra).
 } PlayerAnim;
 
 // Hoja NUEVA (09/10): trae ANIM_ATTACK_4 y ANIM_JUMP_KICK_DIR. Las hojas viejas
@@ -198,7 +201,7 @@ typedef enum {
 #define PLAYER_WALK_X_Q        448   // 1,75 px/f en X
 #define PLAYER_WALK_Y_Q        384   // 1,5 px/f en Y
 #define PLAYER_DIAG_X_Q        352   // 1,375 en diagonal (estimado)
-#define PLAYER_DIAG_Y_Q        320   // 1,25 en diagonal (estimado)
+#define PLAYER_DIAG_Y_Q        336   // 1,31 en diagonal (video 2: 1,25-1,35)
 #define PLAYER_WALK_TICKS        4   // frames por pose de la caminata (a mano)
 // SALTO DEL ARCADE (09/10, medido cuadro a cuadro en gameplayARCADE/tmnt.avi,
 // el salto en el lugar de los frames 2044..2107; doc salto-arcade-medido-09-10):
@@ -237,6 +240,23 @@ typedef enum {
 #define PLAYER_AIR_ATK_VX_DIR    4
 // Combo: 4 golpes con la hoja nueva (ATTACK_1..4), 3 con las viejas.
 #define PLAYER_COMBO_LEN_NEW     4
+// COMBO DEL ARCADE (09/10, segundo video de gameplayARCADE/tmnt.avi; doc
+// combo-agarre-arcade-09-10). Hojas nuevas con el control arcade:
+//   golpe 1  ATTACK_1 o ATTACK_2 (al azar)
+//   golpe 2  PATADA o ATTACK_3 (al azar) ... o la LLAVE si el que recibio el
+//            golpe 1 esta pegado (PLAYER_THROW_RANGE)
+//   golpe 3  ATTACK_4 (o la llave, si sigue pegado)
+// Se encadena SOLO si el golpe anterior conecto: el press durante el golpe
+// queda guardado y el siguiente arranca apenas termina. Si no conecto, el
+// golpe termina y vuelve a quieto (el proximo press arranca otra vez en 1).
+// Los tiempos de cada pose estan en las tablas AtkSeq de player.c.
+#define PLAYER_ARC_COMBO_LEN     3
+#define PLAYER_ARC_LINK_F        6   // frames en la ultima pose esperando el press
+// La llave: distancia maxima entre los centros (X) y entre las lanes (Y). En
+// el video la llave sale con el soldier a ~25-35 px y la patada a ~40 px; los
+// foot soldiers se frenan a ENEMY_STOP_RANGE (36), asi que hay que acercarse.
+#define PLAYER_THROW_RANGE      34
+#define PLAYER_THROW_TOL_Y       8
 // Golpe de foot soldier: 2 barras y VOLTEO. La tortuga se da vuelta hacia
 // quien le pego y sale despedida hacia atras en una parabola de PLAYER_KD_Z
 // px a PLAYER_KD_VX px/f, cae, rueda PLAYER_KD_ROLL_F px y se levanta. Los
@@ -554,6 +574,16 @@ typedef struct {
     u8          koPhase;     // muerte: 0 volando, 1 tirada, 2 esfumandose,
                              // 3 invisible
     u8          jumpT;       // frames desde el despegue (salto del arcade)
+    // --- Combo del arcade (09/10, ver PLAYER_ARC_*) ---
+    u8          arcAtk;      // 1 = golpe del combo arcade en curso (frames a mano)
+    u8          arcMove;     // ARC_* de player.c (cual de los golpes)
+    u8          arcStep;     // 1..PLAYER_ARC_COMBO_LEN
+    u8          arcIdx;      // pose actual de la tabla
+    u8          arcT;        // frames en esa pose
+    u8          arcHit;      // 1 = este golpe conecto (habilita el siguiente)
+    u8          arcBuf;      // 1 = se apreto el golpe durante este golpe
+    u8          arcLink;     // frames de espera en la ultima pose
+    void*       arcTarget;   // el Enemy que recibio el ultimo golpe (la llave)
 } Player;
 
 // ---------------------------------------------------------------------------
@@ -594,6 +624,16 @@ void setPlayerRightBound(Player* p, s16 rightBound);
 // TRUE si hay un ataque con hitbox ACTIVA en este frame: swing en curso
 // (no cuenta la pose congelada de la ventana de enlace) o patada en salto.
 bool isPlayerAttackActive(const Player* p);
+
+// (09/10) Combo del arcade. playerAttackHitsEnemy (enemy.c) avisa con esto que
+// el golpe conecto contra 'target' (un Enemy*): habilita el golpe siguiente y
+// lo deja como candidato a la llave.
+void playerAttackLanded(Player* p, void* target);
+// TRUE mientras hace la llave (el soldier agarrado la sigue, ver enemy.c).
+bool playerIsThrowing(const Player* p);
+// (enemy.c) Arranca la llave contra 'target' (Enemy*) si esta pegado a 'p' y
+// se puede agarrar: el soldier queda en manos de la tortuga. FALSE = no.
+bool enemyThrowStart(void* target, Player* p);
 
 // TRUE si el ataque activo alcanza un objetivo con centro X 'targetCX' y
 // pies en 'targetFeetY' (coordenadas de MUNDO). Mide desde el CENTRO de la

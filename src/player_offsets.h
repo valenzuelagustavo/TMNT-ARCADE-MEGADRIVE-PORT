@@ -9,7 +9,7 @@
 // corrido el dibujo para que entre el arma. Personaje: 0=Leo 1=Mike 2=Don
 // 3=Raph (Mike y Raph, hojas viejas: todo 0).
 #define PDX_CHARS   4
-#define PDX_ANIMS   24
+#define PDX_ANIMS   25
 #define PDX_FRAMES  12
 
 extern const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES];

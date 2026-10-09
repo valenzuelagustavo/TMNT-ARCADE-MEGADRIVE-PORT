@@ -531,6 +531,21 @@
 #define ENEMY_DEATH_PUSH        5   // px/frame iniciales del empuje de la muerte
 #define ENEMY_DEATH_PUSH_SPECIAL 6
 #define ENEMY_DEATH_PUSH_STEP   4   // frames entre cada px/frame que pierde
+// (09/10) LA LLAVE (gameplayARCADE/tmnt.avi, video 2: frames 2106..2160 con el
+// naranja y 4206..4258 con el blanco). La tortuga agarra al soldier que tiene
+// pegado y lo tira por encima del hombro hacia atras; lo mata. El soldier:
+//   - 16 frames en manos de la tortuga, 4 por pose: se corre de adelante a
+//     atras (ENEMY_THROWN_CARRY_DX, px desde el centro de la tortuga hacia
+//     donde mira) y sube (ENEMY_THROWN_CARRY_Z). Las dos ultimas, cabeza abajo.
+//   - Lo suelta a 28 px de alto: sube a 4,2 px/f con 0,3 px/f2 de gravedad
+//     (apice ~58 px a los 14 frames) y cae a los ~34 frames; mientras tanto
+//     va hacia atras a 3 px/f (~100 px).
+//   - Al tocar el piso sigue la anim de muerte desde el frame tirado.
+#define ENEMY_THROWN_CARRY_F    16
+#define ENEMY_THROWN_POSE_F      4
+#define ENEMY_THROWN_VX          3
+#define ENEMY_THROWN_VZ_Q     1075   // 4,2 px/f
+#define ENEMY_THROWN_GRAV_Q     77   // 0,3 px/f2
 #define ENEMY_BREAK_DOOR_TIME  32
 // Spawn desde ascensor: sólo los 2 últimos frames de BREAK_DOOR (índices 3-4).
 #define ENEMY_ELEV_SPAWN_TIME  16
@@ -718,6 +733,11 @@ typedef struct {
     s8          boomSlot;     // boomerang propio en vuelo (-1 = en la mano)
     // --- Foot soldier de la LANZA (06/10) ---
     u8          spearThrow;   // 1 = todavia tiene la lanza para tirar
+    // --- La LLAVE de la tortuga (09/10, ver ENEMY_THROWN_*) ---
+    u8          thrown;       // 0 = no; 1 = en manos de la tortuga; 2 = volando
+    u8          throwT;       // frames desde que lo agarraron
+    s8          throwDir;     // hacia donde mira la tortuga (vuela al reves)
+    Player*     thrower;      // la tortuga que lo agarro (se lleva el punto)
 } Enemy;
 
 // --- Shuriken (proyectil del foot soldier naranja) ---

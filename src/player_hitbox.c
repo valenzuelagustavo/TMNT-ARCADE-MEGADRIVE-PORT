@@ -2,7 +2,7 @@
 
 // PlayerAnim -> fila de playerAtkReach (-1 = no golpea)
 const s8 phbSlotOfAnim[PHB_ANIMS] = {
-    -1, -1,  0,  1,  2,  3, -1,  4, -1, -1,  5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  6,  7
+    -1, -1,  0,  1,  2,  3, -1,  4, -1, -1,  5, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,  6,  7, -1
 };
 
 const s8 playerAtkReach[PHB_CHARS][PHB_SLOTS][PHB_FRAMES][PHB_BANDS] = {

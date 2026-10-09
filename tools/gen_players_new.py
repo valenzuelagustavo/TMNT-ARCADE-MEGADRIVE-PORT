@@ -153,6 +153,9 @@ def port_layout(ch):
         ('MANHOLE',      'EXTRA_3',       None),
         ('ATTACK_4',     'ATTACK_4',      None),
         ('JUMP_KICK_DIR', 'JUMP_ATTACK_3', None),
+        # (09/10) La llave: agarra al foot soldier y lo tira por encima del
+        # hombro (gameplayARCADE/tmnt.avi, frames 2106..2129 y 4206..4229).
+        ('THROW',        'THROW',         None),
     ]
 
 # Primer frame de la levantada al final de HIT_3 (volteo de frente) y de

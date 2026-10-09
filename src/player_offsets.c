@@ -27,6 +27,7 @@ const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES] = {
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // MANHOLE
     { -11,  -6,   4,  14,   0,   0,   0,   0,   0,   0,   0,   0 },  // ATTACK_4
     {   3,  -3,   5,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // JUMP_KICK_DIR
+    {   4,  -2,  -3,  10,   8,   0,   0,   0,   0,   0,   0,   0 },  // THROW
   },
   {   // mike
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // IDLE
@@ -53,6 +54,7 @@ const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES] = {
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // MANHOLE
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // ATTACK_4
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // JUMP_KICK_DIR
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // THROW
   },
   {   // don
     { -13, -13, -13, -13, -13,   0,   0,   0,   0,   0,   0,   0 },  // IDLE
@@ -79,6 +81,7 @@ const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES] = {
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // MANHOLE
     { -16,  -2,  12,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // ATTACK_4
     { -16,  -4, -15,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // JUMP_KICK_DIR
+    {  24,  11,   7, -20, -12, -23,   6,   0,   0,   0,   0,   0 },  // THROW
   },
   {   // raph
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // IDLE
@@ -105,6 +108,7 @@ const s8 playerFrameDXTab[PDX_CHARS][PDX_ANIMS][PDX_FRAMES] = {
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // MANHOLE
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // ATTACK_4
     {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // JUMP_KICK_DIR
+    {   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0 },  // THROW
   },
 };
 

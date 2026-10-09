@@ -123,6 +123,8 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->boundRight    = 288;
     p->cameraOffsetX = 0;
     p->comboStep     = 0;
+    p->arcAtk        = 0;
+    p->arcTarget     = NULL;
     p->comboBuffered = 0;
     p->comboLinger   = 0;
     p->airFrame      = 1;
@@ -409,6 +411,140 @@ static bool specialStep(Player* p) {
     return TRUE;
 }
 
+// ---------------------------------------------------------------------------
+// COMBO DEL ARCADE (09/10) -- ver PLAYER_ARC_* en player.h
+// ---------------------------------------------------------------------------
+// Medido en el segundo video de gameplayARCADE/tmnt.avi (60 fps, un frame del
+// arcade por frame de video). Cada golpe es una tabla de poses: frame de la
+// anim y cuantos frames dura. Los frames van a mano (auto-animacion apagada)
+// porque los tiempos cambian de pose a pose y la patada repite el frame 1.
+enum { ARC_A1, ARC_A2, ARC_KICK, ARC_A3, ARC_A4, ARC_THROW, ARC_MOVES };
+typedef struct { u8 frame, ticks; } AtkPose;
+typedef struct { u8 anim, n; AtkPose pose[8]; } AtkSeq;
+
+// Leo: los tiempos del video (frames 1881..2075, 1722..1790, 2088..2145,
+// 4186..4245, 4330..4392).
+static const AtkSeq atkLeo[ARC_MOVES] = {
+    // corte en diagonal que termina de espaldas (16)
+    { ANIM_ATTACK_1, 5, { {0,3}, {1,3}, {2,2}, {3,3}, {4,5} } },
+    // corte horizontal (17)
+    { ANIM_ATTACK_2, 6, { {0,3}, {1,3}, {2,2}, {3,2}, {4,3}, {5,4} } },
+    // patada de espaldas: sube la pierna, la estira y la recoge (20)
+    { ANIM_KICK,     4, { {0,4}, {1,4}, {2,8}, {1,4} } },
+    // corte de arriba (16)
+    { ANIM_ATTACK_3, 4, { {0,4}, {1,2}, {2,4}, {3,6} } },
+    // estocada agachado (16)
+    { ANIM_ATTACK_4, 4, { {0,4}, {1,3}, {2,3}, {3,6} } },
+    // la llave: 6 poses de 4 (24). El soldier sale volando al empezar la 5ta.
+    { ANIM_THROW,    6, { {0,4}, {1,4}, {2,4}, {3,4}, {4,4}, {5,4} } },
+};
+// Don: no hay video; sus filas tienen otra cantidad de frames, asi que los
+// mismos totales repartidos entre sus poses.
+static const AtkSeq atkDon[ARC_MOVES] = {
+    { ANIM_ATTACK_1, 4, { {0,4}, {1,4}, {2,3}, {3,5} } },
+    { ANIM_ATTACK_2, 7, { {0,3}, {1,3}, {2,2}, {3,2}, {4,3}, {5,2}, {6,3} } },
+    { ANIM_KICK,     4, { {0,4}, {1,4}, {2,8}, {1,4} } },
+    { ANIM_ATTACK_3, 5, { {0,3}, {1,2}, {2,3}, {3,3}, {4,5} } },
+    { ANIM_ATTACK_4, 4, { {0,4}, {1,3}, {2,3}, {3,6} } },
+    { ANIM_THROW,    7, { {0,4}, {1,4}, {2,3}, {3,3}, {4,4}, {5,3}, {6,3} } },
+};
+
+static const AtkSeq* arcSeq(const Player* p, u8 move) {
+    return ((p->charIndex == 2) ? atkDon : atkLeo) + move;
+}
+
+static void arcSetPose(Player* p) {
+    const AtkSeq* s = arcSeq(p, p->arcMove);
+    SPR_setAnimAndFrame(p->sprite, s->anim, s->pose[p->arcIdx].frame);
+}
+
+static void arcStartMove(Player* p, u8 move) {
+    p->arcAtk    = 1;
+    p->arcMove   = move;
+    p->arcIdx    = 0;
+    p->arcT      = 0;
+    p->arcHit    = (move == ARC_THROW);   // la llave siempre "conecto"
+    p->arcBuf    = 0;
+    p->arcLink   = 0;
+    p->arcTarget = NULL;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    // La llave de Leo va ESPEJADA: en el rip le da la espalda al soldier y lo
+    // tira por encima del hombro hacia donde mira. La de Don no: engancha al
+    // soldier adelante con el bo y lo revolea por arriba hacia atras. Igual en
+    // los dos el soldier esta adelante y sale volando para atras; la
+    // direccion (p->dir) no cambia.
+    bool mirror = (move == ARC_THROW) && (p->charIndex != 2);
+    SPR_setHFlip(p->sprite, mirror ? (p->dir > 0) : (p->dir < 0));
+    arcSetPose(p);
+    playAttackGrunt(p);
+}
+
+// Cortado desde afuera (golpe, agarre, KO...): deja el sprite derecho.
+static void arcCut(Player* p) {
+    if (p->arcAtk && p->sprite) {
+        SPR_setHFlip(p->sprite, p->dir < 0);
+        SPR_setAutoAnimation(p->sprite, TRUE);
+    }
+    p->arcAtk    = 0;
+    p->arcTarget = NULL;
+}
+
+static void arcEnd(Player* p) {
+    arcCut(p);
+    p->state           = STATE_IDLE;
+    p->comboStep       = 0;
+    p->comboBuffered   = 0;
+    p->comboLinger     = 0;
+    p->attackIsSpecial = 0;
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    SPR_setAnim(p->sprite, ANIM_IDLE);
+}
+
+// Golpe siguiente: la llave si el que recibio el golpe anterior esta pegado,
+// si no el que toca en la cadena.
+static void arcNext(Player* p) {
+    p->arcStep++;
+    p->comboStep = p->arcStep;
+    void* t = p->arcTarget;
+    if (t && enemyThrowStart(t, p)) {
+        arcStartMove(p, ARC_THROW);
+        return;
+    }
+    u8 move = ARC_A4;
+    if (p->arcStep == 2) move = (random() & 1) ? ARC_A3 : ARC_KICK;
+    arcStartMove(p, move);
+}
+
+static void arcComboStep(Player* p, u16 joy) {
+    if (justPressed(joy, p->prevJoy, BUTTON_B)) p->arcBuf = 1;
+    const AtkSeq* s = arcSeq(p, p->arcMove);
+    if (p->arcIdx < s->n) {
+        if (++p->arcT < s->pose[p->arcIdx].ticks) return;
+        p->arcT = 0;
+        if (p->arcIdx + 1 < s->n) {
+            p->arcIdx++;
+            arcSetPose(p);
+            return;
+        }
+        p->arcIdx = s->n;            // termino: queda la ultima pose (no pega)
+    }
+    bool more = p->arcHit && p->arcStep < PLAYER_ARC_COMBO_LEN;
+    if (more && p->arcBuf) { arcNext(p); return; }
+    if (more && p->arcLink < PLAYER_ARC_LINK_F) { p->arcLink++; return; }
+    arcEnd(p);
+}
+
+void playerAttackLanded(Player* p, void* target) {
+    if (p->state != STATE_ATTACKING || !p->arcAtk) return;
+    p->arcHit = 1;
+    if (target) p->arcTarget = target;
+}
+
+bool playerIsThrowing(const Player* p) {
+    return (p->state == STATE_ATTACKING && p->arcAtk && p->arcMove == ARC_THROW);
+}
+
 static void koArcadeStep(Player* p, s16 effRight);
 static bool volteoStep(Player* p, s16 effRight, bool stopAtFloor);
 
@@ -457,11 +593,13 @@ static void walkAnim(Player* p, u16 anim) {
         SPR_setAnim(p->sprite, anim);
         return;
     }
-    if (p->sprite->animInd != (s16)anim || SPR_getAutoAnimation(p->sprite))
-        p->walkTick = 0;
-    SPR_setAutoAnimation(p->sprite, FALSE);
     u16 n = p->sprite->definition->animations[anim]->numFrame;
     if (n == 0) n = 1;
+    // (09/10) En el arcade la caminata arranca por la ULTIMA pose (f7, el
+    // paso corto) y sigue con f0, f1... (video 2, frames 1841, 2160, 3740).
+    if (p->sprite->animInd != (s16)anim || SPR_getAutoAnimation(p->sprite))
+        p->walkTick = (u8)((n - 1) * PLAYER_WALK_TICKS);
+    SPR_setAutoAnimation(p->sprite, FALSE);
     if (p->walkTick >= n * PLAYER_WALK_TICKS) p->walkTick = 0;
     SPR_setAnimAndFrame(p->sprite, anim, p->walkTick / PLAYER_WALK_TICKS);
     p->walkTick++;
@@ -585,6 +723,19 @@ void updatePlayer(Player* p) {
                 p->bcWindow  = PLAYER_SPECIAL_BC_WINDOW;   // B tardio -> especial
                 SPR_setAutoAnimation(p->sprite, FALSE);
                 SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
+            } else if (bJust && PLAYER_ARCADE_CONTROL && playerHasNewSheet(p)) {
+                // (09/10) Combo del arcade: el primer golpe es ATTACK_1 o
+                // ATTACK_2 al azar (ver PLAYER_ARC_* en player.h).
+                p->state           = STATE_ATTACKING;
+                p->comboStep       = 1;
+                p->comboBuffered   = 0;
+                p->comboLinger     = 0;
+                p->attackIsSpecial = 0;
+                p->idleTimer       = 0;
+                p->idleTwice       = 0;
+                p->bcWindow        = PLAYER_SPECIAL_BC_WINDOW;   // C tardio -> especial
+                p->arcStep         = 1;
+                arcStartMove(p, (random() & 1) ? ARC_A2 : ARC_A1);
             } else if (bJust) {
                 p->state         = STATE_ATTACKING;
                 p->comboStep     = 1;
@@ -617,9 +768,14 @@ void updatePlayer(Player* p) {
             if (p->bcWindow > 0) {
                 p->bcWindow--;
                 if (p->comboStep == 1 && justPressed(joy, p->prevJoy, BUTTON_C)) {
+                    arcCut(p);
                     startSpecial(p);
                     break;
                 }
+            }
+            if (p->arcAtk) {
+                arcComboStep(p, joy);
+                break;
             }
 
             // BUFFER de input: un press de B en CUALQUIER momento del swing
@@ -652,6 +808,7 @@ void updatePlayer(Player* p) {
             } else {
                 p->state         = STATE_IDLE;
                 p->comboStep     = 0;
+                arcCut(p);
                 p->comboBuffered = 0;
                 p->comboLinger   = 0;
                 p->attackIsSpecial = 0;
@@ -1074,6 +1231,10 @@ bool isPlayerAttackActive(const Player* p) {
     // pega mientras dura, el alcance de cada frame lo pone attackReachNow.
     if (p->state == STATE_ATTACKING && p->attackIsSpecial)
         return TRUE;
+    // Combo del arcade: pega mientras corren las poses (no en la espera del
+    // final ni en la llave, que no tiene alcance).
+    if (p->state == STATE_ATTACKING && p->arcAtk)
+        return (p->arcMove != ARC_THROW && p->arcIdx < arcSeq(p, p->arcMove)->n);
     if (p->state == STATE_ATTACKING)
         return !SPR_isAnimationDone(p->sprite);
     // Patada en salto: activa todo el tiempo que dura el vuelo con la patada
@@ -1177,6 +1338,7 @@ bool playerAttackHitsBand(const Player* p, s16 targetCX, s16 targetFeetY,
     if (absPS16(targetFeetY - p->y) > PLAYER_ATK_TOL_Y)
         return FALSE;
 
+    playerAttackLanded((Player*)p, NULL);   // combo arcade: habilita el siguiente
     return TRUE;
 }
 
@@ -1199,6 +1361,7 @@ bool playerAttackHitsFlying(const Player* p, s16 targetCX, s16 top, s16 bot,
         return FALSE;
     if (dx + targetHalfW < -PLAYER_ATK_BACK)
         return FALSE;
+    playerAttackLanded((Player*)p, NULL);
     return TRUE;
 }
 
@@ -1542,6 +1705,7 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars, bool volteo) {
 
     // Un golpe corta cualquier combo o especial en curso
     p->comboStep     = 0;
+    arcCut(p);
     p->comboBuffered = 0;
     p->comboLinger   = 0;
     p->attackIsSpecial = 0;
@@ -1651,6 +1815,7 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
 
     // Un golpe corta cualquier combo o especial en curso
     p->comboStep       = 0;
+    arcCut(p);
     p->comboBuffered   = 0;
     p->comboLinger     = 0;
     p->attackIsSpecial = 0;
@@ -1715,6 +1880,7 @@ void playerWhipGrab(Player* p) {
     if (playerIsGrabbed(p)) return;          // ya agarrada por un foot soldier: no doble-agarre
 
     p->comboStep     = 0;
+    arcCut(p);
     p->comboBuffered = 0;
     p->comboLinger   = 0;
     p->attackIsSpecial = 0;
@@ -1756,6 +1922,7 @@ void playerFootGrab(Player* p) {
     if (playerIsGrabbed(p)) return;          // ya agarrada (látigo u otro soldier)
 
     p->comboStep     = 0;
+    arcCut(p);
     p->comboBuffered = 0;
     p->comboLinger   = 0;
     p->attackIsSpecial = 0;
@@ -1973,6 +2140,7 @@ bool playerManholeFall(Player* p, s16 outX, s16 outY) {
 
     // Cortar cualquier cosa en curso (combo, especial, salto).
     p->comboStep       = 0;
+    arcCut(p);
     p->comboBuffered   = 0;
     p->comboLinger     = 0;
     p->attackIsSpecial = 0;
@@ -2008,6 +2176,7 @@ void playerDropIn(Player* p, s16 height) {
     p->jumpT         = PLAYER_AJ_LATE_T;
     p->isJumpKicking = JUMPKICK_NONE;
     p->comboStep     = 0;
+    arcCut(p);
     p->hurtTimer     = 0;
     if (p->sprite) {
         SPR_setAutoAnimation(p->sprite, FALSE);

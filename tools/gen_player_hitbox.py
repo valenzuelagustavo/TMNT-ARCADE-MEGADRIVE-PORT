@@ -58,7 +58,7 @@ CHARS = [("leo",  "players/leo_new_13x13.png"),
 ATK_ANIMS = [(2, "KICK"), (3, "ATTACK_1"), (4, "ATTACK_2"), (5, "ATTACK_3"),
              (7, "JUMP_KICK"), (10, "SPECIAL"),
              (22, "ATTACK_4"), (23, "JUMP_KICK_DIR")]   # solo hojas nuevas
-NUM_ANIMS = 24      # filas de PlayerAnim
+NUM_ANIMS = 25      # filas de PlayerAnim (la 24, THROW, no pega)
 KICK_ANIMS = (2, 7, 23)     # KICK y JUMP_KICK(_DIR): pega el pie, no el arma
 KICK_IGNORE = [4, 10, 13]   # sombra y grises del arma (paleta unica)
 # (09/10) Hojas nuevas: el especial (el giro) solo pega en el frame del arma
