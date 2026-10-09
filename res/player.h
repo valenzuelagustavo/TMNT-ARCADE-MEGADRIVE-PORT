@@ -159,6 +159,8 @@ typedef enum {
 #define JUMPKICK_NONE       0
 #define JUMPKICK_SOFT       1   // Botón de golpe solo
 #define JUMPKICK_STRONG     2   // Golpe + dirección: más ímpetu
+#define JUMPKICK_SPIN       3   // (09/10) Golpe sin direccion en lo alto del
+                                // salto: el giro del especial, con dano normal
 #define PLAYER_JUMPKICK_SPEED 4 // px/frame del vuelo con ímpetu (normal: 2)
 // Extra de la patada FUERTE: 16px (~2 tiles) más de desplazamiento en el eje X
 // sobre el vuelo completo, repartido en fracciones por frame (Q16, 16 = 1px).
@@ -227,6 +229,11 @@ typedef enum {
 // arriba/abajo siguen moviendo la lane). Medido: sin direccion 2 px/f, con
 // direccion 4 px/f.
 #define PLAYER_AIR_ATK_VX        2
+// (09/10) Golpe SIN direccion en lo alto del salto (a PLAYER_AJ_SPIN_MIN_Z px
+// o mas: del frame 19 al 41 del salto, ~0,4 s alrededor del apice de 118): en
+// vez de la patada hace el GIRO del especial (ANIM_SPECIAL, mismos tiempos que
+// en el piso), con el dano de un golpe normal. Mas abajo, la patada.
+#define PLAYER_AJ_SPIN_MIN_Z   100
 #define PLAYER_AIR_ATK_VX_DIR    4
 // Combo: 4 golpes con la hoja nueva (ATTACK_1..4), 3 con las viejas.
 #define PLAYER_COMBO_LEN_NEW     4

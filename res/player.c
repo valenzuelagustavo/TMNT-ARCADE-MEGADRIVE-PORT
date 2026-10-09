@@ -749,7 +749,10 @@ void updatePlayer(Player* p) {
                 else if (joy & BUTTON_LEFT)  { p->dir = -1; SPR_setHFlip(p->sprite, TRUE);  }
 
                 bool fuerte = (bool)(joy & (BUTTON_LEFT | BUTTON_RIGHT));
-                p->isJumpKicking = fuerte ? JUMPKICK_STRONG : JUMPKICK_SOFT;
+                // (09/10) Sin direccion y en lo alto del salto: el giro.
+                bool giro = !fuerte && PLAYER_ARCADE_CONTROL && playerHasNewSheet(p) &&
+                            p->jumpZ >= PLAYER_AJ_SPIN_MIN_Z;
+                p->isJumpKicking = fuerte ? JUMPKICK_STRONG : (giro ? JUMPKICK_SPIN : JUMPKICK_SOFT);
                 // (09/10) Arcade: si todavia subia, el golpe la frena arriba.
                 if (PLAYER_ARCADE_CONTROL && p->jumpVq < 0) p->jumpVq = 0;
                 // Auto-anim ya está apagada desde el inicio del salto: el
@@ -760,7 +763,16 @@ void updatePlayer(Player* p) {
                 // SIEMPRE los dos ultimos; si hay un tercero se muestra primero
                 // PLAYER_JUMPKICK_TUCK_TICKS y despues se estira la patada.
                 // airTimer no se usa mientras se patea: hace de contador.
-                if (playerHasNewSheet(p)) {
+                if (giro) {
+                    // El giro va a mano con los tiempos del especial del piso
+                    // (specialTicksOf); airTimer cuenta los ticks. Solo pega
+                    // en el frame del arma estirada (SPECIAL_HIT_FRAMES).
+                    SPR_setAutoAnimation(p->sprite, FALSE);
+                    SPR_setAnimationLoop(p->sprite, FALSE);
+                    SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
+                    p->airTimer = 0;
+                    playAttackGrunt(p);         // golpe normal: el grunido, no el "Attack!!"
+                } else if (playerHasNewSheet(p)) {
                     // (09/10) Hoja nueva: cada golpe en el aire es su propia
                     // anim (sin direccion / con direccion) y corre sola una
                     // vez, quedando en el ultimo frame hasta aterrizar.
@@ -781,6 +793,21 @@ void updatePlayer(Player* p) {
                     }
                 }
                 }
+            } else if (p->isJumpKicking == JUMPKICK_SPIN && p->sprite->animInd == ANIM_SPECIAL) {
+                // El giro: frames a mano; al terminar vuelve a los frames del
+                // salto (ya no pega: ANIM_JUMP no tiene alcance).
+                if (p->airTimer < 255) p->airTimer++;
+                u16 nf  = specialNumFrames(p);
+                u16 acc = 0, f = 0;
+                for (f = 0; f < nf; f++) {
+                    acc += specialTicksOf(p, f);
+                    if (p->airTimer < acc) break;
+                }
+                if (f < nf) {
+                    if (p->sprite->frameInd != (s16)f) SPR_setFrame(p->sprite, f);
+                } else {
+                    SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
+                }
             } else if (p->isJumpKicking && !playerHasNewSheet(p) && p->airTimer > 0) {
                 if (--p->airTimer == 0) {
                     u16 nk = p->sprite->animation->numFrame;
@@ -793,7 +820,9 @@ void updatePlayer(Player* p) {
             // Subida: frame 0. Ápice y caída: loop del frame 1 al anteúltimo.
             // Justo antes de tocar el suelo (~2 frames de anticipación,
             // predicho con la velocidad actual): último frame.
-            if (!p->isJumpKicking && playerHasNewSheet(p) && PLAYER_ARCADE_CONTROL) {
+            if ((!p->isJumpKicking ||
+                 (p->isJumpKicking == JUMPKICK_SPIN && p->sprite->animInd == ANIM_JUMP)) &&
+                playerHasNewSheet(p) && PLAYER_ARCADE_CONTROL) {
                 // (09/10) Como el arcade: frame 0 los primeros
                 // PLAYER_AJ_F0_F frames, cada pose de la vuelta
                 // PLAYER_AJ_POSE_F frames y el ultimo hasta tocar el piso.
