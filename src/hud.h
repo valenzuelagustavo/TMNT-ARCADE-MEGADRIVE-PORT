@@ -97,7 +97,7 @@ void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram);
 // Tiles de VRAM de fondo que necesita el HUD de UN jugador (barra + vidas).
 #define HUD_VRAM_PER_PLAYER  (HPBAR_FRAME_TILES + HUDLIVES_TILES)   // 10
 
-// Invitacion "PULSE / START" dentro del marco vacio del P2 (solo en 1 jugador)
+// Invitacion "PUSH START" dentro del marco vacio del P2 (solo en 1 jugador)
 // y entrada del P2 en plena partida. Devuelve el personaje elegido (0..3) el
 // frame en que confirma, o 0xFF si todavia no. Hay que llamarla una vez por
 // frame mientras numJugadores() == 1.

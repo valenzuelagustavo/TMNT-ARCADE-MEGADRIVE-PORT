@@ -866,6 +866,8 @@ static Sprite* portraitSpr2  = NULL;
 // se quedaba clavada esperando la primera oleada. Ahora son 28 + 4 x 6.
 static Sprite* hud4Spr[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
 static Sprite* hud4Lbl[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
+// (09/10) Cartel "PUSH START" del marco vacio del P2 (ver p2JoinPoll).
+static Sprite* p2jSpr = NULL;
 // Fila del spritesheet de los marcos para cada tortuga. (09/10) Los marcos
 // nuevos (tools/gen_hud_select.py) ya vienen en orden de personaje.
 static const u8 hudAnimForChar[] = { 0, 1, 2, 3 };
@@ -892,6 +894,7 @@ static void hudForgetSprites(void) {
     portraitSpr1 = NULL;
     portraitSpr2 = NULL;
     for (u8 k = 0; k < MAX_PLAYERS; k++) { hud4Spr[k] = NULL; hud4Lbl[k] = NULL; }
+    p2jSpr       = NULL;
 }
 
 // Crea los marcos del HUD y los retratos de tortuga como sprites de alto
@@ -948,7 +951,7 @@ void hudInit(void) {
         SPR_setAnim(hudSprite1, hudAnimForChar[personajeSeleccionado & 3]);
 
     // El marco del P2 se crea SIEMPRE (17/09): con dos jugadores es el suyo, y
-    // con uno queda vacio para invitarlo a entrar ("PULSE / START", ver
+    // con uno queda vacio para invitarlo a entrar ("PUSH START", ver
     // p2JoinPoll). Son 36 tiles de sprite que en 1-2 jugadores sobran.
     hudSprite2 = SPR_addSprite(&hud_2p, HUD_P2_X, HUD_FRAME_Y,
                                TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
@@ -1411,8 +1414,7 @@ bool continueStepAll(ContPlayer* conts, Player** pls, HudPlayer* huds,
 // ENTRADA DEL PLAYER 2 EN PLENA PARTIDA (17/09)
 // ===========================================================================
 // Con UN jugador, el marco del P2 igual se dibuja (ver hudInit) y adentro
-// parpadea "PULSE / START" -- dos lineas porque el interior son 7 columnas y
-// "PULSE START" son 11 caracteres. Si el joystick 2 pulsa START, ese mismo
+// alterna "PUSH START" en verde y blanco. Si el joystick 2 pulsa START, ese mismo
 // marco se vuelve un mini selector de tortuga: izquierda/derecha cambian el
 // retrato (que aparece en el borde derecho, el hueco que quedo libre al
 // sacarlos del HUD) saltandose la tortuga del P1, y START confirma.
@@ -1422,49 +1424,47 @@ bool continueStepAll(ContPlayer* conts, Player** pls, HudPlayer* huds,
 // cada nivel tiene sus propios limites; p2JoinPoll solo devuelve el personaje
 // elegido el frame en que se confirma.
 // ---------------------------------------------------------------------------
-#define P2J_BLINK_FRAMES  24   // medio ciclo del parpadeo de la invitacion
+// (09/10) La invitacion es un SPRITE con las letras del "INSERT COIN(S)" del
+// arcade (push_start, level1.res): 2 frames, verde y blanco, que el motor
+// alterna solo cada 32 frames. Va adelante del marco (SPR_MIN_DEPTH) porque
+// pisa los bordes, como en el arcade. Se crea al mostrar la invitacion y se
+// suelta cuando el P2 entra a elegir.
+#define P2J_TEXT_DX   5    // x del marco dentro de su celda de 72 px
+#define P2J_TEXT_DY  14    // el texto (y 2..13 del frame) cae en las filas 16..27 del marco
 
 typedef enum { P2J_INVITE, P2J_SELECTING, P2J_DONE } P2JoinState;
 
 static P2JoinState p2jState;
 static u8   p2jSel;
 static u16  p2jPrevJoy;
-static u16  p2jBlink;
-static bool p2jTextOn;
 
 void p2JoinReset(void) {
     p2jState   = P2J_INVITE;
     p2jSel     = 0;
     p2jPrevJoy = 0;
-    p2jBlink   = 0;
-    p2jTextOn  = FALSE;
 }
 
-// Las dos lineas van en las filas 2 y 3 -- las de la barra -- y NO en la 1:
-// a la altura de la fila 1 el arte del marco todavia tiene la pestana del
-// "2UP" sobre las columnas 1-2 y se comia media palabra (probado).
-static void p2DrawInvite(u16 baseCol, bool on) {
-    VDP_clearText(baseCol + 1, HUD_BAR_ROW,     HUD_TILE_W - 2);
-    VDP_clearText(baseCol + 1, HUD_BAR_ROW + 1, HUD_TILE_W - 2);
-    if (!on) return;
-    VDP_drawText("PULSE", baseCol + 2, HUD_BAR_ROW);
-    VDP_drawText("START", baseCol + 2, HUD_BAR_ROW + 1);
+static void p2InviteShow(u16 baseCol) {
+    if (p2jSpr) return;
+    p2jSpr = SPR_addSprite(&push_start, (s16)(baseCol * 8 + P2J_TEXT_DX),
+                           HUD_FRAME_Y + P2J_TEXT_DY, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (p2jSpr) SPR_setDepth(p2jSpr, SPR_MIN_DEPTH);
+}
+
+static void p2InviteHide(void) {
+    if (p2jSpr) { SPR_releaseSprite(p2jSpr); p2jSpr = NULL; }
 }
 
 u8 p2JoinPoll(u16 baseCol) {
     u16 joy = JOY_readJoypad(playerJoy(1));
 
     if (p2jState == P2J_INVITE) {
-        if (++p2jBlink >= P2J_BLINK_FRAMES) {
-            p2jBlink  = 0;
-            p2jTextOn = !p2jTextOn;
-            p2DrawInvite(baseCol, p2jTextOn);
-        }
+        p2InviteShow(baseCol);
         if (justPressedJoy(joy, p2jPrevJoy, BUTTON_START)) {
             // Arranca en la primera tortuga libre (la del P1 no se puede).
             p2jSel    = charFirstFree((s8)personajeSeleccionado);
             p2jState  = P2J_SELECTING;
-            p2DrawInvite(baseCol, FALSE);
+            p2InviteHide();
             hudPortraitShow(1, p2jSel);
             if (hudSprite2) SPR_setAnim(hudSprite2, hudAnimForChar[p2jSel & 3]);
         }
@@ -2914,7 +2914,7 @@ SceneId showScene11() {
     VDP_setTextPriority(1);
     VDP_setTextPalette(PAL1);
 
-    p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
+    p2JoinReset();   // (17/09) invitacion "PUSH START" en el marco vacio del P2
     static HudPlayer huds[MAX_PLAYERS];
     for (u8 k = 0; k < nPl; k++)
         hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
@@ -3821,7 +3821,7 @@ SceneId showScene11() {
         // 6c. HUD: refrescar barra de vida, vidas y puntaje (solo redibuja lo
         //     que cambió respecto del frame anterior).
         // --- Entrada del P2 en plena partida (17/09) -----------------------
-        // Con un solo jugador, su marco muestra "PULSE / START" y el joystick
+        // Con un solo jugador, su marco muestra "PUSH START" y el joystick
         // 2 puede sumarse eligiendo una tortuga distinta a la del P1. El nivel
         // NO se pausa: sigue corriendo mientras elige (ver p2JoinPoll).
         if (nPl == 1) {
@@ -4402,7 +4402,7 @@ SceneId showScene12() {
     VDP_setTextPriority(1);
     VDP_setTextPalette(PAL1);
 
-    p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
+    p2JoinReset();   // (17/09) invitacion "PUSH START" en el marco vacio del P2
     static HudPlayer huds[MAX_PLAYERS];
     for (u8 k = 0; k < nPl; k++)
         hudPlayerInit(&huds[k], pls[k], hudPlayerCol(k),
@@ -5190,7 +5190,7 @@ SceneId showScene12() {
 
         // 6d. HUD: refrescar barra de vida, vidas y puntaje.
         // --- Entrada del P2 en plena partida (17/09) -----------------------
-        // Con un solo jugador, su marco muestra "PULSE / START" y el joystick
+        // Con un solo jugador, su marco muestra "PUSH START" y el joystick
         // 2 puede sumarse eligiendo una tortuga distinta a la del P1. El nivel
         // NO se pausa: sigue corriendo mientras elige (ver p2JoinPoll).
         if (nPl == 1) {

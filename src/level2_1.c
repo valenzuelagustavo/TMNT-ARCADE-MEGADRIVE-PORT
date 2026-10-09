@@ -1271,7 +1271,7 @@ SceneId showScene21() {
     VDP_setTextPriority(1);
     VDP_setTextPalette(PAL1);
 
-    p2JoinReset();   // (17/09) invitacion "PULSE START" en el marco vacio del P2
+    p2JoinReset();   // (17/09) invitacion "PUSH START" en el marco vacio del P2
     static HudPlayer huds[MAX_PLAYERS];
     // (26/09) CONTINUE? por jugador, igual que en el 1-1 y el 1-2. Antes el
     // 2-1 no tenia: el que se quedaba sin vidas quedaba tirado para siempre
@@ -1860,7 +1860,7 @@ SceneId showScene21() {
 #endif
 
         // --- Entrada del P2 en plena partida (17/09) -----------------------
-        // Con un solo jugador, su marco muestra "PULSE / START" y el joystick
+        // Con un solo jugador, su marco muestra "PUSH START" y el joystick
         // 2 puede sumarse eligiendo una tortuga distinta a la del P1. El nivel
         // NO se pausa: sigue corriendo mientras elige (ver p2JoinPoll).
         if (nPl == 1) {
