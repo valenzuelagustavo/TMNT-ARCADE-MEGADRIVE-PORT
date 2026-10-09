@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # ============================================================================
 # gen_hud_bar.py -- arte del HUD de 1-2 jugadores (barra de vida + vidas)
+# (09/10) hp_bar.png lo genera tools/gen_hud_select.py; este script ya solo
+# escribe lives_digits.png.
 # ============================================================================
 # Genera dos PNG indexados sobre PAL1 (la paleta de las tortugas, la misma que
 # usa el marco del HUD), a partir de una captura del arcade:
@@ -106,7 +108,8 @@ def save(arr, path, pal):
 
 def main():
     pal = load_pal()
-    save(make_bar(), BAROUT, pal)
+    # (09/10) La barra ahora la arma tools/gen_hud_select.py (una por
+    # tortuga, con los colores de la seleccion). Aca quedan solo los digitos.
     save(make_digits(), DIGOUT, pal)
 
 

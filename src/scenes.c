@@ -866,10 +866,9 @@ static Sprite* portraitSpr2  = NULL;
 // se quedaba clavada esperando la primera oleada. Ahora son 28 + 4 x 6.
 static Sprite* hud4Spr[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
 static Sprite* hud4Lbl[MAX_PLAYERS] = { NULL, NULL, NULL, NULL };
-// El spritesheet de los marcos tiene las filas en orden Leo/Mike/Don/Raph del
-// ARTE (0=Leo 1=Mike(rojo) 2=Don(purpura) 3=Raph(dorado)) y el cursor del
-// juego usa 0=Leo 1=Mike 2=Don 3=Raph: esta tabla traduce.
-static const u8 hudAnimForChar[] = { 0, 3, 2, 1 };
+// Fila del spritesheet de los marcos para cada tortuga. (09/10) Los marcos
+// nuevos (tools/gen_hud_select.py) ya vienen en orden de personaje.
+static const u8 hudAnimForChar[] = { 0, 1, 2, 3 };
 
 // (27/09) CUELGUE "ILLEGAL INSTRUCTION" en el 2-1 tras un continue.
 // Estos punteros son STATIC y sobreviven a la escena, pero sus sprites NO:
@@ -919,7 +918,7 @@ void hudInit(void) {
     // 160/232). La fila de color la elige el personaje (hudAnimForChar:
     // 0=Leo 1=Mike 2=Don 3=Raph -> filas 0/3/2/1 del PNG).
     if (numJugadores() > 2) {
-        static const u8 hudAnimForChar4[] = { 0, 3, 2, 1 };
+        static const u8 hudAnimForChar4[] = { 0, 1, 2, 3 };
         for (u8 k = 0; k < MAX_PLAYERS; k++) {
             s16 x = (s16)(HUD4_X0 + k * (HUD_TILE_W * 8));
             // El contorno: el primero reserva y sube los tiles; los otros
@@ -946,7 +945,7 @@ void hudInit(void) {
     hudSprite1 = SPR_addSprite(&hud_1p, HUD_P1_X, HUD_FRAME_Y,
                                TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     if (hudSprite1)
-        SPR_setAnim(hudSprite1, personajeSeleccionado);
+        SPR_setAnim(hudSprite1, hudAnimForChar[personajeSeleccionado & 3]);
 
     // El marco del P2 se crea SIEMPRE (17/09): con dos jugadores es el suyo, y
     // con uno queda vacio para invitarlo a entrar ("PULSE / START", ver
@@ -954,7 +953,7 @@ void hudInit(void) {
     hudSprite2 = SPR_addSprite(&hud_2p, HUD_P2_X, HUD_FRAME_Y,
                                TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     if (hudSprite2)
-        SPR_setAnim(hudSprite2, (cantidadJugadores == 2) ? personaje2Seleccionado : 0);
+        SPR_setAnim(hudSprite2, (cantidadJugadores == 2) ? hudAnimForChar[personaje2Seleccionado & 3] : 0);
 }
 
 // Retratos a pedido (17/09). Se crean solo mientras un jugador esta ELIGIENDO
@@ -1017,7 +1016,8 @@ void hudInitPortraits(void) {
 // Posiciones (en tiles) RELATIVAS a la columna donde arranca el marco.
 // El interior útil es cols 1..7 (col 0 y col 8 son borde del marco).
 #define HUD_SCORE_ROW   1   // fila superior; el puntaje se alinea a la derecha
-#define HUD_SCORE_LEFT  4   // primera col libre de la fila superior (tras "1UP")
+#define HUD_SCORE_LEFT  5   // (09/10) marco nuevo: el puntaje va donde el arte tiene el
+                            // nombre (cols 5..7, 3 digitos)
 #define HUD_SCORE_RIGHT 8   // borde derecho (col 8); el puntaje termina en col 7
 #define HUD_LIVES_COL   3   // (17/09) pegado a la barra, como el arcade
 #define HUD_LIVES_ROW   2   // el dígito es de 2 filas: ocupa 2 y 3
@@ -1040,9 +1040,15 @@ static u16 uintToDec(u16 v, char* out) {
 // están contiguos y sin deduplicar en ROM (NONE NONE): frame N arranca en el
 // tile N*HPBAR_FRAME_TILES -> N*HPBAR_FRAME_TILES*8 longwords.
 // DMA_QUEUE: la transferencia se hace en el próximo vblank.
-static void hpBarSetFrame(u16 barVram, u8 frame) {
-    VDP_loadTileData(hp_bar.tiles + (u32)frame * HPBAR_FRAME_TILES * 8,
-                     barVram, HPBAR_FRAME_TILES, DMA_QUEUE);
+// (09/10) hp_bar trae una barra por tortuga, con sus colores
+// (tools/gen_hud_select.py): tortuga ch, frame f -> frame (ch * 11 + f).
+#define HPBAR_FRAMES  (PLAYER_MAX_HEALTH + 1)
+static const u32* hpBarTiles(u8 ch, u8 frame) {
+    if (ch > 3) ch = 0;
+    return hp_bar.tiles + (u32)(ch * HPBAR_FRAMES + frame) * HPBAR_FRAME_TILES * 8;
+}
+static void hpBarSetFrame(u16 barVram, u8 ch, u8 frame) {
+    VDP_loadTileData(hpBarTiles(ch, frame), barVram, HPBAR_FRAME_TILES, DMA_QUEUE);
 }
 
 // Inicializa el bloque de barra de un jugador: carga el frame lleno a VRAM y
@@ -1052,8 +1058,8 @@ static void hpBarSetFrame(u16 barVram, u8 frame) {
 static VDPPlane hudPlane = BG_A;
 void hudSetPlane(VDPPlane plane) { hudPlane = plane; }
 
-static void hpBarInit(u16 barVram, u16 baseCol) {
-    VDP_loadTileData(hp_bar.tiles, barVram, HPBAR_FRAME_TILES, DMA);
+static void hpBarInit(u16 barVram, u16 baseCol, u8 ch) {
+    VDP_loadTileData(hpBarTiles(ch, 0), barVram, HPBAR_FRAME_TILES, DMA);
     // fillTileMapRectInc incrementa el índice tile a tile (fila por fila), el
     // mismo orden en que quedan los tiles de cada frame en el tileset.
     VDP_fillTileMapRectInc(hudPlane,
@@ -1097,7 +1103,7 @@ void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram) {
     h->lastLives  = -1;
     h->lastScore  = -1;
     hudClearBlock(baseCol);
-    hpBarInit(barVram, baseCol);
+    hpBarInit(barVram, baseCol, pl->charIndex);
     hudLivesInit(h->livesVram, baseCol, pl->charIndex);
 }
 
@@ -1123,7 +1129,7 @@ void hudPlayerUpdate(HudPlayer* h) {
         s16 frame = PLAYER_MAX_HEALTH - hp;
         if (frame < 0)                 frame = 0;
         if (frame > PLAYER_MAX_HEALTH) frame = PLAYER_MAX_HEALTH;
-        hpBarSetFrame(h->barVram, (u8)frame);
+        hpBarSetFrame(h->barVram, h->pl->charIndex, (u8)frame);
         h->lastHealth = hp;
     }
 
@@ -1139,11 +1145,14 @@ void hudPlayerUpdate(HudPlayer* h) {
     if (score != h->lastScore) {
         char buf[6];
         u16  len = uintToDec((u16)score, buf);   // 1..5 dígitos
-        u16  field = HUD_SCORE_RIGHT - HUD_SCORE_LEFT;   // 4 tiles (cols 4..7)
-        if (len > field) len = field;                    // no invadir el "1UP"
+        u16  field = HUD_SCORE_RIGHT - HUD_SCORE_LEFT;   // 3 tiles (cols 5..7)
+        // No invadir el contorno: se ven los ultimos 3 digitos (el puntaje
+        // cuenta enemigos, como el arcade, y no pasa de 999).
+        const char* shown = buf;
+        if (len > field) { shown = buf + (len - field); len = field; }
         // Alinear a la derecha: el último dígito queda en la col 7.
         VDP_clearText(h->baseCol + HUD_SCORE_LEFT, HUD_SCORE_ROW, field);
-        VDP_drawText(buf, h->baseCol + HUD_SCORE_RIGHT - len, HUD_SCORE_ROW);
+        VDP_drawText(shown, h->baseCol + HUD_SCORE_RIGHT - len, HUD_SCORE_ROW);
         h->lastScore = score;
     }
 }
@@ -1469,6 +1478,11 @@ u8 p2JoinPoll(u16 baseCol) {
 
         if (justPressedJoy(joy, p2jPrevJoy, BUTTON_START)) {
             hudPortraitHide(1);
+            // (09/10) La tortuga del P2 queda anotada ACA, para todos los
+            // niveles: los que no la guardaban (8-1, 9-1, stage_level) dejaban
+            // personaje2Seleccionado viejo y el P2 podia volver con la misma
+            // tortuga que el P1 en el nivel siguiente o en el continue.
+            personaje2Seleccionado = p2jSel;
             p2jState   = P2J_DONE;
             p2jPrevJoy = joy;
             return p2jSel;

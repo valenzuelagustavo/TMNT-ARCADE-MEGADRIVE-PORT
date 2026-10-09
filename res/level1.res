@@ -63,9 +63,11 @@ IMAGE bg_level1 "images/lvl_1_scene/Arcade---Teenage-Mutant-Ninja-Turtles---Back
 TILESET fire_tiles "sprites/fire_strip_new.png" NONE NONE
 
 // --- HUD: marcos de vidas / puntos / barra de vida (72x32 cada uno) ---
+// (09/10) Arte de la seleccion de personaje (tools/gen_hud_select.py desde
+// "select player_15 CORES.png"): contorno blanco con sombra verde y cartel
+// "nUP" en los colores de la tortuga, sin la cabecita ni el nombre.
 // Spritesheet de 4 animaciones de 1 frame (celda 72x32), UNA por tortuga en
-// ORDEN DE PERSONAJE: fila 0=Leo(azul) 1=Mike(rojo) 2=Don(purpura)
-// 3=Raph(dorado). time 0 -> sin auto-animacion: scenes.c elige la fila con
+// ORDEN DE PERSONAJE: fila 0=Leo 1=Mike 2=Don 3=Raph. time 0 -> sin auto-animacion: scenes.c elige la fila con
 // SPR_setAnim(sprite, personajeSeleccionado). Se dibujan como SPRITES de alto
 // nivel en la franja superior de 32px (siempre por encima de los planos, sin
 // gastar VRAM de tiles de fondo). Comparten la paleta de las tortugas (PAL1):
@@ -97,7 +99,9 @@ SPRITE turtle_portrait "images/hud/frames_hud.png" 4 4 NONE 0
 // (17/09) Paso de 32x8 a 32x16 -- el DOBLE de alto -- para parecerse a la del
 // arcade, que ocupa casi todo el interior del marco. La genera
 // tools/gen_hud_bar.py, no se dibuja a mano.
-// hp_bar.png (32x176): frame[0] = 10 barras (vida llena), frame[10] = 0.
+// (09/10) hp_bar.png (32x704): una barra por tortuga con sus colores
+// (tools/gen_hud_select.py), 11 frames cada una: tortuga t, frame f =
+// frame (t*11 + f). frame 0 = 10 barras (vida llena), frame 10 = 0.
 // Cada frame son 4x2 = 8 tiles; se anima por STREAMING igual que el fuego:
 // UN frame (8 tiles) vive en VRAM por jugador y, al recibir un golpe, scenes.c
 // lo pisa con el frame siguiente via DMA. NONE NONE es CRITICO: sin comprimir
