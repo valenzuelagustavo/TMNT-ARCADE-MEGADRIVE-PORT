@@ -110,7 +110,10 @@ typedef enum {
 #define PLAYER_GRAVITY_Q    272     // 1,0625 px/frame2
 #define PLAYER_APEX_BAND_Q  408     // |vel| < 1,59 px/frame = zona del apice
 #define PLAYER_APEX_GRAV_Q  136     // gravedad a la mitad en el apice
-#define PLAYER_FALL_ACCEL_Q 384     // 1,5 px/frame2 al empezar a caer
+// (09/10) 384 -> 192: la caida pasaba de 1 a 6 px/frame en 4 frames
+// (1,1,1,2,3,5,6) y se notaba el escalon; ahora rampa 1,1,1,2,3,3,4,5,6. El
+// apice (123 px) no cambia y el salto dura 1 frame mas (41).
+#define PLAYER_FALL_ACCEL_Q 192     // 0,75 px/frame2 al empezar a caer
 #define PLAYER_KICK_GRAV_Q  256     // 1 px/frame2 cayendo con patada
 // (29/09) Dejarse caer de un borde (playerFallTo: escalon del sewer, cornisa
 // del 2-1): arranca con este saltito hacia arriba (2 px/frame) en vez de caer
@@ -195,9 +198,10 @@ typedef enum {
 #define PLAYER_DIAG_X_Q        352   // 1,375 en diagonal (estimado)
 #define PLAYER_DIAG_Y_Q        320   // 1,25 en diagonal (estimado)
 #define PLAYER_WALK_TICKS        4   // frames por pose de la caminata (a mano)
-// Salto con la hoja nueva: el frame 0 los primeros 2 frames y los del medio
-// repartidos en lo que dura en el aire sin patada (41 frames).
-#define PLAYER_JUMP_AIR_F       41
+// Salto con la hoja nueva: el frame 0 durante toda la subida; desde el apice
+// la vuelta en el aire, a este ritmo (8 frames x 3 = 24, lo que dura la
+// caida desde el apice).
+#define PLAYER_JUMP_ROLL_TICKS   3
 // Golpe en el aire: sale disparado hacia donde mira a esta velocidad (sin
 // control en X; arriba/abajo siguen moviendo la lane).
 #define PLAYER_AIR_ATK_VX        3

@@ -341,6 +341,10 @@ def save_sheet(path, pal, rows):
 SKIN = [2, 5, 8]
 AIR_SLOTS = ('JUMP', 'JUMP_KICK', 'JUMP_KICK_DIR', 'SPECIAL')
 NO_SHIFT = ('MANHOLE',)          # cada frame va donde esta el agujero
+# (09/10) La vuelta en el aire del salto gira sobre el centro de la celda (el
+# rip centra cada frame por el dibujo): un ancla por frame la hacia ir y venir
+# hasta 15 px de costado. Toda la anim va con UN solo corrimiento (el promedio).
+CONST_SLOTS = ('JUMP',)
 MAX_DX = 40
 OFF_FRAMES = 12                  # columnas de la tabla (las hojas viejas llegan a 12)
 
@@ -387,6 +391,8 @@ def frame_offsets(rows, ref):
                     g = skin_center(fr)
                     dx = (ref_g - g) if g is not None else 0
             dxs.append(int(max(-MAX_DX, min(MAX_DX, round(dx)))))
+        if slot in CONST_SLOTS and dxs:
+            dxs = [int(round(sum(dxs) / float(len(dxs))))] * len(dxs)
         out.append(dxs)
     return out
 

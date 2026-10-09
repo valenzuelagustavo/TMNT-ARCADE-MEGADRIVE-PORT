@@ -767,19 +767,23 @@ void updatePlayer(Player* p) {
             // Justo antes de tocar el suelo (~2 frames de anticipación,
             // predicho con la velocidad actual): último frame.
             if (!p->isJumpKicking && playerHasNewSheet(p)) {
-                // (09/10) Hoja nueva (10 frames: despegue, 8 de vuelta en el
-                // aire y aterrizaje): frame 0 los primeros 2 frames, los del
-                // medio repartidos en PLAYER_JUMP_AIR_F y el ultimo justo
-                // antes de tocar el piso.
+                // (09/10) Hoja nueva (10 frames: despegue, 8 de vuelta y
+                // aterrizaje). SUBIENDO: el frame 0 fijo hasta el punto mas
+                // alto. Desde el apice: la vuelta (1..n-2) a
+                // PLAYER_JUMP_ROLL_TICKS por frame, queda en el n-2 si la
+                // caida es larga, y el ultimo justo antes de tocar el piso.
+                // airTimer cuenta los frames desde el apice.
                 u16 n = p->sprite->animation->numFrame;
                 u16 f = 0;
-                if (p->jumpVq > 0 && p->jumpZq <= (p->jumpVq << 1)) {
+                if (p->jumpVq < 0) {
+                    p->airTimer = 0;
+                } else if (p->jumpZq <= (p->jumpVq << 1)) {
                     f = n - 1;
-                } else if (n > 2 && p->airTimer > 2) {
-                    f = 1 + ((u16)(p->airTimer - 2) * (n - 2)) / PLAYER_JUMP_AIR_F;
+                } else if (n > 2) {
+                    f = 1 + p->airTimer / PLAYER_JUMP_ROLL_TICKS;
                     if (f > n - 2) f = n - 2;
+                    if (p->airTimer < 255) p->airTimer++;
                 }
-                if (p->airTimer < 255) p->airTimer++;
                 SPR_setFrame(p->sprite, f);
             } else if (!p->isJumpKicking) {
                 u16 n = p->sprite->animation->numFrame;
