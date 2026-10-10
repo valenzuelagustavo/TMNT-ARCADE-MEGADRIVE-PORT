@@ -31,6 +31,34 @@ s16 stageCamY = 0;   // ver player.h
 // Vidas iniciales configurables desde la pantalla OPCIONES (3/5/7).
 u8 vidasIniciales = PLAYER_START_LIVES;
 
+// (10/10) Opciones: esquema de botones y dificultad (ver player.h).
+u8 controlTipo = CONTROL_TIPO_A;
+u8 dificultad  = DIFICULTAD_NORMAL;
+
+u16 playerRemapJoy(u16 raw) {
+    // Boton FISICO A/B/C -> boton LOGICO que espera el codigo (TYPE A).
+    static const u16 dst[CONTROL_TIPOS][3] = {
+        { BUTTON_A, BUTTON_B, BUTTON_C },   // TYPE A: identidad
+        { BUTTON_B, BUTTON_C, BUTTON_A },   // TYPE B: A golpe, B salto, C especial
+        { BUTTON_C, BUTTON_B, BUTTON_A },   // TYPE C: A salto, B golpe, C especial
+    };
+    if (controlTipo == CONTROL_TIPO_A || controlTipo >= CONTROL_TIPOS) return raw;
+    u16 out = raw & (u16)~(BUTTON_A | BUTTON_B | BUTTON_C);
+    if (raw & BUTTON_A) out |= dst[controlTipo][0];
+    if (raw & BUTTON_B) out |= dst[controlTipo][1];
+    if (raw & BUTTON_C) out |= dst[controlTipo][2];
+    return out;
+}
+
+// Barras que saca un golpe de 'bars' segun la dificultad (ver player.h).
+static u8 playerDiffBars(Player* p, u8 bars) {
+    if (dificultad == DIFICULTAD_ARCADE || bars == 0 || bars >= PLAYER_MAX_HEALTH)
+        return bars;
+    u16 q = (u16)bars * NORMAL_DMG_NUM + p->dmgCarry;
+    p->dmgCarry = (u8)(q % NORMAL_DMG_DEN);
+    return (u8)(q / NORMAL_DMG_DEN);
+}
+
 static u8  s_persistLives[MAX_PLAYERS];
 static u16 s_persistScore[MAX_PLAYERS];
 static s16 s_persistHealth[MAX_PLAYERS];
@@ -138,6 +166,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->isJumpKicking = FALSE;
     p->kickCarry     = 0;
     p->joyId         = joyId;
+    p->dmgCarry      = 0;
     p->prevJoy       = 0;
     p->dir           = 1;
     p->invincible    = 0;
@@ -614,7 +643,7 @@ void updatePlayer(Player* p) {
     // pero el juego sigue.
     if (!p->sprite) return;
 
-    u16 joy = JOY_readJoypad(p->joyId);
+    u16 joy = playerRemapJoy(JOY_readJoypad(p->joyId));   // (10/10) CONTROL PAD de opciones
 
     // Límite derecho EFECTIVO de este frame: el menor entre el borde de
     // pantalla (dinámico, dado por la cámara) y la pared diagonal del
@@ -1710,7 +1739,8 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars, bool volteo) {
     p->comboLinger   = 0;
     p->attackIsSpecial = 0;
 
-    // Vida: restar 'bars' barras (clamp a 0)
+    // Vida: restar 'bars' barras (clamp a 0). (10/10) En NORMAL, menos.
+    bars = playerDiffBars(p, bars);
     if (p->health > (s16)bars) p->health -= (s16)bars;
     else                       p->health = 0;
 
@@ -1761,7 +1791,7 @@ void damagePlayer(Player* p, s16 attackerX) {
     // si le pegan al soldier. Si la barra llega a 0 → knockout (que sí termina
     // el agarre al pasar a STATE_KO).
     if (p->state == STATE_GRABBED && p->grabType == GRAB_TYPE_FOOT) {
-        if (p->health > 0) p->health--;
+        if (p->health > 0) p->health -= playerDiffBars(p, 1);
         if (p->health == 0) {
             p->hurtDir = 0;
             playerEnterKO(p);
@@ -1820,6 +1850,7 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     p->comboLinger     = 0;
     p->attackIsSpecial = 0;
 
+    bars = playerDiffBars(p, bars);   // (10/10) NORMAL: menos dano
     if (p->health > (s16)bars) p->health -= (s16)bars;
     else                       p->health = 0;
     if (p->health == 0) { playerEnterKO(p); return; }
@@ -2130,8 +2161,9 @@ bool playerManholeFall(Player* p, s16 outX, s16 outY) {
     // El pozo cuesta PLAYER_MANHOLE_DMG barras. Si lo deja en 0 no hay caida:
     // manda el knockout normal (perder una vida y revivir es mas fuerte que
     // quedar atrapado en una animacion de 2 segundos).
-    if (p->health > (s16)PLAYER_MANHOLE_DMG) p->health -= (s16)PLAYER_MANHOLE_DMG;
-    else                                     p->health = 0;
+    u8 mhDmg = playerDiffBars(p, PLAYER_MANHOLE_DMG);   // (10/10) NORMAL: menos dano
+    if (p->health > (s16)mhDmg) p->health -= (s16)mhDmg;
+    else                        p->health = 0;
     if (p->health == 0) {
         p->hurtDir = 0;
         playerEnterKO(p);

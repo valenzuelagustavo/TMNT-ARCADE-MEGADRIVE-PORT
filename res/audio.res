@@ -55,10 +55,19 @@ XGM2 music_technodrome "music/16 - The Technodrome (Scene 5).vgm"
 // que suena FM+PSG puro y no le pisa los canales PCM a los voice over.
 XGM2 music_stage2_1  "music/08 - Downtown (Stage 2-1).vgm"
 
-// Tema del jefe (Rocksteady). Arranca cuando se abre la puerta de la capsula
-// del taladro y se mantiene toda la pelea: el VGM trae punto de loop (32,5s de
-// duracion, loopSamples != 0), asi que con XGM2_setLoopNumber(-1) repite solo.
-XGM2 music_boss      "music/Fight con samples (Prueba Gus).vgm"
+// (10/10) Declarados solo para el SOUND TEST de opciones (BGM13 y BGM16): por
+// ahora ninguna escena los usa. 4,2 s y 5,6 s, sin loop, FM+PSG (traen el
+// bloque PCM de bateria pero no lo disparan).
+XGM2 music_scene_clear2    "music/12 - Scene Clear Theme 2 (1).vgm"
+XGM2 music_techno_cutscene "music/15 - It's Technodrome (Cutscene).vgm"
+
+// Tema de TODOS los jefes. Arranca con la pelea y se mantiene hasta el final:
+// el VGM trae punto de loop, asi que con XGM2_setLoopNumber(-1) repite solo.
+// (09/10) Version final del artista: "06 - Fight! (Boss Theme).vgm", 40,4 s
+// con loop de 31,1 s, FM+PSG puro (sin bloque PCM). Reemplaza a la "Fight con
+// samples (Prueba Gus)", que pitcheaba la bateria 82 veces entre 16
+// frecuencias y en XGM2 sonaba rota (ver el comentario de arriba).
+XGM2 music_boss      "music/06 - Fight! (Boss Theme).vgm"
 
 // Jingle de nivel completado (4s, SIN punto de loop -> hay que reproducirlo con
 // XGM2_setLoopNumber(0) ANTES del play, si no el driver lo repite). Declarado y

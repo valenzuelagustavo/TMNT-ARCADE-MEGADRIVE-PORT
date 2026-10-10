@@ -403,6 +403,8 @@ u8 numJugadores(void) {
 // Continues disponibles en la partida (compartidos entre ambos jugadores).
 // Se consumen al continuar; se reinician en la selección de personajes.
 static u8 continuesLeft = 3;
+// (10/10) CONTINUE de opciones (0..9): con cuantos continues arranca cada partida.
+u8 continuesIniciales = 3;
 
 // ---------------------------------------------------------------------------
 // clearScene — limpieza completa entre escenas
@@ -1879,147 +1881,193 @@ SceneId showPlayerSelect() {
     if (cantidadJugadores == 4) {
         // Mismo cierre que hace showCharSelect al confirmar: partida nueva.
         playerPersistReset();
-        continuesLeft = 3;
+        continuesLeft = continuesIniciales;
         return SCENE_CINEMATIC_FIRE;
     }
     return SCENE_CHAR_SELECT;
 }
 
 // ---------------------------------------------------------------------------
-// 5b. OPCIONES — LIVES (3/5/7), SOUNDTEST y EXIT
+// 5b. OPCIONES (10/10) — pantalla "GAME OPTION" del arcade
 // ---------------------------------------------------------------------------
-// Mismo look que la selección de players (logo de fondo + fuente arcade).
-// Los textos en pantalla van en INGLÉS (igual que el resto del juego, que
-// imita al arcade); los identificadores del código siguen en castellano.
-// LIVES configura el global vidasIniciales (lo usan playerPersistReset y
-// revivePlayer: aplica a partida nueva y a continues). SOUNDTEST reproduce
-// los VGM del juego: A o C = play/stop, LEFT/RIGHT cambia de pista.
-// EXIT (START sobre la fila, o B en cualquier fila) vuelve a la selección de
-// cantidad de players.
+// Arte: res/images/option_menu/TELA OPTION_15 CORES.png, cortado por
+// tools/gen_option_menu.py en option_bg (fondo con el titulo), option_arrow
+// (cursor) y option_font (la letra del ejemplo, ASCII 32..126). Las cuatro
+// cabecitas del marco son char_select_head (la hoja de la seleccion de
+// personaje): Leo, Mike, Don y Raph, parpadeando.
+//
+// Filas (y en px, grilla de 16):
+//   GAME LEVEL    NORMAL / ARCADE        -> dificultad      (player.c)
+//   PLAYER REST   01..09                 -> vidasIniciales  (player.c)
+//   CONTINUE      00..09                 -> continuesIniciales
+//   CONTROL PAD   TYPE A / B / C         -> controlTipo     (player.c)
+//                 A.xxx / B.xxx / C.xxx     (que hace cada boton, solo texto)
+//   SOUND TEST    BGM01..BGMnn           -> A o C = play/stop
+//   EXIT          START (o B en cualquier fila) vuelve a players
+// Los textos en pantalla van en INGLES, como el resto del juego.
+//
+// El texto va en BG_A con la letra nueva (blanco = indice 13 de PAL0) y BG_A
+// corrido 4 px a la derecha: en el arte las columnas arrancan en x = 60 y
+// x = 196, que no caen en la grilla de 8.
 // ---------------------------------------------------------------------------
-#define OPT_ROW_VIDAS      0
-#define OPT_ROW_SOUNDTEST  1
-#define OPT_ROW_SALIR      2
-#define OPT_ROW_COUNT      3
+#define OPT_ROW_LEVEL      0
+#define OPT_ROW_REST       1
+#define OPT_ROW_CONTINUE   2
+#define OPT_ROW_PAD        3
+#define OPT_ROW_SOUNDTEST  4
+#define OPT_ROW_SALIR      5
+#define OPT_ROW_COUNT      6
 
-#define OPT_LABEL_COL      12   // columna de los labels
-#define OPT_VALUE_COL      24   // columna del "< n >" de LIVES
-// El soundtest necesita mas ancho que LIVES: el nombre de la pista mas largo
-// ("APRILS ROOM" / "SCENE CLEAR") son 11 caracteres y ademas hay que dejar 3
-// columnas para el ON/OFF. La pantalla tiene 40 columnas y el label termina en
-// la 20, asi que el campo arranca en la 22 (antes que el de LIVES) y queda
-// 22 + "< " + 11 + " >" = 37, con el ON/OFF en 37..39: justo justo.
-// Si se agrega una pista con nombre mas largo hay que ACORTARLA, no ampliar
-// esto: no queda una sola columna libre.
-#define OPT_SND_COL        22   // columna del "< NOMBRE >" del soundtest
-#define OPT_SND_NAME_MAX   11   // caracteres de nombre que entran
-#define OPT_SND_FIELD_W    (OPT_SND_NAME_MAX + 4)
-#define OPT_STATUS_COL     (OPT_SND_COL + OPT_SND_FIELD_W)  // ON/OFF
-#define OPT_ROW_Y          19   // fila de texto de LIVES; las demás van +2 (09/10: 20 -> 19, aire sobre el "(C) KONAMI 1989" del fondo nuevo)
-// (09/10) El cursor es la cabecita del arte nuevo (title_cursor, 24x16): a la
-// izquierda del label, 2 px arriba de la fila de texto.
-#define OPT_CURSOR_X       (OPT_LABEL_COL * 8 - 26)
-#define OPT_CURSOR_DY      -4
+#define OPT_TEXT_HSCROLL   4    // BG_A corrido 4 px (columnas en x = 8c + 4)
+#define OPT_LABEL_COL      7    // x = 60
+#define OPT_VALUE_COL      24   // x = 196
+#define OPT_VALUE_W        11   // ancho del campo de valor (hasta la col 34)
+#define OPT_CURSOR_X       40
+#define OPT_HEAD_Y         7
+#define OPT_SPR_TILES      64   // flecha (1) + 4 cabecitas (6 c/u)
+#define OPT_BLINK_MIN      90   // parpadeo de las cabecitas: ojos abiertos (minimo)...
+#define OPT_BLINK_RANGE   150   // ...mas un azar de hasta esto
+#define OPT_BLINK_SHUT      8   // frames con los ojos cerrados
 
-// Pistas del sound test: nombre en pantalla (ASCII puro) + recurso XGM2.
-typedef struct { const char* name; const u8* track; } SoundTrack;
-// OJO: maximo OPT_SND_NAME_MAX caracteres, lo que pase de ahi se corta.
-static const SoundTrack soundTracks[] = {
-    { "FIRE!",        music_level1 },
-    { "PROFILES",     music_profiles },
-    { "APRILS ROOM",  music_level2 },
-    { "CHAR SELECT",  music_charselect },
-    { "FIGHT!",       music_boss },
-    { "SCENE CLEAR",  music_scene_clear },
-    { "DOWNTOWN",     music_stage2_1 },
-    { "SEWERS",       music_level3 },
-    { "GARAGE",       music_garage },
-    { "HIGHWAY",      music_freeway },
-    { "HWY CHASER",   music_skate },
-    { "TECHNODROME",  music_technodrome },
+// Fila de texto (en tiles) de cada opcion. CONTROL PAD ocupa 4 renglones
+// (TYPE + los tres botones), por eso SOUND TEST salta a la 20.
+static const u8 optTileRow[OPT_ROW_COUNT] = { 6, 8, 10, 12, 20, 22 };
+static const char* const optLabels[OPT_ROW_COUNT] = {
+    "GAME LEVEL", "PLAYER REST", "CONTINUE", "CONTROL PAD", "SOUND TEST", "EXIT"
+};
+static const s16 optHeadX[4] = { 45, 73, 227, 255 };
+
+// Sound test: TODOS los VGM de musica del juego, en el orden de los archivos
+// de res/music ("00 - ...", "01 - ...") y al final el jingle del logo de SEGA.
+// En pantalla se llaman BGM01, BGM02...: asi el nombre siempre entra.
+//   BGM01 00 SanSenpai Credit      BGM10 09 Scene Clear Theme 1
+//   BGM02 01 Opening Demo          BGM11 10 The Sewers
+//   BGM03 02 Character Profiles    BGM12 11 Parking Garage / Factory
+//   BGM04 03 Choose Your Turtle    BGM13 12 Scene Clear Theme 2
+//   BGM05 04 Fire!                 BGM14 13 Highway Blockade
+//   BGM06 05 April's Room          BGM15 14 Highway Chaser
+//   BGM07 06 Fight! (jefes)        BGM16 15 It's Technodrome
+//   BGM08 07 April is Kidnapped    BGM17 16 The Technodrome
+//   BGM09 08 Downtown              BGM18    SEGA (musica_intro.vgm)
+static const u8* const soundTracks[] = {
+    music_credits, music_intro_arcade, music_profiles, music_charselect,
+    music_level1, music_level2, music_boss, music_ending,
+    music_stage2_1, music_scene_clear, music_level3, music_garage,
+    music_scene_clear2, music_freeway, music_skate, music_techno_cutscene,
+    music_technodrome, music_sega,
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 
-// Redibuja el valor de la fila VIDAS ("< 3 >" — ancho fijo, pisa solo).
-static void optDrawLives(u8 lives) {
-    char buf[6];
-    buf[0] = '<'; buf[1] = ' ';
-    buf[2] = (char)('0' + lives);
-    buf[3] = ' '; buf[4] = '>'; buf[5] = 0;
-    VDP_drawText(buf, OPT_VALUE_COL, OPT_ROW_Y);
+// Que hace cada boton en cada TYPE (mismo orden que controlTipo, player.c).
+static const char* const optPadText[CONTROL_TIPOS][3] = {
+    { "A.SPECIAL", "B.ATTACK",  "C.JUMP"    },   // TYPE A (el de siempre)
+    { "A.ATTACK",  "B.JUMP",    "C.SPECIAL" },   // TYPE B
+    { "A.JUMP",    "B.ATTACK",  "C.SPECIAL" },   // TYPE C
+};
+
+static void optDrawValue(u8 row, const char* text) {
+    VDP_clearText(OPT_VALUE_COL, optTileRow[row], OPT_VALUE_W);
+    VDP_drawText(text, OPT_VALUE_COL, optTileRow[row]);
 }
 
-// Redibuja la fila SOUNDTEST: nombre de la pista + indicador ON/OFF.
+static void optDraw2Digits(u8 row, u8 n) {
+    char buf[3] = { (char)('0' + n / 10), (char)('0' + n % 10), 0 };
+    optDrawValue(row, buf);
+}
+
+static void optDrawLevel(void) {
+    optDrawValue(OPT_ROW_LEVEL, (dificultad == DIFICULTAD_ARCADE) ? "ARCADE" : "NORMAL");
+}
+
+static void optDrawPad(void) {
+    char buf[7] = "TYPE A";
+    buf[5] = (char)('A' + controlTipo);
+    optDrawValue(OPT_ROW_PAD, buf);
+    for (u8 b = 0; b < 3; b++) {
+        u8 r = optTileRow[OPT_ROW_PAD] + 2 * (b + 1);
+        VDP_clearText(OPT_VALUE_COL, r, OPT_VALUE_W);
+        VDP_drawText(optPadText[controlTipo][b], OPT_VALUE_COL, r);
+    }
+}
+
 static void optDrawSound(u8 trackIdx, bool playing) {
-    char buf[OPT_SND_FIELD_W + 1];
-    u8 i = 0;
-    const char* name = soundTracks[trackIdx].name;
-    buf[i++] = '<'; buf[i++] = ' ';
-    while (*name && i < OPT_SND_NAME_MAX + 2) buf[i++] = *name++;
-    buf[i++] = ' '; buf[i++] = '>'; buf[i] = 0;
-    // Se borra el campo ENTERO antes de escribir: los nombres tienen distinto
-    // largo y si no quedan letras del anterior colgando a la derecha.
-    VDP_clearText(OPT_SND_COL, OPT_ROW_Y + 2, OPT_SND_FIELD_W);
-    VDP_drawText(buf, OPT_SND_COL, OPT_ROW_Y + 2);
-    VDP_clearText(OPT_STATUS_COL, OPT_ROW_Y + 2, 3);
-    VDP_drawText(playing ? "ON" : "OFF", OPT_STATUS_COL, OPT_ROW_Y + 2);
+    char buf[9] = "BGM01   ";
+    u8 n = trackIdx + 1;
+    buf[3] = (char)('0' + n / 10);
+    buf[4] = (char)('0' + n % 10);
+    if (playing) { buf[6] = 'O'; buf[7] = 'N'; }
+    optDrawValue(OPT_ROW_SOUNDTEST, buf);
+}
+
+// Suma 'dir' a un valor en [lo, hi] dando la vuelta en los extremos.
+static u8 optWrap(u8 v, s8 dir, u8 lo, u8 hi) {
+    if (dir > 0) return (v >= hi) ? lo : (u8)(v + 1);
+    return (v <= lo) ? hi : (u8)(v - 1);
 }
 
 SceneId showOptions() {
     clearScene();
-    // Mismo criterio de VRAM que showPlayerSelect: presupuesto de sprites
-    // reducido para dar aire al fondo 320x224.
     SPR_end();
-    SPR_initEx(420);
+    SPR_initEx(OPT_SPR_TILES);
     VDP_setPlaneSize(BG_PLANE_W, 32, TRUE);
 
-    // En hardware real, el DMA puede quedar desincronizado entre escenas.
-    // Usamos CPU para las operaciones críticas de setup para garantizar
-    // sincronización, igual que en showPlayerSelect.
     VDP_setScrollingMode(HSCROLL_PLANE, VSCROLL_PLANE);
-    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setHorizontalScroll(BG_A, OPT_TEXT_HSCROLL);
     VDP_setHorizontalScroll(BG_B, 0);
     VDP_setVerticalScroll(BG_A, 0);
     VDP_setVerticalScroll(BG_B, 0);
-
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
-
-    // Frame de estabilización.
-    SYS_doVBlankProcess();
+    VDP_setBackgroundColor(0);
     SYS_doVBlankProcess();
 
-    // Fondo nuevo (el mismo que la seleccion de players), por CPU.
-    titleBgLoad();
+    // clearScene dejo las paletas en negro: se arma todo y se revela con fade.
+    VDP_drawImageEx(BG_B, &option_bg,
+                    TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, TILE_USER_INDEX),
+                    0, 0, FALSE, TRUE);
+    VDP_loadFont(&option_font, DMA);
+    VDP_setTextPalette(PAL0);
+    VDP_setTextPriority(1);
 
-    VDP_loadFont(&title_font, CPU);
-    // OJO: title_font_pal tiene 64 entradas. Copiar las 64 a partir de PAL2
-    // envuelve en CRAM y pisa PAL0/PAL1 (igual que el bug de showPlayerSelect).
-    PAL_setPalette(PAL2, title_font_pal.data, CPU);
-    VDP_setTextPalette(PAL2);
+    for (u8 r = 0; r < OPT_ROW_COUNT; r++)
+        VDP_drawText(optLabels[r], OPT_LABEL_COL, optTileRow[r]);
 
-    VDP_drawText("LIVES",     OPT_LABEL_COL, OPT_ROW_Y);
-    VDP_drawText("SOUNDTEST", OPT_LABEL_COL, OPT_ROW_Y + 2);
-    VDP_drawText("EXIT",      OPT_LABEL_COL, OPT_ROW_Y + 4);
-
-    Sprite *cursor = SPR_addSprite(&title_cursor, OPT_CURSOR_X, OPT_ROW_Y * 8 + OPT_CURSOR_DY,
+    // Cabecitas (PAL1 = paleta de la seleccion de personaje, que tiene los
+    // colores de las cuatro bandanas).
+    Sprite* heads[4];
+    u16     headTimer[4];
+    for (u8 t = 0; t < 4; t++) {
+        heads[t] = SPR_addSprite(&char_select_head, optHeadX[t], OPT_HEAD_Y,
+                                 TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+        if (heads[t]) SPR_setAnimAndFrame(heads[t], t, 0);
+        headTimer[t] = OPT_BLINK_MIN + t * 37;
+    }
+    Sprite* cursor = SPR_addSprite(&option_arrow, OPT_CURSOR_X, optTileRow[0] * 8,
                                    TILE_ATTR(PAL0, TRUE, FALSE, FALSE));
 
-    // VIDAS arranca reflejando el valor actual del global.
-    static const u8 livesValues[] = {3, 5, 7};
-    u8 livesIdx = (vidasIniciales >= 7) ? 2 : (vidasIniciales >= 5) ? 1 : 0;
     u8 trackIdx = 0;
     // Estado del soundtest. Se lleva LOCAL: XGM2_isPlaying() lee el status del
-    // Z80 y tarda ~1 frame en reflejar un play/stop (el indicador mentiría).
+    // Z80 y tarda ~1 frame en reflejar un play/stop (el indicador mentiria).
     bool sndPlaying = FALSE;
 
-    optDrawLives(livesValues[livesIdx]);
+    optDrawLevel();
+    optDraw2Digits(OPT_ROW_REST, vidasIniciales);
+    optDraw2Digits(OPT_ROW_CONTINUE, continuesIniciales);
+    optDrawPad();
     optDrawSound(trackIdx, FALSE);
+    SPR_update();
+
+    u16 target[32];
+    for (u8 i = 0; i < 16; i++) {
+        target[i]      = option_bg.palette->data[i];
+        target[16 + i] = char_select_bg.palette->data[i];
+    }
+    PAL_fadeIn(0, 31, target, 20, FALSE);
 
     u8  sel  = 0;
     u16 prev = 0;
 
-    // START/B pueden venir presionados del menú de players: esperar release.
+    // START/B pueden venir presionados del menu de players: esperar release.
     while (JOY_readJoypad(JOY_1) & (BUTTON_START | BUTTON_B))
         SYS_doVBlankProcess();
 
@@ -2029,44 +2077,71 @@ SceneId showOptions() {
         if (justPressedJoy(value, prev, BUTTON_UP))   sel = (sel + OPT_ROW_COUNT - 1) % OPT_ROW_COUNT;
         if (justPressedJoy(value, prev, BUTTON_DOWN)) sel = (sel + 1) % OPT_ROW_COUNT;
 
-        if (sel == OPT_ROW_VIDAS) {
-            bool changed = FALSE;
-            if (justPressedJoy(value, prev, BUTTON_LEFT))  { livesIdx = (livesIdx + 2) % 3; changed = TRUE; }
-            if (justPressedJoy(value, prev, BUTTON_RIGHT)) { livesIdx = (livesIdx + 1) % 3; changed = TRUE; }
-            if (changed) {
-                vidasIniciales = livesValues[livesIdx];
-                optDrawLives(vidasIniciales);
-            }
-        } else if (sel == OPT_ROW_SOUNDTEST) {
-            bool trackChanged = FALSE;
-            if (justPressedJoy(value, prev, BUTTON_LEFT))  { trackIdx = (trackIdx + SOUND_TRACK_COUNT - 1) % SOUND_TRACK_COUNT; trackChanged = TRUE; }
-            if (justPressedJoy(value, prev, BUTTON_RIGHT)) { trackIdx = (trackIdx + 1) % SOUND_TRACK_COUNT; trackChanged = TRUE; }
-            if (trackChanged) {
-                // Si estaba sonando, arrancar la pista nueva.
-                // setLoopNumber(-1) SIEMPRE antes del play: el driver latchea
-                // el loop en el instante del play. Sin esto el soundtest se
-                // queda con el ultimo loop que dejo la escena anterior y las
-                // pistas cortas (SCENE CLEAR son 0,7s) sonaban una sola vez.
-                if (sndPlaying) {
-                    XGM2_setLoopNumber(-1);
-                    playMusicVol(soundTracks[trackIdx].track, 100);
+        s8 dir = 0;
+        if (justPressedJoy(value, prev, BUTTON_LEFT))  dir = -1;
+        if (justPressedJoy(value, prev, BUTTON_RIGHT)) dir = +1;
+
+        switch (sel) {
+            case OPT_ROW_LEVEL:
+                if (dir) { dificultad ^= 1; optDrawLevel(); }
+                break;
+            case OPT_ROW_REST:
+                if (dir) {
+                    vidasIniciales = optWrap(vidasIniciales, dir, 1, 9);
+                    optDraw2Digits(OPT_ROW_REST, vidasIniciales);
                 }
-                optDrawSound(trackIdx, sndPlaying);
-            }
-            if (justPressedJoy(value, prev, BUTTON_A) || justPressedJoy(value, prev, BUTTON_C)) {
-                if (sndPlaying) { XGM2_stop(); sndPlaying = FALSE; }
-                else {
-                    XGM2_setLoopNumber(-1);
-                    playMusicVol(soundTracks[trackIdx].track, 100);
-                    sndPlaying = TRUE;
+                break;
+            case OPT_ROW_CONTINUE:
+                if (dir) {
+                    continuesIniciales = optWrap(continuesIniciales, dir, 0, 9);
+                    optDraw2Digits(OPT_ROW_CONTINUE, continuesIniciales);
                 }
-                optDrawSound(trackIdx, sndPlaying);
+                break;
+            case OPT_ROW_PAD:
+                if (dir) {
+                    controlTipo = optWrap(controlTipo, dir, 0, CONTROL_TIPOS - 1);
+                    optDrawPad();
+                }
+                break;
+            case OPT_ROW_SOUNDTEST:
+                if (dir) {
+                    trackIdx = optWrap(trackIdx, dir, 0, SOUND_TRACK_COUNT - 1);
+                    // setLoopNumber(-1) SIEMPRE antes del play: el driver
+                    // latchea el loop en el instante del play.
+                    if (sndPlaying) {
+                        XGM2_setLoopNumber(-1);
+                        playMusicVol(soundTracks[trackIdx], 100);
+                    }
+                    optDrawSound(trackIdx, sndPlaying);
+                }
+                if (justPressedJoy(value, prev, BUTTON_A) || justPressedJoy(value, prev, BUTTON_C)) {
+                    if (sndPlaying) { XGM2_stop(); sndPlaying = FALSE; }
+                    else {
+                        XGM2_setLoopNumber(-1);
+                        playMusicVol(soundTracks[trackIdx], 100);
+                        sndPlaying = TRUE;
+                    }
+                    optDrawSound(trackIdx, sndPlaying);
+                }
+                break;
+        }
+
+        if (cursor) SPR_setPosition(cursor, OPT_CURSOR_X, optTileRow[sel] * 8);
+
+        // Parpadeo de las cabecitas (mismo ritmo que la seleccion de personaje).
+        for (u8 t = 0; t < 4; t++) {
+            if (!heads[t]) continue;
+            if (headTimer[t] > 0) { headTimer[t]--; continue; }
+            if (heads[t]->frameInd == 0) {
+                SPR_setFrame(heads[t], 1);
+                headTimer[t] = OPT_BLINK_SHUT;
+            } else {
+                SPR_setFrame(heads[t], 0);
+                headTimer[t] = OPT_BLINK_MIN + (random() % OPT_BLINK_RANGE);
             }
         }
 
-        SPR_setPosition(cursor, OPT_CURSOR_X, (OPT_ROW_Y + sel * 2) * 8 + OPT_CURSOR_DY);
-
-        // SALIR: START sobre la fila SALIR, o B en cualquier fila.
+        // SALIR: START sobre EXIT, o B en cualquier fila.
         if (((value & BUTTON_START) && sel == OPT_ROW_SALIR) || (value & BUTTON_B))
             break;
 
@@ -2075,12 +2150,18 @@ SceneId showOptions() {
         SYS_doVBlankProcess();
     }
 
-    // Cortar la música del soundtest y esperar release para que el mismo
-    // botón no atraviese la pantalla de players al volver.
+    // Cortar la musica del soundtest y esperar release para que el mismo
+    // boton no atraviese la pantalla de players al volver.
     XGM2_stop();
+    XGM2_setLoopNumber(-1);
+    PAL_fadeOutAll(20, FALSE);
     while (JOY_readJoypad(JOY_1) & (BUTTON_START | BUTTON_B))
         SYS_doVBlankProcess();
 
+    VDP_setHorizontalScroll(BG_A, 0);
+    VDP_setTextPriority(0);
+    VDP_clearPlane(BG_A, TRUE);
+    VDP_clearPlane(BG_B, TRUE);
     // Restaurar la fuente default y el presupuesto de sprites del juego.
     VDP_loadFont(&font_default, DMA);
     SPR_end();
@@ -2250,7 +2331,7 @@ SceneId showCharSelect() {
     // Nueva partida: reiniciar vidas/puntaje persistentes y continues
     // antes del nivel 1.
     playerPersistReset();
-    continuesLeft = 3;
+    continuesLeft = continuesIniciales;
     return SCENE_CINEMATIC_FIRE;
 }
 

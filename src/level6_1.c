@@ -14,7 +14,7 @@
 // CAMINABLE: la calzada, del borde de abajo del guardarrail al piso.
 // Sin jefe: el nivel se gana con las oleadas limpias al llegar al final, y
 // sigue la Scene 7 (la fabrica).
-// Musica: todavia no hay tema propio; suena el del 2-1.
+// Musica: music_skate, "14 - Highway Chaser (Scene 3-2)".
 // ===========================================================================
 
 #include <genesis.h>

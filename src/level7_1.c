@@ -10,7 +10,8 @@
 // JEFE: el TENIENTE GRANITOR (granitor.c, portado del companero). Con las
 // oleadas limpias y la camara en el fondo entra caminando por la derecha; el
 // nivel se gana cuando se desarma (y sigue la Scene 8). PAL3 es suya.
-// Musica: todavia no hay tema de la fabrica; suena el del 2-1.
+// Musica (09/10): music_garage, "11 - Parking Garage (Scene 2-3) & The
+// Factory (Scene 4)" -- el mismo tema que el garage 4-1, como en el arcade.
 // ===========================================================================
 
 #include <genesis.h>
@@ -87,7 +88,7 @@ static const StageLevel level71 = {
     .waves        = waves71,
     .nWaves       = sizeof(waves71) / sizeof(waves71[0]),
     .bossFeetX    = 1800,
-    .music        = music_stage2_1,
+    .music        = music_garage,     // (09/10) "Parking Garage (2-3) & The Factory (4)"; antes sonaba el del 2-1
     .musicVol     = 80,
     .bossMusic    = music_boss,
     .bossMusicVol = 80,

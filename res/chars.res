@@ -39,7 +39,7 @@
 // niveles la toman de leo_player). Mike y Raph siguen con las hojas viejas.
 // =============================================================================
 
-SPRITE leo_player  "/sprites/players/leo_new_13x13.png"  13 13 FAST 5
-SPRITE mike_player "/sprites/mike_anim_13x13.png" 13 13 FAST 5
-SPRITE raph_player "/sprites/raph_anim_13x13.png" 13 13 FAST 5
-SPRITE don_player  "/sprites/players/don_new_13x13.png"  13 13 FAST 5
+SPRITE leo_player  "/sprites/players/leo_new_13x13.png"  13 13 FAST 6
+SPRITE mike_player "/sprites/mike_anim_13x13.png" 13 13 FAST 6
+SPRITE raph_player "/sprites/raph_anim_13x13.png" 13 13 FAST 6
+SPRITE don_player  "/sprites/players/don_new_13x13.png"  13 13 FAST 6

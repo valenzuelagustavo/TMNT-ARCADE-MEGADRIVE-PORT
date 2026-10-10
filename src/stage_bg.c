@@ -35,6 +35,8 @@ static s16 colLeft, colRight;         // ventana de columnas de MUNDO dibujadas
 static TransferMethod upTm;           // DMA en el init (pantalla en negro), CPU despues
 
 static u16 colBuf[32];
+#define SBG_QUEUE_SPARE  24     // entradas de la cola que se dejan para el resto (sprites, scroll...)
+#define SBG_BYTES_SPARE 2048    // bytes por cuadro que se dejan para el resto
 
 // Regiones variables (ver SbgRegion en stage_bg.h).
 static const SbgRegion* sbgRegs;
@@ -76,7 +78,17 @@ static u16 slotAcquire(u16 tile) {
     // sumo 28 tiles y meterlos en la cola de DMA la desbordaria (el motor de
     // sprites tambien la usa). Escribir VRAM en pleno cuadro es legal en el
     // Mega Drive, solo mas lento.
-    VDP_loadTileData(sbgTiles + (u32)tile * 8, sbgVram + s, 1, upTm);
+    // (10/10) En el 2D (Technodrome) va por la COLA de DMA: escribir VRAM por
+    // CPU en pleno cuadro es legal pero el VDP solo acepta unas pocas
+    // escrituras por linea, y bajando en el ascensor entran ~70 tiles cada
+    // dos cuadros -- el juego andaba a media velocidad. Si la cola esta por
+    // llenarse (o el cuadro ya no tiene banda), se sigue por CPU.
+    TransferMethod tm = upTm;
+    if (tm == DMA_QUEUE &&
+        (DMA_getQueueSize() + SBG_QUEUE_SPARE >= DMA_getMaxQueueSize() ||
+         DMA_getQueueTransferSize() + SBG_BYTES_SPARE >= DMA_getMaxTransferSize()))
+        tm = CPU;
+    VDP_loadTileData(sbgTiles + (u32)tile * 8, sbgVram + s, 1, tm);
     return s;
 }
 
@@ -215,36 +227,93 @@ u16 sbgUsed(void) { return used; }
 // ---------------------------------------------------------------------------
 static s16 rowTop, rowBot;            // ventana de filas de MUNDO dibujadas
 
-static u16 cellAttr2(s16 col, s16 row) {
-    if (col < 0 || row < 0 || col >= (s16)sbgMapW || row >= (s16)sbgMapH) return 0;
-    u16 e    = sbgMap[(u32)row * sbgMapW + (u16)col];
-    u16 tile = cellTile(e);
+// (10/10) Reescrito para el viaje en ascensor, que trae una columna Y una
+// fila cada dos cuadros (~140 celdas entre las que entran y las que salen).
+// Antes cada celda calculaba su direccion en el mapa con una multiplicacion
+// de 32 bits (en el 68000 es una llamada a __mulsi3) y escribia el plano con
+// su propio VDP_setTileMapXY: la actualizacion se comia mas de un cuadro
+// entero y el juego bajaba a la mitad de velocidad. Ahora se calcula UNA
+// direccion por tira y se avanza con el puntero; el plano va en bloque por
+// la cola de DMA.
+static inline u16 attrOf(u16 e) {
+    u16 tile = (u16)(e & SBG_RAW_INDEX_MASK);
     if (tile == 0 || tile >= SBG_MAX_TILES) return 0;
     u16 s = slotAcquire(tile);
     if (s == SBG_NONE) return 0;
-    return (u16)(cellFlip(e) | TILE_ATTR(sbgPal, FALSE, FALSE, FALSE) | (sbgVram + s));
+    return (u16)(((e >> SBG_RAW_FLIP_SHIFT) & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
+                 | TILE_ATTR(sbgPal, FALSE, FALSE, FALSE) | (sbgVram + s));
 }
 
-static void cellDrop2(s16 col, s16 row) {
-    if (col < 0 || row < 0 || col >= (s16)sbgMapW || row >= (s16)sbgMapH) return;
-    u16 tile = cellTile(sbgMap[(u32)row * sbgMapW + (u16)col]);
+static inline void dropOf(u16 e) {
+    u16 tile = (u16)(e & SBG_RAW_INDEX_MASK);
     if (tile == 0 || tile >= SBG_MAX_TILES) return;
     slotRelease(tile);
 }
 
+// Rango de filas de la ventana que caen dentro del mapa.
+static inline bool rowsIn(s16* r0, s16* r1) {
+    *r0 = (rowTop < 0) ? 0 : rowTop;
+    *r1 = (rowBot >= (s16)sbgMapH) ? (s16)(sbgMapH - 1) : rowBot;
+    return *r0 <= *r1;
+}
+static inline bool colsIn(s16* c0, s16* c1) {
+    *c0 = (colLeft < 0) ? 0 : colLeft;
+    *c1 = (colRight >= (s16)sbgMapW) ? (s16)(sbgMapW - 1) : colRight;
+    return *c0 <= *c1;
+}
+
+static u16 lineBuf[64];
+
 static void colLoad2(s16 col) {
-    for (s16 r = rowTop; r <= rowBot; r++)
-        VDP_setTileMapXY(sbgPlane, cellAttr2(col, r), (u16)(col & 63), (u16)(r & 31));
+    u16 n = 0;
+    s16 r0 = 0, r1 = -1;
+    bool inX = (col >= 0 && col < (s16)sbgMapW);
+    const u16* m = NULL;
+    if (inX && rowsIn(&r0, &r1)) m = sbgMap + (u32)(u16)r0 * sbgMapW + (u16)col;
+    for (s16 r = rowTop; r <= rowBot; r++) {
+        u16 v = 0;
+        if (m && r >= r0 && r <= r1) { v = attrOf(*m); m += sbgMapW; }
+        lineBuf[n++] = v;
+    }
+    u16 y0 = (u16)(rowTop & 31);
+    u16 h1 = (u16)((n < 32 - y0) ? n : 32 - y0);
+    VDP_setTileMapDataRect(sbgPlane, lineBuf, (u16)(col & 63), y0, 1, h1, 1, DMA_QUEUE_COPY);
+    if (h1 < n)
+        VDP_setTileMapDataRect(sbgPlane, lineBuf + h1, (u16)(col & 63), 0, 1,
+                               (u16)(n - h1), 1, DMA_QUEUE_COPY);
 }
+
 static void colUnload2(s16 col) {
-    for (s16 r = rowTop; r <= rowBot; r++) cellDrop2(col, r);
+    s16 r0, r1;
+    if (col < 0 || col >= (s16)sbgMapW || !rowsIn(&r0, &r1)) return;
+    const u16* m = sbgMap + (u32)(u16)r0 * sbgMapW + (u16)col;
+    for (s16 r = r0; r <= r1; r++) { dropOf(*m); m += sbgMapW; }
 }
+
 static void rowLoad2(s16 row) {
-    for (s16 c = colLeft; c <= colRight; c++)
-        VDP_setTileMapXY(sbgPlane, cellAttr2(c, row), (u16)(c & 63), (u16)(row & 31));
+    u16 n = 0;
+    s16 c0 = 0, c1 = -1;
+    bool inY = (row >= 0 && row < (s16)sbgMapH);
+    const u16* m = NULL;
+    if (inY && colsIn(&c0, &c1)) m = sbgMap + (u32)(u16)row * sbgMapW + (u16)c0;
+    for (s16 c = colLeft; c <= colRight; c++) {
+        u16 v = 0;
+        if (m && c >= c0 && c <= c1) v = attrOf(*m++);
+        lineBuf[n++] = v;
+    }
+    u16 x0 = (u16)(colLeft & 63);
+    u16 w1 = (u16)((n < 64 - x0) ? n : 64 - x0);
+    VDP_setTileMapDataRow(sbgPlane, lineBuf, (u16)(row & 31), x0, w1, DMA_QUEUE_COPY);
+    if (w1 < n)
+        VDP_setTileMapDataRow(sbgPlane, lineBuf + w1, (u16)(row & 31), 0,
+                              (u16)(n - w1), DMA_QUEUE_COPY);
 }
+
 static void rowUnload2(s16 row) {
-    for (s16 c = colLeft; c <= colRight; c++) cellDrop2(c, row);
+    s16 c0, c1;
+    if (row < 0 || row >= (s16)sbgMapH || !colsIn(&c0, &c1)) return;
+    const u16* m = sbgMap + (u32)(u16)row * sbgMapW + (u16)c0;
+    for (s16 c = c0; c <= c1; c++) dropOf(*m++);
 }
 
 void sbgInitRaw2D(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
@@ -273,7 +342,8 @@ void sbgInitRaw2D(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
     rowTop   = (s16)(camY >> 3);
     rowBot   = (s16)(rowTop + SBG_WIN_ROWS - 1);
     for (s16 c = colLeft; c <= colRight; c++) colLoad2(c);
-    upTm     = CPU;
+    DMA_flushQueue();         // (10/10) colLoad2 encola: en el init se manda ya
+    upTm     = DMA_QUEUE;     // (10/10) ver slotAcquire
 }
 
 void sbgUpdate2D(s16 camX, s16 camY) {

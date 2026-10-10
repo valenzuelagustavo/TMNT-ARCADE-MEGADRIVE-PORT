@@ -11,6 +11,7 @@ extern const SpriteDefinition hud_3p;
 extern const SpriteDefinition hud_4p;
 extern const SpriteDefinition hud4_outline;
 extern const SpriteDefinition hud4_label;
+extern const SpriteDefinition push_start;
 extern const SpriteDefinition turtle_portrait;
 extern const TileSet hp_bar;
 extern const TileSet lives_digits;

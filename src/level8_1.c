@@ -27,7 +27,7 @@
 //         abajo. El mapa original lo traia dibujado en su lugar de arranque;
 //         tools/gen_level8_1.py lo borra (ver ahi).
 //
-// Musica: todavia no hay tema del Technodrome; suena el del 2-1.
+// Musica: music_technodrome, "16 - The Technodrome (Scene 5)"; con Traag, music_boss.
 // ===========================================================================
 
 #include <genesis.h>
@@ -72,10 +72,18 @@ extern u8 cantidadJugadores;
 #define L8_ELEV_W           320
 #define L8_ELEV_H           128
 #define L8_ELEV_ROW          12          // fila de pantalla (siempre la misma)
-#define L8_PAD_L             40          // zona "parado encima" (pies) dentro del ascensor
-#define L8_PAD_R            264
-#define L8_PAD_T             48
-#define L8_PAD_B            108
+// (10/10) El piso del ascensor es un PARALELOGRAMO a 45 grados (medido en
+// techno_elevator.png): en la fila local y (pies - elevY) va de
+// x = L8_FLOOR_L0 - y a x = L8_FLOOR_R0 - y. Antes la zona de "parado
+// encima" era un rectangulo chico (x 40..264, y 48..108): parado en la
+// mitad de arriba del ascensor (pies a menos de 48 px de su borde, lo mas
+// natural al entrar por el pasillo) no contaba, el ascensor no arrancaba
+// nunca y la pantalla quedaba trabada sin ninguna pista de por que.
+#define L8_FLOOR_L0         126
+#define L8_FLOOR_R0         317
+#define L8_FLOOR_T            4          // filas de pies validas (local)
+#define L8_FLOOR_B          120
+#define L8_FLOOR_MARGIN      12          // pies a esto del borde, como minimo
 #define L8_ARM_FRAMES        36          // todos encima este tiempo -> arranca
 #define L8_RIDE_SPEED         4
 
@@ -95,6 +103,10 @@ extern u8 cantidadJugadores;
 #define L8_START_X           40
 #define L8_CLEAR_SECS         5
 #define VOL_MUSIC            80
+#define L8_DMA_QUEUE        200          // (10/10) entradas de la cola de DMA en este nivel
+#define L8_SPAWN_GIVEUP     180          // (10/10) 3 s sin VRAM para el siguiente -> se saltea
+#define L8_OFF_MARGIN        96          // (10/10) fuera de pantalla por mas de esto...
+#define L8_OFF_GIVEUP       360          // ...durante 6 s -> se saca
 
 typedef enum { PH_TOP, PH_RIDE, PH_BOTTOM } TechnoPhase;
 
@@ -132,7 +144,30 @@ static const SbgRaw technoMap = {
 static u16 elevVram;
 static s16 elevOc;                 // columna de pantalla de su borde (tiles), 0x7FFF = sin dibujar
 static bool elevDrawn;
-static u16 elevRow[41];
+// (10/10) Filas del ascensor YA ARMADAS (atributos resueltos) con 41 celdas
+// vacias a cada lado: la ventana de 41 columnas que va a pantalla es un
+// puntero dentro de la fila, sin calcular nada. Antes se rearmaban las 16
+// filas celda por celda y se escribian por CPU en pleno cuadro cada vez que
+// el ascensor cruzaba un tile (cada 2 cuadros caminando abajo): lentitud y
+// cortes en pantalla.
+#define ELEV_PAD   41
+#define ELEV_BUF_W (ELEV_PAD + 40 + ELEV_PAD + 1)
+static u16 elevBuf[L8_ELEV_H / 8][ELEV_BUF_W];
+
+static void elevBuild(void) {
+    const TileMap* tm = techno_elevator.tilemap;
+    for (u16 r = 0; r < L8_ELEV_H / 8; r++) {
+        for (u16 c = 0; c < ELEV_BUF_W; c++) elevBuf[r][c] = 0;
+        if (r >= tm->h) continue;
+        for (u16 lx = 0; lx < tm->w && lx < 40; lx++) {
+            u16 e = tm->tilemap[(u32)r * tm->w + lx];
+            u16 idx = e & TILE_INDEX_MASK;
+            if (idx)
+                elevBuf[r][ELEV_PAD + lx] = (u16)((e & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
+                                     | TILE_ATTR(PAL0, FALSE, FALSE, FALSE) | (elevVram + idx));
+        }
+    }
+}
 
 static void elevClear(void) {
     if (!elevDrawn) return;
@@ -140,28 +175,17 @@ static void elevClear(void) {
     elevDrawn = FALSE;
 }
 
-static void elevBlit(s16 oc) {
-    const TileMap* tm = techno_elevator.tilemap;
-    for (u16 r = 0; r < tm->h; r++) {
-        for (s16 c = 0; c < 41; c++) {
-            s16 lx = (s16)(c - oc);
-            u16 v = 0;
-            if (lx >= 0 && lx < (s16)tm->w) {
-                u16 e = tm->tilemap[(u32)r * tm->w + (u16)lx];
-                u16 idx = e & TILE_INDEX_MASK;
-                if (idx)
-                    v = (u16)((e & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
-                              | TILE_ATTR(PAL0, FALSE, FALSE, FALSE) | (elevVram + idx));
-            }
-            elevRow[c] = v;
-        }
-        VDP_setTileMapDataRow(BG_A, elevRow, (u16)(L8_ELEV_ROW + r), 0, 41, CPU);
-    }
+// oc = columna de pantalla del borde izquierdo (-40..39). Pantalla col c =
+// ascensor col c - oc = elevBuf[r][ELEV_PAD + c - oc].
+static void elevBlit(s16 oc, TransferMethod tm) {
+    for (u16 r = 0; r < L8_ELEV_H / 8; r++)
+        VDP_setTileMapDataRow(BG_A, &elevBuf[r][ELEV_PAD - oc], (u16)(L8_ELEV_ROW + r),
+                              0, 41, tm);
     elevDrawn = TRUE;
 }
 
 // sx = X del ascensor en pantalla. Devuelve el scroll fino para BG_A.
-static s16 elevUpdate(s16 sx) {
+static s16 elevUpdate(s16 sx, TransferMethod tm) {
     if (sx <= -L8_ELEV_W || sx >= SCREEN_W) {
         elevClear();
         elevOc = 0x7FFF;
@@ -169,7 +193,7 @@ static s16 elevUpdate(s16 sx) {
     }
     s16 oc = (s16)(sx >> 3);            // piso (sx puede ser negativo)
     if (oc != elevOc || !elevDrawn) {
-        elevBlit(oc);
+        elevBlit(oc, tm);
         elevOc = oc;
     }
     return (s16)(sx & 7);
@@ -192,16 +216,37 @@ static void applyScroll(s16 camX, s16 camY, s16 elevFine, TransferMethod tm) {
 // ---------------------------------------------------------------------------
 // Helpers de jugadores
 // ---------------------------------------------------------------------------
-static bool onPad(const Player* p, s16 ex, s16 ey) {
-    s16 fx = (s16)(p->x + FOOT_DX);
-    return fx >= ex + L8_PAD_L && fx <= ex + L8_PAD_R &&
-           p->y >= ey + L8_PAD_T && p->y <= ey + L8_PAD_B;
+// Bordes del piso del ascensor (X de MUNDO del sprite, no de los pies) a la
+// altura de los pies de 'p'.
+static s16 padLeftX(const Player* p, s16 ex, s16 ey) {
+    return (s16)(ex + L8_FLOOR_L0 - (p->y - ey) + L8_FLOOR_MARGIN - FOOT_DX);
+}
+static s16 padRightX(const Player* p, s16 ex, s16 ey) {
+    return (s16)(ex + L8_FLOOR_R0 - (p->y - ey) - L8_FLOOR_MARGIN - FOOT_DX);
 }
 
+static bool onPad(const Player* p, s16 ex, s16 ey) {
+    s16 ly = (s16)(p->y - ey);
+    if (ly < L8_FLOOR_T || ly > L8_FLOOR_B) return FALSE;
+    return p->x >= padLeftX(p, ex, ey) && p->x <= padRightX(p, ex, ey);
+}
+
+// Durante el viaje: encima del ascensor, sin poder bajarse. Los bordes
+// dependen de la Y, asi que se recalculan cada cuadro y se corrige la X
+// (moverse en Y contra un borde diagonal te dejaria afuera).
 static void clampToPad(Player* p, s16 ex, s16 ey) {
-    setPlayerLane(p, (s16)(ey + L8_PAD_T), (s16)(ey + L8_PAD_B));
-    setPlayerLeftBound(p, (s16)(ex + L8_PAD_L - FOOT_DX));
-    setPlayerRightBound(p, (s16)(ex + L8_PAD_R - FOOT_DX));
+    setPlayerLane(p, (s16)(ey + L8_FLOOR_T), (s16)(ey + L8_FLOOR_B));
+    s16 l = padLeftX(p, ex, ey), r = padRightX(p, ex, ey);
+    setPlayerLeftBound(p, l);
+    setPlayerRightBound(p, r);
+    if (p->x < l) p->x = l;
+    if (p->x > r) p->x = r;
+}
+
+// Cuenta para arrancar el ascensor: en juego y con cuerpo (los que estan
+// fuera de juego esperando continue, o sin sprite, no frenan a nadie).
+static bool countsForElevator(const Player* p) {
+    return !isPlayerGameOver(p) && p->sprite != NULL;
 }
 
 static void drawPlayers(Player** pls, u8 nPl, s16 camX, s16 camY) {
@@ -239,6 +284,11 @@ SceneId showScene81() {
     SPR_initEx((u16)(TILE_FONT_INDEX - (TILE_USER_INDEX + barBlocks + elevTiles
                                         + L8_BG_SLOTS)));
 
+    // (10/10) Cola de DMA mas grande mientras dura el nivel: los tiles del
+    // mapa que entran (sobre todo bajando en el ascensor) van por ahi, uno por
+    // entrada. Se vuelve al default al salir.
+    DMA_setMaxQueueSize(L8_DMA_QUEUE);
+
     VDP_setScreenWidth320();
     VDP_setPlaneSize(64, 32, TRUE);
     VDP_setScrollingMode(HSCROLL_TILE, VSCROLL_PLANE);
@@ -257,11 +307,12 @@ SceneId showScene81() {
     u16 hudVram = TILE_USER_INDEX;
     elevVram = (u16)(TILE_USER_INDEX + barBlocks);
     VDP_loadTileSet(techno_elevator.tileset, elevVram, DMA);
+    elevBuild();
     elevDrawn = FALSE;
     elevOc = 0x7FFF;
     sbgInitRaw2D(&technoMap, BG_B, PAL0, (u16)(elevVram + elevTiles), L8_BG_SLOTS,
                  cameraX, cameraY);
-    s16 elevFine = elevUpdate((s16)(elevX - cameraX));
+    s16 elevFine = elevUpdate((s16)(elevX - cameraX), DMA);
     applyScroll(cameraX, cameraY, elevFine, DMA);
 
     hudSetPlane(BG_A);
@@ -301,6 +352,8 @@ SceneId showScene81() {
         enemies[i].sprite = NULL;
     }
     u16 maxAlive = dosJugadores ? L8_MAX_ALIVE_2P : L8_MAX_ALIVE_1P;
+    static u16 offTime[MAX_ENEMIES];
+    for (u16 i = 0; i < MAX_ENEMIES; i++) offTime[i] = 0;
 
     static Traag traag;
     traagInit(&traag);
@@ -312,6 +365,7 @@ SceneId showScene81() {
     u8  waveSpawned = 0;
     s16 camLockX    = -1;
     u8  arm         = 0;               // frames con todos encima del ascensor
+    u16 spawnWait   = 0;               // (10/10) frames sin poder hacer entrar al siguiente
 
     // Revelado: PAL0 el mapa, PAL1 las tortugas, PAL2 los soldiers, PAL3 en
     // negro (la carga Traag al entrar).
@@ -386,7 +440,7 @@ SceneId showScene81() {
             bool all = wavesDone;
             u8 inGame = 0;
             for (u8 k = 0; k < nPl && all; k++) {
-                if (isPlayerGameOver(pls[k])) continue;
+                if (!countsForElevator(pls[k])) continue;
                 inGame++;
                 if (!onPad(pls[k], elevX, elevY)) all = FALSE;
             }
@@ -402,9 +456,10 @@ SceneId showScene81() {
                 for (u8 k = 0; k < nPl; k++) {
                     setPlayerLane(pls[k], L8_TOP_LANE_T, L8_TOP_LANE_B);
                     setPlayerLeftBound(pls[k], cameraX);
-                    // A la derecha del pasillo solo esta el ascensor.
+                    // A la derecha del pasillo solo esta el ascensor (su
+                    // borde derecho es diagonal: depende de la Y).
                     s16 rb = (s16)(cameraX + SCREEN_W - PLAYER_SPRITE_W);
-                    s16 padR = (s16)(elevX + L8_PAD_R - FOOT_DX);
+                    s16 padR = padRightX(pls[k], elevX, elevY);
                     setPlayerRightBound(pls[k], (rb < padR) ? rb : padR);
                 }
             }
@@ -436,8 +491,8 @@ SceneId showScene81() {
             }
             for (u8 k = 0; k < nPl; k++) {
                 setPlayerLane(pls[k], L8_BOT_LANE_T, L8_BOT_LANE_B);
-                // A la izquierda del ascensor esta el pozo.
-                s16 lb = (s16)(elevX + L8_PAD_L - FOOT_DX);
+                // A la izquierda del ascensor esta el pozo (borde diagonal).
+                s16 lb = padLeftX(pls[k], elevX, elevY);
                 setPlayerLeftBound(pls[k], (cameraX > lb) ? cameraX : lb);
                 setPlayerRightBound(pls[k], cameraX + SCREEN_W - PLAYER_SPRITE_W);
             }
@@ -479,7 +534,15 @@ SceneId showScene81() {
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
                 if (i >= MAX_ENEMIES) break;
-                if (!sprVramFits(enemySheetDef(wave->type[waveSpawned])->maxNumTile)) break;
+                if (!sprVramFits(enemySheetDef(wave->type[waveSpawned])->maxNumTile)) {
+                    // (10/10) Red de seguridad: si el que sigue no entra en
+                    // VRAM por L8_SPAWN_GIVEUP cuadros, se saltea. Sin esto la
+                    // oleada nunca "terminaba", la camara quedaba trabada y el
+                    // ascensor no arrancaba.
+                    if (++spawnWait >= L8_SPAWN_GIVEUP) { spawnWait = 0; waveSpawned++; }
+                    break;
+                }
+                spawnWait = 0;
                 spawnWaveEnemy(&enemies[i], wave->side[waveSpawned],
                                wave->type[waveSpawned], cameraX, lt, lb);
                 waveSpawned++;
@@ -496,6 +559,21 @@ SceneId showScene81() {
             setEnemyCamera(e, cameraX);
             updateEnemyN(e, pls, nPl);
             if (e->state == ENEMY_STATE_INACTIVE) continue;
+            // (10/10) Red de seguridad: uno que quedo lejos de la pantalla
+            // mucho tiempo (trabado contra algo) se saca, para que la oleada
+            // pueda terminar y la camara se destrabe.
+            {
+                s16 sx = (s16)(e->x - cameraX);
+                if (sx < -L8_OFF_MARGIN || sx > SCREEN_W + L8_OFF_MARGIN) {
+                    if (++offTime[i] >= L8_OFF_GIVEUP) {
+                        if (e->sprite) SPR_releaseSprite(e->sprite);
+                        e->sprite = NULL;
+                        e->state  = ENEMY_STATE_INACTIVE;
+                        offTime[i] = 0;
+                        continue;
+                    }
+                } else offTime[i] = 0;
+            }
             if (e->sprite)
                 SPR_setPosition(e->sprite, e->x - cameraX,
                                 e->y - e->footOffset - e->jumpZ - cameraY);
@@ -557,7 +635,7 @@ SceneId showScene81() {
 
         // --- Fondo, ascensor y sprites -----------------------------------------
         sbgUpdate2D(cameraX, cameraY);
-        elevFine = elevUpdate((s16)(elevX - cameraX));
+        elevFine = elevUpdate((s16)(elevX - cameraX), DMA_QUEUE);
         applyScroll(cameraX, cameraY, elevFine, DMA_QUEUE);
         drawPlayers(pls, nPl, cameraX, cameraY);
 
@@ -577,6 +655,7 @@ SceneId showScene81() {
     }
 
     traagRelease(&traag);
+    DMA_setMaxQueueSizeToDefault();
     VDP_setTextPriority(0);
     VDP_setTextPalette(PAL0);
     VDP_setTextPlane(BG_A);

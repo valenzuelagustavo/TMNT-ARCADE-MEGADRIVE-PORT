@@ -10,8 +10,8 @@ extern const SpriteDefinition intro_nube_chica;
 extern const SpriteDefinition intro_nube_grande;
 extern const SpriteDefinition intro_turtles;
 extern const Image intro_quad;
-extern const Image intro_banner;
-extern const Image intro_logo;
-extern const Image intro_konami;
+extern const Image title_banner;
+extern const Image title_logo;
+extern const Image title_rest;
 
 #endif // _RES_INTRO_TMNT_H_

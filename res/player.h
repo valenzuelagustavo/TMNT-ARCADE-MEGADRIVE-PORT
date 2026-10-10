@@ -448,6 +448,31 @@ typedef enum {
 // revive por continue (scenes.c). La modifica showOptions().
 extern u8 vidasIniciales;
 
+// (10/10) CONTROL PAD de opciones: que hace cada boton. El codigo del jugador
+// sigue pensado en el TYPE A (A = especial, B = golpe, C = salto);
+// playerRemapJoy() traduce el mando fisico a ese esquema segun controlTipo.
+//   TYPE A: A.SPECIAL B.ATTACK C.JUMP   (el de siempre)
+//   TYPE B: A.ATTACK  B.JUMP   C.SPECIAL
+//   TYPE C: A.JUMP    B.ATTACK C.SPECIAL
+// La combinacion golpe+salto sigue dando el especial en los tres.
+#define CONTROL_TIPO_A   0
+#define CONTROL_TIPO_B   1
+#define CONTROL_TIPO_C   2
+#define CONTROL_TIPOS    3
+extern u8 controlTipo;
+u16 playerRemapJoy(u16 raw);
+
+// (10/10) GAME LEVEL de opciones. ARCADE es el dano de siempre; NORMAL hace
+// que las tortugas reciban el NORMAL_DMG_NUM/NORMAL_DMG_DEN del dano (3/4).
+// El resto de la cuenta se arrastra entre golpes (Player.dmgCarry), asi un
+// golpe de 2 barras saca 1, 2, 1, 2... = 1,5 de promedio. Los golpes que
+// matan de una (>= PLAYER_MAX_HEALTH) siguen matando.
+#define DIFICULTAD_NORMAL  0
+#define DIFICULTAD_ARCADE  1
+#define NORMAL_DMG_NUM     3
+#define NORMAL_DMG_DEN     4
+extern u8 dificultad;
+
 // ---------------------------------------------------------------------------
 // INSTANCIA DE JUGADOR
 // ---------------------------------------------------------------------------
@@ -536,6 +561,7 @@ typedef struct {
 
     // HUD: vida, vidas y puntaje (por jugador, estilo arcade)
     s16         health;         // Barras de vida restantes (0..PLAYER_MAX_HEALTH)
+    u8          dmgCarry;       // (10/10) resto del dano reducido de NORMAL (0..NORMAL_DMG_DEN-1)
     u8          lives;          // Vidas restantes
     u16         score;          // Puntaje acumulado
 

@@ -28,11 +28,24 @@ SPRITE sega_logo_sprite "/images/title_scene/sega_logo.png" 17 10 FAST 8
 // Comparten la paleta de 15 colores del PNG fuente (todo en PAL0). Reemplazan
 // a characters_greyscale / character_selector / faces_hud (los PNG viejos
 // siguen en images/title_scene/, sin declarar).
-IMAGE  char_select_bg    "/images/hud/char_select_bg.png" BEST ALL
+// (10/10) NONE, no BEST: comprimido, VDP_loadTileSet tiene que pedir un buffer
+// de 715 tiles (~23 KB) al heap para descomprimir. Viniendo de la pantalla de
+// players el heap no tenia un bloque libre tan grande, VDP_drawImageEx
+// devolvia FALSE sin dibujar nada y la seleccion quedaba en negro (solo se
+// veian los sprites). Sin comprimir se copia directo de la ROM.
+IMAGE  char_select_bg    "/images/hud/char_select_bg.png" NONE ALL
 // Globo "nUP": fila = jugador (1UP..4UP), frame = tortuga (Leo, Mike, Don, Raph).
 SPRITE char_select_badge "/images/hud/char_select_badge.png" 4 4 NONE 0
 // Cabeza de cada marco: fila = tortuga, frame 0 ojos abiertos / 1 cerrados.
 SPRITE char_select_head  "/images/hud/char_select_head.png" 3 2 NONE 0
+
+// --- Opciones (10/10) ---
+// Cortados de "option_menu/TELA OPTION_15 CORES.png" por tools/gen_option_menu.py.
+// Paleta del PNG fuente en PAL0. option_font: ASCII 32..126, NONE NONE como
+// title_font (sin dedup, el mapeo char->tile tiene que ser 1:1).
+IMAGE   option_bg    "/images/option_menu/option_bg.png" NONE ALL   // NONE: ver char_select_bg
+TILESET option_font  "/images/option_menu/option_font.png" NONE NONE
+SPRITE  option_arrow "/images/option_menu/option_arrow.png" 1 1 NONE 0
 
 // --- Creditos: reconocimiento al adaptador musical ---
 // sansenpai35_logo.png es el nombre del artista (200x32, 1 frame) y

@@ -14,7 +14,7 @@ typedef enum {
     SCENE_VRAM_CLEAR,   // Buffer: borrado total de VRAM entre la intro y los menus
     SCENE_PLAYER_SELECT,
     SCENE_PROFILES,     // Modo atracto: perfil de una tortuga al azar (30s sin tocar nada)
-    SCENE_OPTIONS,      // Opciones: VIDAS (3/5/7), SOUNDTEST y SALIR
+    SCENE_OPTIONS,      // Opciones (10/10): GAME LEVEL, PLAYER REST, CONTINUE, CONTROL PAD, SOUND TEST, EXIT
     SCENE_CHAR_SELECT,
     SCENE_CINEMATIC_FIRE,
     // Nomenclatura del ARCADE, no del orden interno: la "Scene 1" del arcade
