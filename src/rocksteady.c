@@ -213,6 +213,7 @@ bool rocksteadyCanBeHit(const Rocksteady* r) {
         case ROCKSTEADY_WALK:
         case ROCKSTEADY_WALK_ARMS:
         case ROCKSTEADY_SHOOT:
+        case ROCKSTEADY_FRENZY:       // (10/10) la rafaga es larga: se le puede pegar
             return TRUE;
         case ROCKSTEADY_WINDUP:
         case ROCKSTEADY_CHARGE:
@@ -261,7 +262,7 @@ static void rsToWindup(Rocksteady* r, s8 dir) {
 }
 
 static void rsToKick(Rocksteady* r, s8 dir) {
-    rsEnter(r, ROCKSTEADY_KICK, RS_KICK_T);
+    rsEnter(r, ROCKSTEADY_KICK, r->armed ? RS_KICK_T_ARMS : RS_KICK_T);
     r->dir = dir;
     rsManual(r, r->armed ? ROCKSTEADY_ANIM_KICK_ARMS : ROCKSTEADY_ANIM_KICK, 0);
 }
@@ -273,21 +274,30 @@ static void rsToArms(Rocksteady* r, u8 mode, bool fast) {
     rsManual(r, (mode == RS_MODE_AIM) ? ROCKSTEADY_ANIM_AIM : ROCKSTEADY_ANIM_WALK_ARMS, 0);
 }
 
-static void rsToShoot(Rocksteady* r) {
-    rsEnter(r, ROCKSTEADY_SHOOT, RS_SHOOT_T);
+// (10/10) Rafaga del arcade: rondas de 3 tiros (ver RS_SHOT_PERIOD). r->fr =
+// ronda, r->ft = frame dentro de la ronda. Arranca mirando a la tortuga.
+static void rsToShootEx(Rocksteady* r, bool frenzy) {
+    rsEnter(r, frenzy ? ROCKSTEADY_FRENZY : ROCKSTEADY_SHOOT, 0);
+    r->frenzy = frenzy ? 1 : 0;
+    r->rounds = frenzy ? 4 : (u8)(3 + (random() % 3));
+    r->aimDir = r->dir;
     rsShotHits = 0;
-    rsManual(r, ROCKSTEADY_ANIM_SHOOT, ROCKSTEADY_SHOOT_FR_H);
+    rsManual(r, ROCKSTEADY_ANIM_SHOOT, frenzy ? ROCKSTEADY_SHOOT_FR_UP0
+                                              : ROCKSTEADY_SHOOT_FR_REC);
 }
-
-static void rsToFrenzy(Rocksteady* r) {
-    rsEnter(r, ROCKSTEADY_FRENZY, RS_FRENZY_T);
-    rsManual(r, ROCKSTEADY_ANIM_SHOOT, ROCKSTEADY_SHOOT_FR_REC);
-}
+static void rsToShoot(Rocksteady* r)  { rsToShootEx(r, FALSE); }
+static void rsToFrenzy(Rocksteady* r) { rsToShootEx(r, TRUE); }
 
 static void rsToDraw(Rocksteady* r) {
     rsEnter(r, ROCKSTEADY_DRAW, RS_DRAW_T);
     r->armed = 1;                     // al levantarse ya lo tiene en la mano
-    rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_DRAW, FALSE);
+    r->bursts = 0;
+    rsManual(r, ROCKSTEADY_ANIM_DRAW, 0);
+}
+
+static void rsToHolster(Rocksteady* r) {
+    rsEnter(r, ROCKSTEADY_HOLSTER, RS_HOLSTER_T);
+    rsManual(r, ROCKSTEADY_ANIM_DRAW, 3);
 }
 
 static void rsToHurt(Rocksteady* r) {
@@ -302,7 +312,9 @@ static void rsToKnockdown(Rocksteady* r) {
     r->slideDir = (s8)-r->dir;
     r->accX = 0;
     XGM2_stopPCM(SOUND_PCM_CH2);      // por si cae en plena embestida
-    rsManual(r, ROCKSTEADY_ANIM_HURT, 2);
+    // (10/10) Con el arma cae con la anim [10] (frames 3..6) y NO la suelta.
+    if (r->armed) rsManual(r, ROCKSTEADY_ANIM_HURT_ARMS, 3);
+    else          rsManual(r, ROCKSTEADY_ANIM_HURT, 2);
 }
 
 static void rsToDead(Rocksteady* r) {
@@ -386,16 +398,6 @@ static void rsLoopAnim(Rocksteady* r, u8 n, u8 ticks) {
         SPR_setFrame(r->sprite, r->fr);
     }
 }
-
-// Frenesi: 8 pasos (frames del remaster de PC) con su duracion, el frame del sheet que
-// le toca y si tira (0 nada, 1 recto, 2 diagonal). En los pasos 2 y 6 se da
-// vuelta.
-static const u8 rsFrenzyDur[8] = { 12, 22, 12, 22, 7, 26, 7, 26 };
-static const u8 rsFrenzyFr[8]  = { ROCKSTEADY_SHOOT_FR_REC, ROCKSTEADY_SHOOT_FR_H,
-                                   ROCKSTEADY_SHOOT_FR_REC, ROCKSTEADY_SHOOT_FR_H,
-                                   ROCKSTEADY_SHOOT_FR_UP0, ROCKSTEADY_SHOOT_FR_UP,
-                                   ROCKSTEADY_SHOOT_FR_UP0, ROCKSTEADY_SHOOT_FR_UP };
-static const u8 rsFrenzyShot[8] = { 0, 1, 0, 1, 0, 2, 0, 2 };
 
 static void rsFire(Rocksteady* r, bool up) {
     s16 bcx = r->x + ROCKSTEADY_FRAME_W / 2;
@@ -523,8 +525,9 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
         }
 
         case ROCKSTEADY_KICK: {
-            if (r->timer == RS_KICK_F0) SPR_setFrame(r->sprite, 1);
-            if (r->timer >= RS_KICK_F0) rsContact(r, pls, nPl, RS_KICK_FWD, RS_KICK_BACK);
+            u8 f0 = r->armed ? RS_KICK_F0_ARMS : RS_KICK_F0;
+            if (r->timer == f0) SPR_setFrame(r->sprite, 1);
+            if (r->timer >= f0) rsContact(r, pls, nPl, RS_KICK_FWD, RS_KICK_BACK);
             if (r->timer < r->dur) break;
             r->combo = 0;
             SPR_setAutoAnimation(r->sprite, TRUE);
@@ -558,11 +561,25 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
         }
 
         case ROCKSTEADY_KNOCKDOWN: {
+            if (r->armed) {
+                // Con el arma: [3] deslizando, [4] en el piso.
+                if (r->timer <= RS_KDA_SLIDE_T) {
+                    r->x = rclamp(r->x + r->slideDir * rsStepX(r, RS_SLIDE_Q), ra.xMin, ra.xMax);
+                    if (r->timer == RS_KDA_SLIDE_T) SPR_setFrame(r->sprite, 4);
+                }
+                if (r->timer >= RS_KDA_T) {
+                    rsEnter(r, ROCKSTEADY_GETUP, RS_KDA_GETUP_T);
+                    SPR_setFrame(r->sprite, 5);
+                }
+                break;
+            }
             if (r->timer <= RS_KD_SLIDE_T) {
                 r->x = rclamp(r->x + r->slideDir * rsStepX(r, RS_SLIDE_Q), ra.xMin, ra.xMax);
                 if (r->timer == RS_KD_SLIDE_T) SPR_setFrame(r->sprite, 3);
+            } else if (r->timer <= RS_KD_SLOW_T) {
+                r->x = rclamp(r->x + r->slideDir * rsStepX(r, RS_SLOW_Q), ra.xMin, ra.xMax);
             }
-            if (r->timer >= r->dur) {
+            if (r->timer >= RS_KD_T) {
                 rsEnter(r, ROCKSTEADY_GETUP, RS_GETUP_T);
                 SPR_setFrame(r->sprite, 4);
             }
@@ -570,21 +587,32 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
         }
 
         case ROCKSTEADY_GETUP: {
-            if (r->timer == RS_GETUP_F) SPR_setFrame(r->sprite, 5);
+            if (r->timer == (r->armed ? RS_KDA_GETUP_F : RS_GETUP_F))
+                SPR_setFrame(r->sprite, r->armed ? 6 : 5);
             if (r->timer < r->dur) break;
             SPR_setAutoAnimation(r->sprite, TRUE);
             r->anim = 0xFF;
             r->dir = toward;
-            if (r->armed) { r->armed = 0; rsToIdle(r); }   // pierde el arma
-            else          rsToDraw(r);                      // la saca
+            // (10/10) Arcade: sin el arma, al levantarse la saca; con el arma
+            // se levanta con ella y sigue. La guarda despues de varias rafagas.
+            if (r->armed) rsToArms(r, RS_MODE_CHASE, FALSE);
+            else          rsToDraw(r);
             break;
         }
 
-        case ROCKSTEADY_DRAW: {
+        case ROCKSTEADY_DRAW:
+        case ROCKSTEADY_HOLSTER: {
+            // 4 frames de RS_DRAW_F; la guarda con los mismos al reves.
+            u8 f = (u8)((r->timer - 1) / RS_DRAW_F);
+            if (f > 3) f = 3;
+            SPR_setFrame(r->sprite, (r->state == ROCKSTEADY_DRAW) ? f : (u8)(3 - f));
             if (r->timer < r->dur) break;
+            SPR_setAutoAnimation(r->sprite, TRUE);
             r->anim = 0xFF;
-            if (rsRand(2)) rsToFrenzy(r);
-            else           rsToArms(r, aligned ? RS_MODE_AWAY : RS_MODE_CHASE, FALSE);
+            r->dir = toward;
+            if (r->state == ROCKSTEADY_HOLSTER) { r->armed = 0; rsToIdle(r); break; }
+            // Arcade: apenas la saca, tira.
+            rsToShoot(r);
             break;
         }
 
@@ -593,8 +621,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             rsLoopAnim(r, 6, r->fast ? 3 : 4);
             if (r->mode == RS_MODE_CHASE) {
                 r->dir = toward;
-                s16 sx = rsStepX(r, RS_WALK_Q);
-                s16 sy = rsStepY(r, RS_WALK_Q);
+                s16 sx = rsStepX(r, RS_ARMS_Q);
+                s16 sy = rsStepY(r, RS_ARMS_Q);
                 if (adx > RS_NEAR_DX) r->x += toward * sx;
                 r->y = rsToward(r->y, py, sy);
                 if (rabs(py - r->y) <= RS_ALIGN_DY && adx <= RS_ALIGN_DX &&
@@ -604,7 +632,8 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                 }
             } else if (r->mode == RS_MODE_AIM) {
                 r->dir = toward;
-                r->y = rsToward(r->y, py, rsStepY(r, RS_WALK_Q));
+                if (adx > RS_ALIGN_DX * 2) r->x += toward * rsStepX(r, RS_AIM_Q);
+                r->y = rsToward(r->y, py, rsStepY(r, RS_AIM_Q));
                 if (rabs(py - r->y) <= RS_AIM_DY) { rsToShoot(r); break; }
             } else {   // RS_MODE_AWAY: se aleja hacia el borde
                 r->dir = (s8)-toward;
@@ -625,6 +654,9 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                     if (c == 0)      rsToArms(r, RS_MODE_CHASE, FALSE);
                     else if (c == 1) rsToShoot(r);
                     else             rsToFrenzy(r);
+                } else if (r->mode == RS_MODE_CHASE) {
+                    // (10/10) No persigue para siempre: se pone a apuntar.
+                    rsToArms(r, rsRand(3) ? RS_MODE_AIM : RS_MODE_CHASE, FALSE);
                 } else {
                     rsToArms(r, r->mode, FALSE);
                 }
@@ -632,38 +664,33 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             break;
         }
 
-        case ROCKSTEADY_SHOOT: {
-            // 2 vueltas de 45: [0 fogonazo, 1, 2, 3, 2, 3] a 7,5 frames; la
-            // bala sale con el fogonazo.
-            u16 t = (u16)(r->timer - 1) % RS_SHOOT_LOOP_T;
-            static const u8 seq[6] = { 0, 1, 2, 3, 2, 3 };
-            u8 step = (u8)((t * 2) / 15);
-            if (t == 0) rsFire(r, FALSE);
-            SPR_setFrame(r->sprite, seq[step]);
-            // Avanza despacio siguiendo la lane.
-            r->x = rclamp(r->x + r->dir * rsStepX(r, RS_SHOOT_Q), ra.xMin, ra.xMax);
-            r->y = rclamp(rsToward(r->y, py, rsStepY(r, RS_SHOOT_Q)), ra.laneTop, ra.laneBot);
-            if (rsShotHits >= RS_SHOT_HITS) {
-                rsShotHits = 0;
-                r->dir = toward;
-                if (rsRand(2)) rsToFrenzy(r);
-                else           rsToArms(r, RS_MODE_CHASE, TRUE);
-                break;
-            }
-            if (r->timer >= r->dur) { r->dir = toward; rsToArms(r, RS_MODE_CHASE, FALSE); }
-            break;
-        }
-
+        case ROCKSTEADY_SHOOT:
         case ROCKSTEADY_FRENZY: {
-            // r->fr = paso (0..7), r->ft = frames que lleva en el paso.
-            if (r->ft == 0) {
-                if (r->fr == 2 || r->fr == 6) r->dir = (s8)-r->dir;
-                SPR_setFrame(r->sprite, rsFrenzyFr[r->fr]);
-                if (rsFrenzyShot[r->fr]) rsFire(r, rsFrenzyShot[r->fr] == 2);
+            // (10/10) Rondas de 3 tiros cada 8 frames (4 con fogonazo y 4
+            // sin); se da vuelta entre ronda y ronda. Recta: adelante, atras,
+            // adelante... Frenesi: diagonal atras x2, diagonal adelante, recta.
+            u8 rnd = r->fr;
+            bool up = r->frenzy && rnd < 3;
+            s8 d;
+            if (r->frenzy) d = (rnd < 2) ? (s8)-r->aimDir : r->aimDir;
+            else           d = (rnd & 1) ? (s8)-r->aimDir : r->aimDir;
+            u8 ph   = (u8)(r->ft % RS_SHOT_PERIOD);
+            u8 shot = (u8)(r->ft / RS_SHOT_PERIOD);
+            if (r->ft == 0) r->dir = d;
+            if (ph == 0) {
+                rsFire(r, up);
+                SPR_setFrame(r->sprite, (up ? ROCKSTEADY_SHOOT_FR_UP : ROCKSTEADY_SHOOT_FR_H) + (shot & 1));
+            } else if (ph == RS_SHOT_PERIOD / 2) {
+                SPR_setFrame(r->sprite, (up ? ROCKSTEADY_SHOOT_FR_UP0 : ROCKSTEADY_SHOOT_FR_REC) + (shot & 1));
             }
-            if (++r->ft >= rsFrenzyDur[r->fr]) {
+            if (++r->ft >= RS_ROUND_T) {
                 r->ft = 0;
-                if (++r->fr >= 8) { r->dir = toward; rsToArms(r, RS_MODE_CHASE, FALSE); }
+                if (++r->fr >= r->rounds) {
+                    r->dir = toward;
+                    if (r->bursts < 255) r->bursts++;
+                    if (r->bursts >= RS_BURSTS_MIN + rsRand(3)) rsToHolster(r);
+                    else rsToArms(r, rsRand(2) ? RS_MODE_CHASE : RS_MODE_AWAY, FALSE);
+                }
             }
             break;
         }

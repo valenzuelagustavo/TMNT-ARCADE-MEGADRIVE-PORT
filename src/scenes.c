@@ -248,7 +248,8 @@ static Sprite* sparksAddSprite(const SpriteDefinition* sizeDef, u16 vramInd,
 #define TNT_LAND_X       420    // punto FIJO de caida (screen x 120 con la camara en 300)
 #define TNT_LAND_Y       165    // lane donde se pelea (142..200). Mas abajo, el
                                 // fuego del primer plano tapaba media explosion.
-#define ZONE3_CAM_LOCK   614    // borde derecho = 934
+#define ZONE3_CAM_LOCK   561    // (10/10) era 614: la del arcade (2da puerta en x 157 de pantalla)
+#define ZONE3B_CAM_LOCK  731    // (10/10) zona nueva del arcade: la 3ra puerta
 #define ZONE4_ELEV_LOCK  880    // cameraX fijo donde frena la zona de ascensores
 #define ZONE5_ROBOT_LOCK 1056   // cameraX fijo donde frena la zona del robot (= CAM_MAX_X)
 
@@ -2875,6 +2876,110 @@ SceneId showTheEnd() {
 }
 
 // ---------------------------------------------------------------------------
+// (10/10) OLEADAS DEL ARCADE (1-1 y 1-2)
+// ---------------------------------------------------------------------------
+// Ordenadas segun el video del arcade (gameplayARCADE/tmnt.avi): que foot
+// soldier entra, por que lado y en que punto del nivel. Las X de camara
+// estan en coordenadas del fondo del port (el fondo es el del arcade: se
+// midio el scroll del video contra el PNG). Las paradas de camara siguen
+// siendo las del port.
+//   side +1 = entra por la DERECHA, -1 = por la IZQUIERDA.
+//   how  0 = caminando · 1 = morado: patada (der.) / voltereta (izq.)
+typedef struct { u8 type; s8 side; s16 y; u8 how; } WaveSpawn;
+
+static bool waveSpawnOne(Enemy* list, const WaveSpawn* w, s16 camX) {
+    for (u16 i = 0; i < MAX_ENEMIES; i++) {
+        Enemy* e = &list[i];
+        if (e->state != ENEMY_STATE_INACTIVE) continue;
+        u8  pal = (w->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE ||
+                   w->type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? PAL3 : PAL2;
+        s16 camL = camX;
+        s16 camR = camX + SCREEN_PIXEL_WIDTH;
+        s16 wd   = enemySpriteW(w->type);
+        if (w->how == 1 && w->type == ENEMY_TYPE_FOOT_SOLDIER) {
+            if (w->side > 0) initEnemyKickSpawn(e, camR, w->y, -1, pal, w->type);
+            else             initEnemySomersaultSpawn(e, camL - wd, w->y, 1, pal, w->type);
+        } else {
+            if (w->side > 0) initEnemyWalkInSpawn(e, camR, w->y, -1, pal, w->type);
+            else             initEnemyWalkInSpawn(e, camL - wd, w->y, 1, pal, w->type);
+        }
+        return TRUE;
+    }
+    return FALSE;
+}
+
+#define FS_P ENEMY_TYPE_FOOT_SOLDIER
+#define FS_O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
+#define FS_W ENEMY_TYPE_FOOT_SOLDIER_WHITE
+#define FS_K ENEMY_TYPE_FOOT_SOLDIER_KNIFE
+
+// 1-1: los que entran SIN frenar la camara (se disparan una sola vez cuando
+// la camara pasa por 'cam'; si no hay cupo quedan esperando).
+typedef struct { s16 cam; WaveSpawn w; } CamSpawn;
+static const CamSpawn l11Walkers[] = {
+    {  40, { FS_O, +1, 168, 0 } },   // naranja por la derecha (arcade cuadro 1560)
+    { 220, { FS_P, +1, 176, 0 } },   // morado por la derecha (1986)
+    { 380, { FS_K, +1, 188, 0 } },   // 2do blanco del CUCHILLO (2388)
+    { 480, { FS_O, +1, 160, 0 } },   // naranja (2450)
+};
+#define L11_WALKERS (sizeof(l11Walkers) / sizeof(l11Walkers[0]))
+// 1-1, zona 1 (camara 150): morados por los dos lados (arcade 1693-1980).
+static const WaveSpawn l11Zone1[] = {
+    { FS_P, +1, 160, 0 }, { FS_P, -1, 186, 0 }, { FS_P, +1, 176, 1 },
+};
+// 1-1, zona 2 (camara 300): el blanco del CUCHILLO por la derecha (2151) y un
+// morado por la izquierda (2073); el dinamitero de la escalera va aparte.
+static const WaveSpawn l11Zone2[] = {
+    { FS_K, +1, 170, 0 }, { FS_P, -1, 150, 1 },
+};
+// 1-1, zona 3 (camara 561, la 2da puerta queda en x 157 de pantalla, como en
+// el arcade): morados por la izquierda (3150-3260).
+static const WaveSpawn l11Zone3[] = {
+    { FS_P, -1, 162, 1 }, { FS_P, -1, 190, 0 },
+};
+// 1-1, zona 3b (camara 731, la 3ra puerta): morados por la izquierda y
+// naranjas por la derecha, de a poco (3430-3900).
+static const WaveSpawn l11Zone3b[] = {
+    { FS_P, -1, 170, 0 }, { FS_O, +1, 158, 0 }, { FS_P, -1, 190, 1 },
+    { FS_O, +1, 182, 0 }, { FS_P, -1, 150, 0 },
+};
+// 1-1, ascensores: despues de los 2 morados de los ascensores, 2 morados por
+// la izquierda (4198, 4266).
+static const WaveSpawn l11Elev2[] = {
+    { FS_P, -1, 160, 1 }, { FS_P, -1, 188, 0 },
+};
+// (11/10) 1-2 REVISADO con el video nuevo (gameplayARCADE/tmnt.avi, la sala
+// de April entre los frames 6290 y 7880; camara medida frame a frame contra
+// bg_nivel1_2.png). El 1-2 del arcade es CORTO:
+//   sala A    solo los 2 morados del arranque, juntos por la derecha
+//             (6300). No entra nadie mas: la cola de 6 morados que habia
+//             (sacada de un video viejo) se fue.
+//   oleada B  apenas cae el ultimo morado: 2 blancos de la ESPADA por la
+//             izquierda (6964, uno en cada lane) y 1 naranja del FUSIL por la
+//             derecha (6972). El naranja de los shurikens NO esta en esta sala.
+//   final     con la camara ya en su tope (120, frame 7560) entra 1 morado
+//             por la izquierda, y recien cuando cae (7808) emerge el taladro
+//             de Rocksteady (~7880). Ver L12_LAST_FOOT.
+static const WaveSpawn l12WaveB[] = {
+    { FS_W, -1, 162, 0 }, { FS_W, -1, 188, 0 },
+    { ENEMY_TYPE_FOOT_SOLDIER_GUN, +1, 174, 0 },
+};
+static const WaveSpawn l12LastFoot = { FS_P, -1, 178, 0 };
+#define WAVE_N(a) ((u8)(sizeof(a) / sizeof(a[0])))
+
+// Cola de una oleada: va soltando de a uno mientras haya menos de 'maxOn'
+// vivos. Devuelve TRUE cuando ya salieron todos.
+static bool waveQueueStep(Enemy* list, const WaveSpawn* w, u8 n, u8* next,
+                          u16* active, u8 maxOn, s16 camX) {
+    while (*next < n && *active < maxOn) {
+        if (!waveSpawnOne(list, &w[*next], camX)) break;
+        (*next)++;
+        (*active)++;
+    }
+    return *next >= n;
+}
+
+// ---------------------------------------------------------------------------
 // 8. Nivel 1 — fondo scrolleable + fuego en primer plano + jugador
 // ---------------------------------------------------------------------------
 SceneId showScene11() {
@@ -3190,6 +3295,11 @@ SceneId showScene11() {
     // --- Zonas de combate ---
     s16  cameraLockX = -1;    // -1 = sin bloqueo; >=0 = cameraX no puede superar este valor
     u8   combatZone = 0;      // Zona actual (0-9)
+    // (10/10) Oleadas del arcade: colas de cada zona y entradas sin frenar.
+    u8   zNext      = 0;      // proximo de la cola de la zona activa
+    u8   z3bState   = 0;      // zona 3b (camara 731): 0 antes, 1 activa, 2 hecha
+    u8   elev2Next  = 0;
+    u8   walkNext   = 0;      // proxima entrada de l11Walkers
     // Un jugador se come UN solo golpe por explosion: la ventana de dano dura
     // varios frames y la invulnerabilidad podria no cubrirla entera.
     u8   tntHitMask = 0;
@@ -3440,73 +3550,25 @@ SceneId showScene11() {
                         }
                     }
                 }
-                {
-                    // cameraLockX ya está fijo en ZONE4_ELEV_LOCK desde que
-                    // se dispararon las puertas (elevPhase 0->1).
-                    s16 camL = cameraLockX;
-                    s16 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
-                    // (06/10) Los refuerzos son el del FUSIL (por la
-                    // izquierda) y el del MARTILLO (por la derecha): en el
-                    // remaster de PC los de los ascensores traen armas.
-                    for (u16 s = 0; s < 2; s++) {
-                        for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                                if (s == 0)
-                                    initEnemyWalkInSpawn(&enemies[i],
-                                                         camL - enemySpriteW(ENEMY_TYPE_FOOT_SOLDIER_GUN), 170,
-                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_GUN);
-                                else
-                                    initEnemyWalkInSpawn(&enemies[i], camR, 196,
-                                                         -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_HAMMER);
-                                activeEnemies++;
-                                break;
-                            }
-                        }
-                    }
-                }
+                // (10/10) En el arcade salen SOLO los dos de los ascensores
+                // (antes venian ademas el del fusil y el del martillo, que
+                // eran del remaster de PC).
                 elevPhase = 3;   // oleada 1 activa: esperar a que caigan todos
             } else if (elevPhase == 3) {
                 // Oleada 1 despejada -> disparar la OLEADA 2, una emboscada
                 // completa por ambos lados (30/08). Solo
                 // al limpiar ESTA oleada se desbloquea la cámara (ver
                 // combatZone == 7 más abajo).
+                // (10/10) Arcade: dos morados mas por la izquierda.
                 if (activeEnemies == 0) {
-                    s16 camL = cameraLockX;
-                    s16 camR = cameraLockX + SCREEN_PIXEL_WIDTH;
-                    for (u16 s = 0; s < 4; s++) {
-                        for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                                if (s == 0)
-                                    initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 148,
-                                                             1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                                else if (s == 1)
-                                    // Este era el 2do morado de la emboscada;
-                                    // desde el 13/09 es el foot soldier BLANCO
-                                    // de espada larga, que
-                                    // entra saltando por la derecha. Desde el
-                                    // 24/09 PAL3 es SOLO suya: el naranja se
-                                    // mudo a PAL2 (comparte sheet de colores
-                                    // con el morado).
-                                    initEnemyWalkInSpawn(&enemies[i], camR, 163, -1, PAL3,   // (29/09) entra caminando
-                                                         ENEMY_TYPE_FOOT_SOLDIER_WHITE);
-                                else if (s == 2)
-                                    // (06/10) el de la LANZA (remaster de PC)
-                                    initEnemyWalkInSpawn(&enemies[i],
-                                                         camL - enemySpriteW(ENEMY_TYPE_FOOT_SOLDIER_SPEAR), 196,
-                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_SPEAR);
-                                else
-                                    initEnemyWalkInSpawn(&enemies[i], camR, 191,   // (29/09) caminando
-                                                         -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
-                                activeEnemies++;
-                                break;
-                            }
-                        }
-                    }
+                    elev2Next = 0;
                     elevPhase = 4;   // oleada 2 activa
                 }
             } else if (elevPhase == 4) {
                 // Oleada 2 despejada -> encuentro de ascensores terminado.
-                if (activeEnemies == 0)
+                waveQueueStep(enemies, l11Elev2, WAVE_N(l11Elev2), &elev2Next,
+                              &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
+                if (elev2Next >= WAVE_N(l11Elev2) && activeEnemies == 0)
                     elevPhase = 5;   // hecho: no vuelve a disparar
             }
         }
@@ -3526,57 +3588,38 @@ SceneId showScene11() {
             }
         }
 
+        // 4c2. (10/10) Entradas del arcade SIN frenar la camara.
+        if (walkNext < L11_WALKERS && cameraX >= l11Walkers[walkNext].cam &&
+            activeEnemies < MAX_ACTIVE_ENEMIES &&
+            waveSpawnOne(enemies, &l11Walkers[walkNext].w, cameraX)) {
+            walkNext++;
+            activeEnemies++;
+        }
+
         // 4d. Zonas de combate: bloqueo de cámara y spawns secuenciales.
         //     combatZone: 0=pre-1, 1=z1 activa, 2=heading z2, 3=z2 activa,
         //     4=heading z3, 5=z3 activa, 6=heading z4, 7=z4 ascensores,
         //     8=z4 delay, 9=z4 robot+naranja.
         {
-            s16 camL, camR;
-            u16 s;
-
-            // --- Zona 1: cameraX >= 150 → 2 morados kick + 1 naranja kick + 1 morado espalda ---
+            // --- Zona 1: cameraX >= 150 -> morados por los dos lados (arcade) ---
             if (combatZone == 0 && cameraX >= ZONE1_CAM_LOCK) {
                 combatZone = 1;
                 cameraLockX = ZONE1_CAM_LOCK;
-                camL = cameraLockX;
-                camR = cameraLockX + SCREEN_PIXEL_WIDTH;
-                for (s = 0; s < 4; s++) {
-                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                            if (s == 0)
-                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 160,
-                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            else if (s == 1)
-                                initEnemyKickSpawn(&enemies[i], camR, 160,
-                                                   -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            else if (s == 2)
-                                initEnemyKickSpawn(&enemies[i], camR, 166,
-                                                   -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
-                            else
-                                // Cuarto morado (30/08): entra por
-                                // la espalda con voltereta, Y=190 (>=24px de separación
-                                // del resto de la oleada, vuelve a la proporción "2 y 2"
-                                // del viejo sistema de oleadas antes de desactivarse).
-                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 190,
-                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            activeEnemies++;
-                            break;
-                        }
-                    }
-                }
+                zNext = 0;
             }
-            if (combatZone == 1 && activeEnemies == 0) {
+            if (combatZone == 1)
+                waveQueueStep(enemies, l11Zone1, WAVE_N(l11Zone1), &zNext,
+                              &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
+            if (combatZone == 1 && zNext >= WAVE_N(l11Zone1) && activeEnemies == 0) {
                 cameraLockX = -1;
                 combatZone = 2;
             }
 
-            // --- Zona 2: cameraX >= 300 → 3 morados walk (izq Y=145, der Y=160 y Y=185)
-            //     + (18/09) el DINAMITERO que se asoma por la escalera ---
+            // --- Zona 2: cameraX >= 300 -> el DINAMITERO de la escalera (18/09) +
+            //     (10/10) el blanco del CUCHILLO y un morado (arcade) ---
             if (combatZone == 2 && cameraX >= ZONE2_CAM_LOCK) {
                 cameraLockX = ZONE2_CAM_LOCK;
                 combatZone = 3;
-                camL = cameraLockX;
-                camR = cameraLockX + SCREEN_PIXEL_WIDTH;
                 // El de la escalera va PRIMERO: pide su VRAM antes que los
                 // otros tres, que es la misma regla que se uso con los robots
                 // del final (el que pide primero se la queda).
@@ -3590,74 +3633,44 @@ SceneId showScene11() {
                         break;
                     }
                 }
-                for (s = 0; s < 3; s++) {
-                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                            if (s == 0) {
-                                // Voltereta desde la espalda: entra haciendo la
-                                // voltereta y recién al terminar pasa a CHASE.
-                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 145,
-                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            } else if (s == 1) {
-                                initEnemySpawn(&enemies[i], camR, 160,
-                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                                enemies[i].dir = -1;
-                                enemies[i].state = ENEMY_STATE_CHASE;
-                            } else {
-                                // Tercer morado (30/08): entra
-                                // de frente, Y=185 (>=24px de separación del resto).
-                                initEnemySpawn(&enemies[i], camR, 185,
-                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                                enemies[i].dir = -1;
-                                enemies[i].state = ENEMY_STATE_CHASE;
-                            }
-                            activeEnemies++;
-                            break;
-                        }
-                    }
-                }
+                zNext = 0;
             }
-            if (combatZone == 3 && activeEnemies == 0) {
+            if (combatZone == 3)
+                waveQueueStep(enemies, l11Zone2, WAVE_N(l11Zone2), &zNext,
+                              &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
+            if (combatZone == 3 && zNext >= WAVE_N(l11Zone2) && activeEnemies == 0) {
                 cameraLockX = -1;
                 combatZone = 4;
             }
 
-            // --- Zona 3: cameraX >= 614 → 2 morados walk (izq Y=162, der Y=186) + 1 naranja walk der Y=150 ---
+            // --- Zona 3: cameraX >= 561 -> morados por la izquierda (arcade) ---
             if (combatZone == 4 && cameraX >= ZONE3_CAM_LOCK) {
                 cameraLockX = ZONE3_CAM_LOCK;
                 combatZone = 5;
-                camL = cameraLockX;
-                camR = cameraLockX + SCREEN_PIXEL_WIDTH;
-                for (s = 0; s < 3; s++) {
-                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                        if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                            if (s == 0) {
-                                // Voltereta desde la espalda (entra del lado
-                                // izquierdo de la cámara).
-                                initEnemySomersaultSpawn(&enemies[i], camL - ENEMY_SPRITE_W_PURPLE, 162,
-                                                         1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                            } else if (s == 1) {
-                                initEnemySpawn(&enemies[i], camR, 150,
-                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
-                                enemies[i].dir = -1;
-                                enemies[i].state = ENEMY_STATE_CHASE;
-                            } else {
-                                // Tercer enemigo (30/08): morado
-                                // de frente, Y=186 (>=24px de separación del resto).
-                                initEnemySpawn(&enemies[i], camR, 186,
-                                               0, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                                enemies[i].dir = -1;
-                                enemies[i].state = ENEMY_STATE_CHASE;
-                            }
-                            activeEnemies++;
-                            break;
-                        }
-                    }
-                }
+                zNext = 0;
             }
-            if (combatZone == 5 && activeEnemies == 0) {
+            if (combatZone == 5)
+                waveQueueStep(enemies, l11Zone3, WAVE_N(l11Zone3), &zNext,
+                              &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
+            if (combatZone == 5 && zNext >= WAVE_N(l11Zone3) && activeEnemies == 0) {
                 cameraLockX = -1;
                 combatZone = 6;
+            }
+
+            // --- (10/10) Zona 3b: cameraX >= 731 (3ra puerta) -> morados por
+            //     la izquierda y naranjas por la derecha, de a 3 (arcade). ---
+            if (combatZone == 6 && z3bState == 0 && cameraX >= ZONE3B_CAM_LOCK) {
+                cameraLockX = ZONE3B_CAM_LOCK;
+                z3bState = 1;
+                zNext = 0;
+            }
+            if (z3bState == 1) {
+                bool done = waveQueueStep(enemies, l11Zone3b, WAVE_N(l11Zone3b), &zNext,
+                                          &activeEnemies, 3, cameraLockX);
+                if (done && activeEnemies == 0) {
+                    cameraLockX = -1;
+                    z3bState = 2;
+                }
             }
 
             // --- Zona 4 (ascensores): esperar centering → clear → desbloquear ---
@@ -4553,28 +4566,18 @@ SceneId showScene12() {
     s16     shredderX   = 0;   // Ancla del sprite de Shredder (X de mundo)
     s16     shredderY   = 0;   // Ancla del sprite de Shredder (Y de pantalla)
 
-    // --- Oleada A: 2 foot soldiers morados entrando de FRENTE ---
-    // Ambos caminan (CHASE) hacia el jugador desde el borde derecho, lanes
-    // distintas para que no vengan en fila india.
+    // --- Oleada A: los 2 morados del arcade ---
+    // (11/10) Como en el video: entran CAMINANDO juntos por el borde derecho
+    // (antes el primero nacia ya adentro de la pantalla), en dos lanes y con
+    // 24 px de diferencia para que no se encimen.
     {
         s16 camR = cameraX + SCREEN_PIXEL_WIDTH;
-        for (u16 i = 0; i < MAX_ENEMIES; i++) {
-            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                initEnemySpawn(&enemies[i], camR - ENEMY_SPRITE_W_PURPLE, 160,
-                               60, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                enemies[i].dir = -1;
-                enemies[i].state = ENEMY_STATE_CHASE;
-                break;
-            }
-        }
-        for (u16 i = 0; i < MAX_ENEMIES; i++) {
-            if (enemies[i].state == ENEMY_STATE_INACTIVE) {
-                initEnemySpawn(&enemies[i], camR, 186,
-                               60, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
-                enemies[i].dir = -1;
-                enemies[i].state = ENEMY_STATE_CHASE;
-                break;
-            }
+        u8  put  = 0;
+        for (u16 i = 0; i < MAX_ENEMIES && put < 2; i++) {
+            if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
+            initEnemyWalkInSpawn(&enemies[i], (s16)(camR + put * 24),
+                                 put ? 186 : 166, -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER);
+            put++;
         }
     }
 
@@ -4601,6 +4604,9 @@ SceneId showScene12() {
     // de mas abajo eran `phase == 2`.
     u8   phase       = 0;
     s16  cameraLockX = 0;    // >=0 = cameraX no puede superar este valor
+    // (10/10) Cola de la oleada B. (11/10) La sala A ya no tiene cola.
+    u8   waveBNext   = 0;
+    bool lastFoot    = FALSE;   // (11/10) ya entro el morado del final
     bool win         = FALSE;
 
     SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
@@ -4651,7 +4657,7 @@ SceneId showScene12() {
             }
             if (newCam - cameraX > CAM_MAX_SPEED) newCam = cameraX + CAM_MAX_SPEED;
             if (newCam > cameraX) cameraX = newCam;   // nunca retrocede
-        } else if (leadScreenX < CAM_DEAD_ZONE_LEFT && cameraX > 0 && phase != 3) {
+        } else if (leadScreenX < CAM_DEAD_ZONE_LEFT && cameraX > 0 && phase != 3 && !lastFoot) {
             // Retroceder en la sala (prohibido durante la pelea contra el jefe:
             // el taladro en BG_A está anclado a la pantalla y se alinearía mal).
             s16 newCam = cameraX - (CAM_DEAD_ZONE_LEFT - leadScreenX);
@@ -4676,48 +4682,31 @@ SceneId showScene12() {
             if (enemies[i].state != ENEMY_STATE_INACTIVE) activeEnemies++;
 
         // 4b. Fases / oleadas.
+        // (11/10) Sala A: solo los 2 morados del arranque (ver l12WaveB).
+        if (phase == 1)
+            waveQueueStep(enemies, l12WaveB, WAVE_N(l12WaveB), &waveBNext,
+                          &activeEnemies, 3, cameraX);
+
         if (phase == 0 && activeEnemies == 0) {
-            // --- Oleada A limpia -> OLEADA B ---
-            // Dos foot soldiers BLANCOS (espada larga) entrando POR LA
-            // IZQUIERDA y un NARANJA por la derecha, antes de Rocksteady
-            // (13/09). La camara sigue bloqueada: es una
-            // emboscada, no se puede escapar hacia adelante.
-            // Los blancos entran SALTANDO (su anim 6, el arco de 107px), uno
-            // por lane para que no vengan en fila india; el naranja entra con
-            // su patada de siempre.
-            {
-                s16 camL = cameraX;
-                s16 camR = cameraX + SCREEN_PIXEL_WIDTH;
-                for (u16 s = 0; s < 3; s++) {
-                    for (u16 i = 0; i < MAX_ENEMIES; i++) {
-                        if (enemies[i].state != ENEMY_STATE_INACTIVE) continue;
-                        // Los dos blancos nacen en la MISMA X (el clamp de
-                        // enemyMinX no deja nacer mas alla de -w, asi que
-                        // separarlos en X no serviria de nada) y se separan
-                        // por LANE: uno al fondo y otro al frente.
-                        if (s == 0)
-                            initEnemyWalkInSpawn(&enemies[i],   // (29/09) entra caminando
-                                camL - ENEMY_SPRITE_W_WHITE, 158, 1, PAL3,
-                                ENEMY_TYPE_FOOT_SOLDIER_WHITE);
-                        else if (s == 1)
-                            initEnemyWalkInSpawn(&enemies[i],
-                                camL - ENEMY_SPRITE_W_WHITE, 192, 1, PAL3,
-                                ENEMY_TYPE_FOOT_SOLDIER_WHITE);
-                        else
-                            initEnemyWalkInSpawn(&enemies[i], camR, 174,   // (29/09) caminando
-                                                 -1, PAL2, ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
-                        activeEnemies++;
-                        break;
-                    }
-                }
-            }
+            // --- Oleada A limpia -> OLEADA B (10/10, la del arcade): blancos
+            // de la ESPADA por la izquierda, naranjas por la derecha y un
+            // morado, de a 3 (ver l12WaveB). La camara sigue bloqueada.
+            waveBNext = 0;
             phase = 1;
-        } else if (phase == 1 && activeEnemies == 0) {
+        } else if (phase == 1 && waveBNext >= WAVE_N(l12WaveB) && activeEnemies == 0) {
             // Oleada B limpia: recien ahi se desbloquea la camara (sala libre,
             // ida y vuelta) y se puede avanzar hacia el jefe.
             cameraLockX = -1;
             phase = 2;
-        } else if (phase == 2 && cameraX >= LEVEL2_CAM_MAX_X) {
+        } else if (phase == 2 && cameraX >= LEVEL2_CAM_MAX_X && !lastFoot) {
+            // (11/10) Camara en el tope: se clava y entra el ultimo morado por
+            // la izquierda (arcade 7560). El jefe espera a que caiga.
+            cameraLockX = LEVEL2_CAM_MAX_X;
+            if (waveSpawnOne(enemies, &l12LastFoot, cameraX)) {
+                lastFoot = TRUE;
+                activeEnemies++;
+            }
+        } else if (phase == 2 && lastFoot && activeEnemies == 0) {
             // Llegó al límite de la sala: cámara bloqueada y comienza la pelea
             // contra Rocksteady. La cápsula del taladro aparece en pantalla
             // (oculta hasta el stage 1, cuando empieza a emerger del piso).

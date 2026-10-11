@@ -172,7 +172,28 @@ WAV who_put_light_vo "audio/who_put_the_light_out.wav" XGM2
 //   muestras). Medido despues de convertir:
 //   dinne_turtle            2,145s  pico 96,9%  rms 22,0%  23.649 B
 // El original de 48k queda al lado como dinne_turtle_orig48k.wav.
+// (11/10) REEMPLAZADA por una toma nueva (a la vieja le faltaba una palabra).
+// Llego MONO 8-bit 11025 Hz de 3,08 s pero baja (pico 44,5%, rms 4,9%):
+// puntas recortadas (10 ms antes / 20 ms despues de la voz) y ganancia x4,76
+// hasta rms 22% con la rodilla suave tanh desde el 80% (toca el 1,2%).
+//   dinne_turtle            2,765s  pico 96,9%  rms 22,0%  30.479 B
+// La toma nueva sin procesar queda como dinne_turtle_orig.wav. La tele mide
+// la fase de Shredder con sizeof(), asi que se adapta sola al largo nuevo.
 WAV dinne_turtle_vo "audio/dinne_turtle.wav" XGM2
+
+// --- Voice over del 2-1 (11/10) ----------------------------------------------
+// Los cuatro llegaron MONO 8-bit 11025 Hz pero bajos (pico 39-48%, rms 7-9%).
+// Mismo tratamiento que dinne_turtle: puntas recortadas, ganancia hasta
+// rms 22% y rodilla tanh desde el 80%. Los originales: *_orig.wav.
+//   pizza_time              0,931s  pico 93,9%  rms 22,0%  10.267 B
+//   youre_dead_shell_brain  2,404s  pico 96,9%  rms 22,0%  26.508 B  (Bebop)
+//   any_prettier            1,363s  pico 90,6%  rms 22,0%  15.031 B  (tortuga)
+//   shut_your_mouth         2,034s  pico 96,9%  rms 22,0%  22.421 B  (Bebop)
+// Van en CH3 con prioridad 15 (como la tele): en CH2 los cortarian los golpes.
+WAV pizza_time_vo      "audio/pizza_time.wav" XGM2
+WAV youre_dead_vo      "audio/youre_dead_shell_brain.wav" XGM2
+WAV any_prettier_vo    "audio/any_prettier.wav" XGM2
+WAV shut_your_mouth_vo "audio/shut_your_mouth.wav" XGM2
 
 // --- Baxter Stockman, jefe de la Scene 3 (30/09) ----------------------------
 // "I'm invincible!" al aparecer el jefe. Llego ya MONO 8-bit 11025 Hz (2,0 s)

@@ -336,7 +336,7 @@ static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX) {
     // basura. El naranja, el blanco y los de arma (06/10) entran CAMINANDO.
     if (type != ENEMY_TYPE_FOOT_SOLDIER) {
         initEnemyWalkInSpawn(e, x, y, (s8)((side < 0) ? 1 : -1),
-                             (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) ? PAL3 : PAL2, type);
+                             (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE || type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? PAL3 : PAL2, type);
     }
     else if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
     else               initEnemyKickSpawn(e, x, y, -1, PAL2, type);

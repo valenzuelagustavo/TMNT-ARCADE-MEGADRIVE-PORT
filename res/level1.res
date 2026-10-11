@@ -173,6 +173,12 @@ SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 // que la paleta de las tortugas, asi que se dibuja con TILE_ATTR(PAL1,...).
 SPRITE light_out_bubble "sprites/light_out_baloon.png" 12 4 NONE 0
 
+// --- Globo "Do not resist us" (11/10): el robot del latigo al enganchar ---
+// 64x32 = 8x4 tiles. Sale de la hoja con todos los globos del arcade
+// (res/images/globos/globos_arcade.png) via tools/gen_globos.py, con el mismo
+// remapeo a PAL1 que los demas (relleno 11, borde 9, texto 8, sombra 7).
+SPRITE robot_resist_bubble "sprites/do_not_resist_baloon.png" 8 4 NONE 0
+
 // --- "HURRY UP!" (aviso de desplazamiento de camara) ---
 // 160x32px = spritesheet de 5 frames de 32x32 (4x4 tiles). time 6 -> anima
 // ciclicamente los 5 frames. Comparte la paleta de las tortugas (PAL1).

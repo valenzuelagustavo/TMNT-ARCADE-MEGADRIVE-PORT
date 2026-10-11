@@ -21,6 +21,7 @@ extern const Palette title_font_pal;
 extern const TileSet hud_font;
 extern const SpriteDefinition attack_bubble;
 extern const SpriteDefinition light_out_bubble;
+extern const SpriteDefinition robot_resist_bubble;
 extern const SpriteDefinition hurry_sheet;
 extern const SpriteDefinition iron_ball;
 extern const SpriteDefinition sparks;

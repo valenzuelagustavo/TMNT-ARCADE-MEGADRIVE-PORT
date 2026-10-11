@@ -108,6 +108,7 @@
 #include "enemy.h"    // foot soldiers
 #include "bebop.h"    // jefe del nivel (24/09)
 #include "meters_2_1.h" // parquimetros (25/09)
+#include "street_2_1.h" // (11/10) ventanas rotas, hidrantes, cartel, chica en skate
 #include "pause_menu.h" // pausa con START del control 1 + selector de niveles (26/09)
 #include "audio.h"    // music_stage2_1, music_scene_clear, music_boss, boss_scream_bebop_vo
 #include "boss_vo.h"  // (01/10) voz de entrada de Bebop antes del tema
@@ -321,6 +322,24 @@ extern u8 cantidadJugadores;
 // Y al aterrizar, unos pocos px de tolerancia para no perder el salto por
 // nada (se sube el resto de una).
 #define LVL21_LEDGE_SNAP      10
+
+// --- SALIDA POR LA ALCANTARILLA (11/10) -------------------------------------
+// Con Bebop derrotado no se corta en seco: como en el arcade (video, frames
+// 24116-24200) cada tortuga salta a la boca de tormenta del final (la 5ta,
+// (2456,589)) y se hunde. Si esta lejos camina primero hasta el punto de
+// salto: LVL21_OUT_DX px a su costado del agujero y LVL21_OUT_DY mas al fondo
+// (en el video salta desde ~73 px a la izquierda y 24 arriba, y el salto dura
+// ~48 frames). Saltan de a una: la siguiente espera a que la anterior se haya
+// hundido. Cuando no queda ninguna, LVL21_OUT_HOLD frames de calle vacia y
+// recien ahi el jingle.
+#define LVL21_OUT_HOLE        4
+#define LVL21_OUT_DX         72
+#define LVL21_OUT_DY         24
+#define LVL21_OUT_RANGE_X    96    // mas cerca que esto: salta sin caminar
+#define LVL21_OUT_RANGE_Y    40
+#define LVL21_OUT_JUMP_F     48
+#define LVL21_OUT_LAND_DY     2    // pies un poco por debajo del centro del agujero
+#define LVL21_OUT_HOLD       90
 
 // Fin del nivel: cuantos segundos queda la imagen congelada con el jingle.
 #define LVL21_CLEAR_SECS       5
@@ -608,13 +627,13 @@ static inline s16 absS16(s16 v) { return (v < 0) ? (s16)-v : v; }
 // teletransporta, y sin esto quedaria clavado para siempre.
 static bool canStep(s16 fx, s16 fy, bool air, bool ignoreMeters) {
     if (!walkable(fx, fy, air)) return FALSE;
-    if (!air && !ignoreMeters && metersBlock(fx, fy)) return FALSE;
+    if (!air && !ignoreMeters && (metersBlock(fx, fy) || streetBlock(fx, fy))) return FALSE;
     return TRUE;
 }
 
 static void clampToWalk(s16* px, s16* py, s16 prevX, s16 prevY,
                         s16 footDx, bool air) {
-    bool free = air || metersBlock(prevX + footDx, prevY);
+    bool free = air || metersBlock(prevX + footDx, prevY) || streetBlock(prevX + footDx, prevY);
     if (canStep(*px + footDx, *py, air, free)) return;
     if (canStep(*px + footDx, prevY, air, free)) { *py = prevY; return; }
     if (canStep(prevX + footDx, *py, air, free)) { *px = prevX; return; }
@@ -777,6 +796,7 @@ static void tvStartPhase(u8 phase) {
 //
 //   E1  al empezar: 2 morados caminando por la derecha + 1 que ROMPE LA VENTANA
 //       del edificio (x 251) y cae pateando (frames 12128-12212).
+//       (11/10) La ventana es la de (238,33) y ahora queda ROTA (street_2_1).
 //   E2  sale el de la 1ra boca (por la espalda): 1 morado por la izquierda.
 //   E3  tirador de dinamita de la puerta amarilla + 1 morado por la derecha
 //       (camara 194, frames 13246-13280).
@@ -802,14 +822,35 @@ static void tvStartPhase(u8 phase) {
 //   E19 camara 1693: 2 amarillos por la derecha (frame 20822).
 //   E20 camara 1925: 2 amarillos SALTAN de la cornisa de la pared (x 1982 y
 //       2047, frames 21110-21170).
+//
+// (11/10) VIDEO NUEVO (el mismo recorrido recapturado: SCENE 2 desde 3:07, frame
+// ~11134). Con la camara del arcade medida frame por frame se corrigieron los
+// eventos de las VENTANAS, que antes salian de "alguna columna cerca del borde
+// derecho": ahora cada soldier sale de SU ventana y la deja rota.
+//   E15 camara 1370: morados por las ventanas Robodyne 1 y 2 (frames 17476 y
+//       17488) + 1 amarillo por la izquierda.
+//   E17 camara 1411: morado por la Robodyne 3 (17800) + amarillo por la
+//       Robodyne 2, que ya estaba rota (18045).
+//   E18 camara 1490: morados por las dos ventanas del edificio K (18207, 18231;
+//       en el arcade la camara iba de 1463 a 1489). Con 1490 entran las dos en
+//       pantalla a la vez, y el freno de la oleada clava la camara ahi.
+//   E20 camara 1860: es el CARTEL. Los dos amarillos aparecen parados en su
+//       andamio (centros x 1984 y 2050, pies a 479), el cartel se cae a la
+//       vereda (19045) y ellos saltan a la calle.
+//   E21 camara 2025: el de atras del taxi NO entra caminando: es un TERCER
+//       tirador de dinamita. Se asoma por el borde izquierdo del taxi (centro
+//       x 2205, pies a 536), tira el cartucho -- cae en (2222,586), frente al
+//       taxi (explota en el 19641) -- y despues baja a pelear (19401-19671).
+//   Ademas, fuera del guion de soldiers: la chica en skate cruza cuando la
+//   camara llega a 1179 (16716). Ver street_2_1.c.
 //   E21 camara 2129: 1 morado sale de atras del taxi (x ~2203, frame 21430).
 //   (la 5ta boca, la del que tira la tapa, sale antes de Bebop, como antes)
 // ---------------------------------------------------------------------------
 typedef enum {
     L21K_WALK,        // entra caminando por un costado
     L21K_SOMERSAULT,  // voltereta (solo morado)
-    L21K_WINDOW,      // patada saltando de una ventana de la pared derecha
-    L21K_TNT,         // tirador de dinamita (arg = 0 puerta amarilla, 1 pilar)
+    L21K_WINDOW,      // (11/10) patada saltando de una VENTANA (arg: L21W_*) que queda rota
+    L21K_TNT,         // tirador de dinamita (arg = 0 puerta amarilla, 1 pilar, 2 taxi)
     L21K_BALCONY,     // caminando por la cornisa, desde la derecha
     L21K_DROP,        // (03/10) cae pateando desde un punto FIJO (arg: l21Drops)
     L21K_POINT        // (03/10) aparece en un punto FIJO caminando (arg: l21Points)
@@ -830,10 +871,12 @@ typedef struct { u8 n; L21Req r[6]; } L21Event;
 // (03/10) Puntos fijos de caida (DROP): centro X y pies Y donde aterriza (mundo),
 // altura desde la que cae y hacia donde mira.
 typedef struct { s16 x, y, z; s8 dir; } L21Drop;
+// (11/10) El 0 (la ventana del principio) paso a ser L21K_WINDOW. Los del
+// cartel se corrigieron con el video: centros 1984 / 2050 y pies a 479 en el
+// andamio -> 51 px por encima de su lane (530).
 static const L21Drop l21Drops[] = {
-    {  251, 181, 64, -1 },   // 0: rompe la ventana del edificio del principio
-    { 1982, 530, 56, +1 },   // 1: cornisa de la pared, despues del cartel
-    { 2047, 530, 56, +1 },   // 2: idem, el segundo
+    { 1984, 530, 51, +1 },   // 0: andamio del cartel, el de la izquierda
+    { 2050, 530, 51, +1 },   // 1: idem, el de la derecha
 };
 // (03/10) Puntos fijos de aparicion caminando (POINT): centro X, pies Y, dir.
 typedef struct { s16 x, y; s8 dir; } L21Point;
@@ -844,7 +887,7 @@ static const L21Point l21Points[] = {
 #define R_(t, s) { t, L21K_WALK, s, 0 }
 #define K_(t, k, a) { t, k, 1, a }
 static const L21Event l21Ev[] = {
-    /* E1  */ { 3, { R_(L21_P, 1), R_(L21_P, 1), K_(L21_P, L21K_DROP, 0) } },
+    /* E1  */ { 3, { R_(L21_P, 1), R_(L21_P, 1), K_(L21_P, L21K_WINDOW, L21W_FRONT) } },
     /* E2  */ { 1, { R_(L21_P, -1) } },
     /* E3  */ { 2, { K_(L21_P, L21K_TNT, 0), R_(L21_P, 1) } },
     /* E4  */ { 3, { R_(L21_P, -1), R_(L21_P, -1), R_(L21_P, 1) } },
@@ -858,14 +901,14 @@ static const L21Event l21Ev[] = {
     /* E12 */ { 2, { K_(L21_P, L21K_BALCONY, 0), K_(L21_P, L21K_BALCONY, 0) } },
     /* E13 */ { 2, { R_(L21_P, -1), R_(L21_P, 1) } },
     /* E14 */ { 2, { K_(L21_P, L21K_BALCONY, 0), K_(L21_P, L21K_BALCONY, 0) } },
-    /* E15 */ { 3, { K_(L21_P, L21K_WINDOW, 0), K_(L21_P, L21K_WINDOW, 0),
+    /* E15 */ { 3, { K_(L21_P, L21K_WINDOW, L21W_ROBO_1), K_(L21_P, L21K_WINDOW, L21W_ROBO_2),
                      R_(L21_Y, -1) } },
     /* E16 */ { 2, { R_(L21_Y, 1), R_(L21_Y, -1) } },
-    /* E17 */ { 1, { K_(L21_P, L21K_WINDOW, 0) } },
-    /* E18 */ { 2, { K_(L21_P, L21K_WINDOW, 0), K_(L21_P, L21K_WINDOW, 0) } },
+    /* E17 */ { 2, { K_(L21_P, L21K_WINDOW, L21W_ROBO_3), K_(L21_Y, L21K_WINDOW, L21W_ROBO_2) } },
+    /* E18 */ { 2, { K_(L21_P, L21K_WINDOW, L21W_K_1), K_(L21_P, L21K_WINDOW, L21W_K_2) } },
     /* E19 */ { 2, { R_(L21_Y, 1), R_(L21_Y, 1) } },
-    /* E20 */ { 2, { K_(L21_Y, L21K_DROP, 1), K_(L21_Y, L21K_DROP, 2) } },
-    /* E21 */ { 1, { K_(L21_P, L21K_POINT, 0) } },
+    /* E20 */ { 2, { K_(L21_Y, L21K_DROP, 0), K_(L21_Y, L21K_DROP, 1) } },
+    /* E21 */ { 1, { K_(L21_P, L21K_TNT, 2) } },   // (11/10) tirador del taxi
 };
 #undef R_
 #undef K_
@@ -882,9 +925,10 @@ enum { L21E1, L21E2, L21E3, L21E4, L21E5, L21E6, L21E7, L21E8, L21E9,
 // eventos marcados en l21EvHold frenan la camara donde esta al dispararse.
 // Por seguridad (un soldier trabado en algun lado) se suelta sola a los
 // LVL21_HOLD_MAX frames.
+// (11/10) E15/E17/E18 (ventanas) y E20 (cartel) medidos en el video nuevo.
 static const s16 l21EvCamX[L21E_COUNT] = {
     0, 0, 0, 0, 300, 0, 394, 0, 513, 662, 845, 962, 1044, 1143,
-    1394, 1416, 1451, 1496, 1693, 1925, 2129
+    1370, 1416, 1411, 1490, 1693, 1860, 2025
 };
 
 // Eventos que frenan la camara (bit por evento). No frenan: E2 (el de la
@@ -901,18 +945,39 @@ static const u32 l21EvHold = ~(EVB(1) | EVB(5) | EVB(7));
 // distancias que el de la puerta amarilla (-99 en X, +23 en profundidad), o
 // sea que cae justo delante de la tele. Sin alto visual (el de la puerta
 // amarilla sale del vano, este esta parado en la vereda).
-#define LVL21_TNT2_CENTER_X  600
+#define LVL21_TNT2_CENTER_X  592   // (11/10) -8: pegado al borde del pilar
 #define LVL21_TNT2_Y         150
 #define LVL21_TNT2_X        (LVL21_TNT2_CENTER_X - ENEMY_SPRITE_W_PURPLE / 2)
 #define LVL21_TNT2_LAND_X   (LVL21_TNT2_CENTER_X - 99)
 #define LVL21_TNT2_LAND_Y   (LVL21_TNT2_Y + 23)
 #define LVL21_TNT2_TRIG_X   (LVL21_TNT2_CENTER_X - 96)   // 504: pasando la tele
 
+// (11/10) El TERCERO, el de atras del taxi (E21). Medido en el video: se
+// asoma con los pies a y=536 y el cartucho cae en (2222,586). La calle en esa
+// columna arranca en 544 (walkTop), asi que, igual que el de la puerta
+// amarilla, la lane real va adentro de la calle y la diferencia es alto
+// VISUAL (jumpZ): enemy.c lo baja a 0 despues del tiro y se ve "bajar" a la
+// vereda. Mira hacia la izquierda (dir +1, ver LVL21_TNT_DIR).
+#define LVL21_TNT3_CENTER_X 2213   // (11/10) +8: pegado al borde del taxi
+#define LVL21_TNT3_FEET      536   // pies en pantalla (visual)
+#define LVL21_TNT3_Y         548   // lane real: walkTop 544 + 4
+#define LVL21_TNT3_X        (LVL21_TNT3_CENTER_X - ENEMY_SPRITE_W_PURPLE / 2)
+#define LVL21_TNT3_LAND_X   2222
+#define LVL21_TNT3_LAND_Y    586
+
 // E8: soldiers muertos (despues de E7) que disparan al morado que sigue.
 #define LVL21_E8_KILLS         3
-// E12/E14 (cornisa) y E15..E18 (ventanas): altura visual desde la que caen
-// los de las ventanas de la pared de la derecha.
-#define LVL21_WINDOW_Z        64
+// (11/10) Ventanas: el soldier aparece con los pies en el ALFEIZAR (unos px
+// por encima del borde de abajo de la ventana) y cae pateando hasta su lane.
+// La del frente cae en la lane de siempre (181); las de la pared en diagonal,
+// al pie de la pared (walkTop de esa columna + LVL21_WINDOW_LANE_DY).
+#define LVL21_WINDOW_SILL      6
+#define LVL21_WINDOW_LANE_DY   6
+#define LVL21_WINDOW_FRONT_Y 181
+#define LVL21_WINDOW_HUD_Y    48   // pies minimos en pantalla (debajo del HUD)
+// (11/10) La chica en skate entra cuando la camara llega aca (en el arcade se
+// clava en 1179 y ahi aparece por la derecha).
+#define LVL21_GIRL_CAM_X    1179
 
 // Separacion entre dos entradas por el MISMO costado: si salieran en el mismo
 // frame entrarian encimados.
@@ -978,9 +1043,14 @@ static bool l21SpawnReq(Enemy* e, const L21Req* r, s16 camX, s16 camY,
             // Alto del vano del portal: visual, igual que el escalon del 1-1.
             // enemy.c lo baja solo despues del lanzamiento.
             e->jumpZ = LVL21_TNT_Z;
-        } else {
+        } else if (r->arg == 1) {
             initEnemyTntSpawn(e, LVL21_TNT2_X, LVL21_TNT2_Y, LVL21_TNT_DIR, PAL2,
                               LVL21_TNT2_LAND_X, LVL21_TNT2_LAND_Y);
+        } else {
+            // (11/10) El del taxi.
+            initEnemyTntSpawn(e, LVL21_TNT3_X, LVL21_TNT3_Y, LVL21_TNT_DIR, PAL2,
+                              LVL21_TNT3_LAND_X, LVL21_TNT3_LAND_Y);
+            e->jumpZ = LVL21_TNT3_Y - LVL21_TNT3_FEET;
         }
         return TRUE;
 
@@ -996,27 +1066,49 @@ static bool l21SpawnReq(Enemy* e, const L21Req* r, s16 camX, s16 camY,
     }
 
     case L21K_WINDOW: {
-        // La pared de la derecha es la diagonal de la esquina: su base es el
-        // walkTop de cada columna. Se busca, desde el borde derecho hacia
-        // adentro, la primera columna cuya base se vea en pantalla; el
-        // segundo sale un poco mas a la izquierda (otra ventana). Si la camara
-        // ya bajo tanto que la base quedo por arriba de la pantalla, cae igual
-        // cerca del borde derecho, en la parte de calle que se ve.
-        s16 fx = (s16)(camX + SCREEN_PIXEL_WIDTH - 24 - (l21LaneRot & 1) * 36);
-        for (u8 t = 0; t < 24; t++, fx -= 8) {
-            s16 top = walkTopAt(fx), bot = walkBotAt(fx);
-            if (top > bot) continue;                     // columna sin calle
-            s16 y = (s16)(top + 6);
-            if (y > camY + 210) continue;                // base todavia abajo
-            if (y < camY + 110) y = (s16)(camY + 110);   // base arriba: calle
-            if (y > bot - 4) continue;
-            initEnemyKickSpawn(e, (s16)(fx - ENEMY_SPRITE_W_PURPLE / 2), y, -1, PAL2, r->type);
-            e->jumpZ   = LVL21_WINDOW_Z;          // cae desde la ventana
-            e->jumpZq  = (s32)LVL21_WINDOW_Z << 8;
-            e->jumpVel = 0;
-            return TRUE;
+        // (11/10) Sale de SU ventana (street_2_1: posiciones medidas en el
+        // video) y la deja rota. Espera en la cola hasta que la ventana se vea
+        // entera debajo del HUD, asi siempre se lo ve saltar.
+        u8 w = r->arg;
+        s16 wx, wy, ww, wh;
+        streetWindowRect(w, &wx, &wy, &ww, &wh);
+        if (wx < camX) {
+            // Red de seguridad: la camara ya paso la ventana (nunca vuelve)
+            // -> entra caminando por la derecha, para no trabar la oleada.
+            L21Req alt = *r;
+            alt.kind = L21K_WALK;
+            alt.side = 1;
+            return l21SpawnReq(e, &alt, camX, camY, onPlat);
         }
-        return FALSE;
+        if (!streetWindowVisible(w, camX, camY)) return FALSE;
+        s16 cx = (s16)(wx + ww / 2);
+        s16 y;
+        if (w == L21W_FRONT) {
+            y = LVL21_WINDOW_FRONT_Y;
+        } else {
+            // Pie de la pared debajo de la ventana. Si esa columna justo no
+            // tiene calle, se busca la mas cercana hacia la izquierda.
+            s16 top = walkTopAt(cx), bot = walkBotAt(cx);
+            for (u8 t = 0; t < 8 && top > bot; t++) {
+                cx = (s16)(cx - 4);
+                top = walkTopAt(cx); bot = walkBotAt(cx);
+            }
+            if (top > bot) return FALSE;
+            y = (s16)(top + LVL21_WINDOW_LANE_DY);
+            if (y > bot - 4) y = (s16)(bot - 4);
+        }
+        // Pies en el alfeizar; si la ventana ya quedo detras del HUD, justo
+        // debajo de el.
+        s16 feet = (s16)(wy + wh - LVL21_WINDOW_SILL);
+        if (feet < camY + LVL21_WINDOW_HUD_Y) feet = (s16)(camY + LVL21_WINDOW_HUD_Y);
+        s16 z = (s16)(y - feet);
+        if (z < 0) z = 0;
+        initEnemyKickSpawn(e, (s16)(cx - ENEMY_SPRITE_W_PURPLE / 2), y, -1, PAL2, r->type);
+        e->jumpZ   = z;
+        e->jumpZq  = (s32)z << 8;
+        e->jumpVel = 0;
+        streetBreakWindow(w);
+        return TRUE;
     }
 
     case L21K_DROP: {
@@ -1186,6 +1278,202 @@ static void mhUpdateLids(s16 camX, s16 camY) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// DIALOGO CON BEBOP (11/10)
+// ---------------------------------------------------------------------------
+// En el video (frames 20212-20543): Bebop aterriza y a los 13 frames dice
+// "You're dead, shell-brain"; la tortuga contesta "They aint getting any
+// prettier!" y Bebop cierra con "Watch your mouth, slime ball!!". Cada frase
+// arranca 17 frames despues de que termina la VOZ de la anterior, y el globo
+// queda lo que en el video (63 / 95 / 61 frames). Globo de Bebop arriba de su
+// cabeza; el de la tortuga arriba de la tortuga en juego mas cercana a el.
+// Sigue peleando mientras hablan (como en el arcade). Las voces van en CH3.
+// Espera a que termine el grito de entrada (bossVoActive) para no pisarlo.
+#define L21_DLG_START      13
+#define L21_DLG_GAP        17
+#define L21_DLG_HEAD       112   // de los pies al borde de abajo del globo (Bebop)
+#define L21_DLG_HEAD_PL     96   // idem, tortuga
+#define L21_DLG_MIN_Y      34
+
+typedef struct {
+    const SpriteDefinition* bub;
+    const u8* vo;
+    u32       len;
+    u8        turtle;     // 0 = lo dice Bebop, 1 = la tortuga
+    u8        tailX;      // X de la cola dentro del globo
+    u8        w;
+    u16       show;       // frames con el globo
+} L21Line;
+
+#define L21_DLG_LINES 3
+static u8      dlgLine;        // proxima frase (L21_DLG_LINES = terminado)
+static u16     dlgT;           // frames desde que arranco la frase actual
+static bool    dlgOn;          // hay frase en curso
+static u16     dlgWait;        // espera antes de la primera
+static Sprite* dlgBub;
+
+static void dlgReset(void) {
+    dlgLine = 0; dlgT = 0; dlgOn = FALSE; dlgWait = L21_DLG_START; dlgBub = NULL;
+}
+
+static void dlgBubOff(void) {
+    if (dlgBub) { SPR_releaseSprite(dlgBub); dlgBub = NULL; }
+}
+
+static void dlgUpdate(const Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
+    static const L21Line lines[L21_DLG_LINES] = {
+        { &youre_dead_bubble,   youre_dead_vo,      sizeof(youre_dead_vo),      0, 39, 64, 63 },
+        { &any_prettier_bubble, any_prettier_vo,    sizeof(any_prettier_vo),    1, 71, 96, 95 },
+        { &watch_mouth_bubble,  shut_your_mouth_vo, sizeof(shut_your_mouth_vo), 0, 71, 96, 61 },
+    };
+    // Bebop muerto o fuera: se corta.
+    if (b->state == BEBOP_DEAD || b->state == BEBOP_GONE || b->state == BEBOP_INACTIVE) {
+        dlgBubOff();
+        dlgLine = L21_DLG_LINES; dlgOn = FALSE;
+        return;
+    }
+    if (dlgLine >= L21_DLG_LINES && !dlgOn) return;
+    // Recien con Bebop en la calle y el grito de entrada terminado.
+    if (b->state == BEBOP_FALL || b->state == BEBOP_ON_CAR || b->state == BEBOP_JUMP_DOWN) return;
+    if (bossVoActive()) return;
+
+    if (!dlgOn) {
+        if (dlgWait > 0) { dlgWait--; return; }
+        const L21Line* L = &lines[dlgLine];
+        dlgBubOff();
+        dlgBub = SPR_addSprite(L->bub, 0, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+        if (dlgBub) SPR_setDepth(dlgBub, SPR_MIN_DEPTH);
+        XGM2_playPCMEx(L->vo, L->len, SOUND_PCM_CH3, 15, FALSE, FALSE);
+        dlgOn = TRUE;
+        dlgT  = 0;
+    }
+    const L21Line* L = &lines[dlgLine];
+    dlgT++;
+    if (dlgBub && dlgT >= L->show) dlgBubOff();
+    if (dlgT >= tvVoFrames(L->len) + L21_DLG_GAP) {      // termino la voz + pausa
+        dlgBubOff();
+        dlgOn = FALSE;
+        dlgLine++;
+        dlgWait = 0;
+        return;
+    }
+    if (!dlgBub) return;
+    // Quien habla: Bebop o la tortuga en juego mas cercana a el.
+    s16 cx, top;
+    s16 bcx = (s16)(b->x + BEBOP_FRAME_W / 2);
+    if (L->turtle) {
+        Player* best = NULL;
+        for (u8 k = 0; k < nPl; k++) {
+            if (isPlayerGameOver(pls[k])) continue;
+            if (!best || abs(pls[k]->x + PLAYER_SPRITE_W / 2 - bcx) <
+                         abs(best->x + PLAYER_SPRITE_W / 2 - bcx)) best = pls[k];
+        }
+        if (!best) best = pls[0];
+        cx  = (s16)(best->x + PLAYER_SPRITE_W / 2);
+        top = (s16)(best->y - playerDrawZ(best) - L21_DLG_HEAD_PL);
+    } else {
+        cx  = bcx;
+        top = (s16)(b->y - b->z - L21_DLG_HEAD);
+    }
+    s16 bx = (s16)(cx - L->tailX - camX);
+    s16 by = (s16)(top - LVL21_TVB_H - camY);
+    if (bx < 0) bx = 0;
+    if (bx > SCREEN_PIXEL_WIDTH - L->w) bx = (s16)(SCREEN_PIXEL_WIDTH - L->w);
+    if (by < L21_DLG_MIN_Y) by = L21_DLG_MIN_Y;
+    SPR_setPosition(dlgBub, bx, by);
+}
+
+// ---------------------------------------------------------------------------
+// Salida por la alcantarilla (11/10): ver LVL21_OUT_*
+// ---------------------------------------------------------------------------
+typedef enum { OUT_WAIT = 0, OUT_WALK, OUT_READY, OUT_JUMP, OUT_SINK, OUT_GONE } OutState;
+static u8 outSt[MAX_PLAYERS];
+
+static void lvl21OutroStart(u8 nPl) {
+    for (u8 k = 0; k < MAX_PLAYERS; k++) outSt[k] = (k < nPl) ? OUT_WAIT : OUT_GONE;
+    // La boca del final queda DESTAPADA (si el soldier no llego a salir, la
+    // tapa cerrada se va igual: las tortugas se tiran adentro).
+    mhState[LVL21_OUT_HOLE] = MH_DONE;
+    mhReleaseLid(LVL21_OUT_HOLE);
+}
+
+// Un frame de la salida. Devuelve TRUE cuando ya no queda ninguna tortuga.
+static bool lvl21OutroStep(Player** pls, u8 nPl, bool* onPlat, bool* wasAir) {
+    const s16 hx = manholes[LVL21_OUT_HOLE].holeX;
+    const s16 hy = manholes[LVL21_OUT_HOLE].holeY;
+    bool busy = FALSE;                     // alguna saltando o hundiendose
+    for (u8 k = 0; k < nPl; k++)
+        if (outSt[k] == OUT_JUMP || outSt[k] == OUT_SINK) busy = TRUE;
+
+    bool allGone = TRUE;
+    for (u8 k = 0; k < nPl; k++) {
+        Player* p = pls[k];
+        if (outSt[k] != OUT_GONE && isPlayerGameOver(p)) outSt[k] = OUT_GONE;
+
+        switch (outSt[k]) {
+        case OUT_WAIT:
+            // Primero termina lo que estaba haciendo (un golpe, un salto, la
+            // trampa del pozo, levantarse de un derribo...).
+            if (playerInManhole(p)) { playerManholeStep(p); break; }
+            if ((p->state == STATE_IDLE || p->state == STATE_WALKING) && !onPlat[k]) {
+                outSt[k] = OUT_WALK;
+            } else {
+                s16 px = p->x, py = p->y;
+                updatePlayer(p);
+                playerStepStreet(p, px, py, &onPlat[k], &wasAir[k]);
+            }
+            break;
+
+        case OUT_WALK: {
+            s16 fx = (s16)(p->x + FOOT_DX);
+            if (absS16((s16)(fx - hx)) <= LVL21_OUT_RANGE_X &&
+                absS16((s16)(p->y - hy)) <= LVL21_OUT_RANGE_Y) {
+                outSt[k] = OUT_READY;              // ya esta cerca: salta de ahi
+                playerCutsceneStand(p);
+                break;
+            }
+            // Lejos: camina hasta el punto de salto de SU lado del agujero.
+            s16 side = (fx <= hx) ? -1 : 1;
+            if (playerCutsceneWalkTo(p, (s16)(hx + side * LVL21_OUT_DX - FOOT_DX),
+                                     (s16)(hy - LVL21_OUT_DY)))
+                outSt[k] = OUT_READY;
+            break;
+        }
+
+        case OUT_READY:
+            if (!busy) {
+                playerExitJumpStart(p, (s16)(hx - FOOT_DX), (s16)(hy + LVL21_OUT_LAND_DY),
+                                    LVL21_OUT_JUMP_F, PLAYER_EXIT_JUMP_PEAK);
+                outSt[k] = OUT_JUMP;
+                busy = TRUE;
+            } else {
+                playerCutsceneStand(p);            // espera su turno
+            }
+            break;
+
+        case OUT_JUMP:
+            if (playerExitJumpStep(p)) {
+                playerManholeEnter(p);
+                outSt[k] = OUT_SINK;
+            }
+            break;
+
+        case OUT_SINK:
+            playerManholeStep(p);
+            if (playerManholeGone(p)) {
+                if (p->sprite) SPR_setVisibility(p->sprite, HIDDEN);
+                outSt[k] = OUT_GONE;
+            }
+            break;
+
+        default:
+            break;
+        }
+        if (outSt[k] != OUT_GONE) allGone = FALSE;
+    }
+    return allGone;
+}
+
 // ===========================================================================
 // La escena
 // ===========================================================================
@@ -1314,6 +1602,7 @@ SceneId showScene21() {
     tntInit();
     lidInit();
     metersInit();
+    streetInit();                          // (11/10) utileria de la calle
     boomerangInit();
     l21ScriptReset();                      // (30/09) guion de oleadas
     u16 l21Kills = 0;                      // soldiers muertos despues de E7
@@ -1324,6 +1613,7 @@ SceneId showScene21() {
     // el pool de disparos limpio.
     static Bebop bebop;
     bebopInit(&bebop);
+    dlgReset();                            // (11/10) dialogo con Bebop
     bool bossStarted = FALSE;
     u8 tntHitMask = 0;                     // un golpe de explosion por jugador
     Sprite* lightBubble = NULL;            // globo de la caida por la alcantarilla
@@ -1366,6 +1656,8 @@ SceneId showScene21() {
 
     // --- Bucle principal ---------------------------------------------------
     bool running = TRUE;
+    bool outro = FALSE;            // (11/10) salida por la alcantarilla en curso
+    u16  outroHold = 0;
     SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
     pauseReset();
     bossVoReset();
@@ -1382,7 +1674,12 @@ SceneId showScene21() {
                 if (isPlayerJumping(pls[k]))
                     pls[k]->x = (s16)(pls[k]->x + LVL21_DROP_DRIFT);
         }
-        for (u8 k = 0; k < nPl; k++) {
+        // (11/10) Con Bebop derrotado las tortugas van solas a la alcantarilla.
+        if (outro && lvl21OutroStep(pls, nPl, plOnPlat, plWasAir)) {
+            if (outroHold > 0) outroHold--;
+            else running = FALSE;
+        }
+        for (u8 k = 0; k < nPl && !outro; k++) {
             // Dentro del pozo la secuencia corre sola y NO se lee input.
             if (playerInManhole(pls[k])) { playerManholeStep(pls[k]); continue; }
 
@@ -1835,6 +2132,32 @@ SceneId showScene21() {
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                            SOUND_PCM_CH2, 15, FALSE, FALSE);
         metersUpdate(cameraX, cameraY);
+
+        // --- Utileria de la calle (11/10): ver street_2_1.h ----------------
+        // Hidrantes (el golpe los abre), la chica en skate (el golpe la hace
+        // gritar y agacharse), ventanas rotas y el cartel.
+        if (!bossStarted && cameraX >= LVL21_GIRL_CAM_X) streetGirlStart(cameraX);
+        if (l21Done(L21E20)) streetBillboardFall();
+        if (streetPlayerHits(pls, nPl))
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+        streetUpdate(pls, nPl, cameraX, cameraY);
+        for (u16 i = 0; i < MAX_ENEMIES; i++) {
+            if (!enemyCanBeHit(&enemies[i])) continue;
+            s8 owner = -1;
+            bool kill = FALSE;
+            if (!streetHitEnemy(i, getEnemyCenterX(&enemies[i]),
+                                getEnemyCenterY(&enemies[i]),
+                                enemyBodyHalfW(&enemies[i]), &owner, &kill)) continue;
+            damageEnemy(&enemies[i], kill ? (s16)(enemies[i].hp > 0 ? enemies[i].hp : ENEMY_HP) : 1);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+            if (enemies[i].state == ENEMY_STATE_DEAD) {
+                XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[owner], 1);
+            }
+        }
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (!enemyCanBeHit(&enemies[i])) continue;
             s8 owner = -1;
@@ -1863,7 +2186,7 @@ SceneId showScene21() {
         // Con un solo jugador, su marco muestra "PUSH START" y el joystick
         // 2 puede sumarse eligiendo una tortuga distinta a la del P1. El nivel
         // NO se pausa: sigue corriendo mientras elige (ver p2JoinPoll).
-        if (nPl == 1) {
+        if (nPl == 1 && !outro) {   // (11/10) no se suma nadie en plena salida
             u8 ch2 = p2JoinPoll(hudPlayerCol(1));
             if (ch2 != 0xFF) {
                 personaje2Seleccionado = ch2;
@@ -1923,6 +2246,7 @@ SceneId showScene21() {
 
         if (bossStarted) {
             bebopUpdate(&bebop, pls, nPl, cameraX, cameraY);
+            dlgUpdate(&bebop, pls, nPl, cameraX, cameraY);   // (11/10) dialogo
 
             // Golpe de la tortuga al jefe. Misma geometria que contra los
             // soldiers (solape de cajas), asi que por la espalda tambien pega.
@@ -1942,7 +2266,13 @@ SceneId showScene21() {
                 }
             }
 
-            if (bebopIsGone(&bebop)) running = FALSE;
+            // (11/10) Ya no corta aca: arranca la salida por la alcantarilla
+            // (lvl21OutroStep) y el nivel cierra cuando se hunde la ultima.
+            if (bebopIsGone(&bebop) && !outro) {
+                outro = TRUE;
+                outroHold = LVL21_OUT_HOLD;
+                lvl21OutroStart(nPl);
+            }
         }
 
         // (26/09) El viejo atajo START + A (cortar el nivel) se fue: ahora START
@@ -1984,7 +2314,9 @@ SceneId showScene21() {
     boomerangReleaseAll();
     mhReleaseAll();
     metersReleaseAll();
+    streetReleaseAll();
     tvRelease();
+    dlgBubOff();
     bebopRelease(&bebop);      // el jefe y sus aros (tambien si el nivel se
                                // corta por game over en plena pelea)
     if (lightBubble) { SPR_releaseSprite(lightBubble); lightBubble = NULL; }

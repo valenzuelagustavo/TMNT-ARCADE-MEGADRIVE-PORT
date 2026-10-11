@@ -473,6 +473,11 @@ u16 playerRemapJoy(u16 raw);
 #define NORMAL_DMG_DEN     4
 extern u8 dificultad;
 
+// (11/10) Vida extra cada 100 puntos (solo DIFICULTAD_NORMAL), con tope de 9
+// (el HUD muestra las vidas con un solo digito). Ver addPlayerScore.
+#define PLAYER_EXTRA_LIFE_PTS  100
+#define PLAYER_MAX_LIVES         9
+
 // ---------------------------------------------------------------------------
 // INSTANCIA DE JUGADOR
 // ---------------------------------------------------------------------------
@@ -587,6 +592,11 @@ typedef struct {
     u16         mhTimer;     // Ticks restantes de la fase actual
     s16         mhOutX;      // Donde reaparece al terminar (mundo, borde del frame)
     s16         mhOutY;      // ...y su lane
+                             // (11/10) 4 = SALIDA del 2-1: se hunde y no vuelve
+    // --- Salto guionado de la salida del 2-1 (11/10) ---
+    s16         exX0, exY0;  // de donde salta (borde del frame, lane)
+    s16         exTX, exTY;  // a donde cae
+    u16         exT, exN;    // frame actual / duracion
 
     // --- Control arcade (09/10) ---
     s16         walkAccX;    // acumuladores Q8 de la caminata
@@ -916,5 +926,25 @@ bool playerManholeSpeaking(const Player* p);
 // Un frame de la secuencia. Se llama EN LUGAR de updatePlayer. Devuelve TRUE
 // el frame en que termina (la tortuga ya está fuera y vuelve a tener control).
 bool playerManholeStep(Player* p);
+
+// ---------------------------------------------------------------------------
+// SALIDA DEL NIVEL 2-1 (11/10): saltar adentro de la alcantarilla
+// ---------------------------------------------------------------------------
+// Con Bebop derrotado, cada tortuga salta a la boca de tormenta del final y se
+// hunde (como en el arcade: asi termina la scene). Todo guionado, sin input.
+//
+// playerExitJumpStart  arranca un salto en arco desde donde esta hasta
+//                      (tx = X del frame, ty = lane), de 'frames' de duracion
+//                      y 'peak' px de alto, con las poses de ANIM_JUMP.
+// playerExitJumpStep   un frame del salto. TRUE el frame en que aterriza.
+// playerManholeEnter   la primera parte de la caida por el pozo (anim 21,
+//                      f0..f2) SIN dano y sin la salida: queda en el frame
+//                      vacio (mhPhase 4). Avanza con playerManholeStep.
+// playerManholeGone    TRUE cuando ya se hundio del todo.
+#define PLAYER_EXIT_JUMP_PEAK   56
+void playerExitJumpStart(Player* p, s16 tx, s16 ty, u16 frames, s16 peak);
+bool playerExitJumpStep(Player* p);
+void playerManholeEnter(Player* p);
+bool playerManholeGone(const Player* p);
 
 #endif

@@ -32,7 +32,7 @@ static void robotRender(Robot* r) {
     bool flip = (r->dir < 0);
     s16 fl = r->x - (flip ? (ROBOT_FRAME_W - ROBOT_BODY_CX) : ROBOT_BODY_CX);
     SPR_setHFlip(r->sprite, flip);
-    SPR_setPosition(r->sprite, fl - r->cameraOffsetX, r->y - ROBOT_FOOT_OFFSET);
+    SPR_setPosition(r->sprite, fl - r->cameraOffsetX, r->y - ROBOT_FOOT_OFFSET - r->z);
     SPR_setDepth(r->sprite, -(r->y));
 }
 
@@ -134,6 +134,35 @@ static u8 robotElectroFrame(const Robot* r) {
 }
 
 // ---------------------------------------------------------------------------
+// (11/10) Globo "Do not resist us"
+// ---------------------------------------------------------------------------
+static void robotBubbleOff(Robot* r) {
+    if (r->bubble) { SPR_releaseSprite(r->bubble); r->bubble = NULL; }
+}
+
+static void robotBubbleOn(Robot* r) {
+    robotBubbleOff(r);
+    r->bubble = SPR_addSprite(&robot_resist_bubble, 0, 0,
+                              TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    r->bubbleT = 0;
+    if (r->bubble) SPR_setDepth(r->bubble, SPR_MIN_DEPTH);
+}
+
+static void robotBubbleUpdate(Robot* r) {
+    if (!r->bubble) return;
+    if (r->state != ROBOT_GRAB || ++r->bubbleT >= ROBOT_BUBBLE_T) {
+        robotBubbleOff(r);
+        return;
+    }
+    s16 bx = r->x - ROBOT_BUBBLE_TAIL_X - r->cameraOffsetX;
+    s16 by = r->y - ROBOT_BUBBLE_DY;
+    if (bx < 0) bx = 0;
+    if (bx > ROBOT_SCREEN_W - ROBOT_BUBBLE_W) bx = ROBOT_SCREEN_W - ROBOT_BUBBLE_W;
+    if (by < ROBOT_BUBBLE_MIN_Y) by = ROBOT_BUBBLE_MIN_Y;
+    SPR_setPosition(r->bubble, bx, by);
+}
+
+// ---------------------------------------------------------------------------
 // Arranque de cada estado
 // ---------------------------------------------------------------------------
 static void robotEnter(Robot* r, RobotState s) {
@@ -143,12 +172,14 @@ static void robotEnter(Robot* r, RobotState s) {
 
 static void robotToFlee(Robot* r) {
     robotEnter(r, ROBOT_FLEE);
-    robotRestartAnim(r, ROBOT_ANIM_WALK, TRUE);
+    r->z = 0;
+    robotRestartAnim(r, ROBOT_ANIM_WALK_LONG, TRUE);   // (11/10) rueda sin chispas
 }
 
+// (11/10) Frenada: primero DERRAPA con las chispas ([3]) siguiendo de largo.
 static void robotToBrake(Robot* r) {
     robotEnter(r, ROBOT_BRAKE);
-    robotRestartAnim(r, ROBOT_ANIM_TURN, FALSE);
+    robotRestartAnim(r, ROBOT_ANIM_WALK, TRUE);
 }
 
 // ---------------------------------------------------------------------------
@@ -165,6 +196,7 @@ void robotInit(Robot* r) {
     r->laserSpr = NULL;
     r->laserActive = FALSE;
     r->laserDir = 1;
+    r->bubble = NULL;
 }
 
 void robotSpawn(Robot* r, s16 centerX, s16 spawnY) {
@@ -173,6 +205,8 @@ void robotSpawn(Robot* r, s16 centerX, s16 spawnY) {
     r->dir = -1;
     r->hp = ROBOT_HP;
     r->state = ROBOT_APPEAR;
+    r->z = 0;
+    r->dying = FALSE;
     r->anim = 0xFF;
     r->drainTimer = 0;
     r->accX = r->accY = 0;
@@ -198,8 +232,11 @@ bool robotIsActive(const Robot* r) {
 }
 
 bool robotCanBeHit(const Robot* r) {
-    // Solo mientras corre: frenando, atacando y golpeado no se le puede pegar.
-    return (r->state == ROBOT_FLEE);
+    // (11/10) Siempre, salvo saliendo del suelo, despedido, explotando o con
+    // una tortuga enganchada (el agarre se suelta solo cuando ella zafa).
+    return (r->state != ROBOT_INACTIVE && r->state != ROBOT_GONE &&
+            r->state != ROBOT_APPEAR && r->state != ROBOT_HURT &&
+            r->state != ROBOT_DEAD && r->state != ROBOT_GRAB);
 }
 
 s16 robotGetCenterX(const Robot* r) { return r->x; }
@@ -210,16 +247,15 @@ void robotDamage(Robot* r, s16 dmg, s16 attackerX) {
     if (!robotCanBeHit(r)) return;
     r->hp -= ROBOT_SPECIAL_DMG;
 
-    if (r->hp <= 0) {
-        r->state = ROBOT_DEAD;
-        robotRestartAnim(r, ROBOT_ANIM_DESTROY, FALSE);
-        return;
-    }
-    // Retrocede alejandose del que le pego, mirandolo.
+    // (11/10) Sale DESPEDIDO alejandose del que le pego, mirandolo. El golpe
+    // final hace el mismo arco y explota al tocar el piso.
+    r->dying   = (r->hp <= 0);
     r->hurtDir = (r->x >= attackerX) ? 1 : -1;
     r->dir = (s8)-r->hurtDir;
+    r->z = 0;
     robotEnter(r, ROBOT_HURT);
     robotRestartAnim(r, ROBOT_ANIM_HURT, FALSE);
+    SPR_setAutoAnimation(r->sprite, FALSE);
 }
 
 // Comienza el lanzamiento del látigo (control manual de frames para poder
@@ -282,20 +318,39 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
             r->x += r->dir * robotStep(&r->accX, ROBOT_FLEE_Q);
             r->y = robotToward(r->y, py - ROBOT_FLEE_LANE_DY,
                                robotStep(&r->accY, ROBOT_FLEE_LANE_Q));
-            robotSetAnim(r, (r->timer < ROBOT_WALK_START_TICKS)
-                            ? ROBOT_ANIM_WALK : ROBOT_ANIM_WALK_LONG, TRUE);
+            robotSetAnim(r, ROBOT_ANIM_WALK_LONG, TRUE);
             if (r->timer >= ROBOT_FLEE_T) robotToBrake(r);
             break;
         }
 
         case ROBOT_BRAKE: {
-            r->dir = toward;
             r->y = robotToward(r->y, py, robotStep(&r->accY, ROBOT_BRAKE_Q));
-            if (SPR_isAnimationDone(r->sprite))
+            if (r->timer <= ROBOT_SKID_T) {
+                // (11/10) Derrape: sigue de largo frenando (velocidad que
+                // baja linealmente a 0) con las chispas de la rueda.
+                u16 q = (u16)(((u32)ROBOT_FLEE_Q * (ROBOT_SKID_T - r->timer)) / ROBOT_SKID_T);
+                r->x += r->dir * robotStep(&r->accX, q);
+                if (r->timer == ROBOT_SKID_T) {
+                    // Parado: si la tortuga quedo atras, se da vuelta.
+                    if (toward != r->dir) {
+                        r->dir = toward;
+                        robotRestartAnim(r, ROBOT_ANIM_TURN, FALSE);
+                    } else {
+                        robotRestartAnim(r, ROBOT_ANIM_IDLE, TRUE);
+                    }
+                }
+                break;
+            }
+            r->dir = toward;
+            if (r->anim == ROBOT_ANIM_TURN && SPR_isAnimationDone(r->sprite))
                 robotSetAnim(r, ROBOT_ANIM_IDLE, TRUE);
             if (r->timer < ROBOT_BRAKE_T) break;
             r->y = py;                         // se planta en su lane
-            if (random() & 1) {
+            // (11/10) Cerca y alineada: latigo (3 de 4). Lejos: laser (3 de 4).
+            bool near = (rabs(ddx) <= ROBOT_WHIP_PICK_DX) &&
+                        (rabs(py - r->y) <= ROBOT_WHIP_PICK_DY);
+            bool whip = near ? ((random() & 3) != 0) : ((random() & 3) == 0);
+            if (whip) {
                 robotEnter(r, ROBOT_WINDUP);
                 robotRestartAnim(r, ROBOT_ANIM_WHIP_WINDUP, FALSE);
             } else {
@@ -329,6 +384,7 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
                                               + ROBOT_WHIP_GRAB_INSET);
                 playerWhipGrabAt(tgt, pcxNew - PLAYER_SPRITE_W / 2, r->y);
                 robotEnter(r, ROBOT_GRAB);
+                robotBubbleOn(r);              // (11/10) "Do not resist us"
                 r->drainTimer = 0;
                 r->electroTgl = 0;
                 // Pose de agarre CONGELADA en la variante elegida.
@@ -398,15 +454,35 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
         }
 
         case ROBOT_LASER: {
-            if (r->timer == ROBOT_LASER_FIRE_DELAY) robotFireLaser(r);
+            // (11/10) El rayo sale con el ultimo frame de la anim (el del rayo):
+            // antes van el aro, el rulo y la flecha.
+            if (!r->laserActive && r->timer > ROBOT_LASER_FIRE_DELAY &&
+                r->sprite->frameInd >= (s16)r->sprite->animation->numFrame - 1)
+                robotFireLaser(r);
             if (r->timer >= ROBOT_LASER_T) robotToFlee(r);   // el rayo sigue solo
             break;
         }
 
         case ROBOT_HURT: {
-            r->x += r->hurtDir * robotStep(&r->accX, ROBOT_HURT_Q);
-            if (r->timer >= ROBOT_HURT_T) {
-                r->dir = r->hurtDir;           // sale corriendo hacia ese lado
+            // (11/10) Despedido en arco: frame 0 el golpe, 1 en el aire y 2
+            // tirado al tocar el piso. Despues vuelve a rodar HACIA la
+            // tortuga (o explota, si fue el golpe final).
+            if (r->timer <= ROBOT_HURT_T) {
+                s32 t = r->timer, n = ROBOT_HURT_T;
+                r->x += r->hurtDir * robotStep(&r->accX, ROBOT_HURT_Q);
+                r->z = (s16)((4 * ROBOT_HURT_PEAK * t * (n - t)) / (n * n));
+                SPR_setFrame(r->sprite, (r->timer < 4) ? 0 : 1);
+                if (r->timer == ROBOT_HURT_T) {
+                    r->z = 0;
+                    if (r->dying) {
+                        r->state = ROBOT_DEAD;
+                        robotRestartAnim(r, ROBOT_ANIM_DESTROY, FALSE);
+                        break;
+                    }
+                    SPR_setFrame(r->sprite, 2);
+                }
+            } else if (r->timer >= ROBOT_HURT_T + ROBOT_DOWN_T) {
+                r->dir = toward;
                 robotToFlee(r);
             }
             break;
@@ -416,6 +492,7 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
             if (SPR_isAnimationDone(r->sprite)) {
                 SPR_releaseSprite(r->sprite); r->sprite = NULL;
                 robotKillLaser(r);
+                robotBubbleOff(r);
                 r->state = ROBOT_GONE;
                 return;
             }
@@ -428,5 +505,6 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
     r->x = rclamp(r->x, ROBOT_MIN_X, ROBOT_MAX_X);
     r->y = rclamp(r->y, ROBOT_LANE_TOP, ROBOT_LANE_BOTTOM);
     robotUpdateLaser(r, pls, nPl);
+    robotBubbleUpdate(r);
     robotRender(r);
 }

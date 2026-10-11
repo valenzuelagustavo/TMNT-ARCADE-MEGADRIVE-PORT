@@ -15,6 +15,7 @@
 #define ENEMY_TYPE_FOOT_SOLDIER_GUN    4   // (06/10) naranja del FUSIL (PAL2)
 #define ENEMY_TYPE_FOOT_SOLDIER_HAMMER 5   // (06/10) morado del MARTILLO (PAL2)
 #define ENEMY_TYPE_FOOT_SOLDIER_SPEAR  6   // (06/10) morado de la LANZA (PAL2)
+#define ENEMY_TYPE_FOOT_SOLDIER_KNIFE  7   // (10/10) blanco del CUCHILLO (PAL3)
 
 #define MAX_ENEMIES         8
 #define ENEMY_SPEED         1
@@ -156,6 +157,40 @@
 #define WHITE_ANIM_AIR_SLASH    7   // Espadazo cayendo desde el aire (2f)
 #define WHITE_ANIM_HIT          8   // Golpe recibido (2f)
 #define WHITE_ANIM_EXPLODE      9   // Muerte: cae al piso y explota (4f)
+
+// --- (10/10) Blanco del CUCHILLO (foot_soldier_knife, ver enemies.res) ---
+// Medido en el video del arcade (1-1, el blanco que aparece en la escalera y
+// el que se queda en la zona de la 2da puerta):
+//   * Camina a ~1 px/f; se acerca hasta ~70 px, se planta en guardia (~48
+//     cuadros) y cuando no puede atacar RETROCEDE caminando de espaldas.
+//   * TIRA EL CUCHILLO desde lejos (alineado): 9.1 4, 9.0 10, 9.1 4, 9.2 4
+//     (sale el cuchillo), 9.3 5, 9.4 4 = 31 cuadros. El cuchillo vuela recto a
+//     4 px/f, a ~40 px del piso.
+//   * PUNALADA pegado: 8.3 5, 8.2 6, 8.1 12 (pega), 8.3 6 = 29.
+//   * PATADA pegado: 8.4 8, 6.3 6, 6.4 6 (pega) + 4 = 24, avanzando ~1 px/f.
+#define KNIFE_ANIM_IDLE         0
+#define KNIFE_ANIM_WALK         1
+#define KNIFE_ANIM_WALK_UP      2
+#define KNIFE_ANIM_THROW        3
+#define KNIFE_ANIM_STAB         4
+#define KNIFE_ANIM_KICK         5
+#define KNIFE_ANIM_HIT          6
+#define KNIFE_ANIM_EXPLODE      7
+#define KNIFE_HIT_TIME         16
+#define KNIFE_STANDOFF         70   // distancia (centros) a la que se planta
+#define KNIFE_CLOSE            44   // <= esto: punalada o patada
+#define KNIFE_STAB_REACH       44
+#define KNIFE_KICK_REACH       36
+#define KNIFE_THROW_MIN        64   // tira el cuchillo entre estas distancias
+#define KNIFE_THROW_MAX       230
+#define KNIFE_ALIGN_Y           4   // lane para tirar
+#define KNIFE_THROW_RELEASE    12   // valor del timer cuando sale el cuchillo
+#define KNIFE_THROW_DX         30   // la mano, adelante del centro
+#define KNIFE_PROJ_Q         1024   // 4 px/f
+#define KNIFE_PROJ_Z           40
+#define KNIFE_PROJ_W           40   // celda del sprite
+#define KNIFE_SPARK_TIME       12   // chispazo / pedazos al romperse
+#define KNIFE_GUARD_T          48   // cuadros en guardia antes de meterse a pegar
 
 // ---------------------------------------------------------------------------
 // Foot soldier AMARILLO -- el del BOOMERANG (29/09)
@@ -358,6 +393,7 @@
 #define ENEMY_ATTACK_GUN    7    // (06/10) rafaga del fusil (a distancia)
 #define ENEMY_ATTACK_TAUNT  8    // (06/10) burla del fusil (no pega)
 #define ENEMY_ATTACK_SPEAR_THROW 9 // (06/10) tira la lanza (a distancia)
+#define ENEMY_ATTACK_KNIFE_THROW 10 // (10/10) tira el cuchillo (a distancia)
 
 // ===========================================================================
 // FOOT SOLDIERS CON ARMA (06/10): FUSIL, MARTILLO y LANZA
@@ -615,6 +651,23 @@
 // (STANCE = la nueva "otra postura de espera", fila 13).
 #define ENEMY_STANCE_SWITCH    120
 
+// --- (10/10) MORADO medido en el video del arcade (gameplayARCADE/tmnt.avi) ---
+// Distancias de CENTRO a centro (centro del frame de la tortuga - centro del
+// frame del soldier), como el resto de las del arcade.
+//   * Uppercut (fila 3): puno abajo 8 + puno arriba 17 + recupera 7 = 32
+//     frames; pega con el puno arriba. Lo larga pegado (15..31 px) y lo
+//     ENCADENA: U, U y a veces cierra con el directo. 2 a 3 seguidos.
+//   * Directo (fila 6): 8 + 16 + 6 = 30, misma distancia que el uppercut.
+//   * Patada voladora (fila 2): agachado 7 (quieto), sube 12 (~2,75 px/f),
+//     patada 14 (~1,8 px/f, ACA pega), baja 9 (1 px/f), aterriza 9 (quieto)
+//     = 51 frames y ~65 px. La larga de frente, alineado, a 50..90 px.
+#define MORADO_CLOSE_RANGE     32   // <= esto: uppercut / directo
+#define MORADO_KICK_MIN        48   // patada voladora entre estas dos
+#define MORADO_KICK_MAX        92
+#define MORADO_KICK_TOL_Y       8   // la patada necesita la lane casi exacta
+#define MORADO_KICK_CHANCE      15  // (random() & 15) == 0 -> 1/16 por frame
+#define MORADO_COMBO_GO_ON     40   // sigue el combo si la tortuga esta a <= esto
+
 // --- Duraciones del foot soldier naranja (frames x 8 ticks) ---
 #define ORANGE_SHURIKEN_TIME    24   // 3 frames x 8 = lanzamiento de shuriken
 #define ORANGE_UPPERCUT_TIME    24   // 3 frames x 8
@@ -716,6 +769,11 @@ typedef struct {
     // 0 y usa el ataque simple de siempre.
     u8          comboStep;    // Índice del golpe actual dentro del combo (0 = primero)
     u8          comboLen;     // Golpes del combo actual (0 = ataque simple, sin combo)
+    // (10/10) Pasos con frames A MANO (medidos en el video del arcade):
+    // atkAcc = resto Q4 del avance en X; manualAnim = 1 mientras la auto-
+    // animacion esta apagada (enemySetAnim/RestartAnim la vuelven a prender).
+    u8          atkAcc;
+    u8          manualAnim;
 
     // --- Salto del BLANCO (13/09) ---
     // Mismo truco que el jumpZ del Player: 'y' sigue siendo la lane real (la
@@ -758,6 +816,7 @@ typedef struct {
 #define SHOT_SHURIKEN 0
 #define SHOT_BULLET   1
 #define SHOT_SPEAR    2
+#define SHOT_KNIFE    3    // (10/10) cuchillo del blanco
 
 // Resetea el estado global de la IA (contador de atacantes simultáneos y
 // reparto de targets) e informa cuántos jugadores hay (1 o 2).

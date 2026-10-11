@@ -44,6 +44,7 @@ DST  = os.path.join(SPR, "foot_soldier_white_gen.png")
 REF  = os.path.join(SPR, "foot_soldier_orange.png")  # de donde sale el indice 0
 
 CELL        = 104   # celda del sheet (8 columnas x 10 filas)
+SWORD_ROWS  = 10    # (10/10) filas de la espada; lo de abajo es el del cuchillo
 GROUND_IDX  = 2     # rojo (219,36,0): con lo que vino pintado el piso
 SHADOW_IDX  = 10    # (146,109,146): lo mas parecido al marron del morado
                     # que hay en PAL3 sin tocar la paleta del naranja
@@ -86,7 +87,10 @@ def ground_mask(cell):
 def main():
     im = Image.open(SRC)
     assert im.mode == "P", "el sheet tiene que ser indexado (modo P)"
-    a = np.array(im)
+    # (10/10) El rip crecio: abajo de las 10 filas de la ESPADA ahora viene el
+    # foot soldier del CUCHILLO, sin grilla (ver tools/gen_foot_knife.py, que
+    # lo arma aparte). Este generador se queda SOLO con las 10 filas de arriba.
+    a = np.array(im)[:SWORD_ROWS * CELL].copy()
     h, w = a.shape
     rows, cols = h // CELL, w // CELL
 

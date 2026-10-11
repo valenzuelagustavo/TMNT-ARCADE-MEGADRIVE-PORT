@@ -1999,7 +1999,16 @@ u16 getPlayerScore(const Player* p) {
 }
 
 void addPlayerScore(Player* p, u16 points) {
+    // (11/10) VIDA EXTRA cada PLAYER_EXTRA_LIFE_PTS puntos, solo en GAME LEVEL
+    // NORMAL (en ARCADE no hay). Se cuenta por "centena cruzada": si un mismo
+    // golpe cruza dos (no pasa hoy, el puntaje sube de a 1-5) da las dos. Tope
+    // PLAYER_MAX_LIVES: las vidas del HUD son UN digito.
+    u16 before = p->score;
     p->score += points;
+    if (dificultad == DIFICULTAD_NORMAL) {
+        u16 gained = (u16)(p->score / PLAYER_EXTRA_LIFE_PTS - before / PLAYER_EXTRA_LIFE_PTS);
+        while (gained-- > 0 && p->lives < PLAYER_MAX_LIVES) p->lives++;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2244,6 +2253,17 @@ bool playerManholeStep(Player* p) {
             }
             break;
 
+        case 4: {                                   // (11/10) salida del nivel: se hunde y queda
+            if (p->mhTimer > 0) {
+                s16 done = (s16)(PLAYER_MH_FALL_TICKS * L.fall) - (s16)p->mhTimer;
+                frame = done / PLAYER_MH_FALL_TICKS;
+                if (frame > L.fall - 1) frame = L.fall - 1;
+            } else {
+                frame = L.empty;
+            }
+            break;
+        }
+
         default: {                                  // saliendo
             s16 done = (s16)(PLAYER_MH_OUT_TICKS * L.out) - (s16)p->mhTimer;
             frame = L.outFirst + done / PLAYER_MH_OUT_TICKS;
@@ -2272,6 +2292,78 @@ bool playerManholeStep(Player* p) {
     if (p->sprite) SPR_setFrame(p->sprite, frame);
     playerRenderAt(p);
     return FALSE;
+}
+
+// ---------------------------------------------------------------------------
+// SALIDA DEL NIVEL 2-1 (11/10) -- ver player.h
+// ---------------------------------------------------------------------------
+void playerExitJumpStart(Player* p, s16 tx, s16 ty, u16 frames, s16 peak) {
+    p->exX0 = p->x;  p->exY0 = p->y;
+    p->exTX = tx;    p->exTY = ty;
+    p->exT  = 0;
+    p->exN  = frames ? frames : 1;
+    p->mhOutX = peak;                     // alto del arco (mhOutX no se usa aca)
+    p->comboStep = 0;
+    arcCut(p);
+    p->isJumpKicking = JUMPKICK_NONE;
+    p->state  = STATE_JUMPING;
+    p->jumpZ  = 0;
+    if (tx > p->x)      p->dir =  1;
+    else if (tx < p->x) p->dir = -1;
+    if (p->sprite) {
+        SPR_setAutoAnimation(p->sprite, FALSE);
+        SPR_setAnimationLoop(p->sprite, FALSE);
+        SPR_setHFlip(p->sprite, p->dir < 0);
+        SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 1);
+    }
+}
+
+bool playerExitJumpStep(Player* p) {
+    if (p->exT < p->exN) p->exT++;
+    s32 t = p->exT, n = p->exN;
+    p->x = (s16)(p->exX0 + ((s32)(p->exTX - p->exX0) * t) / n);
+    p->y = (s16)(p->exY0 + ((s32)(p->exTY - p->exY0) * t) / n);
+    // Parabola: 0 en las puntas, 'peak' en la mitad.
+    p->jumpZ  = (s16)((4 * (s32)p->mhOutX * t * (n - t)) / (n * n));
+    p->jumpZq = (s32)p->jumpZ << PLAYER_JUMP_Q;
+    if (p->sprite) {
+        // Poses del salto repartidas a lo largo del arco (sin la 0, que es
+        // la de agacharse antes de despegar).
+        u8 nf = p->sprite->animation ? p->sprite->animation->numFrame : 2;
+        s16 f = (nf > 2) ? (s16)(1 + (t * (nf - 2)) / n) : 0;
+        if (f > nf - 1) f = (s16)(nf - 1);
+        SPR_setFrame(p->sprite, f);
+    }
+    playerRenderAt(p);
+    if (p->exT >= p->exN) {
+        p->jumpZ = 0; p->jumpZq = 0;
+        p->state = STATE_IDLE;
+        return TRUE;
+    }
+    return FALSE;
+}
+
+void playerManholeEnter(Player* p) {
+    p->state  = STATE_IDLE;
+    p->jumpZ  = 0;
+    p->jumpZq = 0;
+    p->jumpVq = 0;
+    p->mhPhase = 4;
+    // Sheets viejas sin la anim 21: no hay con que dibujar el hundimiento,
+    // asi que desaparece en el acto.
+    if (p->numAnims <= ANIM_MANHOLE || !p->sprite) {
+        p->mhTimer = 0;
+        if (p->sprite) SPR_setVisibility(p->sprite, HIDDEN);
+        return;
+    }
+    p->mhTimer = PLAYER_MH_FALL_TICKS * mhLayout(p).fall;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_MANHOLE, 0);
+}
+
+bool playerManholeGone(const Player* p) {
+    return (bool)(p->mhPhase == 4 && p->mhTimer == 0);
 }
 
 void playerCutsceneWatch(Player* p) {

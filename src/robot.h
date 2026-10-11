@@ -9,7 +9,31 @@
 // ROBOT DEL LÁTIGO — mini-jefe del final del nivel 1
 // ===========================================================================
 // Enemigo único con máquina de estados propia. Aparece saliendo del suelo unos
-// tiles antes de la pared final y pelea asi (05/10):
+// tiles antes de la pared final.
+//
+// (11/10) REVISADO CON EL VIDEO (gameplayARCADE/tmnt.avi, frames 4990-6150;
+// camara fija, robot seguido frame a frame por diferencia contra el fondo):
+//   RUEDA      a ~2,75 px/f (no 2), con la anim de rodar [12]. Cruza a la
+//              tortuga y se da vuelta en el borde de la pantalla.
+//   DERRAPA    las chispas rosas de la rueda (anim [3]) salen al FRENAR, no al
+//              arrancar: ~18 frames patinando hasta parar.
+//   ATACA      plantado y mirando a la tortuga: LATIGO si esta cerca y en su
+//              lane, LASER si esta lejos (en el video tira el laser cuando la
+//              tortuga esta a distancia o saltando).
+//   LASER      el rayo sale recien con el ultimo frame de la anim [9] (aro,
+//              rulo, flecha, rayo) y viaja a 8 px/f (no 3,5).
+//   GOLPEADO   sale DESPEDIDO: arco hacia atras de ~30 frames (~2,5 px/f, unos
+//              20 px de alto) con la anim [10], queda tirado un instante y
+//              vuelve a rodar hacia la tortuga. El golpe final es el mismo
+//              arco y explota en el piso (anim [11]).
+//   GLOBO      "Do not resist us" al enganchar a la tortuga con el latigo
+//              (video: frames 5171-5240), arriba de su cabeza con la cola
+//              apuntandole; dura lo que el agarre (tope ROBOT_BUBBLE_T).
+//   Se le puede pegar SIEMPRE salvo saliendo del suelo, despedido, con una
+//   tortuga enganchada o
+//   explotando (en el video casi todos los golpes entran con el robot
+//   frenado o atacando, no rodando).
+// Lo de abajo es la version anterior (05/10), que queda como referencia:
 //   CORRE (120)   a 2 px/f de un lado al otro, cruzando a la tortuga: se da
 //                 vuelta al salir de camara o al quedar ROBOT_FLEE_BEHIND px
 //                 detras de ella. Va un poco por encima de su lane. Es el
@@ -73,16 +97,21 @@
 #define ROBOT_LANE_BOTTOM    200
 #define ROBOT_MIN_X         1000   // tope de seguridad (el empuje lo puede sacar de cuadro)
 #define ROBOT_MAX_X         1300
-#define ROBOT_FLEE_T         120   // corre ...
-#define ROBOT_FLEE_Q         512   // ... a 2 px/f
+#define ROBOT_FLEE_T          72   // (11/10) rueda ...
+#define ROBOT_FLEE_Q         704   // ... a 2,75 px/f (video)
 #define ROBOT_FLEE_LANE_Q     32   // corrige la lane a 0,125 px/f ...
 #define ROBOT_FLEE_LANE_DY    10   // ... quedando estos px por ENCIMA de la tortuga
 #define ROBOT_FLEE_BEHIND     67   // se da vuelta al quedar esto detras de la tortuga
 #define ROBOT_BRAKE_T         48   // frena mirando a la tortuga ...
+#define ROBOT_SKID_T          18   // (11/10) los primeros frames del freno: derrapa con chispas
 #define ROBOT_BRAKE_Q        256   // ... alineandose a 1 px/f
 #define ROBOT_WALK_START_TICKS 24  // anim de arranque [3] antes de pasar a [12]
-#define ROBOT_HURT_T          24   // golpeado: retrocede ...
-#define ROBOT_HURT_Q         512   // ... a 2 px/f
+#define ROBOT_HURT_T          30   // (11/10) golpeado: arco hacia atras ...
+#define ROBOT_HURT_Q         640   // ... a 2,5 px/f ...
+#define ROBOT_HURT_PEAK       20   // ... y estos px de alto
+#define ROBOT_DOWN_T          14   // tirado en el piso antes de volver a rodar
+#define ROBOT_WHIP_PICK_DX   150   // a esto o menos (y alineado): prefiere el latigo
+#define ROBOT_WHIP_PICK_DY    24
 #define ROBOT_SPAWN_CENTER  1256   // centro de mundo donde emerge
 #define ROBOT_SPAWN_TRIGGER 1200   // el jugador supera este worldX -> aparece
 #define ROBOT_SPAWN_Y        150   // lane de pies al aparecer (1 jugador / robot #1)
@@ -126,10 +155,18 @@
 
 // Láser (sub-sprite, horizontal a la altura del robot)
 #define ROBOT_LASER_T         66   // dura la pose del disparo
-#define ROBOT_LASER_Q        896   // 3,5 px/f
+#define ROBOT_LASER_Q       2048   // (11/10) 8 px/f, medido en el video
 #define ROBOT_LASER_DMG        1   // barras de vida al impactar
 #define ROBOT_LASER_TOL_Y      5
 #define ROBOT_LASER_FIRE_DELAY 8   // frames de la anim [9] antes de soltar el rayo
+
+// (11/10) Globo "Do not resist us" (robot_resist_bubble, 64x32, PAL1).
+#define ROBOT_BUBBLE_W        64
+#define ROBOT_BUBBLE_H        32
+#define ROBOT_BUBBLE_TAIL_X   39   // X de la cola dentro del globo (medida en el PNG)
+#define ROBOT_BUBBLE_DY       92   // borde de arriba: pies - esto
+#define ROBOT_BUBBLE_T        96   // frames maximos en pantalla
+#define ROBOT_BUBBLE_MIN_Y    34   // no se mete en el HUD
 
 // Electrocución del agarre: 1 barra cada 2 segundos.
 #define ROBOT_ELECTRO_SECONDS  2
@@ -158,6 +195,8 @@ typedef struct {
     s8          dir;           // -1 mira izquierda / +1 mira derecha
     s8          hurtDir;       // -1/+1: sentido del retroceso al ser golpeado
     s16         hp;
+    s16         z;             // (11/10) altura del arco al salir despedido
+    bool        dying;         // (11/10) el arco es el del golpe final
     u8          anim;          // anim actual (evita re-setear)
     u16         timer;         // frames desde que arranco el estado
     u8          accX, accY;    // restos Q8 del movimiento
@@ -169,6 +208,10 @@ typedef struct {
     u8          throwFrame;    // frame actual del throw
     u8          throwFrames;   // cantidad de frames del throw (de la sheet)
     u8          throwTick;     // contador de ticks por frame
+
+    // (11/10) Globo "Do not resist us"
+    Sprite*     bubble;
+    u16         bubbleT;
 
     // Proyectil LÁSER (vida independiente)
     Sprite*     laserSpr;

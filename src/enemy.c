@@ -11,8 +11,14 @@
 // actual (evita reiniciar el ciclo cada frame). 'loop' controla si la anim
 // se repite (caminar) o queda clavada en el último frame (ataques).
 // ---------------------------------------------------------------------------
+static void enemyAutoBack(Enemy* e) {
+    // (10/10) Venia de un paso con frames a mano: auto-animacion de vuelta.
+    if (e->manualAnim) { e->manualAnim = 0; SPR_setAutoAnimation(e->sprite, TRUE); }
+}
+
 static void enemySetAnim(Enemy* e, u8 anim, bool loop) {
-    if (e->anim == anim) return;
+    if (e->anim == anim && !e->manualAnim) return;
+    enemyAutoBack(e);
     e->anim = anim;
     SPR_setAnim(e->sprite, anim);
     SPR_setAnimationLoop(e->sprite, loop);
@@ -24,6 +30,7 @@ static void enemySetAnim(Enemy* e, u8 anim, bool loop) {
 // segundo kick consecutivo no se reiniciaría. SPR_setAnimAndFrame sí fuerza
 // el reinicio porque el frame actual difiere de 0.
 static void enemyRestartAnim(Enemy* e, u8 anim, bool loop) {
+    enemyAutoBack(e);
     e->anim = anim;
     SPR_setAnimAndFrame(e->sprite, anim, 0);
     SPR_setAnimationLoop(e->sprite, loop);
@@ -38,6 +45,7 @@ static u8 enemyAnimIdle(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_IDLE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_IDLE;
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return KNIFE_ANIM_IDLE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_IDLE;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_IDLE;
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_IDLE;
@@ -49,6 +57,7 @@ static u8 enemyAnimWalk(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK;
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return KNIFE_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_WALK;
@@ -60,6 +69,7 @@ static u8 enemyAnimWalkUp(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK_UP;
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return KNIFE_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_WALK_UP;
@@ -95,6 +105,7 @@ static u8 enemyAnimExplode(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_EXPLODE;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_EXPLODE;
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return KNIFE_ANIM_EXPLODE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_ANIM_EXPLODE;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_ANIM_EXPLODE;
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return HAMMER_ANIM_EXPLODE;
@@ -105,6 +116,7 @@ static u8 enemyAnimExplode(const Enemy* e) {
 static u8 enemyAnimHit(Enemy* e) {
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return ORANGE_ANIM_HIT;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  return WHITE_ANIM_HIT;
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE)  return KNIFE_ANIM_HIT;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    return GUN_ANIM_HIT;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) return HAMMER_ANIM_HIT;
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)  return SPEAR_ANIM_HIT;
@@ -149,7 +161,8 @@ static u16 enemyAttackTime(const Enemy* e) {
 static u16 enemyExplodeTime(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_EXPLODE_TIME;
-        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_EXPLODE_TIME;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return WHITE_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
@@ -178,6 +191,11 @@ static s16 enemyAttackReach(const Enemy* e) {
 // timer del estado es el del paso actual; los i-frames del jugador (45) hacen
 // que una cadena completa rara vez conecte entera — como el knockback del
 // arcade, el golpe 1 suele sacarte del alcance de los siguientes.
+// (10/10) Paso con frames A MANO, medidos en el video del arcade: frame de la
+// fila, cuantos frames de juego dura y cuanto avanza en X por frame (Q4:
+// 16 = 1 px/f).
+typedef struct AtkFrame { u8 frame; u8 dur; u8 spdQ4; } AtkFrame;
+
 typedef struct {
     u8   anim;      // Índice de animación (ENEMY_ANIM_* del morado)
     u16  time;      // Duración total del paso (ticks, calzada a FAST 8 del sheet)
@@ -185,25 +203,33 @@ typedef struct {
     u16  hitEnd;    // Timer máximo (inclusive) con hitbox activa
     s16  reach;     // Alcance del golpe (centro a centro)
     u16  lunge;     // Frames iniciales con desplazamiento en X (patada; 0 = fijo)
+    const struct AtkFrame* fseq;   // (10/10) frames a mano (NULL = auto)
+    u8   nseq;
 } ComboStep;
 
-// Combo de puño (arcade ATTACK S0): doble directo + uppercut final.
+// (10/10) REHECHOS con el video del arcade (ver MORADO_* en enemy.h). Los
+// tiempos de hitbox son valores del timer, que cuenta hacia atras desde 'time'.
+static const AtkFrame purpleSeqUpper[] = { {0, 8, 0}, {1, 17, 0}, {0, 7, 0} };
+static const AtkFrame purpleSeqFront[] = { {0, 8, 0}, {1, 16, 0}, {0, 6, 0} };
+// Patada voladora: agachado, sube (tuck), patada, baja (tuck) y aterriza.
+static const AtkFrame purpleSeqKick[]  = { {0, 7, 0}, {1, 12, 44}, {2, 14, 29},
+                                           {3, 9, 16}, {0, 9, 0} };
+#define PSEQ(a) (a), (u8)(sizeof(a) / sizeof(AtkFrame))
+// Pegado: uppercut, uppercut y cierra con el directo. Despues de cada golpe
+// sigue solo si la tortuga quedo cerca (y no siempre): sale U, UU o UUD.
 static const ComboStep purpleComboPunch[] = {
-    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH,    0 },
-    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH,    0 },
-    { ENEMY_ANIM_PUNCH,       16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_UPPERCUT_REACH, 0 }
+    { ENEMY_ANIM_PUNCH,       32, 12, 24, ENEMY_UPPERCUT_REACH, 0, PSEQ(purpleSeqUpper) },
+    { ENEMY_ANIM_PUNCH,       32, 12, 24, ENEMY_UPPERCUT_REACH, 0, PSEQ(purpleSeqUpper) },
+    { ENEMY_ANIM_PUNCH_FRONT, 30, 12, 22, ENEMY_FRONT_REACH,    0, PSEQ(purpleSeqFront) }
 };
-// Combo de patada (arcade ATTACK S1/S2): directo + patada con salto (lunge).
+// Patada voladora sola (de frente, a media distancia). Pega con la pierna
+// estirada: timer 32..19 = frames 19..32 del paso.
 static const ComboStep purpleComboKick[] = {
-    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH, 0 },
-    { ENEMY_ANIM_KICK, ENEMY_KICK_TIME,
-      (u16)(ENEMY_KICK_TIME - ENEMY_KICK_LUNGE + 1), ENEMY_KICK_TIME,
-      ENEMY_HIT_RANGE_X, ENEMY_KICK_LUNGE }
+    { ENEMY_ANIM_KICK, 51, 19, 32, ENEMY_HIT_RANGE_X, 0, PSEQ(purpleSeqKick) }
 };
-// Doble directo (variante corta, arcade ATTACK S0 sin uppercut).
+// Directo suelto.
 static const ComboStep purpleComboFront[] = {
-    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH, 0 },
-    { ENEMY_ANIM_PUNCH_FRONT, 16, ENEMY_PUNCH_HIT_START, ENEMY_PUNCH_HIT_END, ENEMY_FRONT_REACH, 0 }
+    { ENEMY_ANIM_PUNCH_FRONT, 30, 12, 22, ENEMY_FRONT_REACH, 0, PSEQ(purpleSeqFront) }
 };
 
 // ---------------------------------------------------------------------------
@@ -218,28 +244,44 @@ static const ComboStep purpleComboFront[] = {
 // pega desde lejos y se recompone.
 static const ComboStep whiteComboFront[] = {
     { WHITE_ANIM_SLASH_LONG, WHITE_SLASH_TIME,
-      WHITE_LONG_HIT_START, WHITE_LONG_HIT_END, WHITE_SLASH_LONG_REACH, 0 }
+      WHITE_LONG_HIT_START, WHITE_LONG_HIT_END, WHITE_SLASH_LONG_REACH, 0, NULL, 0 }
 };
 // PUNCH = pegado al jugador: los dos cortes medios encadenados (4 y despues 5),
 // que es como se ve en el arcade cuando te tiene encima.
 static const ComboStep whiteComboPunch[] = {
     { WHITE_ANIM_SLASH_MID,  WHITE_SLASH_TIME,
-      WHITE_MID_HIT_START, WHITE_MID_HIT_END, WHITE_SLASH_MID_REACH,  0 },
+      WHITE_MID_HIT_START, WHITE_MID_HIT_END, WHITE_SLASH_MID_REACH,  0, NULL, 0 },
     { WHITE_ANIM_SLASH_MID2, WHITE_SLASH_TIME,
-      WHITE_MID_HIT_START, WHITE_MID_HIT_END, WHITE_SLASH_MID2_REACH, 0 }
+      WHITE_MID_HIT_START, WHITE_MID_HIT_END, WHITE_SLASH_MID2_REACH, 0, NULL, 0 }
 };
 
 // ---------------------------------------------------------------------------
 // GOLPES DE LOS FOOT SOLDIERS CON ARMA (06/10): un solo paso cada uno.
 // ---------------------------------------------------------------------------
 static const ComboStep gunComboButt[] = {
-    { GUN_ANIM_BUTT, GUN_BUTT_TIME, GUN_BUTT_HIT_START, GUN_BUTT_HIT_END, GUN_BUTT_REACH, 0 }
+    { GUN_ANIM_BUTT, GUN_BUTT_TIME, GUN_BUTT_HIT_START, GUN_BUTT_HIT_END, GUN_BUTT_REACH, 0, NULL, 0 }
 };
 static const ComboStep hammerComboSwing[] = {
-    { HAMMER_ANIM_SWING, HAMMER_SWING_TIME, HAMMER_HIT_START, HAMMER_HIT_END, HAMMER_REACH, 0 }
+    { HAMMER_ANIM_SWING, HAMMER_SWING_TIME, HAMMER_HIT_START, HAMMER_HIT_END, HAMMER_REACH, 0, NULL, 0 }
 };
 static const ComboStep spearComboThrust[] = {
-    { SPEAR_ANIM_THRUST, SPEAR_THRUST_TIME, SPEAR_HIT_START, SPEAR_HIT_END, SPEAR_REACH, 0 }
+    { SPEAR_ANIM_THRUST, SPEAR_THRUST_TIME, SPEAR_HIT_START, SPEAR_HIT_END, SPEAR_REACH, 0, NULL, 0 }
+};
+
+// (10/10) Blanco del CUCHILLO: frames a mano medidos en el video del arcade
+// (ver KNIFE_* en enemy.h). Cada ataque es un paso solo.
+static const AtkFrame knifeSeqThrow[] = { {0, 4, 0}, {1, 10, 0}, {0, 4, 0}, {2, 4, 0},
+                                          {3, 5, 0}, {4, 4, 0} };
+static const AtkFrame knifeSeqStab[]  = { {0, 5, 0}, {1, 6, 0}, {2, 12, 0}, {0, 6, 0} };
+static const AtkFrame knifeSeqKick[]  = { {0, 8, 0}, {1, 6, 16}, {2, 6, 16}, {1, 4, 0} };
+static const ComboStep knifeComboThrow[] = {
+    { KNIFE_ANIM_THROW, 31, 0, 0, 0, 0, PSEQ(knifeSeqThrow) }
+};
+static const ComboStep knifeComboStab[] = {
+    { KNIFE_ANIM_STAB, 29, 6, 17, KNIFE_STAB_REACH, 0, PSEQ(knifeSeqStab) }
+};
+static const ComboStep knifeComboKick[] = {
+    { KNIFE_ANIM_KICK, 24, 4, 9, KNIFE_KICK_REACH, 0, PSEQ(knifeSeqKick) }
 };
 
 static bool enemyHasWeapon(u8 type) {
@@ -255,6 +297,10 @@ static const ComboStep* comboStepsFor(u8 type, u8 attackType) {
     if (type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    return gunComboButt;
     if (type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) return hammerComboSwing;
     if (type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)  return spearComboThrust;
+    if (type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) {
+        if (attackType == ENEMY_ATTACK_KNIFE_THROW) return knifeComboThrow;
+        return (attackType == ENEMY_ATTACK_KICK) ? knifeComboKick : knifeComboStab;
+    }
     if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
         return (attackType == ENEMY_ATTACK_PUNCH) ? whiteComboPunch
                                                   : whiteComboFront;
@@ -267,7 +313,7 @@ static const ComboStep* comboStepsFor(u8 type, u8 attackType) {
 }
 
 static u8 comboLengthFor(u8 type, u8 attackType) {
-    if (enemyHasWeapon(type)) return 1;
+    if (enemyHasWeapon(type) || type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) return 1;
     if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
         // El salto va por fuera del motor de combos (necesita el arco en Z).
         if (attackType == ENEMY_ATTACK_JUMP) return 0;
@@ -393,7 +439,8 @@ static bool attackIsRanged(u8 attackType) {
            attackType == ENEMY_ATTACK_CATCH ||
            attackType == ENEMY_ATTACK_GUN ||
            attackType == ENEMY_ATTACK_TAUNT ||
-           attackType == ENEMY_ATTACK_SPEAR_THROW;
+           attackType == ENEMY_ATTACK_SPEAR_THROW ||
+           attackType == ENEMY_ATTACK_KNIFE_THROW;
 }
 
 static void leaveAttackState(Enemy* e) {
@@ -493,6 +540,30 @@ void enemySpearSpawn(s16 cx, s16 lane, s8 dir) {
     }
 }
 
+// (10/10) Cuchillo del blanco: 'cx' es el centro (mundo), recto a la altura
+// de la mano. Se rompe contra un golpe de la tortuga (pedazos).
+static void enemyKnifeSpawn(s16 cx, s16 lane, s8 dir, u8 palette) {
+    s16 i = shotSlot();
+    if (i < 0) return;
+    shurikens[i].x = cx;
+    shurikens[i].y = lane;
+    shurikens[i].dir = dir;
+    shurikens[i].cameraOffsetX = 0;
+    shurikens[i].active = 1;
+    shurikens[i].kind = SHOT_KNIFE;
+    shurikens[i].spark = 0;
+    shurikens[i].acc = 0;
+    shurikens[i].zq = (s16)(KNIFE_PROJ_Z << 8);
+    shurikens[i].sprite = SPR_addSprite(&knife_proj, -64, -32,
+                                        TILE_ATTR(palette, FALSE, FALSE, FALSE));
+    if (shurikens[i].sprite) {
+        SPR_setAutoAnimation(shurikens[i].sprite, FALSE);
+        SPR_setDepth(shurikens[i].sprite, -(lane) - 1);
+        SPR_setHFlip(shurikens[i].sprite, (dir < 0));
+        SPR_setFrame(shurikens[i].sprite, 0);
+    }
+}
+
 void shurikenUpdate(s16 camX) {
     for (u16 i = 0; i < MAX_SHURIKENS; i++) {
         Shuriken* s = &shurikens[i];
@@ -518,6 +589,20 @@ void shurikenUpdate(s16 camX) {
             if (s->sprite)
                 SPR_setPosition(s->sprite, s->x - camX - 8,
                                 s->y - (s->zq >> 8) - 12 - stageCamY);
+            continue;
+        }
+        if (s->kind == SHOT_KNIFE) {
+            if (s->spark) {                     // roto: pedazos quietos
+                if (--s->spark == 0) { shotFree(i); continue; }
+            } else {
+                u16 t = (u16)(s->acc + KNIFE_PROJ_Q);
+                s->acc = (u8)(t & 0xFF);
+                s->x += s->dir * (s16)(t >> 8);
+            }
+            if (s->x < camX - KNIFE_PROJ_W || s->x > camX + 320 + KNIFE_PROJ_W) { shotFree(i); continue; }
+            if (s->sprite)
+                SPR_setPosition(s->sprite, s->x - camX - KNIFE_PROJ_W / 2,
+                                s->y - KNIFE_PROJ_Z - 12 - stageCamY);
             continue;
         }
         if (s->kind == SHOT_SPEAR) {
@@ -561,7 +646,7 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
         if (s->kind != SHOT_SHURIKEN) {
             // Bala (en vuelo) y lanza: el centro contra el de la tortuga y la
             // lane de -5 a +7 respecto de la del que tiro.
-            if (s->kind == SHOT_BULLET && s->spark) continue;
+            if ((s->kind == SHOT_BULLET || s->kind == SHOT_KNIFE) && s->spark) continue;
             s16 dy = pcy - s->y;
             s16 reachX = (s->kind == SHOT_SPEAR) ? 24 : 12;
             if (absS16(pcx - s->x) < reachX &&
@@ -601,11 +686,18 @@ bool shurikenBreakByPlayerAttack(const Player* p) {
     bool broke = FALSE;
     for (u16 i = 0; i < MAX_SHURIKENS; i++) {
         if (!shurikens[i].active || shurikens[i].kind == SHOT_BULLET) continue;
+        if (shurikens[i].kind == SHOT_KNIFE && shurikens[i].spark) continue;
         s16 scx = (shurikens[i].kind == SHOT_SPEAR) ? shurikens[i].x
                                                      : shurikens[i].x + 8;
         s16 scy = shurikens[i].y;       // lane (pies) del lanzador = la del shuriken
         if (playerAttackHits(p, scx, scy)) {
-            shotFree(i);
+            if (shurikens[i].kind == SHOT_KNIFE) {
+                // (10/10) El cuchillo se parte: quedan los pedazos un rato.
+                shurikens[i].spark = KNIFE_SPARK_TIME;
+                if (shurikens[i].sprite) SPR_setFrame(shurikens[i].sprite, 2);
+            } else {
+                shotFree(i);
+            }
             broke = TRUE;
         }
     }
@@ -1150,6 +1242,7 @@ const SpriteDefinition* enemySheetDef(u8 type) {
     switch (type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return &foot_soldier_orange;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return &foot_soldier_white;
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return &foot_soldier_knife;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return &foot_soldier_yellow;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return &foot_gun;
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return &foot_hammer;
@@ -1161,7 +1254,8 @@ const SpriteDefinition* enemySheetDef(u8 type) {
 s16 enemySpriteW(u8 type) {
     switch (type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_SPRITE_W_ORANGE;
-        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_SPRITE_W_WHITE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return ENEMY_SPRITE_W_WHITE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_SPRITE_W_YELLOW;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return ENEMY_SPRITE_W_GUN;
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return ENEMY_SPRITE_W_HAMMER;
@@ -1188,6 +1282,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->timer       = 0;
     e->hp          = (type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) ? ENEMY_HP_ORANGE
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE)  ? ENEMY_HP_WHITE
+                   : (type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE)  ? ENEMY_HP_WHITE
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) ? ENEMY_HP_YELLOW
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_GUN)    ? ENEMY_HP_GUN
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER) ? ENEMY_HP_HAMMER
@@ -1235,7 +1330,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
         e->w          = ENEMY_SPRITE_W_ORANGE;
         e->h          = ENEMY_SPRITE_H_ORANGE;
         e->footOffset = ENEMY_FOOT_OFFSET_ORANGE;
-    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+    } else if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE ||
+               type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) {
         e->w          = ENEMY_SPRITE_W_WHITE;
         e->h          = ENEMY_SPRITE_H_WHITE;
         e->footOffset = ENEMY_FOOT_OFFSET_WHITE;
@@ -1284,7 +1380,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     // (06/10) Los de arma tampoco: misma paleta unica (PAL2).
     const SpriteDefinition* palDef =
         (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW || enemyHasWeapon(type))
-        ? &foot_soldier : sheetDef;
+        ? &foot_soldier
+        : (type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? &foot_soldier_white : sheetDef;
     PAL_setPalette(palette, palDef->palette->data, DMA);
 
     if (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
@@ -1548,7 +1645,8 @@ s16 getEnemyCenterY(const Enemy* e) {
 s16 enemyBodyHalfW(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_HALF_W_ORANGE;
-        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_HALF_W_WHITE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return ENEMY_BODY_HALF_W_WHITE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_BODY_HALF_W_YELLOW;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
@@ -1676,6 +1774,7 @@ static bool playerAttackHitsEnemyBox(const Player* p, const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE:
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW:
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
@@ -1694,7 +1793,8 @@ static bool playerAttackHitsEnemyBox(const Player* p, const Enemy* e) {
 s16 enemyBodyH(const Enemy* e) {
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ENEMY_BODY_H_ORANGE;
-        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return ENEMY_BODY_H_WHITE;
+        case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
+        case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return ENEMY_BODY_H_WHITE;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return ENEMY_BODY_H_YELLOW;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return ENEMY_BODY_H_GUN;
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
@@ -1949,9 +2049,10 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             if (e->type == ENEMY_TYPE_FOOT_SOLDIER) {
                 Player* gp = targetP;
                 bool flanking = (e->flankTimer < MORADO_FLANK_TIMEOUT);
-                bool onBack   = (((s32)(e->x - targetX)) * targetDir) < 0;
+                bool onBack   = (((s32)(getEnemyCenterX(e) - (targetX + PLAYER_SPRITE_W / 2))) * targetDir) < 0;
                 if (flanking && onBack && !playerIsGrabbed(gp) &&
-                    dist < ENEMY_GRAB_RANGE && absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
+                    absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - getEnemyCenterX(e))) < ENEMY_GRAB_RANGE &&
+                    absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
                     e->attackCooldown == 0 && enemiesAttacking < ENEMY_MAX_ATTACKERS &&
                     (random() & 3) == 0) {
                     newState = ENEMY_STATE_GRAB;
@@ -2034,6 +2135,27 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                         wantAttack = TRUE;
                     }
                 }
+            } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) {
+                // --- (10/10) Blanco del CUCHILLO (arcade, 1-1) ---
+                // Pegado: punalada o patada. De lejos y alineado: tira el
+                // cuchillo (no siempre: se queda en guardia un rato).
+                s16  ecx      = getEnemyCenterX(e);
+                s16  cdist    = absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - ecx));
+                s16  screenX  = ecx - e->cameraOffsetX;
+                bool onScreen = (screenX > 16) && (screenX < ENEMY_SCREEN_W - 16);
+                if (e->attackCooldown == 0) {
+                    if (cdist <= KNIFE_CLOSE && absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
+                        enemiesAttacking < ENEMY_MAX_ATTACKERS) {
+                        e->attackType = (random() & 1) ? ENEMY_ATTACK_FRONT
+                                                       : ENEMY_ATTACK_KICK;
+                        wantAttack = TRUE;
+                    } else if (onScreen && absS16(dy) <= KNIFE_ALIGN_Y &&
+                               cdist >= KNIFE_THROW_MIN && cdist <= KNIFE_THROW_MAX &&
+                               (random() & 15) == 0) {
+                        e->attackType = ENEMY_ATTACK_KNIFE_THROW;
+                        wantAttack = TRUE;
+                    }
+                }
             } else if (enemyHasWeapon(e->type)) {
                 // --- Con ARMA (06/10): encaran de frente, sin flanquear ---
                 // Distancias de CENTRO a centro (las celdas son de otro ancho
@@ -2079,16 +2201,23 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             } else {
                 // Morado (y cualquier otro melee): ataca si está en rango y —
                 // mientras dure el flanqueo— sólo desde la espalda del jugador.
+                // (10/10) Como en el arcade: PEGADO (centro a centro) suelta
+                // la cadena de uppercuts (o un directo suelto); a MEDIA
+                // distancia y alineado, de frente, la patada voladora.
                 bool flanking = (e->flankTimer < MORADO_FLANK_TIMEOUT);
-                bool onBack   = (((s32)(e->x - targetX)) * targetDir) < 0;
-                if (dist < ENEMY_ATTACK_RANGE && absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
-                    e->attackCooldown == 0 && enemiesAttacking < ENEMY_MAX_ATTACKERS &&
-                    (!flanking || onBack)) {
-                    if (dist < ENEMY_UPPERCUT_RANGE)
-                        e->attackType = ENEMY_ATTACK_PUNCH;      // uppercut pegado
-                    else
-                        e->attackType = (random() & 1) ? ENEMY_ATTACK_KICK
-                                                       : ENEMY_ATTACK_FRONT;
+                bool onBack   = (((s32)(getEnemyCenterX(e) - (targetX + PLAYER_SPRITE_W / 2))) * targetDir) < 0;
+                s16  cdist    = absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - getEnemyCenterX(e)));
+                bool canAtk   = (e->attackCooldown == 0 &&
+                                 enemiesAttacking < ENEMY_MAX_ATTACKERS);
+                if (canAtk && cdist <= MORADO_CLOSE_RANGE &&
+                    absS16(dy) <= ENEMY_ATTACK_TOL_Y && (!flanking || onBack)) {
+                    e->attackType = ((random() & 3) == 0) ? ENEMY_ATTACK_FRONT
+                                                          : ENEMY_ATTACK_PUNCH;
+                    wantAttack = TRUE;
+                } else if (canAtk && cdist >= MORADO_KICK_MIN && cdist <= MORADO_KICK_MAX &&
+                           absS16(dy) <= MORADO_KICK_TOL_Y &&
+                           (random() & MORADO_KICK_CHANCE) == 0) {
+                    e->attackType = ENEMY_ATTACK_KICK;
                     wantAttack = TRUE;
                 }
             }
@@ -2107,9 +2236,11 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 // pasos; el naranja deja comboLen en 0 (ataque simple).
                 e->comboLen   = (e->type == ENEMY_TYPE_FOOT_SOLDIER ||
                                  e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE ||
+                                 e->type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE ||
                                  (enemyHasWeapon(e->type) && !attackIsRanged(e->attackType)))
                                 ? comboLengthFor(e->type, e->attackType) : 0;
                 e->comboStep  = 0;
+                e->atkAcc     = 0;
                 e->timer      = enemyAttackTime(e);
                 break;
             }
@@ -2164,6 +2295,29 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 } else if (dist > WHITE_SLASH_LONG_REACH) {
                     moveX = (dx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
                 }
+            } else if (e->type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) {
+                // (10/10) Blanco del CUCHILLO: se planta en guardia a
+                // KNIFE_STANDOFF; despues de KNIFE_GUARD_T cuadros quieto se
+                // mete a pegar. En el cooldown retrocede de espaldas (camina
+                // hacia atras mirando a la tortuga), como en el arcade.
+                s16  ecx      = getEnemyCenterX(e);
+                s16  cdx      = (s16)(targetX + PLAYER_SPRITE_W / 2 - ecx);
+                s16  cdist    = absS16(cdx);
+                s16  screenX  = ecx - e->cameraOffsetX;
+                bool onScreen = (screenX > 16) && (screenX < ENEMY_SCREEN_W - 16);
+                bool goIn     = (e->flankTimer >= KNIFE_GUARD_T);
+                s16  goal     = goIn ? (s16)(KNIFE_CLOSE - 8) : KNIFE_STANDOFF;
+                s8   back     = (cdx > 0) ? -1 : 1;
+                if (!onScreen) {
+                    moveX = (cdx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
+                } else if ((e->attackCooldown > 0 && cdist < KNIFE_STANDOFF - 8) ||
+                           (!goIn && cdist < KNIFE_STANDOFF - 16)) {
+                    s16 nx = (s16)(screenX + back);
+                    if (nx > 16 && nx < ENEMY_SCREEN_W - 16) moveX = back;
+                } else if (cdist > goal + 4) {
+                    moveX = (cdx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
+                }
+                if (moveX == 0 && e->flankTimer < 255) e->flankTimer++;
             } else if (enemyHasWeapon(e->type)) {
                 // Con ARMA (06/10): derecho hacia la tortuga hasta su distancia
                 // de ataque; en el cooldown, si quedo encima, retrocede un poco
@@ -2190,12 +2344,19 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 // Morado: apunta a un punto DETRÁS del jugador (espalda = lado
                 // opuesto a su mirada). Si ya agotó el flanqueo, va directo.
                 // Durante el cooldown retrocede para no quedar pegado.
+                // (10/10) Todo de CENTRO a centro: con los bordes izquierdos
+                // (frames de 104 y 64) la espalda quedaba a 40 px de un lado y
+                // a 0 del otro.
                 bool flanking = (e->flankTimer < MORADO_FLANK_TIMEOUT);
-                s16  goalX    = flanking ? (targetX - targetDir * MORADO_BACK_STANDOFF)
-                                         : targetX;
+                s16  pcx      = (s16)(targetX + PLAYER_SPRITE_W / 2);
+                s16  ecx      = getEnemyCenterX(e);
+                s16  cdx      = (s16)(pcx - ecx);
+                s16  cdist    = absS16(cdx);
+                s8   side     = flanking ? targetDir : ((cdx > 0) ? 1 : -1);
+                s16  goalX    = (s16)(pcx - side * MORADO_BACK_STANDOFF - e->w / 2);
                 s16  gdx      = goalX - e->x;
-                if (e->attackCooldown > 0 && dist < ENEMY_HOLD_RANGE) {
-                    if (dist < ENEMY_HOLD_RANGE - 8)
+                if (e->attackCooldown > 0 && cdist < ENEMY_HOLD_RANGE) {
+                    if (cdist < ENEMY_HOLD_RANGE - 8)
                         moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;
                 } else if (absS16(gdx) > MORADO_GOAL_TOL) {
                     moveX = (gdx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
@@ -2292,6 +2453,44 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                     if (step->lunge > 0 && e->timer > (step->time - step->lunge)) {
                         e->x += e->dir * ENEMY_KICK_SPEED;
                         e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
+                    }
+                    // (10/10) Frames a mano (arcade): frame y avance de cada tramo.
+                    if (step->fseq) {
+                        u16 el = (u16)(step->time - 1 - e->timer);
+                        const AtkFrame* f = step->fseq;
+                        for (u8 k = 1; k < step->nseq && el >= f->dur; k++) {
+                            el = (u16)(el - f->dur);
+                            f++;
+                        }
+                        if (!e->manualAnim) {
+                            e->manualAnim = 1;
+                            SPR_setAutoAnimation(e->sprite, FALSE);
+                        }
+                        SPR_setFrame(e->sprite, f->frame);
+                        if (f->spdQ4) {
+                            u16 a = (u16)(e->atkAcc + f->spdQ4);
+                            e->atkAcc = (u8)(a & 15);
+                            e->x = clampS16((s16)(e->x + e->dir * (s16)(a >> 4)),
+                                            enemyMinX(e), enemyMaxX(e));
+                        }
+                    }
+                    // (10/10) El cuchillo sale con el 3er frame del tiro.
+                    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE &&
+                        e->attackType == ENEMY_ATTACK_KNIFE_THROW &&
+                        e->timer == KNIFE_THROW_RELEASE)
+                        enemyKnifeSpawn((s16)(getEnemyCenterX(e) + e->dir * KNIFE_THROW_DX),
+                                        e->y, e->dir, e->palette);
+                    // (10/10) El combo pegado sigue solo si la tortuga quedo
+                    // cerca y alineada, y no siempre (en el arcade sale U, UU
+                    // o UUD).
+                    if (e->timer == 0 && e->type == ENEMY_TYPE_FOOT_SOLDIER &&
+                        e->comboStep + 1 < e->comboLen) {
+                        s16 cd = absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - getEnemyCenterX(e)));
+                        if (cd > MORADO_COMBO_GO_ON || absS16(dy) > ENEMY_ATTACK_TOL_Y ||
+                            (random() & 3) == 0)
+                            e->comboLen = (u8)(e->comboStep + 1);
+                        else if (dx != 0)
+                            e->dir = (dx > 0) ? 1 : -1;
                     }
                     if (e->timer == 0) {
                         if (e->comboStep + 1 < e->comboLen) {

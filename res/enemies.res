@@ -91,6 +91,22 @@ SPRITE foot_soldier_orange "sprites/Foot_Soldier_Orange_new.png" 13 13 FAST 8
 // actualiza el sheet, hay que volver a correr el generador.
 SPRITE foot_soldier_white "sprites/foot_soldier_white_gen.png" 13 13 FAST 8
 
+// (10/10) Foot Soldier BLANCO DEL CUCHILLO. El rip (foot_soldier_white_sword.png)
+// trae debajo de la espada las poses del cuchillo SUELTAS (sin grilla);
+// tools/gen_foot_knife.py las recorta, las ordena en animaciones y las pega en
+// la MISMA grilla que la espada (104x104, pies en la fila 103), asi que usa
+// las medidas de frame del blanco y su paleta (PAL3, sin PALETTE propia).
+// Animaciones (filas): [0] quieto/guardia (1f) | [1] camina (8f) |
+// [2] camina arriba/abajo (8f) | [3] tira el cuchillo (5f, a mano) |
+// [4] punalada (3f, a mano) | [5] patada (3f, a mano) | [6] golpe (2f) |
+// [7] muerte (la de la espada, 4f). time 5: el caminar del arcade va a 4-6
+// cuadros por pose.
+SPRITE foot_soldier_knife "sprites/foot_soldier_knife_gen.png" 13 13 FAST 5
+
+// (10/10) Cuchillo tirado por el blanco del cuchillo: 3 frames de 40x24
+// (5x3 tiles), sin auto-animacion: [0] en vuelo, [1] chispazo, [2] pedazos.
+SPRITE knife_proj "sprites/knife_proj_gen.png" 5 3 FAST 0
+
 // Shuriken: proyectil del foot soldier naranja. 16x16px = 2x2 tiles.
 // Misma paleta que el naranja (PAL3). Se crea/destruye en runtime.
 // (27/09) TRES frames que giran en loop (time 4 = 15 fps): la tira

@@ -93,36 +93,59 @@
 #define ROCKSTEADY_BODY_H       70
 
 // --- Duraciones de cada estado (frames) ---
-#define RS_IDLE_T          108
+// (10/10) MEDIDAS en el video del arcade (gameplayARCADE/tmnt.avi, pelea del
+// 1-2 cuadro a cuadro). Antes eran las del remaster de PC.
+#define RS_IDLE_T           45    // quieto entre accion y accion (43..49)
 #define RS_WALK_T          144
-#define RS_WINDUP_T         40
-#define RS_CHARGE_T        135
-#define RS_KICK_F0           2    // patada: frame 0 (sin dano)
-#define RS_KICK_T           19    // ... y el frame 1 hasta 19 (pega)
-#define RS_HURT_F           10    // golpeado: 2 frames de 10
-#define RS_HURT_T           20
-#define RS_KD_SLIDE_T       12    // caida: frame [2] deslizando
-#define RS_KD_T             60    // ... y el [3] en el piso hasta 60
-#define RS_GETUP_F           7    // se levanta: [4] 7 frames, [5] 8
-#define RS_GETUP_T          15
-#define RS_DRAW_T           30
+#define RS_WINDUP_T         32    // amague: 2 vueltas de los 4 frames a 4
+#define RS_CHARGE_T         90    // tope: la corrida termina en el borde (~45)
+#define RS_KICK_F0           3    // patada: frame 0 (3) ...
+#define RS_KICK_T           17    // ... y el frame 1 hasta 17 (pega)
+#define RS_KICK_F0_ARMS      8    // patada con el arma: 8 + 10
+#define RS_KICK_T_ARMS      18
+#define RS_HURT_F            8    // golpeado: 8 + 9
+#define RS_HURT_T           17
+#define RS_KD_SLIDE_T       18    // caida: frame [2] deslizando a 3,4 px/f
+#define RS_KD_SLOW_T        25    // ... el [3] frena 7 frames mas
+#define RS_KD_T             54    // ... y queda en el piso hasta 54
+#define RS_GETUP_F           6    // se levanta: [4] 6 frames, [5] 7
+#define RS_GETUP_T          13
+#define RS_KDA_SLIDE_T      17    // caida CON el arma (anim [10]): [3] desliza
+#define RS_KDA_T            53    // [4] en el piso
+#define RS_KDA_GETUP_F       5    // [5] 5 frames y [6] 8
+#define RS_KDA_GETUP_T      13
+#define RS_DRAW_F            8    // saca el arma: 4 frames de 8
+#define RS_DRAW_T           32
+#define RS_HOLSTER_T        32    // la guarda: los mismos 4 al reves
 #define RS_ARMS_T          103    // caminar con el arma
-#define RS_ARMS_FAST_T     102    // caminata rapida despues de 2 balas que pegaron
-#define RS_SHOOT_LOOP_T     45    // disparo: 2 vueltas de 45, una bala por vuelta
+#define RS_ARMS_FAST_T     102
+// DISPARO: rondas de 3 tiros, uno cada 8 frames (4 con fogonazo, 4 sin), y
+// entre ronda y ronda se da vuelta: tira a los dos lados. Rafaga recta:
+// adelante, atras, adelante (3-5 rondas). Frenesi: 2 rondas en diagonal hacia
+// atras, 1 en diagonal hacia adelante y 1 recta.
+#define RS_SHOT_PERIOD       8
+#define RS_SHOTS_ROUND       3
+#define RS_ROUND_T          (RS_SHOT_PERIOD * RS_SHOTS_ROUND)
+#define RS_BURSTS_MIN        4    // rafagas antes de guardar el arma (4..6)
+// (viejos, sin uso)
+#define RS_SHOOT_LOOP_T     45
 #define RS_SHOOT_T          90
 #define RS_FRENZY_T        134
 
 // --- Velocidades (Q8: 256 = 1 px por frame) ---
-#define RS_WALK_Q          480    // 1,875 px/f caminando / persiguiendo
-#define RS_AWAY_Q          427    // 1,67 px/f alejandose con el arma
-#define RS_CHARGE_Q       1280    // 5 px/f la embestida
-#define RS_SLIDE_Q         853    // 3,33 px/f deslizando al caer
-#define RS_SHOOT_Q          96    // 0,375 px/f avanzando mientras dispara
+#define RS_WALK_Q          340    // 1,33 px/f caminando / persiguiendo
+#define RS_ARMS_Q          144    // 0,56 px/f con el arma
+#define RS_AIM_Q           190    // 0,74 px/f apuntando (se alinea)
+#define RS_AWAY_Q          144    // alejandose con el arma
+#define RS_CHARGE_Q        870    // 3,4 px/f la embestida
+#define RS_SLIDE_Q         870    // 3,4 px/f deslizando al caer
+#define RS_SLOW_Q          590    // 2,3 px/f frenando
+#define RS_SHOOT_Q           0    // disparando no se mueve
 
 // --- Distancias (centro a centro) ---
 #define RS_ALIGN_DY          2    // "alineado": misma lane (+-2 px) ...
-#define RS_ALIGN_DX         37    // ... y a esta distancia o menos
-#define RS_NEAR_DX          31    // persiguiendo se acerca hasta aca
+#define RS_ALIGN_DX         28   // (10/10) patea a 7..27 px    // ... y a esta distancia o menos
+#define RS_NEAR_DX          20    // persiguiendo se acerca hasta aca
 #define RS_FACE_DEADZONE    12    // quieto: no se da vuelta por menos que esto
 #define RS_AIM_DY            1    // apuntando: lane exacta (+-1 px)
 
@@ -147,9 +170,9 @@
 #define ROCKSTEADY_CHARGE_HIT_CD_SP  40
 
 // --- Balas ---
-#define MAX_ROCKSTEADY_BULLETS   6
-#define ROCKSTEADY_BULLET_Q    960    // 3,75 px/f la recta
-#define ROCKSTEADY_BULLET_DQ   679    // 2,65 px/f en X y en altura (diagonal 45)
+#define MAX_ROCKSTEADY_BULLETS   8
+#define ROCKSTEADY_BULLET_Q   1536    // (10/10) 6 px/f la recta (arcade)
+#define ROCKSTEADY_BULLET_DQ  1100    // 4,3 px/f en X y en altura (diagonal 45)
 #define ROCKSTEADY_BULLET_DMG    1
 // Anim [9] (8 frames): [0][1] horizontal con fogonazo, [2][3] arma
 // retrocedida, [4][5] arma arriba sin fogonazo, [6][7] arriba con fogonazo.
@@ -189,6 +212,7 @@ typedef enum {
     ROCKSTEADY_KNOCKDOWN,   // Cae y queda en el piso
     ROCKSTEADY_GETUP,       // Se levanta
     ROCKSTEADY_DRAW,        // Saca el arma
+    ROCKSTEADY_HOLSTER,     // (10/10) La guarda
     ROCKSTEADY_WALK_ARMS,   // Camina con el arma (persigue / apunta / se aleja)
     ROCKSTEADY_SHOOT,       // Dos tiros rectos
     ROCKSTEADY_FRENZY,      // Frenesi: cuatro tiros a los dos lados
@@ -220,6 +244,10 @@ typedef struct {
     u8          accX, accY;  // restos Q8 del movimiento
     s8          slideDir;    // hacia donde desliza al caer
     u8          chargeHitCD; // intocable tras un golpe en la embestida
+    u8          bursts;      // (10/10) rafagas desde que saco el arma
+    u8          rounds;      // rondas de la rafaga en curso
+    u8          frenzy;      // 1 = la rafaga es el frenesi
+    s8          aimDir;      // hacia donde tiraba al arrancar la rafaga
 } Rocksteady;
 
 // (01/10) ARENA: lo que depende del escenario. rocksteadySpawn usa la del
