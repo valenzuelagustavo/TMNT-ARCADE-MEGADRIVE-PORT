@@ -74,6 +74,10 @@ XGM2 music_boss      "music/06 - Fight! (Boss Theme).vgm"
 // listo para usar; todavia no esta enganchado a ninguna escena.
 XGM2 music_scene_clear "music/09 - Scene Clear Theme 1.vgm"
 
+// (14/10) Jingle del logo animado de KONAMI (2,5 s, SIN punto de loop: va con
+// XGM2_setLoopNumber(0) antes del play). Lo toca src/konami_logo.c.
+XGM2 music_konami "music/17 - Konami Logo.vgm"
+
 // --- Efectos de Sonido ---
 XGM2 golpe         "golpe.vgm"
 

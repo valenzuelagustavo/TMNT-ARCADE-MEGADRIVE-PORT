@@ -13,6 +13,7 @@
 //      quedar quieto y despues KONAMI pasa a plateado con su propio giro.
 //   4. El fondo pasa de negro a gris claro, queda un rato y todo se funde a
 //      negro.
+// Con su jingle ("17 - Konami Logo.vgm", ver KL_VOL_MUSIC).
 //
 // Pantalla H32 (256 px, el ancho de las capturas). Planos:
 //   BG_A  la pieza de arriba (PAL1)
@@ -32,6 +33,7 @@
 #include "scenes.h"
 #include "intro.h"
 #include "konami_logo_pal.h"
+#include "audio.h"   // music_konami
 
 #define KL_HIDE_V          256   // scroll vertical que muestra la parte vacia
 #define KL_SCREEN_H        224
@@ -55,6 +57,12 @@
 #define KL_BG_MAX            6   // hasta 0xCCC: el gris de las capturas (224)
 #define KL_T_HOLD          120   // logo terminado
 #define KL_T_FADE           24
+
+// Musica (14/10): "17 - Konami Logo.vgm", 2,5 s sin loop. Arranca cuando
+// aparece la linea gruesa: el arpegio acompana la bajada y el acorde final
+// (a los ~1,6 s) cae cuando la linea descubre KONAMI; la cola suena mientras
+// el logo se pinta.
+#define KL_VOL_MUSIC        90
 
 #define KL_BAND_SPRITES      8   // 8 x 32 px = toda la pantalla
 #define KL_TRAIL_SPRITES     8
@@ -186,6 +194,10 @@ SceneId showKonamiIntro(void) {
         if (trail[i]) SPR_setVisibility(trail[i], HIDDEN);
 
     // --- 2. La linea gruesa baja y descubre el logo azul ---
+    if (!skip) {
+        XGM2_setLoopNumber(0);            // SIEMPRE antes del play: suena una vez
+        playMusicVol(music_konami, KL_VOL_MUSIC);
+    }
     s16 by = KL_BAND_Y0;
     for (u16 i = 0; i < KL_BAND_SPRITES; i++)
         if (band[i]) SPR_setVisibility(band[i], VISIBLE);
@@ -258,6 +270,7 @@ SceneId showKonamiIntro(void) {
     PAL_fadeOutAll(skip ? 10 : KL_T_FADE, FALSE);
     while (JOY_readJoypad(JOY_1) & BUTTON_START) SYS_doVBlankProcess();
 
+    XGM2_setLoopNumber(-1);               // las demas musicas repiten
     SYS_setVIntCallback(NULL);
     VDP_setHInterrupt(FALSE);
     SYS_setHIntCallback(NULL);
