@@ -87,7 +87,8 @@ SPRITE hud_4p "images/hud/hud_4p.png" 9 4 NONE 0
 SPRITE hud4_outline "images/hud/hud4_outline.png" 9 4 NONE 0 NONE TILE MAX
 SPRITE hud4_label   "images/hud/hud4_label.png"   3 2 NONE 0
 
-// (09/10) "PUSH START" del marco vacio del P2 (en 1 jugador), con las letras
+// (09/10) "PRESS START" (14/10; antes "PUSH START") del marco vacio del P2
+// (en 1 jugador), con las letras
 // del "INSERT COIN(S)" del HUD del arcade (tools/gen_push_start.py). Una
 // animacion de 2 frames de 72x16: letras verdes / blancas, que se alternan
 // solas cada 32 frames (~0,5 s). Paleta de las tortugas (PAL1).
