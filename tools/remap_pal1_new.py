@@ -11,10 +11,14 @@
 #   - HUD (marcos, carteles, digitos, retrato): la parte de Don, 15 -> 12.
 #   - HURRY: la flecha violeta, 15 -> 11 (la lila ya pasa al 12).
 #   - Hoja vieja de Raph (modo de 4): el panuelo usaba el 15, 15 -> 14 (rojo).
+#   - (14/10) Hoja vieja de Mike: los violetas de los efectos, 15 -> 12.
 # Correrlo una sola vez: si se vuelve a correr, el 15 ya no esta y no cambia
-# nada.
+# nada. OJO: los HUD se regeneraron despues (gen_hud_select.py) y ahi el 15 ya
+# es el naranja de Mike. Para sumar una hoja, pasarla como argumento:
+#   python3 tools/remap_pal1_new.py sprites/mike_anim_13x13.png
 # =============================================================================
 import os
+import sys
 import numpy as np
 from PIL import Image
 
@@ -33,12 +37,22 @@ JOBS = [
     ('images/hud/frames_hud.png',          (64, 96, 0, 32),   15, 12),
     ('sprites/hurry_sheet.png',            None,              15, 11),
     ('sprites/raph_anim_13x13.png',        None,              15, 14),
+    # (14/10) Mike se puede elegir otra vez. Su hoja vieja usa el 15 (violeta
+    # en la paleta vieja) en el soldier que lo agarra, el latigo y las
+    # estrellas del KO: pasa al violeta nuevo (12). Su panuelo queda en el 7,
+    # el mismo amarillo con el que siempre se vio en el juego.
+    ('sprites/mike_anim_13x13.png',        None,              15, 12),
 ]
 
 
 def main():
+    # Con argumentos, solo esos archivos (rutas como en JOBS): para sumar una
+    # hoja sin volver a pasar las que ya se convirtieron.
+    only = set(sys.argv[1:])
     pal = Image.open(NEW).getpalette()[:48]
     for fn, box, src, dst in JOBS:
+        if only and fn not in only:
+            continue
         path = os.path.join(RES, fn)
         im = Image.open(path)
         assert im.mode == 'P', fn

@@ -473,11 +473,11 @@ static bool justPressedJoy(u16 joy, u16 prev, u16 button) {
 // Mueve la selección en 'dir' (+1/-1) sin pisar al otro jugador ni salir de
 // rango [0..3]. Si la celda contigua está ocupada por el otro jugador, la
 // saltea. Como hay 4 personajes y 2 jugadores, siempre queda una celda libre.
-// (09/10) Rama de las hojas nuevas: solo Leo (0) y Don (2) se pueden elegir.
-// Mike y Raph siguen con las hojas viejas, pensadas para la paleta anterior de
-// las tortugas (PAL1 ahora es la de las hojas nuevas): quedan fijos en el
-// modo de 4 y no se ofrecen en la seleccion ni en el continue.
-#define CHAR_SELECTABLE(c) ((c) == 0 || (c) == 2)
+// (09/10) Rama de las hojas nuevas: solo Leo (0) y Don (2) se podian elegir.
+// (14/10) Se vuelven a ofrecer Mike y Raph, con sus hojas viejas pasadas a la
+// paleta nueva (tools/remap_pal1_new.py). Juegan con lo que traen esas hojas:
+// combo de 3 golpes, sin la llave ni el giro en el aire (playerHasNewSheet).
+#define CHAR_SELECTABLE(c) ((c) >= 0 && (c) <= 3)
 
 static s8 charMove(s8 self, s8 other, s8 dir) {
     s8 c = self;
