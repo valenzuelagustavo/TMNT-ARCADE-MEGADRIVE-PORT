@@ -9,7 +9,8 @@
 
 // --- Imágenes de fondo (tilemaps) ---
 // (09/10) Fondo de la seleccion de players y de OPCIONES: la pantalla 2 de
-// "intro_tmnt/Arcade - ... -TELA START.png" (paleta nueva) SIN el menu ni el
+// "intro_tmnt/Arcade - ... -TELA START _GENESIS_FINAL.png" (14/10, con
+// "GENESIS" debajo del logo; paleta nueva) SIN el menu ni el
 // cursor (van aparte, abajo). La arma tools/gen_title_screens.py. Reemplaza a title_scene/logo_tmnt.png.
 IMAGE title_menu_bg "/images/intro_tmnt/genesis/title_menu_bg.png" BEST ALL
 // El menu, tal cual el arte (letras del arcade, renglones cada 17 px): el

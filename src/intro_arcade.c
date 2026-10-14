@@ -240,19 +240,23 @@ static const s16 turtleTime[4]  = {  46,  52,  50,  48 };  // duracion del vuelo
 // ---------------------------------------------------------------------------
 // (09/10) Arte nuevo a 320 de ancho (tools/gen_title_screens.py). El celeste
 // es el color 0 de la paleta compartida: el backdrop del VDP.
+// (14/10) Arte con "GENESIS" debajo del logo: el logo es mas alto y se mete
+// en el banner, asi que va desde la fila 4 (BG_A, por encima del banner) y el
+// resto (copyright y Konami) desde la 16.
 #define BANNER_COL            0    // Las tres piezas miden 40 tiles: pantalla completa
-#define BANNER_ROW            0    // el banner cae en y = 13..37
+#define BANNER_ROW            0    // el banner cae en y = 13..43
 // La caida se hace con el scroll vertical de BG_A: con scrollA = S el banner se
-// dibuja en la pantalla a y = 13 - S. Arranca en 42 (todo arriba del borde
-// superior) y termina en 0. No mas de 45: el plano mide 256 px y la copia que
-// da la vuelta (en y = 269 - S) tiene que seguir debajo de la pantalla.
-#define BANNER_FALL_FROM     42
+// dibuja en la pantalla a y = 13 - S. Arranca en 45 (todo arriba del borde
+// superior: el banner llega hasta y = 43) y termina en 0. No mas de 45: el
+// plano mide 256 px y la copia que da la vuelta (en y = 269 - S) tiene que
+// seguir debajo de la pantalla.
+#define BANNER_FALL_FROM     45
 #define BANNER_BOUNCE         5    // Rebote en px al tocar su lugar
 #define BANNER_BOUNCE_TICKS   8    // Duracion del rebote (parte de la caida)
 #define LOGO_COL              0
-#define LOGO_ROW              6    // y = 48 (el logo ocupa y = 49..119)
+#define LOGO_ROW              4    // y = 32: TM, "TURTLES" y "GENESIS" (y = 31..121)
 #define REST_COL              0
-#define REST_ROW              5    // y = 40: TM, Konami y copyright
+#define REST_ROW             16    // y = 128: copyright y Konami
 
 // ===========================================================================
 // Estado interno

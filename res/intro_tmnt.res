@@ -60,7 +60,10 @@ IMAGE  intro_quad    "images/intro_tmnt/genesis/intro_quad_tela.png"    NONE
 // "Arcade - ... -TELA START.png", a 320 de ancho, partida por
 // tools/gen_title_screens.py en el banner (filas de tile 0..4), el logo
 // (6..15, solo los pixeles de "TURTLES") y el resto (desde la fila 5: TM,
-// logo de Konami y el texto de copyright). Comparten paleta; su color 0 es el
+// logo de Konami y el texto de copyright).
+// (14/10) Ahora sale de "... -TELA START _GENESIS_FINAL.png", con "GENESIS"
+// debajo del logo: banner en las filas 0..5, logo con GENESIS y TM en las
+// 4..15 (va en BG_A, por encima del banner) y el resto desde la 16. Comparten paleta; su color 0 es el
 // celeste del fondo. Reemplazan a intro_banner/intro_logo/intro_konami (los
 // PNG viejos quedan en genesis/ sin declarar).
 IMAGE  title_banner  "images/intro_tmnt/genesis/title_banner.png"  NONE

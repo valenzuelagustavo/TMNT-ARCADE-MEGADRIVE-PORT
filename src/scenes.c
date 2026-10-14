@@ -1676,13 +1676,18 @@ static const u16 konamiSeq[KONAMI_LEN] = {
 // (09/10) Fondo nuevo (title_menu_bg) y el menu sacado del mismo arte: las
 // letras del arcade, renglones cada 17 px (y = 147, 164, 181), en x = 132.
 // Va como imagen en BG_A (title_menu3, o title_menu4 con el secreto de 4
-// jugadores: "4 TURTLES" entra en el tercer renglon y OPTIONS baja a 198,
-// todavia arriba del "(C) KONAMI 1989").
+// jugadores: "4 TURTLES" entra en el tercer renglon; ver MENU4_ROW).
 #define MENU_COL         16   // la imagen del menu arranca en x = 128 ...
 #define MENU_ROW         18   // ... e y = 144
 #define MENU_TILE_W      10
 #define MENU_TILE_H       8
 #define MENU_ITEM_Y0    147   // primer renglon
+// (14/10) Con "GENESIS" debajo del logo, el "(C) KONAMI 1989" y el logo de
+// Konami quedan en y = 198: el menu de 4 opciones sube un renglon (fila 16,
+// renglones en 130, 147, 164 y 181) en vez de bajar OPTIONS.
+#define MENU4_ROW        16
+#define MENU4_ITEM_Y0   130
+#define MENU_Y0(f4)     ((f4) ? MENU4_ITEM_Y0 : MENU_ITEM_Y0)
 #define MENU_ITEM_STEP   17
 #define MENU_CURSOR_X   104   // la cabecita, como en el arte
 #define MENU_CURSOR_DY   -5   // 5 px arriba del renglon
@@ -1694,11 +1699,13 @@ static void menuDraw4P(bool with4P) {
     // Limpiar las dos variantes: al desbloquear en vivo hay que borrar la
     // version de 3 filas antes de dibujar la de 4.
     const Image* m = with4P ? &title_menu4 : &title_menu3;
-    VDP_clearTileMapRect(BG_A, MENU_COL, MENU_ROW, MENU_TILE_W, MENU_TILE_H);
+    VDP_clearTileMapRect(BG_A, MENU_COL, MENU4_ROW, MENU_TILE_W,
+                         MENU_ROW + MENU_TILE_H - MENU4_ROW);
     VDP_loadTileSet(m->tileset, menuVram, CPU);
     VDP_setTileMapEx(BG_A, m->tilemap,
                      TILE_ATTR_FULL(PAL0, TRUE, FALSE, FALSE, menuVram),
-                     MENU_COL, MENU_ROW, 0, 0, m->tilemap->w, m->tilemap->h, CPU);
+                     MENU_COL, with4P ? MENU4_ROW : MENU_ROW, 0, 0,
+                     m->tilemap->w, m->tilemap->h, CPU);
 }
 
 SceneId showPlayerSelect() {
@@ -1741,7 +1748,7 @@ SceneId showPlayerSelect() {
     menuDraw4P(secret4P);
 
     Sprite *cursor = SPR_addSprite(&title_cursor, MENU_CURSOR_X,
-                                   MENU_ITEM_Y0 + MENU_CURSOR_DY,
+                                   MENU_Y0(secret4P) + MENU_CURSOR_DY,
                                    TILE_ATTR(PAL0, TRUE, FALSE, FALSE));
 
     u8  selectedOption = 0;
@@ -1825,7 +1832,7 @@ SceneId showPlayerSelect() {
         if (selectedOption >= nOpts) selectedOption = 0;
 
         SPR_setPosition(cursor, MENU_CURSOR_X,
-                        MENU_ITEM_Y0 + selectedOption * MENU_ITEM_STEP + MENU_CURSOR_DY);
+                        MENU_Y0(secret4P) + selectedOption * MENU_ITEM_STEP + MENU_CURSOR_DY);
 
         if (value & BUTTON_START) break;
 
