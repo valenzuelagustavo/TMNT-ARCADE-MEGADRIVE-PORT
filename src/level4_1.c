@@ -12,7 +12,11 @@
 // (sbgSetVariant): asi no ocupan VRAM de sprites mientras estan quietos.
 //
 // PROPS (ubicados segun bg_garage_new_assets_ubication.png):
-//   - Cartel "20 MPH": al golpearlo queda torcido (frame 1). Nada mas.
+//   - Cartel "20 MPH": (14/10) al golpearlo sale disparado como los
+//     parquimetros del 2-1: arrancado de raiz, se arrastra en X alejandose de
+//     la tortuga hasta salir de camara y mata a los soldiers que cruza
+//     (garage_sign20_fly, tools/gen_garage_sign_fly.py). Antes quedaba
+//     torcido (frame 1, que ya no se usa).
 //   - Cartel "ONE WAY": al golpearlo da una vuelta entera y vuelve al frame 0.
 //     Se puede volver a golpear.
 //   - Conos: al golpearlos salen volando en X hacia donde los empujo el golpe
@@ -132,7 +136,8 @@ static const PropInfo propInfo[4] = {
     { &garage_barrel, 32, 64, 16, 13, 56 },
 };
 
-typedef enum { PS_IDLE, PS_ANIM, PS_FLY, PS_FUSE, PS_BOOM, PS_DONE, PS_GONE } PropState;
+typedef enum { PS_IDLE, PS_ANIM, PS_FLY, PS_FUSE, PS_BOOM, PS_DONE, PS_GONE,
+               PS_HIT } PropState;
 
 #define PROP_HIT_COOLDOWN   16   // frames entre golpes (un swing pega una vez)
 #define ONEWAY_TICKS         3   // ticks por frame de la vuelta del cartel
@@ -147,6 +152,16 @@ typedef enum { PS_IDLE, PS_ANIM, PS_FLY, PS_FUSE, PS_BOOM, PS_DONE, PS_GONE } Pr
 #define BOOM_RADIUS_Y       22   // en profundidad
 #define BOOM_PLAYER_BARS     2
 #define PROP_ARM_MARGIN     16   // px que tiene que asomar para existir
+// (14/10) Cartel "20 MPH" arrancado: los mismos tiempos que el parquimetro del
+// 2-1 (METER_HIT_TICKS, METER_SPEED, METER_FLY_HALF_W/TOL_Y).
+#define SIGN_POLE_X         14   // poste dentro de garage_sign20 (frame 0)
+#define SIGN_FLY_W          96   // celda de garage_sign20_fly
+#define SIGN_FLY_H          96
+#define SIGN_FLY_FOOT_X     80   // pie del poste en garage_sign20_fly (sin espejar)
+#define SIGN_HIT_TICKS      10   // frames mostrando "recibe el golpe"
+#define SIGN_SPEED           5   // px/frame volando
+#define SIGN_FLY_HALF_W     20   // caja del que vuela contra los soldiers
+#define SIGN_FLY_TOL_Y      20
 
 typedef struct {
     Sprite* spr;
@@ -232,6 +247,7 @@ static s16 propFrame(const Prop* p, u8 kind) {
 // Crea o suelta el sprite segun si el prop asoma en camara.
 static void propArm(Prop* p, const PropInfo* in, u8 kind, s16 camX, s16 base) {
     if (p->state == PS_GONE || p->state == PS_BOOM) return;
+    if (kind == PK_SIGN20 && (p->state == PS_HIT || p->state == PS_FLY)) return;
     bool near = (p->x + in->w > camX + PROP_ARM_MARGIN) &&
                 (p->x < camX + SCREEN_W - PROP_ARM_MARGIN);
     // Uno que se esta moviendo o animando no se suelta por estar en el borde.
@@ -286,6 +302,74 @@ static void barrelBlast(Prop* p, s16 cx, s16 base, Player** pls, u8 nPl) {
     }
 }
 
+// (14/10) El cartel "20 MPH" arrancado (PS_HIT / PS_FLY). Como el parquimetro
+// del 2-1: el arte mira a la izquierda y se espeja cuando sale a la derecha.
+static void signPlace(Prop* p, s16 camX, s16 base) {
+    if (!p->spr) return;
+    s16 poleX = (s16)(p->x + SIGN_POLE_X);
+    s16 foot  = (p->dir > 0) ? (s16)(SIGN_FLY_W - 1 - SIGN_FLY_FOOT_X) : SIGN_FLY_FOOT_X;
+    SPR_setPosition(p->spr, (s16)(poleX - foot - camX), (s16)(base - SIGN_FLY_H - stageCamY));
+    SPR_setDepth(p->spr, -base);
+}
+
+static void signLaunch(Prop* p, Player* by, s16 base, s16 camX) {
+    s16 poleX = (s16)(p->x + SIGN_POLE_X);
+    s16 pcx   = (s16)(getPlayerWorldX(by) + PLAYER_SPRITE_W / 2);
+    p->dir = (poleX > pcx) ? 1 : (poleX < pcx) ? -1 : ((getPlayerDir(by) >= 0) ? 1 : -1);
+    // Cambia al sprite grande (el parado se suelta en el acto). Sin lugar en
+    // VRAM queda torcido, como antes.
+    if (p->spr) { SPR_releaseSprite(p->spr); p->spr = NULL; }
+    if (!sprVramFits(garage_sign20_fly.maxNumTile)) { p->state = PS_DONE; return; }
+    p->spr = SPR_addSprite(&garage_sign20_fly, 0, -128, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+    if (!p->spr) { p->state = PS_DONE; return; }
+    SPR_setAutoAnimation(p->spr, FALSE);
+    SPR_setFrame(p->spr, 0);
+    SPR_setHFlip(p->spr, p->dir > 0);
+    p->state   = PS_HIT;
+    p->timer   = SIGN_HIT_TICKS;
+    p->hitMask = 0;
+    signPlace(p, camX, base);
+}
+
+// Devuelve FALSE cuando ya salio de camara (queda en PS_GONE).
+static bool signFly(Prop* p, Player** pls, u8 nPl, s16 camX, s16 base) {
+    if (p->state == PS_HIT) {
+        if (p->timer) p->timer--;
+        if (!p->timer) {
+            p->state = PS_FLY;
+            if (p->spr) SPR_setFrame(p->spr, 1);
+        }
+        signPlace(p, camX, base);
+        return TRUE;
+    }
+    p->x = (s16)(p->x + p->dir * SIGN_SPEED);
+    s16 poleX = (s16)(p->x + SIGN_POLE_X);
+    // Se suelta apenas sale ENTERO de pantalla: mas alla la X del sprite da la
+    // vuelta en el VDP (9 bits) y reapareceria del otro lado.
+    s16 foot = (p->dir > 0) ? (s16)(SIGN_FLY_W - 1 - SIGN_FLY_FOOT_X) : SIGN_FLY_FOOT_X;
+    s16 sl   = (s16)(poleX - foot - camX);
+    if (sl >= SCREEN_W || sl + SIGN_FLY_W <= 0) {
+        propRelease(p);
+        p->state = PS_GONE;
+        return FALSE;
+    }
+    // Arrasa con los soldiers que cruza (un golpe por soldier, los mata).
+    Enemy* en = stageEnemies();
+    for (u16 e = 0; en && e < MAX_ENEMIES && e < 8; e++) {
+        if (p->hitMask & (1 << e)) continue;
+        if (!enemyCanBeHit(&en[e])) continue;
+        if (a16((s16)(getEnemyCenterX(&en[e]) - poleX)) > SIGN_FLY_HALF_W + enemyBodyHalfW(&en[e])) continue;
+        if (a16((s16)(getEnemyCenterY(&en[e]) - base)) > SIGN_FLY_TOL_Y) continue;
+        p->hitMask |= (u8)(1 << e);
+        damageEnemy(&en[e], (s16)(en[e].hp > 0 ? en[e].hp : ENEMY_HP));
+        XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+        if (p->owner >= 0 && p->owner < (s8)nPl) addPlayerScore(pls[(u8)p->owner], 1);
+    }
+    signPlace(p, camX, base);
+    return TRUE;
+}
+
 static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
     for (u16 i = 0; i < N_PROPS; i++) {
         Prop* p = &props[i];
@@ -306,7 +390,7 @@ static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
                 p->owner = k;
                 sfxHit();
                 switch (kind) {
-                case PK_SIGN20: p->state = PS_DONE; break;
+                case PK_SIGN20: signLaunch(p, pls[(u8)k], base, camX); break;
                 case PK_ONEWAY: p->state = PS_ANIM; p->timer = 0; break;
                 case PK_CONE: {
                     s16 pcx = (s16)(getPlayerWorldX(pls[(u8)k]) + PLAYER_SPRITE_W / 2);
@@ -325,7 +409,14 @@ static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
         case PS_ANIM:          // ONE WAY: una vuelta entera y vuelve al 0
             if (++p->timer >= ONEWAY_TICKS * ONEWAY_FRAMES) { p->state = PS_IDLE; p->timer = 0; }
             break;
+        case PS_HIT:           // cartel 20 MPH: recibe el golpe
+            signFly(p, pls, nPl, camX, base);
+            continue;
         case PS_FLY: {         // cono: derecho en X hasta salir de camara
+            if (kind == PK_SIGN20) {           // (14/10) el cartel arrancado
+                signFly(p, pls, nPl, camX, base);
+                continue;
+            }
             p->x = (s16)(p->x + p->dir * CONE_SPEED);
             cx = (s16)(p->x + in->hitDx);
             Enemy* en = stageEnemies();

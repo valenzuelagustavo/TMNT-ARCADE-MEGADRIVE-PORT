@@ -34,6 +34,9 @@ BIN     bg_garage_map   "images/lvl_4_garage/bg_garage_map.bin"   2 2 0 NONE
 BIN     bg_garage_var   "images/lvl_4_garage/bg_garage_var.bin"   2 2 0 NONE
 
 SPRITE  garage_sign20   "images/lvl_4_garage/garage_sign20.png"  6 12 NONE 0
+// (14/10) El cartel "20 MPH" arrancado: [0] recibe el golpe, [1] volando
+// (tools/gen_garage_sign_fly.py, el cartel parado rotado sobre el pie).
+SPRITE  garage_sign20_fly "images/lvl_4_garage/garage_sign20_fly.png" 12 12 NONE 0
 SPRITE  garage_oneway   "images/lvl_4_garage/garage_oneway.png"  7 12 NONE 0
 SPRITE  garage_cone     "images/lvl_4_garage/garage_cone.png"    3 4  NONE 0
 SPRITE  garage_barrel   "images/lvl_4_garage/garage_barrel.png"  4 8  NONE 0
