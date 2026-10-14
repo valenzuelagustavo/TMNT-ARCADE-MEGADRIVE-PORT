@@ -1543,15 +1543,14 @@ SceneId showSegaIntro() {
     SYS_doVBlankProcess();
 
     clearScene();
-    // Konami es todavía un stub que pasa de largo a la pantalla SGDK
+    // (14/10) Sigue el logo animado de KONAMI (src/konami_logo.c)
     return SCENE_KONAMI;
 }
 
 // ---------------------------------------------------------------------------
-// 2/4. Intros pendientes (stubs) — showSGDKIntro ya está implementada más
+// 2. Logo de KONAMI -> src/konami_logo.c (14/10). 4. showSGDKIntro esta mas
 // abajo (necesita drawTextTypewriter, definida junto al título del nivel).
 // ---------------------------------------------------------------------------
-SceneId showKonamiIntro()  { return SCENE_SGDK; }
 
 // ---------------------------------------------------------------------------
 // Intro arcade (TMNT) -> src/intro_arcade.c
