@@ -58,10 +58,9 @@
 #define KL_T_HOLD          120   // logo terminado
 #define KL_T_FADE           24
 
-// Musica (14/10): "17 - Konami Logo.vgm", 2,5 s sin loop. Arranca cuando
-// aparece la linea gruesa: el arpegio acompana la bajada y el acorde final
-// (a los ~1,6 s) cae cuando la linea descubre KONAMI; la cola suena mientras
-// el logo se pinta.
+// Musica (14/10): "17 - Konami Logo.vgm", 2,5 s sin loop. Arranca cuando el
+// laser llega abajo de todo (el logo azul ya entero) y acompana el pintado y
+// la subida del fondo.
 #define KL_VOL_MUSIC        90
 
 #define KL_BAND_SPRITES      8   // 8 x 32 px = toda la pantalla
@@ -194,10 +193,6 @@ SceneId showKonamiIntro(void) {
         if (trail[i]) SPR_setVisibility(trail[i], HIDDEN);
 
     // --- 2. La linea gruesa baja y descubre el logo azul ---
-    if (!skip) {
-        XGM2_setLoopNumber(0);            // SIEMPRE antes del play: suena una vez
-        playMusicVol(music_konami, KL_VOL_MUSIC);
-    }
     s16 by = KL_BAND_Y0;
     for (u16 i = 0; i < KL_BAND_SPRITES; i++)
         if (band[i]) SPR_setVisibility(band[i], VISIBLE);
@@ -214,6 +209,11 @@ SceneId showKonamiIntro(void) {
     for (u16 i = 0; i < KL_BAND_SPRITES; i++)
         if (band[i]) SPR_setVisibility(band[i], HIDDEN);
     klHideLine = KL_SCREEN_H;             // logo entero
+    // El jingle arranca con el laser abajo de todo (logo azul entero).
+    if (!skip) {
+        XGM2_setLoopNumber(0);            // SIEMPRE antes del play: suena una vez
+        playMusicVol(music_konami, KL_VOL_MUSIC);
+    }
     SPR_update();
     for (u16 t = 0; t < KL_T_OUTLINE_HOLD && !skip; t++) {
         SYS_doVBlankProcess();
