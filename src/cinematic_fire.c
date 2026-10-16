@@ -715,7 +715,7 @@ static bool roofSceneA(void) {
             // PCM0..PCM2 = SOUND_PCM_CH1..CH3 -- SOUND_PCM_CH4 esta declarado
             // en sound.h pero el Z80 no lo atiende, y usarlo corrompe el
             // comando del driver -- bug encontrado 29/08, ver DEVLOG).
-            XGM2_playPCMEx(fire_vo, sizeof(fire_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(fire_vo, sizeof(fire_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
             // Splinter pasa a la 2da pose (baston en alto) justo cuando
             // aparece este globo, y se queda ahi el resto de la escena.
             SPR_setAnimAndFrame(splinterSpr, 0, SPL_FRAME_ALERT);
@@ -725,7 +725,7 @@ static bool roofSceneA(void) {
             SPR_setAnimAndFrame(baloonSpr, 0, 1);       // "Hang on, April"
             SPR_setVisibility(baloonSpr, VISIBLE);
             // Voice over "Hang on, April" en sincro con el globo (CH2, ver nota arriba).
-            XGM2_playPCMEx(hang_on_april_vo, sizeof(hang_on_april_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hang_on_april_vo, sizeof(hang_on_april_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
         } else if (f == T_MUSIC_IN) {
             // Tema de la intro arcade ("01 - Opening Demo"), que hasta ahora
             // solo sonaba en SCENE_INTRO_ARCADE. Entra sin pisar la voz: el

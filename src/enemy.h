@@ -89,8 +89,8 @@
 // golpes (4), pero cada tipo puede ajustarse sin tocar el resto del codigo.
 #define ENEMY_HP_PURPLE    4    // Golpes para eliminar al morado
 #define ENEMY_HP_ORANGE    4    // Golpes para eliminar al naranja
-#define ENEMY_HP_WHITE     6    // El blanco aguanta mas: aparece recien antes
-                                // de Rocksteady y tiene espada larga (13/09)
+#define ENEMY_HP_WHITE     4    // (15/10) igual que el morado. Antes 6: "el
+                                // blanco aguanta mas" (13/09)
 #define ENEMY_HP_YELLOW    4    // (29/09) El del boomerang: como el morado
 #define MAX_ACTIVE_ENEMIES  4    // Foot soldiers vivos al mismo tiempo (tope de spawn)
 #define ENEMY_INVINCIBLE    20
@@ -157,6 +157,8 @@
 #define WHITE_ANIM_AIR_SLASH    7   // Espadazo cayendo desde el aire (2f)
 #define WHITE_ANIM_HIT          8   // Golpe recibido (2f)
 #define WHITE_ANIM_EXPLODE      9   // Muerte: cae al piso y explota (4f)
+#define WHITE_ANIM_KICK        10   // (15/10) Patada voladora (4f: despegue,
+                                    // sube, patada, baja; frames a mano)
 
 // --- (10/10) Blanco del CUCHILLO (foot_soldier_knife, ver enemies.res) ---
 // Medido en el video del arcade (1-1, el blanco que aparece en la escalera y
@@ -176,6 +178,7 @@
 #define KNIFE_ANIM_KICK         5
 #define KNIFE_ANIM_HIT          6
 #define KNIFE_ANIM_EXPLODE      7
+#define KNIFE_ANIM_FLYKICK      8   // (15/10) Patada voladora (4f, a mano)
 #define KNIFE_HIT_TIME         16
 #define KNIFE_STANDOFF         70   // distancia (centros) a la que se planta
 #define KNIFE_CLOSE            44   // <= esto: punalada o patada
@@ -312,7 +315,8 @@
 #define WHITE_JUMP_V0_Q       3724   // 14,55 px/frame hacia arriba
 #define WHITE_JUMP_GRAV_Q      272   // 1,06 px/frame2 subiendo
 #define WHITE_JUMP_BAND_Q      408   // por debajo de 1,59 px/frame: apice/caida
-#define WHITE_FALL_GRAV_Q      128   // 0,5 px/frame2: apice y caida planeada
+#define WHITE_FALL_GRAV_Q       96   // (15/10) 0,375 px/frame2, antes 128: cae
+                                     // mas lento (40 frames en el aire, ~95 px)
 #define WHITE_JUMP_SAFETY       88   // frames: tope de seguridad del arco
 #define WHITE_JUMP_SPEED         3   // px/frame de avance horizontal en el aire
 // Avance horizontal MIENTRAS CAE: mas lento que el de subida para que el
@@ -394,6 +398,8 @@
 #define ENEMY_ATTACK_TAUNT  8    // (06/10) burla del fusil (no pega)
 #define ENEMY_ATTACK_SPEAR_THROW 9 // (06/10) tira la lanza (a distancia)
 #define ENEMY_ATTACK_KNIFE_THROW 10 // (10/10) tira el cuchillo (a distancia)
+#define ENEMY_ATTACK_FLYKICK 11  // (15/10) patada voladora del blanco y del
+                                 // cuchillo (la misma del morado)
 
 // ===========================================================================
 // FOOT SOLDIERS CON ARMA (06/10): FUSIL, MARTILLO y LANZA
@@ -906,6 +912,12 @@ s16  enemyBodyH(const Enemy* e);
 // morado (ENEMY_HURT_*_PURPLE, franja de alto y corrida segun hacia donde
 // mira) y la de siempre (media anchura + alto desde los pies) para el resto.
 bool playerAttackHitsEnemy(const Player* p, const Enemy* e);
+// (15/10) Golpe del enemigo a la tortuga: si le puede pegar y el golpe en si.
+// Igual que playerCanBeHit + damagePlayer, salvo el salto con espadazo del
+// blanco contra la patada voladora de la tortuga: ahi gana el blanco y le
+// pega aunque este en el aire.
+bool enemyCanHitPlayer(const Enemy* e, const Player* p);
+void enemyDamagePlayer(const Enemy* e, Player* p);
 
 // Intenta conectar el ataque en curso contra un jugador en (px, py) — coords
 // de mundo, px = borde izquierdo del frame (misma grilla de 104px), py = pies.
@@ -980,6 +992,8 @@ void boomerangInit(void);
 // Como mucho una vez cada 30 frames. sprDefragLock != 0 la prohibe (sprites
 // con VRAM puesta a mano apuntando a la de otro: la explosion de Baxter).
 extern u8 sprDefragLock;
+// (12/10) TRUE en la Scene 6 (patinetas): la caminata usa la pose quieta.
+extern bool enemySkateMode;
 bool sprVramFits(u16 need);
 u8   boomerangStep(Player** pls, u8 nPl, s16 camX, s16 camY);
 void boomerangReleaseAll(void);

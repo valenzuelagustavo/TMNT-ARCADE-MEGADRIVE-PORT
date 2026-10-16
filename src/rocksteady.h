@@ -216,6 +216,8 @@ typedef enum {
     ROCKSTEADY_WALK_ARMS,   // Camina con el arma (persigue / apunta / se aleja)
     ROCKSTEADY_SHOOT,       // Dos tiros rectos
     ROCKSTEADY_FRENZY,      // Frenesi: cuatro tiros a los dos lados
+    ROCKSTEADY_DUO_MOVE,    // (12/10) embestida doble: va a su borde ...
+    ROCKSTEADY_DUO_WAIT,    // (12/10) ... y espera mirando a Bebop
     ROCKSTEADY_DEAD,        // Cayendo (anim [4] hasta el final)
     ROCKSTEADY_GONE         // Muerto y removido
 } RocksteadyState;
@@ -248,6 +250,11 @@ typedef struct {
     u8          rounds;      // rondas de la rafaga en curso
     u8          frenzy;      // 1 = la rafaga es el frenesi
     s8          aimDir;      // hacia donde tiraba al arrancar la rafaga
+    // (12/10) Embestida doble con Bebop (ver rocksteadyDuo*): punto (centro
+    // del cuerpo y lane), hacia donde mira y si esta en la jugada.
+    s16         duoX, duoY;
+    s8          duoDir;
+    u8          duo;
 } Rocksteady;
 
 // (01/10) ARENA: lo que depende del escenario. rocksteadySpawn usa la del
@@ -293,5 +300,20 @@ void rocksteadyBulletReleaseAll(void);
 // Chequea colisión de todas las balas activas contra un jugador en (px, py)
 // (centro del frame). Devuelve TRUE si alguna impactó (una vez por bala).
 bool rocksteadyBulletCheckHitPlayer(s16 px, s16 py, s16 pz, s16* hitX);
+
+// --- (12/10) EMBESTIDA DOBLE con Bebop (garage; ver bebop.h) ---
+#define RS_DUO_SLIDE_T      24    // despedido: desliza 24 f a 3,4 ...
+#define RS_DUO_SLOW_T       30    // ... frena 6 mas
+#define RS_DUO_KD_T         54    // ... y sentado hasta aca
+// Libre para la jugada: quieto o caminando (con o sin el arma; con el arma
+// primero la guarda).
+bool rocksteadyDuoFree(const Rocksteady* r);
+void rocksteadyDuoGo(Rocksteady* r, s16 cx, s16 lane, s8 dir);   // cx = centro del cuerpo
+bool rocksteadyDuoActive(const Rocksteady* r);
+bool rocksteadyDuoWaiting(const Rocksteady* r);
+void rocksteadyDuoCharge(Rocksteady* r);
+bool rocksteadyDuoCharging(const Rocksteady* r);
+void rocksteadyDuoBump(Rocksteady* r, s8 slideDir);
+void rocksteadyDuoCancel(Rocksteady* r);
 
 #endif

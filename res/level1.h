@@ -33,5 +33,6 @@ extern const SpriteDefinition robot_whip;
 extern const SpriteDefinition whip_waves;
 extern const Image bg_b_final;
 extern const Image bg_a_final;
+extern const SpriteDefinition final_turtles;
 
 #endif // _RES_LEVEL1_H_

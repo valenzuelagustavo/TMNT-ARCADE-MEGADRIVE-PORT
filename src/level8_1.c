@@ -32,6 +32,7 @@
 
 #include <genesis.h>
 #include "scenes.h"
+#include "idle_missile.h"   // (14/10) modo ARCADE: el misil al que se queda quieto
 #include "level8_1.h"          // pal_techno, techno_tiles/map, techno_elevator
 #include "level1.h"            // hud_font
 #include "enemies.h"           // foot_soldier (paleta)
@@ -393,12 +394,14 @@ SceneId showScene81() {
     bool win     = FALSE;
     SceneId jump = PAUSE_NO_JUMP;
     pauseReset();
+    idleMissileReset();
     while (running) {
         jump = pausePoll(pls, nPl);
         if (jump != PAUSE_NO_JUMP) break;
 
         // --- Jugadores -----------------------------------------------------
         for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
+        idleMissileUpdate(pls, nPl, cameraX, cameraY);   // (14/10) modo ARCADE
 
         s16 leadX = p1.x;
         {
@@ -605,12 +608,12 @@ SceneId showScene81() {
             Enemy* e = &enemies[i];
             if (e->state != ENEMY_STATE_ATTACK) continue;
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerCanBeHit(pls[k])) continue;
+                if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(pls[k], getEnemyCenterX(e));
+                enemyDamagePlayer(e, pls[k]);
                 break;
             }
         }

@@ -214,6 +214,8 @@ bool rocksteadyCanBeHit(const Rocksteady* r) {
         case ROCKSTEADY_WALK_ARMS:
         case ROCKSTEADY_SHOOT:
         case ROCKSTEADY_FRENZY:       // (10/10) la rafaga es larga: se le puede pegar
+        case ROCKSTEADY_DUO_MOVE:     // (12/10) yendo a la embestida doble
+        case ROCKSTEADY_DUO_WAIT:
             return TRUE;
         case ROCKSTEADY_WINDUP:
         case ROCKSTEADY_CHARGE:
@@ -322,14 +324,67 @@ static void rsToDead(Rocksteady* r) {
     r->state = ROCKSTEADY_DEAD;
     XGM2_stopPCM(SOUND_PCM_CH2);
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_HURT, FALSE);
-    // Grito de muerte en el instante del golpe fatal: canal PCM 2, prioridad
-    // 15 (pisa el golpe del mismo frame). El wav dura 101 frames y entra
+    // Grito de muerte en el instante del golpe fatal: canal PCM 1 (el de las
+    // voces, 15/10), prioridad 15. El wav dura 101 frames y entra
     // justo antes de que arranque music_ending.
     XGM2_playPCMEx(boss_scream_rocksteady_vo, sizeof(boss_scream_rocksteady_vo),
-                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                   SOUND_PCM_CH1, 15, FALSE, FALSE);
 }
 
 static u8 rsRand(u8 n) { return (u8)(random() % n); }
+
+// ---------------------------------------------------------------------------
+// (12/10) Embestida doble con Bebop (ver rocksteady.h / bebop.h)
+// ---------------------------------------------------------------------------
+static void rsToDuoMove(Rocksteady* r) {
+    rsEnter(r, ROCKSTEADY_DUO_MOVE, 0);
+    r->accX = r->accY = 0;
+    rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_WALK, TRUE);
+}
+
+bool rocksteadyDuoFree(const Rocksteady* r) {
+    return (bool)(r->sprite && r->hp > 0 &&
+                  (r->state == ROCKSTEADY_IDLE || r->state == ROCKSTEADY_WALK ||
+                   r->state == ROCKSTEADY_WALK_ARMS));
+}
+
+void rocksteadyDuoGo(Rocksteady* r, s16 cx, s16 lane, s8 dir) {
+    r->duoX = cx; r->duoY = lane; r->duoDir = dir; r->duo = 1;
+    if (r->armed) rsToHolster(r);     // primero guarda el arma (sigue en HOLSTER)
+    else          rsToDuoMove(r);
+}
+
+bool rocksteadyDuoActive(const Rocksteady* r) {
+    return (bool)(r->duo && (r->state == ROCKSTEADY_DUO_MOVE ||
+                             r->state == ROCKSTEADY_DUO_WAIT ||
+                             r->state == ROCKSTEADY_HOLSTER));
+}
+bool rocksteadyDuoWaiting(const Rocksteady* r) {
+    return (bool)(r->duo && r->state == ROCKSTEADY_DUO_WAIT);
+}
+
+void rocksteadyDuoCharge(Rocksteady* r) {
+    rsToWindup(r, r->duoDir);
+}
+
+bool rocksteadyDuoCharging(const Rocksteady* r) {
+    return (bool)(r->duo && (r->state == ROCKSTEADY_WINDUP || r->state == ROCKSTEADY_CHARGE));
+}
+
+void rocksteadyDuoBump(Rocksteady* r, s8 slideDir) {
+    rsToKnockdown(r);
+    r->duo = 1;
+    r->slideDir = slideDir;
+    r->dir = (s8)-slideDir;
+    rsEnter(r, ROCKSTEADY_KNOCKDOWN, RS_DUO_KD_T);
+    rsManual(r, ROCKSTEADY_ANIM_HURT, 2);
+}
+
+void rocksteadyDuoCancel(Rocksteady* r) {
+    bool was = (bool)(r->state == ROCKSTEADY_DUO_MOVE || r->state == ROCKSTEADY_DUO_WAIT);
+    r->duo = 0;
+    if (was) rsToIdle(r);
+}
 
 // ---------------------------------------------------------------------------
 // Dano recibido
@@ -342,6 +397,8 @@ void rocksteadyDamageEx(Rocksteady* r, s16 dmg, bool special) {
     if (!rocksteadyCanBeHit(r)) return;
     r->hp -= dmg;
     if (r->hp <= 0) { rsToDead(r); return; }
+    // (12/10) Golpeado yendo a la embestida doble: la deja.
+    if (r->state == ROCKSTEADY_DUO_MOVE || r->state == ROCKSTEADY_DUO_WAIT) r->duo = 0;
 
     // Embestida (amague o corrida): saca vida pero no la corta.
     if (r->state == ROCKSTEADY_WINDUP || r->state == ROCKSTEADY_CHARGE) {
@@ -498,10 +555,11 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
         }
 
         case ROCKSTEADY_WINDUP: {
-            // Amague en el lugar, mirando a la tortuga; al terminar corre.
-            r->dir = toward;
+            // Amague en el lugar, mirando a la tortuga; al terminar corre. En la
+            // embestida doble mira a Bebop.
+            if (!r->duo) r->dir = toward;
             if (r->timer >= r->dur) {
-                rsEnter(r, ROCKSTEADY_CHARGE, RS_CHARGE_T);
+                rsEnter(r, ROCKSTEADY_CHARGE, r->duo ? 600 : RS_CHARGE_T);
                 XGM2_playPCMEx(rocksteady_charge_sfx, sizeof(rocksteady_charge_sfx),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);
             }
@@ -510,9 +568,11 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
 
         case ROCKSTEADY_CHARGE: {
             r->x += r->dir * rsStepX(r, RS_CHARGE_Q);
-            r->y = rclamp(rsToward(r->y, py, rsStepY(r, RS_WALK_Q)), ra.laneTop, ra.laneBot);
+            if (!r->duo)
+                r->y = rclamp(rsToward(r->y, py, rsStepY(r, RS_WALK_Q)), ra.laneTop, ra.laneBot);
             rsContact(r, pls, nPl, RS_CHARGE_DX, RS_CHARGE_DX);
             if (r->x <= ra.xMin || r->x >= ra.xMax) {
+                r->duo = 0;
                 r->x = rclamp(r->x, ra.xMin, ra.xMax);
                 XGM2_stopPCM(SOUND_PCM_CH2);
                 if (rsRand(2)) rsToWalk(r, RS_MODE_CHASE);
@@ -573,13 +633,19 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
                 }
                 break;
             }
-            if (r->timer <= RS_KD_SLIDE_T) {
-                r->x = rclamp(r->x + r->slideDir * rsStepX(r, RS_SLIDE_Q), ra.xMin, ra.xMax);
-                if (r->timer == RS_KD_SLIDE_T) SPR_setFrame(r->sprite, 3);
-            } else if (r->timer <= RS_KD_SLOW_T) {
-                r->x = rclamp(r->x + r->slideDir * rsStepX(r, RS_SLOW_Q), ra.xMin, ra.xMax);
+            {
+                // (12/10) Despedido por el choque con Bebop: desliza mas.
+                u16 slideT = r->duo ? RS_DUO_SLIDE_T : RS_KD_SLIDE_T;
+                u16 slowT  = r->duo ? RS_DUO_SLOW_T  : RS_KD_SLOW_T;
+                if (r->timer <= slideT) {
+                    r->x = rclamp(r->x + r->slideDir * rsStepX(r, RS_SLIDE_Q), ra.xMin, ra.xMax);
+                    if (r->timer == slideT) SPR_setFrame(r->sprite, 3);
+                } else if (r->timer <= slowT) {
+                    r->x = rclamp(r->x + r->slideDir * rsStepX(r, RS_SLOW_Q), ra.xMin, ra.xMax);
+                }
             }
-            if (r->timer >= RS_KD_T) {
+            if (r->timer >= r->dur) {
+                r->duo = 0;
                 rsEnter(r, ROCKSTEADY_GETUP, RS_GETUP_T);
                 SPR_setFrame(r->sprite, 4);
             }
@@ -610,7 +676,12 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             SPR_setAutoAnimation(r->sprite, TRUE);
             r->anim = 0xFF;
             r->dir = toward;
-            if (r->state == ROCKSTEADY_HOLSTER) { r->armed = 0; rsToIdle(r); break; }
+            if (r->state == ROCKSTEADY_HOLSTER) {
+                r->armed = 0;
+                if (r->duo) rsToDuoMove(r);      // (12/10) guardo el arma para la embestida doble
+                else        rsToIdle(r);
+                break;
+            }
             // Arcade: apenas la saca, tira.
             rsToShoot(r);
             break;
@@ -694,6 +765,26 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             }
             break;
         }
+
+        // --- (12/10) EMBESTIDA DOBLE: ir al borde y esperar -------------------
+        case ROCKSTEADY_DUO_MOVE: {
+            s16 c  = r->x + ROCKSTEADY_FRAME_W / 2;
+            s16 sx = rsStepX(r, RS_WALK_Q);
+            s16 sy = rsStepY(r, RS_WALK_Q);
+            if (c != r->duoX) r->dir = (r->duoX < c) ? -1 : 1;
+            r->x = rclamp((s16)(rsToward(c, r->duoX, sx) - ROCKSTEADY_FRAME_W / 2), ra.xMin, ra.xMax);
+            r->y = rclamp(rsToward(r->y, r->duoY, sy), ra.laneTop, ra.laneBot);
+            if (r->x + ROCKSTEADY_FRAME_W / 2 == r->duoX && r->y == r->duoY) {
+                rsEnter(r, ROCKSTEADY_DUO_WAIT, 0);
+                r->dir = r->duoDir;
+                rocksteadySetAnim(r, ROCKSTEADY_ANIM_IDLE, TRUE);
+            }
+            break;
+        }
+
+        case ROCKSTEADY_DUO_WAIT:
+            r->dir = r->duoDir;
+            break;
 
         case ROCKSTEADY_DEAD: {
             if (SPR_isAnimationDone(r->sprite)) {

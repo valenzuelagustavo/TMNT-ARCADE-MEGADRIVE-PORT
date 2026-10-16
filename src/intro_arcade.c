@@ -117,6 +117,44 @@
 #define INTRO_MUSIC_LEN      (IS_PAL_SYSTEM ? 528 : 633)
 
 // ---------------------------------------------------------------------------
+// (12/10) VOZ CANTADA encima del tema (WAVs de res/music/intro_voice)
+// ---------------------------------------------------------------------------
+// El vgm dura 5 compases de 2,133 s (negra = 0,533 s, 112,5 bpm; medido
+// renderizando el vgm). Los tiempos salen del video de la intro del arcade
+// (gameplayARCADE/videoplayback.mp4): ahi el tema va mas lento (compas de
+// 2,595 s), asi que se midio cada frase contra el golpe final y se escalo al
+// tempo del vgm. El 1er compas es instrumental, igual que en el arcade.
+//   2,110 s  "Teenage Mutant Ninja Turtles"          (01)
+//   4,150 s  "Teenage Mutant Ninja Turtles" con coro (02)
+//   6,283 s  idem (en el arcade ahi no hay voz; pedido: dos veces la 02)
+//   8,520 s  "Heroes in a half shell"                 (03)
+//   9,800 s  "Turtle power!"                          (04, sobre el golpe final)
+// OJO: el PCM sale por el DAC (FM6). El vgm original usaba FM6 y apagaba el
+// DAC -> la voz salia muda; por eso se usa la version "(FM6 libre)" (ver
+// audio.res y tools/vgm_free_fm6.py).
+// Los tiempos son en ms desde que arranca la musica (XGM2_getElapsed); para
+// AJUSTAR, tocar solo esta tabla. Se alternan CH2 y CH3 para que la cola de
+// una frase no se corte cuando entra la siguiente (el tema no usa PCM).
+// (13/10) DESACTIVADA por ahora (samples de poca calidad; se buscan mejores o
+// que el musico las integre al vgm). Para reactivar: INTRO_VOICE 1, descomentar
+// los WAV intro_vo_* en audio.res y usar el vgm "(FM6 libre)".
+#define INTRO_VOICE 0
+#if INTRO_VOICE
+typedef struct { const u8* pcm; u32 len; u16 ms; u8 ch; } IntroVo;
+static const IntroVo introVo[] = {
+    { intro_vo_tmnt,   sizeof(intro_vo_tmnt),   2110, SOUND_PCM_CH2 },
+    { intro_vo_tmnt2,  sizeof(intro_vo_tmnt2),  4150, SOUND_PCM_CH3 },
+    { intro_vo_tmnt2,  sizeof(intro_vo_tmnt2),  6283, SOUND_PCM_CH2 },
+    { intro_vo_heroes, sizeof(intro_vo_heroes), 8520, SOUND_PCM_CH3 },
+    { intro_vo_power,  sizeof(intro_vo_power),  9800, SOUND_PCM_CH2 },
+};
+#define INTRO_VO_N  (sizeof(introVo) / sizeof(introVo[0]))
+// (13/10) Mientras canta, la musica baja a este volumen (FM y PSG) para que
+// la voz se entienda; el 1er compas (instrumental) va a INTRO_MUSIC_VOL.
+#define INTRO_MUSIC_DUCK     55
+#endif // INTRO_VOICE
+
+// ---------------------------------------------------------------------------
 // Linea de tiempo (ticks NTSC = frames del analisis del arcade)
 // ---------------------------------------------------------------------------
 #define INTRO_T_FADE_IN      20   // Fundido de entrada (dentro de la escena A)
@@ -279,6 +317,7 @@ static s16        nubeChica2X;   // arranca en NUBE_START_X_DER, viaja a la izqu
 static u8         nubeAccumIzq;   // acumulador fraccionario de NUBE_SPEED_NUM_IZQ/DEN_IZQ
 static u8         nubeAccumDer;   // acumulador fraccionario de NUBE_SPEED_NUM_DER/DEN_DER
 static bool       introMusicStopped;   // corte manual de respaldo, ver INTRO_MUSIC_LEN
+static u8         introVoNext;         // (12/10) proxima frase de introVo[]
 
 static const u16 introWhite[64] = {
     0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE, 0x0EEE,
@@ -299,6 +338,21 @@ static bool introTick(void) {
     // header del vgm), se para a mano. No depende de que
     // XGM2_setLoopNumber(0) se haya aplicado correctamente en el punto de
     // loop del driver -- es una garantia adicional, no un reemplazo.
+#if INTRO_VOICE
+    // (12/10) La voz: cada frase sale cuando la musica llega a su tiempo.
+    if (!introMusicStopped && introVoNext < INTRO_VO_N && XGM2_isPlaying()) {
+        const IntroVo* v = &introVo[introVoNext];
+        u16 at = (u16)(((u32)v->ms * (IS_PAL_SYSTEM ? 50 : 60)) / 1000);
+        if (XGM2_getElapsed() >= at) {
+            XGM2_playPCMEx(v->pcm, v->len, (SoundPCMChannel)v->ch, 15, FALSE, FALSE);
+            if (introVoNext == 0) {
+                XGM2_setFMVolume(INTRO_MUSIC_DUCK);
+                XGM2_setPSGVolume(INTRO_MUSIC_DUCK);
+            }
+            introVoNext++;
+        }
+    }
+#endif
     if (!introMusicStopped && XGM2_isPlaying() &&
         (XGM2_getElapsed() >= INTRO_MUSIC_LEN)) {
         XGM2_stop();
@@ -537,6 +591,7 @@ static bool introBlockDolly(void) {
     Z80_loadDriver(Z80_DRIVER_XGM2, TRUE);
     XGM2_setLoopNumber(0);   // no repetir en loop si el tema termina antes que la escena
     introMusicStopped = FALSE;   // reset del corte manual de respaldo (ver introTick)
+    introVoNext = 0;             // (12/10) la voz arranca con la musica
     playMusicVol(music_intro_arcade, INTRO_MUSIC_VOL);
 
     if (introWaitClouds(INTRO_T_SKYLINE)) return FALSE;

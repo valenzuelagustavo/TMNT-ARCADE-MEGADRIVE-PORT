@@ -21,6 +21,9 @@
 // Se llama baxter_res (y no baxter) para que su .h no choque con src/baxter.h.
 // =============================================================================
 SPRITE baxter_boss "sprites/baxter_boss.png" 6 9 NONE 6
+// (16/10) baxter_rat.png es el Mouser ROJO de la hoja "Robot Enemies"
+// (tools/gen_robot_enemies.py), pasado a la paleta de Baxter. 9 filas (la 8,
+// salir del hueco, solo la usan los azules).
 SPRITE baxter_rat  "sprites/baxter_rat.png"  5 5 FAST 5
 SPRITE baxter_boom "sprites/baxter_boom_gen.png" 8 8 NONE 0
 SPRITE rat_boom    "sprites/rat_boom.png"    4 4 NONE 0

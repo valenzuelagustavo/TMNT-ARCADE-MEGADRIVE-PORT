@@ -35,7 +35,15 @@ XGM2 music_charselect "music/03 - Choose Your Turtle.vgm"
 XGM2 music_profiles  "music/02 - Character Profiles.vgm"
 XGM2 music_credits   "music/00 - SanSenpai Credit.vgm"
 XGM2 music_ending    "music/07 - April is Kidnapped (Cutscene).vgm"
+// (12/10) Version con FM6 LIBRE (tools/vgm_free_fm6.py): el original usaba
+// FM6 como canal FM y apagaba el DAC, y con eso la voz de la intro (PCM)
+// salia muda. FM5 era una copia exacta del bajo de FM4: ahora FM5 hace lo que
+// hacia FM6 y FM6 queda para el PCM. Si el artista cambia el vgm, volver a
+// correr el script.
+// (13/10) Voz DESACTIVADA por ahora (ver INTRO_VOICE en intro_arcade.c): se
+// vuelve al vgm original. Para reactivarla, usar la linea comentada.
 XGM2 music_intro_arcade "music/01 - Opening Demo.vgm"
+// XGM2 music_intro_arcade "music/01 - Opening Demo (FM6 libre).vgm"
 XGM2 music_level3    "music/10 - The Sewers (Stage 2-2).vgm"
 // (01/10) Temas del garage (Scene 4) y de la autopista (Scene 5).
 XGM2 music_garage    "music/11 - Parking Garage (Scene 2-3) & The Factory (Scene 4).vgm"
@@ -89,6 +97,18 @@ XGM2 golpe         "golpe.vgm"
 // del nivel (CH1) sigue sonando por debajo. Sintaxis: WAV name file driver
 // [out_rate] -> out_rate se omite = 13300 (hay que reproducirlo a rate normal).
 WAV attack_vo "audio/attack.wav" XGM2
+// (12/10) VOZ DE LA INTRO, cantada encima de music_intro_arcade (ver
+// introVo[] en intro_arcade.c): "Teenage Mutant Ninja Turtles" (sola y con
+// coro), "Heroes in a half shell" y "Turtle power!". Se declaran las de
+// intro_voice/gen/, que arma tools/gen_intro_voice.py desde las originales:
+// volumen normalizado (venian con picos de 15/128 y no se escuchaban) y
+// comprimidas en el tiempo al tempo del vgm sin cambiar el tono. Si se
+// cambian las originales, volver a correr el script.
+// (13/10) DESACTIVADAS (no ocupan ROM): descomentar junto con INTRO_VOICE 1.
+// WAV intro_vo_tmnt   "music/intro_voice/gen/01_teenage_mutant.wav" XGM2
+// WAV intro_vo_tmnt2  "music/intro_voice/gen/02_teenage_mutant.wav" XGM2
+// WAV intro_vo_heroes "music/intro_voice/gen/03_heroes_in_a_half_shell.wav" XGM2
+// WAV intro_vo_power  "music/intro_voice/gen/04_turtle_power.wav" XGM2
 WAV scream_april "audio/scream_april.wav" XGM2
 WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
 WAV attack_turtles "audio/attack_turtles.wav" XGM2
@@ -208,3 +228,5 @@ WAV shut_your_mouth_vo "audio/shut_your_mouth.wav" XGM2
 //   im_invinsible_baxter    1,947s  pico 96,6%  rms 22,0%  21.469 B
 // El original queda al lado como im_invinsible_baxter_orig.wav.
 WAV im_invinsible_baxter_vo "audio/im_invinsible_baxter.wav" XGM2
+
+// forzando ejecucion

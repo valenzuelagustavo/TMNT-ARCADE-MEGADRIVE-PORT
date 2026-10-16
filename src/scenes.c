@@ -1,4 +1,5 @@
 #include "scenes.h"
+#include "idle_missile.h"   // (14/10) modo ARCADE: el misil al que se queda quieto
 #include "intro.h"   // sega_logo_spr, rocksteady_spr
 #include "menus.h"   // title_menu_bg, title_cursor, char_select_bg/badge/head
 #include "level1.h"  // bg_level1 (IMAGE, 1376x224 — nivel completo), fire_tiles (TILESET, 8 frames de 64x64), hud_1p/hud_2p (SPRITE, 72x32, 4 anims), title_font, title_font_pal
@@ -619,10 +620,19 @@ static void bgUpdate(s16 cameraX) {
 #define FIRE_Y_TILE          ((224 / 8) - FIRE_CELL_TILES_H)  // 20: banda inferior
 
 // Parallax del fuego: scrollea a FIRE_SCROLL_NUM/FIRE_SCROLL_DEN de la camara.
-//   1/1 = anclado al mundo (igual que el fondo) | 1/2 = deriva suave ("pequeño")
+//   1/1 = anclado al mundo (igual que el fondo) | 1/2 = mas lento que el fondo
+//   >1 = mas rapido que el fondo (primer plano, lo mas cerca de la camara).
+// (16/10) Pasa de 1/2 a 5/4: el fuego esta DELANTE de todo, asi que tiene que
+// correr mas rapido que el escenario para leerse como primer plano (a 1/2 se
+// veia como algo detras del fondo). Probar 3/2 si se quiere mas marcado.
 // Como la celda se repite, esto solo cambia la VELOCIDAD de deriva, no la fase.
-#define FIRE_SCROLL_NUM      1
-#define FIRE_SCROLL_DEN      2
+#define FIRE_SCROLL_NUM      5
+#define FIRE_SCROLL_DEN      4
+// El humo del techo de la 1-2 NO es primer plano (va detras de los sprites)
+// y su mascara de prioridad sobre la capsula (SMOKE_FRONT_COL_*) esta
+// calculada para 1/2: conserva su propio factor.
+#define SMOKE_SCROLL_NUM     1
+#define SMOKE_SCROLL_DEN     2
 
 static u16 fireVramInd;  // Primer tile de VRAM de la celda del fuego
 static u16 fireFrame;    // Frame de animación actual (0..7)
@@ -1451,7 +1461,21 @@ static void p2InviteShow(u16 baseCol) {
     if (p2jSpr) return;
     p2jSpr = SPR_addSprite(&push_start, (s16)(baseCol * 8 + P2J_TEXT_DX),
                            HUD_FRAME_Y + P2J_TEXT_DY, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
-    if (p2jSpr) SPR_setDepth(p2jSpr, SPR_MIN_DEPTH);
+    if (!p2jSpr) return;
+    SPR_setDepth(p2jSpr, SPR_MIN_DEPTH);
+    // (15/10) Con los marcos tambien en SPR_MIN_DEPTH (hudFramesToFront, los
+    // niveles de stage_level: cloaca, garage...) el empate lo gana el que esta
+    // antes en la lista del motor, y el texto, recien creado, quedaba atras
+    // del marco. Se reordenan los marcos detras del texto: pasarlos a +1 los
+    // manda despues de todos los de profundidad minima, y al volver a la
+    // minima se quedan ahi (SGDK no reordena entre iguales).
+    if (hudFront) {
+        Sprite* f[] = { hudSprite1, hudSprite2, hud4Spr[0], hud4Spr[1],
+                        hud4Spr[2], hud4Spr[3], hud4Lbl[0], hud4Lbl[1],
+                        hud4Lbl[2], hud4Lbl[3] };
+        for (u8 i = 0; i < 10; i++)
+            if (f[i]) { SPR_setDepth(f[i], SPR_MIN_DEPTH + 1); SPR_setDepth(f[i], SPR_MIN_DEPTH); }
+    }
 }
 
 static void p2InviteHide(void) {
@@ -1792,7 +1816,7 @@ SceneId showPlayerSelect() {
                     secret4P   = TRUE;
                     secretStep = 0;
                     XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH1, 15, FALSE, FALSE);
                     menuDraw4P(TRUE);
                 }
             }
@@ -1820,7 +1844,7 @@ SceneId showPlayerSelect() {
                 if (match && in == konamiSeq[KONAMI_LEN - 1]) {
                     pauseSetLevelSelect(TRUE);
                     XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH1, 15, FALSE, FALSE);
                 }
             }
         }
@@ -1869,7 +1893,7 @@ SceneId showPlayerSelect() {
         // musica con XGM2_play, que reinicia el driver y cortaria el PCM a
         // mitad. 1,22s a 60fps ≈ 73 frames; se dejan 78 de margen.
         XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                       SOUND_PCM_CH1, 15, FALSE, FALSE);
         for (u16 t = 0; t < COWABUNGA_HOLD_FRAMES; t++) {
             SPR_update();
             SYS_doVBlankProcess();
@@ -1945,23 +1969,24 @@ static const char* const optLabels[OPT_ROW_COUNT] = {
 static const s16 optHeadX[4] = { 45, 73, 227, 255 };
 
 // Sound test: TODOS los VGM de musica del juego, en el orden de los archivos
-// de res/music ("00 - ...", "01 - ...") y al final el jingle del logo de SEGA.
-// En pantalla se llaman BGM01, BGM02...: asi el nombre siempre entra.
-//   BGM01 00 SanSenpai Credit      BGM10 09 Scene Clear Theme 1
-//   BGM02 01 Opening Demo          BGM11 10 The Sewers
-//   BGM03 02 Character Profiles    BGM12 11 Parking Garage / Factory
-//   BGM04 03 Choose Your Turtle    BGM13 12 Scene Clear Theme 2
-//   BGM05 04 Fire!                 BGM14 13 Highway Blockade
-//   BGM06 05 April's Room          BGM15 14 Highway Chaser
-//   BGM07 06 Fight! (jefes)        BGM16 15 It's Technodrome
-//   BGM08 07 April is Kidnapped    BGM17 16 The Technodrome
-//   BGM09 08 Downtown              BGM18    SEGA (musica_intro.vgm)
+// de res/music ("01 - ...", "02 - ..."). En pantalla se llaman BGM01, BGM02...:
+// asi el nombre siempre entra.
+// (11/10) Fuera del sound test: SanSenpai Credit y el jingle del logo de SEGA.
+//   BGM01 01 Opening Demo          BGM10 10 The Sewers
+//   BGM02 02 Character Profiles    BGM11 11 Parking Garage / Factory
+//   BGM03 03 Choose Your Turtle    BGM12 12 Scene Clear Theme 2
+//   BGM04 04 Fire!                 BGM13 13 Highway Blockade
+//   BGM05 05 April's Room          BGM14 14 Highway Chaser
+//   BGM06 06 Fight! (jefes)        BGM15 15 It's Technodrome
+//   BGM07 07 April is Kidnapped    BGM16 16 The Technodrome
+//   BGM08 08 Downtown
+//   BGM09 09 Scene Clear Theme 1
 static const u8* const soundTracks[] = {
-    music_credits, music_intro_arcade, music_profiles, music_charselect,
+    music_intro_arcade, music_profiles, music_charselect,
     music_level1, music_level2, music_boss, music_ending,
     music_stage2_1, music_scene_clear, music_level3, music_garage,
     music_scene_clear2, music_freeway, music_skate, music_techno_cutscene,
-    music_technodrome, music_sega,
+    music_technodrome,
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 
@@ -3270,7 +3295,7 @@ SceneId showScene11() {
 
     // Voice over: PCM 13.3 kHz, canal 2, prioridad máxima (15) para que suene
     // aunque la música reserve ese canal PCM.
-    XGM2_playPCMEx(attack_vo, sizeof(attack_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(attack_vo, sizeof(attack_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
 
     // Primer foot soldier: ya spawneado y VISIBLE pegado al borde derecho de la
     // pantalla, entrando (CHASE) hacia el jugador.
@@ -3313,6 +3338,7 @@ SceneId showScene11() {
     // --- Bucle principal del nivel ---
     SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
     pauseReset();
+    idleMissileReset();
     while (1) {
         // 0. Pausa (START del control 1). Va ANTES de los continues: el START
         //    que revive al jugador 1 no tiene que abrir la pausa.
@@ -3321,6 +3347,7 @@ SceneId showScene11() {
 
         // 1. Input y física de cada jugador
         for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
+        idleMissileUpdate(pls, nPl, cameraX, 0);   // (14/10) modo ARCADE
 
         // 2. Cámara dead-zone: la mueve el jugador que va MÁS ADELANTE
         //    (estilo arcade), pero SIN dejar nunca al rezagado fuera de
@@ -3880,11 +3907,11 @@ SceneId showScene11() {
 
             // El swing es UNO: pega al primer jugador alcanzado y se consume.
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerCanBeHit(pls[k])) continue;
+                if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(pls[k], getEnemyCenterX(e));
+                enemyDamagePlayer(e, pls[k]);
                 break;
             }
         }
@@ -3964,7 +3991,7 @@ SceneId showScene11() {
             else if (robots[r].state != ROBOT_INACTIVE) robotsDone = FALSE;
         }
         if (robotsDone && algunoGone && activeEnemies == 0) {
-            XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH1, 15, FALSE, FALSE);
             win = TRUE;
             break;
         }
@@ -4157,7 +4184,7 @@ static s16 sofaWallX(s16 y) {
 // sigue con prioridad baja (detrás de los sprites). Con la cámara bloqueada en
 // 120 toda la pelea (fase 2), la cápsula anclada a pantalla (172..268, ±8 de
 // temblor) cubre las columnas del plano (screen + 120) / 8 = 35..49.
-// (22/09) Corregido: el humo de BG_A scrollea con PARALLAX (FIRE_SCROLL_NUM/
+// (22/09) Corregido: el humo de BG_A scrollea con PARALLAX (SMOKE_SCROLL_NUM/
 // DEN = 1/2 de la camara), asi que con la camara en 120 su scroll es 60, no
 // 120. La cuenta vieja ((pantalla + 120) / 8 = 35..49) daba columnas corridas
 // y cubria la pantalla 220..340 en vez de la capsula (160..272 con el
@@ -4257,7 +4284,7 @@ static void smokeUpdate(s16 cameraX) {
     }
 
     // Scroll de parallax de la banda: mismas constantes que el fuego.
-    s16 sscroll = (s16)(-(((s32)cameraX * FIRE_SCROLL_NUM) / FIRE_SCROLL_DEN));
+    s16 sscroll = (s16)(-(((s32)cameraX * SMOKE_SCROLL_NUM) / SMOKE_SCROLL_DEN));
     for (u16 i = 0; i < SMOKE_CELL_TILES_H; i++) smokeScrollTbl[i] = sscroll;
     VDP_setHorizontalScrollTile(BG_A, SMOKE_Y_TILE, smokeScrollTbl,
                                 SMOKE_CELL_TILES_H, DMA_QUEUE);
@@ -4490,7 +4517,10 @@ SceneId showScene12() {
     static const s16 APRIL_FOOT_OFFSET = 58;
     Sprite* aprilSpr = SPR_addSprite(&april, APRIL_WORLD_X /*cámara en 0 al inicio*/,
                                      APRIL_LANE_Y - APRIL_FOOT_OFFSET,
-                                     TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+                                     // (15/10) PAL2: la hoja nueva viene con la
+                                     // paleta del fuego y los foot soldiers. En
+                                     // PAL1 cambiaba de color segun la tortuga.
+                                     TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
     if (aprilSpr) SPR_setDepth(aprilSpr, -APRIL_LANE_Y);
     u16 aprilTimer = 0;
 
@@ -4600,7 +4630,7 @@ SceneId showScene12() {
     // SGDK -- solo tiene 3 canales PCM reales, PCM0..PCM2 = CH1..CH3 -- y
     // usarlo corrompia el comando del Z80, dejando un pitido constante;
     // bug encontrado 29/08, ver DEVLOG).
-    XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
 
     // --- Fases del nivel ---
     // 0 = oleada A (2 morados)  ·  1 = oleada B (2 blancos + 1 naranja)
@@ -4617,6 +4647,7 @@ SceneId showScene12() {
 
     SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
     pauseReset();
+    idleMissileReset();
     bossVoReset();
     while (1) {
         // 0. Pausa (START del control 1), antes de los continues.
@@ -4634,6 +4665,7 @@ SceneId showScene12() {
                 if (!isPlayerGameOver(pls[k])) playerCutsceneWatch(pls[k]);
         } else {
             for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
+            idleMissileUpdate(pls, nPl, cameraX, 0);   // (14/10) modo ARCADE
         }
 
         // Sofa de la esquina (no-walk): empuja al jugador fuera de la zona
@@ -5010,7 +5042,7 @@ SceneId showScene12() {
                         }
                         if (aprilSpr) { SPR_releaseSprite(aprilSpr); aprilSpr = NULL; }
                         XGM2_playPCMEx(scream_april, sizeof(scream_april),
-                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH1, 15, FALSE, FALSE);
                     } else if (cutTimer == SHREDDER_RAPTO_TICKS) {
                         if (shredderSpr) SPR_setAnimAndFrame(shredderSpr, 2, 1);
                     }
@@ -5222,11 +5254,11 @@ SceneId showScene12() {
 
             // El swing es UNO: pega al primer jugador alcanzado y se consume.
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerCanBeHit(pls[k])) continue;
+                if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(pls[k], getEnemyCenterX(e));
+                enemyDamagePlayer(e, pls[k]);
                 break;
             }
         }
@@ -5396,9 +5428,41 @@ SceneId showScene12() {
 // imagen de ~32 colores. Entre las dos suman ~1000 tiles, así que se LIBERA la
 // VRAM de sprites (SPR_end) mientras se muestran y se restaura antes de volver.
 // Permanece ~5 s y reinicia el juego (vuelve al logo de SEGA).
+// (16/10) ARTE NUEVO: las tortugas ya no estan dibujadas en el BG_A: son
+// SPRITES en PAL2 (una paleta mas) y se muestran solo las de los jugadores.
+// Posicion en pantalla de cada una (esquina de su celda de 64x64), medida en
+// la captura de Gustavo. Indice = tortuga (0 Leo, 1 Mike, 2 Don, 3 Raph).
+static const s16 ENDING_TURTLE_X[4] = { 227,  55, 153,  83 };
+static const s16 ENDING_TURTLE_Y[4] = {  39,  71,  13,  12 };
+#define ENDING_SPR_TILES  256   // 4 tortugas x 64 tiles (8x8)
+
+// (16/10) FUEGO Y HUMO ANIMADOS por paleta en background.png (PAL0). Dos
+// rampas que giran cada ENDING_FIRE_TICKS frames:
+//   llamas: 7 (255,198,0) 8 (255,156,0) 9 (255,148,74) 10 (255,107,0)
+//   brasas/humo: 11 (181,90,0) 12 (165,107,0) 13 (132,0,0)
+// Quedan afuera el 14 (99,0,0), que tambien dibuja los bordes del edificio,
+// y los ladrillos (4..6).
+#define ENDING_FIRE_TICKS   6
+static const u8 endingFireA[] = { 7, 8, 9, 10 };
+static const u8 endingFireB[] = { 11, 12, 13 };
+
+static void endingFireStep(u16 step) {
+    const u16* base = bg_b_final.palette->data;
+    u16 c[16];
+    for (u16 i = 0; i < 16; i++) c[i] = base[i];
+    for (u16 i = 0; i < sizeof(endingFireA); i++)
+        c[endingFireA[i]] = base[endingFireA[(i + step) % sizeof(endingFireA)]];
+    for (u16 i = 0; i < sizeof(endingFireB); i++)
+        c[endingFireB[i]] = base[endingFireB[(i + step) % sizeof(endingFireB)]];
+    PAL_setColors(7, &c[7], 7, DMA_QUEUE);     // CRAM 7..13 (PAL0)
+}
+
 SceneId showEnding() {
     clearSceneEx(TRUE);               // limpiar sin cortar la música (viene de cutScene 4)
-    SPR_end();                       // libera la VRAM de sprites (no se usan acá)
+    SPR_end();                       // libera la VRAM de sprites...
+    // ...y la vuelve a armar chica: solo las tortugas (arriba de la VRAM, debajo
+    // de la fuente; los dos planos ocupan ~1000 tiles desde abajo).
+    SPR_initEx(ENDING_SPR_TILES);
 
     VDP_setBackgroundColor(0);
 
@@ -5416,15 +5480,43 @@ SceneId showEnding() {
                     TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, aInd),
                     0, 0, FALSE, TRUE);
 
+    // Las tortugas de los jugadores (sin repetir), en PAL2. Con la paleta en
+    // negro no se ven hasta el fade-in.
+    Sprite* turtleSpr[4] = { NULL, NULL, NULL, NULL };
+    {
+        u8 chars[4];
+        u8 n = 0;
+        chars[n++] = personajeSeleccionado & 3;
+        if (cantidadJugadores >= 2) chars[n++] = personaje2Seleccionado & 3;
+        if (cantidadJugadores >= 4) {
+            chars[n++] = personaje3Seleccionado & 3;
+            chars[n++] = personaje4Seleccionado & 3;
+        }
+        u8 shown = 0;   // mascara de tortugas ya puestas
+        for (u8 i = 0; i < n; i++) {
+            u8 c = chars[i];
+            if (shown & (1 << c)) continue;
+            shown |= (u8)(1 << c);
+            Sprite* sp = SPR_addSprite(&final_turtles, ENDING_TURTLE_X[c], ENDING_TURTLE_Y[c],
+                                       TILE_ATTR(PAL2, TRUE, FALSE, FALSE));
+            if (!sp) continue;
+            SPR_setAutoAnimation(sp, FALSE);
+            SPR_setAnimAndFrame(sp, 0, c);
+            turtleSpr[c] = sp;
+        }
+        SPR_update();
+    }
+
     // Con las DOS ya cargadas, recién ahí se REVELA la imagen completa de una,
-    // con un fade-in conjunto de ambas paletas (PAL0 = fondo, PAL1 = overlay).
-    // Así nunca se ve "BG_B sola" antes de que entre BG_A.
-    u16 combinedPal[32];
+    // con un fade-in conjunto de las paletas (PAL0 = fondo, PAL1 = overlay,
+    // PAL2 = tortugas). Así nunca se ve "BG_B sola" antes de que entre BG_A.
+    u16 combinedPal[48];
     for (u16 i = 0; i < 16; i++) {
         combinedPal[i]      = bg_b_final.palette->data[i];
         combinedPal[16 + i] = bg_a_final.palette->data[i];
+        combinedPal[32 + i] = final_turtles.palette->data[i];
     }
-    PAL_fadeIn(0, 31, combinedPal, 20, FALSE);   // ~0.33s, las dos paletas juntas
+    PAL_fadeIn(0, 47, combinedPal, 20, FALSE);   // ~0.33s, las tres paletas juntas
 
     // Esperar a que la imagen esté COMPLETAMENTE visible (el fade corre por
     // VBlank) antes de contar el retraso de la risa.
@@ -5442,13 +5534,18 @@ SceneId showEnding() {
     u16 timer      = (IS_PAL_SYSTEM ? 50 : 60) * 3;
     u16 laughDelay = 30;   // ~0.5s después de verse la imagen (reducido 1s)
     bool laughed   = FALSE;
+    u16  fireTick  = 0, fireStep = 0;
     while (timer > 0) {
         timer--;
+        if (++fireTick >= ENDING_FIRE_TICKS) {   // fuego y humo (ver endingFireStep)
+            fireTick = 0;
+            endingFireStep(++fireStep);
+        }
         if (!laughed) {
             if (laughDelay > 0) laughDelay--;
             else {
                 XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH1, 10, FALSE, FALSE);
                 laughed = TRUE;
             }
         }
@@ -5458,10 +5555,14 @@ SceneId showEnding() {
         if (XGM2_isPlaying() && XGM2_getElapsed() >= MUSIC_ENDING_LEN)
             XGM2_stop();
         if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
+        SPR_update();
         SYS_doVBlankProcess();
     }
 
     XGM2_setLoopNumber(-1);   // restaurar loop infinito para la siguiente escena
+    for (u8 c = 0; c < 4; c++)
+        if (turtleSpr[c]) SPR_releaseSprite(turtleSpr[c]);
+    SPR_end();
     SPR_initEx(600);                 // restaurar el motor de sprites (lo usan las escenas siguientes)
     clearScene();
     // La persecución sigue: de acá se encadena el título de la Scene 2 y

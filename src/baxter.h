@@ -20,10 +20,17 @@
 //   anim 0 volando (2f) · 1 portezuela (f0 abriendo, f1 abierta) · 2 dano
 // Pelea (05/10):
 //   ENTRA en diagonal desde abajo a la derecha.
-//   VUELA en una Lissajous: de lado a lado +-BAXTER_AMP_X px cada
-//   BAXTER_PER_X frames y arriba-abajo +-BAXTER_AMP_Y cada BAXTER_PER_Y. La
-//   nave NO ataca: cada BAXTER_DROP_T frames abre la portezuela y suelta un
-//   Mouser. BAXTER_HP golpes (cualquier golpe saca uno).
+//   (12/10) VUELA COMO EN EL ARCADE (medido en la partida grabada,
+//   gameplayARCADE/tmnt.avi 8:20-9:30): va de punto en punto de una grilla de
+//   3 columnas (cada ~80 px desde el borde izquierdo de la camara) x 3 alturas
+//   (arriba, medio, abajo sobre el canal). Casi siempre en diagonal a una
+//   columna vecina y cambiando de altura (~1,5 px/f en X, ~3 px/f en Y); por
+//   arriba tambien cruza en horizontal. A veces se queda flotando en el punto
+//   (sube y baja 20 px cada segundo, 2 a 4 veces). La nave NO ataca: cada
+//   BAXTER_DROP_T frames abre la portezuela y suelta un Mouser (en el arcade
+//   la cloaca se llena: 6 a 8 a la vez). BAXTER_HP golpes (en la partida
+//   grabada fueron 16).
+//   (La Lissajous de antes queda en el historial de git.)
 // Con poca vida parpadea en rojo. Al morir explota y con el explotan todas
 // las ratas vivas.
 //
@@ -53,6 +60,8 @@
 #define RAT_ANIM_JUMP        5   // salto de ataque (tambien la caida de la nave)
 #define RAT_ANIM_HURT        6
 #define RAT_ANIM_DEAD        7
+#define RAT_ANIM_EMERGE      8   // (16/10) sale del hueco de la pared (3 frames, a mano)
+#define RAT_EMERGE_TICKS    10   // frames de juego por pose al salir del hueco
 #define RAT_JUMP_FRAMES      7   // frames de la fila del salto (se reparten a mano)
 
 #define BAXTER_FRAME_W      48
@@ -69,8 +78,8 @@
 #define BAXTER_BOOM_TICKS    7     // ticks por frame (8 x 7 = ~1 s)
 #define BAXTER_BODY_H       62     // la parte que colisiona (sin el escape)
 #define BAXTER_HALF_W       22
-#define BAXTER_HP           10     // golpes
-#define BAXTER_LOW_HP        2     // de aca para abajo parpadea en rojo (ultimo cuarto)
+#define BAXTER_HP           32     // golpes (12/10: 16, los del arcade; 14/10: el doble, pedido de Gustavo)
+#define BAXTER_LOW_HP        4     // de aca para abajo parpadea en rojo (14/10: 4, por el doble de vida)
 #define BAXTER_INVULN       12     // golpeado: sin recibir otro golpe
 #define BAXTER_ENTER_XQ    640     // entrada: 2,5 px/f a la izquierda ...
 #define BAXTER_ENTER_YQ    384     // ... y 1,5 px/f para arriba
@@ -79,8 +88,17 @@
 #define BAXTER_PER_X       150     // ... cada 2,5 s
 #define BAXTER_AMP_Y        50     // arriba-abajo (o lo que de la arena) ...
 #define BAXTER_PER_Y       120     // ... cada 2 s
-#define BAXTER_DROP_T      150     // un Mouser cada 2,5 s
+#define BAXTER_DROP_T       75     // (12/10) un Mouser cada 1,25 s (era 2,5)
+// (12/10) Vuelo por grilla (ver arriba).
+#define BAXTER_COL_DX       80     // columnas: arenaLeft + 0 / 80 / 160
+#define BAXTER_FLY_XQ      384     // 1,5 px/f en X
+#define BAXTER_FLY_YQ      768     // 3 px/f en Y
+#define BAXTER_HOVER_PCT    35     // % de las llegadas en que se queda flotando
+#define BAXTER_BOB_DY       20     // flotando: sube y baja esto ...
+#define BAXTER_BOB_MOVE     19     // ... en estos frames ...
+#define BAXTER_BOB_HOLD     11     // ... y se queda quieto estos
 #define BAXTER_DOOR_T       24     // la portezuela se abre antes de soltarlo
+#define BAXTER_DOOR_AFTER   12     // (14/10) ... y sigue abierta esto despues
 #define MAX_BAXTER_RATS      8     // pool
 #define BAXTER_RATS_ALIVE    6     // tope de vivas (ademas del de VRAM)
 
@@ -125,6 +143,13 @@ typedef struct {
     u16         dropT;        // frames desde el ultimo Mouser
     s16         cx, cy;       // centro de la Lissajous
     s16         ampY;         // amplitud vertical (la que entra en la arena)
+    // (12/10) vuelo por grilla
+    s16         tx, ty;       // punto al que va
+    u8          col, row;     // punto de la grilla (0..2)
+    u8          hoverLeft;    // medias vueltas de flotar que le quedan
+    u8          hoverPh;      // 0 sube, 1 quieto, 2 baja, 3 quieto
+    u8          hoverT;
+    s16         hoverY0;
     u8          accX, accY;   // restos Q8 de la entrada
     u8          hurtFlash;
     u8          invuln;
@@ -156,5 +181,9 @@ void baxterRatPlayerHits(Player** pls, u8 nPl);
 u16  baxterRatAliveCount(void);
 u16  baxterRatBusyCount(void);    // vivas o explotando (30/09)
 void baxterRatReleaseAll(void);
+// (13/10) Mousers fuera de la pelea con Baxter (los huecos de la cloaca).
+bool baxterRatSpawnAt(const SpriteDefinition* def, const SpriteDefinition* boomDef,
+                      s16 x, s16 landY, s16 fallZ);
+void baxterRatSetArena(s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot);
 
 #endif

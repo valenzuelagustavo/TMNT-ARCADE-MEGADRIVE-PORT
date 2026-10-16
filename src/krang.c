@@ -1,5 +1,6 @@
 #include "krang.h"
 #include "audio.h"    // hit_turtles, boss_hit, electric_shock_sfx, ...
+#include "enemy.h"    // sprDefragLock (las explosiones comparten tiles)
 
 // ===========================================================================
 // KRANG — ver krang.h
@@ -35,10 +36,10 @@ static Player* nearestPlayer(Player** pls, u8 nPl, s16 x) {
 static bool isDown(Player* p) { return !playerCanBeHitAir(p) && !isPlayerGameOver(p); }
 
 // ---------------------------------------------------------------------------
-// PUNO COHETE y RELAMPAGOS
+// PUNO COHETE, LASER DE LOS OJOS y EXPLOSIONES DEL CUERPO
 // ---------------------------------------------------------------------------
 #define MAX_KRANG_FISTS 2
-#define MAX_KRANG_BOLTS 2
+#define MAX_KRANG_BEAMS 1
 
 static struct {
     bool    active;
@@ -49,20 +50,53 @@ static struct {
     u8      hitMask;
 } fists[MAX_KRANG_FISTS];
 
+// (13/10) Laser de los ojos: KRANG_BEAM_SEGS tramos diagonales (krang_eyebeam)
+// desde los ojos hasta el piso y el chispazo (krang_zap) donde toca. Sale con
+// Krang quieto, asi que queda fijo donde salio.
 static struct {
     bool    active;
-    Sprite* sprite;       // el relampago
+    Sprite* seg[KRANG_BEAM_SEGS];
     Sprite* zap;          // el chispazo en el piso
-    s16     x, lane;
+    s16     x, lane;      // centro de Krang al disparar (mundo) y su lane
+    s8      dir;
     u8      t;
     u8      hitMask;
-} bolts[MAX_KRANG_BOLTS];
+} beams[MAX_KRANG_BEAMS];
+
+// (13/10) Explosiones del cuerpo: la de Baxter en PAL2 (krang_boom). Cuartos:
+// 0 arriba-izq, 1 arriba-der, 2 abajo-izq, 3 abajo-der. Los de la izquierda
+// con su arte (anim 0 / 1) y los de la derecha espejados apuntando a sus
+// tiles (128 tiles por explosion); si no entra, el de arriba y 3 espejos
+// (64); si ni eso, esa explosion no se ve (el sonido y el flash si).
+// state: 0 libre, 1 esperando su turno, 2 explotando.
+static struct {
+    u8      state;
+    u16     wait;
+    Sprite* s[4];
+    u8      owner[4];
+    s16     cx, cy;       // centro (mundo)
+    u8      frame, tick;
+} booms[KRANG_BOOMS];
+static u8 whiteFlash;     // ticks de sala en blanco que quedan
+
+// Donde salen, respecto del centro del cuerpo (la primera, justo ahi).
+static const s8 boomOff[KRANG_BOOMS][2] = { { 0, 0 }, { -30, -30 }, { 28, 22 }, { 10, -44 } };
+
+static void boomsInit(void) {
+    for (u16 i = 0; i < KRANG_BOOMS; i++) {
+        booms[i].state = 0;
+        for (u16 q = 0; q < 4; q++) booms[i].s[q] = NULL;
+    }
+    whiteFlash = 0;
+}
 
 static void shotsInit(void) {
     for (u16 i = 0; i < MAX_KRANG_FISTS; i++) { fists[i].active = FALSE; fists[i].sprite = NULL; }
-    for (u16 i = 0; i < MAX_KRANG_BOLTS; i++) {
-        bolts[i].active = FALSE; bolts[i].sprite = NULL; bolts[i].zap = NULL;
+    for (u16 i = 0; i < MAX_KRANG_BEAMS; i++) {
+        beams[i].active = FALSE; beams[i].zap = NULL;
+        for (u16 g = 0; g < KRANG_BEAM_SEGS; g++) beams[i].seg[g] = NULL;
     }
+    boomsInit();
 }
 
 static void fistFire(s16 x, s16 lane, s8 dir) {
@@ -88,26 +122,31 @@ static void fistFire(s16 x, s16 lane, s8 dir) {
     }
 }
 
-static void boltDrop(s16 x, s16 lane) {
-    for (u16 i = 0; i < MAX_KRANG_BOLTS; i++) {
-        if (bolts[i].active) continue;
-        if (!bolts[i].sprite)
-            bolts[i].sprite = SPR_addSprite(&krang_bolt, -80, -80, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
-        if (!bolts[i].zap)
-            bolts[i].zap = SPR_addSprite(&krang_zap, -80, -80, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
-        bolts[i].active = TRUE;
-        bolts[i].x = x;
-        bolts[i].lane = lane;
-        bolts[i].t = 0;
-        bolts[i].hitMask = 0;
-        if (bolts[i].sprite) {
-            SPR_setAutoAnimation(bolts[i].sprite, FALSE);
-            SPR_setVisibility(bolts[i].sprite, VISIBLE);
+static void beamFire(s16 x, s16 lane, s8 dir) {
+    for (u16 i = 0; i < MAX_KRANG_BEAMS; i++) {
+        if (beams[i].active) continue;
+        for (u16 g = 0; g < KRANG_BEAM_SEGS; g++) {
+            if (!beams[i].seg[g])
+                beams[i].seg[g] = SPR_addSprite(&krang_eyebeam, -80, -80, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+            if (beams[i].seg[g]) {
+                SPR_setAutoAnimation(beams[i].seg[g], FALSE);
+                SPR_setAnimAndFrame(beams[i].seg[g], 0, 0);
+                SPR_setHFlip(beams[i].seg[g], dir < 0);
+                SPR_setVisibility(beams[i].seg[g], HIDDEN);
+            }
         }
-        if (bolts[i].zap) {
-            SPR_setAutoAnimation(bolts[i].zap, FALSE);
-            SPR_setVisibility(bolts[i].zap, HIDDEN);
+        if (!beams[i].zap)
+            beams[i].zap = SPR_addSprite(&krang_zap, -80, -80, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        if (beams[i].zap) {
+            SPR_setAutoAnimation(beams[i].zap, FALSE);
+            SPR_setVisibility(beams[i].zap, HIDDEN);
         }
+        beams[i].active = TRUE;
+        beams[i].x = x;
+        beams[i].lane = lane;
+        beams[i].dir = dir;
+        beams[i].t = 0;
+        beams[i].hitMask = 0;
         XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 13, FALSE, FALSE);
         return;
     }
@@ -118,11 +157,130 @@ static void fistHide(u16 i) {
     if (fists[i].sprite) SPR_setVisibility(fists[i].sprite, HIDDEN);
 }
 
-static void boltHide(u16 i) {
-    bolts[i].active = FALSE;
-    if (bolts[i].sprite) SPR_setVisibility(bolts[i].sprite, HIDDEN);
-    if (bolts[i].zap)    SPR_setVisibility(bolts[i].zap, HIDDEN);
+static void beamHide(u16 i) {
+    beams[i].active = FALSE;
+    for (u16 g = 0; g < KRANG_BEAM_SEGS; g++)
+        if (beams[i].seg[g]) SPR_setVisibility(beams[i].seg[g], HIDDEN);
+    if (beams[i].zap) SPR_setVisibility(beams[i].zap, HIDDEN);
 }
+
+// --- Explosiones del cuerpo ---------------------------------------------------
+static void boomRelease(u16 i) {
+    for (u16 q = 0; q < 4; q++)
+        if (booms[i].s[q]) { SPR_releaseSprite(booms[i].s[q]); booms[i].s[q] = NULL; }
+}
+
+static Sprite* boomMaster(u16 anim) {
+    Sprite* s = SPR_addSprite(&krang_boom, -128, -128, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    if (s) SPR_setAnimAndFrame(s, (s16)anim, 0);
+    return s;
+}
+
+static Sprite* boomMirror(const Sprite* m, u16 anim, bool hf, bool vf) {
+    if (!m) return NULL;
+    Sprite* s = SPR_addSpriteEx(&krang_boom, -128, -128,
+                                TILE_ATTR_FULL(PAL2, FALSE, FALSE, FALSE,
+                                               m->attribut & TILE_INDEX_MASK), 0);
+    if (!s) return NULL;
+    SPR_setAnimAndFrame(s, (s16)anim, 0);
+    SPR_setHFlip(s, hf);
+    SPR_setVFlip(s, vf);
+    return s;
+}
+
+static void boomStart(u16 i) {
+    const u16 T = krang_boom.maxNumTile;
+    Sprite** sp = booms[i].s;
+    booms[i].state = 2;
+    booms[i].frame = 0;
+    booms[i].tick = 0;
+    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+    if (SPR_getLargestFreeVRAMBlock() < T) return;
+    sp[0] = boomMaster(0);
+    if (!sp[0]) return;
+    if (SPR_getLargestFreeVRAMBlock() >= T) sp[2] = boomMaster(1);
+    if (sp[2]) {                                   // mitad izquierda propia
+        sp[1] = boomMirror(sp[0], 0, TRUE, FALSE);
+        sp[3] = boomMirror(sp[2], 1, TRUE, FALSE);
+        booms[i].owner[1] = 0; booms[i].owner[2] = 2; booms[i].owner[3] = 2;
+    } else {                                       // un cuarto y 3 espejos
+        sp[1] = boomMirror(sp[0], 0, TRUE,  FALSE);
+        sp[2] = boomMirror(sp[0], 0, FALSE, TRUE);
+        sp[3] = boomMirror(sp[0], 0, TRUE,  TRUE);
+        booms[i].owner[1] = booms[i].owner[2] = booms[i].owner[3] = 0;
+    }
+    booms[i].owner[0] = 0;
+    // Las que salen despues, delante de las anteriores.
+    for (u16 q = 0; q < 4; q++) if (sp[q]) {
+        SPR_setAutoAnimation(sp[q], FALSE);
+        SPR_setDepth(sp[q], (s16)(SPR_MIN_DEPTH + 1 + (KRANG_BOOMS - i)));
+    }
+}
+
+// Programa las KRANG_BOOMS explosiones alrededor del cuerpo (x, pies y).
+static void boomsChain(s16 x, s16 y) {
+    sprDefragLock = 1;            // los espejos apuntan a la VRAM de su dueno
+    for (u16 i = 0; i < KRANG_BOOMS; i++) {
+        boomRelease(i);
+        booms[i].state = 1;
+        booms[i].wait = (u16)(i * KRANG_BOOM_GAP);
+        booms[i].cx = (s16)(x + boomOff[i][0]);
+        booms[i].cy = (s16)(y - KRANG_BOOM_DZ + boomOff[i][1]);
+    }
+}
+
+static void boomsUpdate(s16 camX, s16 camY) {
+    if (whiteFlash) whiteFlash--;
+    bool live = FALSE, any = FALSE;
+    for (u16 i = 0; i < KRANG_BOOMS; i++) {
+        if (!booms[i].state) continue;
+        any = TRUE;
+        if (booms[i].state == 1) {
+            if (booms[i].wait) { booms[i].wait--; live = TRUE; continue; }
+            boomStart(i);
+            if (i == 0) whiteFlash = 4;         // flash blanco con la primera
+            else if (i == 2) whiteFlash = 2;    // y uno corto con la tercera
+        } else if (++booms[i].tick >= KRANG_BOOM_TICKS) {
+            booms[i].tick = 0;
+            if (++booms[i].frame >= KRANG_BOOM_FRAMES) {
+                boomRelease(i);
+                booms[i].state = 0;
+                continue;
+            }
+            for (u16 q = 0; q < 4; q++)
+                if (booms[i].s[q]) SPR_setFrame(booms[i].s[q], booms[i].frame);
+        }
+        live = TRUE;
+        Sprite** sp = booms[i].s;
+        for (u16 q = 1; q < 4; q++) {
+            Sprite* m = sp[booms[i].owner[q]];
+            if (!sp[q] || !m || booms[i].owner[q] == q) continue;
+            u16 idx = m->attribut & TILE_INDEX_MASK;
+            if ((sp[q]->attribut & TILE_INDEX_MASK) != idx) SPR_setVRAMTileIndex(sp[q], idx);
+        }
+        s16 x0 = (s16)(booms[i].cx - KRANG_BOOM_HALF - camX);
+        s16 y0 = (s16)(booms[i].cy - KRANG_BOOM_HALF - camY);
+        for (u16 q = 0; q < 4; q++)
+            if (sp[q])
+                SPR_setPosition(sp[q], (s16)(x0 + (q & 1) * KRANG_BOOM_HALF),
+                                       (s16)(y0 + (q >> 1) * KRANG_BOOM_HALF));
+    }
+    if (any && !live) sprDefragLock = 0;   // termino la ultima
+}
+
+static void boomsReleaseAll(void) {
+    bool had = FALSE;
+    for (u16 i = 0; i < KRANG_BOOMS; i++) {
+        if (booms[i].state) had = TRUE;
+        boomRelease(i);
+        booms[i].state = 0;
+    }
+    if (had) sprDefragLock = 0;
+    whiteFlash = 0;
+}
+
+bool krangWhiteFlash(void) { return whiteFlash != 0; }
 
 void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
     for (u16 i = 0; i < MAX_KRANG_FISTS; i++) {
@@ -151,41 +309,54 @@ void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             SPR_setDepth(fists[i].sprite, (s16)(-(fists[i].lane) - 1));
         }
     }
-    for (u16 i = 0; i < MAX_KRANG_BOLTS; i++) {
-        if (!bolts[i].active) continue;
-        bolts[i].t++;
-        if (bolts[i].t > KRANG_BOLT_LIFE) { boltHide(i); continue; }
-        // Baja desde el techo en unos frames; cuando toca el piso, pega.
-        s16 reach = (s16)(bolts[i].t * (128 / KRANG_BOLT_FALL));
-        if (reach > 128) reach = 128;
-        bool grounded = bolts[i].t >= KRANG_BOLT_FALL;
+    for (u16 i = 0; i < MAX_KRANG_BEAMS; i++) {
+        if (!beams[i].active) continue;
+        beams[i].t++;
+        if (beams[i].t > KRANG_BEAM_LIFE) { beamHide(i); continue; }
+        // Baja tramo a tramo desde los ojos; cuando toca el piso, pega.
+        u8 shown = (u8)(1 + beams[i].t / KRANG_BEAM_GROW);
+        if (shown > KRANG_BEAM_SEGS) shown = KRANG_BEAM_SEGS;
+        bool grounded = beams[i].t >= KRANG_BEAM_GROW * (KRANG_BEAM_SEGS - 1);
+        bool blink = (beams[i].t > KRANG_BEAM_LIFE - 6) && (beams[i].t & 1);
+        s8 dir = beams[i].dir;
         if (grounded) {
+            // Pega a la tortuga de su lane que este donde el rayo ya bajo a
+            // la altura del cuerpo, hasta donde toca el piso.
             for (u8 k = 0; k < nPl; k++) {
                 u8 bit = (u8)(1 << k);
-                if ((bolts[i].hitMask & bit) || !playerCanBeHit(pls[k])) continue;
-                s16 px = getPlayerHurtCX(pls[k]);
-                if (kabs((s16)(px - bolts[i].x)) >= KRANG_BOLT_HALF_W) continue;
-                if (kabs((s16)(getPlayerY(pls[k]) - bolts[i].lane)) > KRANG_BOLT_DY) continue;
-                bolts[i].hitMask |= bit;
+                if ((beams[i].hitMask & bit) || !playerCanBeHit(pls[k])) continue;
+                s16 fwd = (s16)((getPlayerHurtCX(pls[k]) - beams[i].x) * dir);
+                if (fwd < KRANG_BEAM_HIT_MIN || fwd > KRANG_BEAM_HIT_MAX) continue;
+                if (kabs((s16)(getPlayerY(pls[k]) - beams[i].lane)) > KRANG_BOLT_DY) continue;
+                beams[i].hitMask |= bit;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
-                playerHitBarsKnockdown(pls[k], bolts[i].x, KRANG_BOLT_DMG);
+                playerHitBarsKnockdown(pls[k], beams[i].x, KRANG_BOLT_DMG);
             }
         }
-        if (bolts[i].sprite) {
-            SPR_setFrame(bolts[i].sprite, (bolts[i].t >> 1) & 1);
-            SPR_setPosition(bolts[i].sprite, bolts[i].x - 8 - camX, bolts[i].lane - reach - camY);
-            SPR_setDepth(bolts[i].sprite, (s16)(-(bolts[i].lane) - 2));
-            // titila al final
-            SPR_setVisibility(bolts[i].sprite,
-                              (bolts[i].t > KRANG_BOLT_LIFE - 8 && (bolts[i].t & 1)) ? HIDDEN : VISIBLE);
+        for (u16 g = 0; g < KRANG_BEAM_SEGS; g++) {
+            Sprite* sg = beams[i].seg[g];
+            if (!sg) continue;
+            // Tramo g: arriba a (KRANG_BEAM_TOP - 32g) de altura, su borde a
+            // (KRANG_BEAM_X0 + 32g) delante del centro (espejado si mira a la
+            // izquierda: el pixel 'f' delante cae en x - f - 1).
+            s16 f0 = (s16)(KRANG_BEAM_X0 + g * KRANG_BEAM_SEG_H);
+            s16 left = (dir > 0) ? (s16)(beams[i].x + f0)
+                                 : (s16)(beams[i].x - f0 - KRANG_BEAM_SEG_W);
+            SPR_setFrame(sg, (beams[i].t >> 1) & 1);
+            SPR_setPosition(sg, left - camX,
+                            beams[i].lane - KRANG_BEAM_TOP + g * KRANG_BEAM_SEG_H - camY);
+            SPR_setDepth(sg, (s16)(-(beams[i].lane) - 2));
+            SPR_setVisibility(sg, (g < shown && !blink) ? VISIBLE : HIDDEN);
         }
-        if (bolts[i].zap) {
-            SPR_setVisibility(bolts[i].zap, grounded ? VISIBLE : HIDDEN);
-            SPR_setFrame(bolts[i].zap, (bolts[i].t >> 2) & 1);
-            SPR_setPosition(bolts[i].zap, bolts[i].x - 16 - camX, bolts[i].lane - 12 - camY);
-            SPR_setDepth(bolts[i].zap, (s16)(-(bolts[i].lane) - 3));
+        if (beams[i].zap) {
+            s16 lx = (s16)(beams[i].x + dir * (KRANG_BEAM_LAND + 3));
+            SPR_setVisibility(beams[i].zap, (grounded && !blink) ? VISIBLE : HIDDEN);
+            SPR_setFrame(beams[i].zap, (beams[i].t >> 2) & 1);
+            SPR_setPosition(beams[i].zap, lx - 16 - camX, beams[i].lane - 12 - camY);
+            SPR_setDepth(beams[i].zap, (s16)(-(beams[i].lane) - 3));
         }
     }
+    boomsUpdate(camX, camY);
 }
 
 void krangShotsReleaseAll(void) {
@@ -193,10 +364,11 @@ void krangShotsReleaseAll(void) {
         if (fists[i].sprite) { SPR_releaseSprite(fists[i].sprite); fists[i].sprite = NULL; }
         fists[i].active = FALSE;
     }
-    for (u16 i = 0; i < MAX_KRANG_BOLTS; i++) {
-        if (bolts[i].sprite) { SPR_releaseSprite(bolts[i].sprite); bolts[i].sprite = NULL; }
-        if (bolts[i].zap)    { SPR_releaseSprite(bolts[i].zap);    bolts[i].zap = NULL; }
-        bolts[i].active = FALSE;
+    for (u16 i = 0; i < MAX_KRANG_BEAMS; i++) {
+        for (u16 g = 0; g < KRANG_BEAM_SEGS; g++)
+            if (beams[i].seg[g]) { SPR_releaseSprite(beams[i].seg[g]); beams[i].seg[g] = NULL; }
+        if (beams[i].zap) { SPR_releaseSprite(beams[i].zap); beams[i].zap = NULL; }
+        beams[i].active = FALSE;
     }
 }
 
@@ -443,12 +615,9 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
 
     case KRANG_LASER:
         setFrame(k, KRANG_ANIM_LASER, (u8)((k->timer < 12) ? 0 : ((k->timer < KRANG_BOLT_AT) ? 1 : 2)));
-        if (k->timer == KRANG_BOLT_AT) {
-            // Cae sobre la tortuga si esta delante y a tiro; si no, delante.
-            s16 fwd = (s16)(dX * k->dir);
-            fwd = kclamp(fwd, KRANG_BOLT_MIN, KRANG_BOLT_MAX);
-            boltDrop((s16)(x + k->dir * fwd), py);
-        }
+        // (13/10) Laser de los ojos en diagonal hasta el piso, delante suyo
+        // (antes: un relampago desde el techo sobre la tortuga).
+        if (k->timer == KRANG_BOLT_AT) beamFire(x, y, k->dir);
         if (k->timer >= KRANG_LASER_T) { k->armReady = 1; afterAction(k, near, tgtDown, 2); }
         break;
 
@@ -476,7 +645,9 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
         break;
 
     case KRANG_DEATH: {
-        // Grita (60), se electrocuta estallando (150) y destello amarillo (30).
+        // Grita (60), se electrocuta estallando (150) y destello amarillo (30);
+        // al final el cuerpo desaparece en la explosion de Baxter (4 seguidas,
+        // la primera justo donde estaba, con flash blanco) y sale la cabeza.
         u16 t = k->timer;
         if (t < 60) {
             setFrame(k, KRANG_ANIM_DEATH, (u8)((t / 15) & 1));
@@ -494,6 +665,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
             SPR_releaseSprite(k->sprite);
             k->sprite = NULL;
             krangShotsReleaseAll();
+            boomsChain(x, y);
             enter(k, KRANG_HEAD);
             headSpawn(k);
             return;
@@ -522,4 +694,5 @@ void krangRelease(Krang* k) {
     if (k->headShadow) { SPR_releaseSprite(k->headShadow); k->headShadow = NULL; }
     k->state = KRANG_INACTIVE;
     krangShotsReleaseAll();
+    boomsReleaseAll();
 }

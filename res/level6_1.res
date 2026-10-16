@@ -11,5 +11,26 @@
 // bg_skate_far  Cielo con nubes y skyline (bg_l6s_far.png de Ray, 512x256):
 //               entero en VRAM, en BG_B con parallax, PAL3.
 // =============================================================================
-IMAGE bg_skate     "images/lvl_6_skate/bg_skate.png"     NONE ALL
-IMAGE bg_skate_far "images/lvl_6_skate/bg_skate_far.png" NONE ALL
+IMAGE bg_skate     "images/lvl_6_skate/bg_skate_p.png"     NONE ALL
+IMAGE bg_skate_far "images/lvl_6_skate/bg_skate_far_p0.png" NONE ALL
+
+// (12/10) La version en PATINETA (tools/gen_level6_skate.py):
+//   bg_skate_p / bg_skate_far_p0  la ruta con 3 celestes en sus indices libres
+//                 (9, 13, 14) y el cielo pasado a esa paleta: los dos en PAL0,
+//                 PAL3 queda para el helicoptero.
+//   sk_cop_body / sk_cop_rotor  el helicoptero (FootSoldier_helicopter.png):
+//                 el cuerpo (1 frame) y el rotor (2 frames), PAL3 (su paleta).
+//                 Cortados con opt SPRITE: 9 + 5 sprites de hardware.
+//   sk_copter_purple  la misma paleta con los rosas en violeta
+//   sk_bullet / sk_flame  la bala y la llamita (sacadas del video), PAL3
+//   sk_board_turtle / sk_board_foot  las patinetas (la de las tortugas sacada
+//                 del video), 64x24, PAL1
+//   sk_shadow     la sombra del helicoptero en la ruta, PAL0
+SPRITE  sk_cop_body      "images/lvl_6_skate/sk_cop_body.png"     14 15 NONE 0 NONE SPRITE SLOW
+SPRITE  sk_cop_rotor     "images/lvl_6_skate/sk_cop_rotor.png"    21 10 NONE 0 NONE SPRITE SLOW
+PALETTE sk_copter_purple "images/lvl_6_skate/sk_copter_purple.png"
+SPRITE  sk_bullet        "images/lvl_6_skate/sk_bullet.png"       2 2  NONE 0
+SPRITE  sk_flame         "images/lvl_6_skate/sk_flame.png"        2 3  NONE 0
+SPRITE  sk_board_turtle  "images/lvl_6_skate/sk_board_turtle.png" 8 3  NONE 0
+SPRITE  sk_board_foot    "images/lvl_6_skate/sk_board_foot.png"   8 3  NONE 0
+SPRITE  sk_shadow        "images/lvl_6_skate/sk_shadow.png"       6 3  NONE 0

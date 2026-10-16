@@ -22,9 +22,9 @@
 # (stage_bg: sbgSetVariant). La variante 0 es la del mapa principal.
 #   0 CAR   el lugar del auto. Variante 1 = vacio (cuando el auto arranca, el
 #           sprite del auto lo reemplaza).
-#   1 DOOR  la puerta del ascensor. Variantes 1..N = la persiana subiendo de a
-#           8 px (la parte de arriba se mete en el marco); la N es el hueco
-#           sin puerta.
+#   1 DOOR  la puerta del ascensor. Variantes 1..N = la puerta abriendose por
+#           la mitad de a 8 px (arriba sube, abajo baja; 12/10, como el
+#           arcade); la N es el hueco sin puerta.
 #
 # Ademas remapea los props (carteles, conos, barriles, el auto, la puerta) a
 # los indices de la paleta del fondo: vienen de la misma hoja del arcade pero
@@ -38,6 +38,7 @@
 #   src/level4_1_bg.h       las regiones (posicion, tamano, variantes)
 #   *_gen.png               los props en la paleta del fondo
 #   garage_boom.png         la explosion del TNT en la paleta del fondo (01/10)
+#   garage_pizza.png        la caja de pizza del 2-1 en la paleta del fondo (12/10)
 # =============================================================================
 import os, struct
 from PIL import Image
@@ -51,7 +52,8 @@ W, H = 1288, 240
 CAR_POS   = (693, 29)
 COVER_POS = (642, 0)
 DOOR_POS  = (1067, 38)
-DOOR_STEP = 8
+DOOR_STEP = 8       # (12/10) px por paso de cada hoja (multiplo de 8: reusa tiles)
+DOOR_SPLIT = 40     # (12/10) primera fila de la hoja de abajo (barra amarilla)
 
 PROPS = ['20_mph_signal', 'oneway_signal', 'cono', 'barrel_explosive',
          'car', 'elevator_door', 'sprite_cover_car']
@@ -144,6 +146,20 @@ def main():
             if sp[x, y]:
                 bp[x, y] = BOOM_MAP[sp[x, y]]
     boom.save(os.path.join(D, 'garage_boom.png'), transparency=0)
+    # (12/10) La caja de pizza ("Pizza time!" antes del ascensor): la misma
+    # hoja del 2-1 (res/sprites/l21_pizza.png, 4 frames de 40x48) pasada a la
+    # paleta del fondo del garage, para ir en PAL0.
+    l21 = Image.open(os.path.join(ROOT, 'res', 'sprites', 'l21_pizza.png'))
+    l21rgba = l21.convert('RGBA')
+    lp, la = l21.load(), l21rgba.load()
+    for y in range(l21.size[1]):
+        for x in range(l21.size[0]):
+            if lp[x, y] == 0:
+                la[x, y] = (0, 0, 0, 0)
+    tmp = os.path.join(D, '_pizza_tmp.png')
+    l21rgba.save(tmp)
+    remap(tmp, pal).save(os.path.join(D, 'garage_pizza.png'), transparency=0)
+    os.remove(tmp)
     # El auto: 172x100 -> 176x104, en DOS mitades de 88x104 (un frame de
     # 22x13 tiles necesitaria 24 sprites de hardware; el tope de SGDK es 16).
     car = Image.new('P', (176, 104), 0)
@@ -168,15 +184,22 @@ def main():
     c1 = (CAR_POS[0] + gen['car'].size[0] - 1) // 8
     r1 = (CAR_POS[1] + gen['car'].size[1] - 1) // 8
     regions.append(('CAR', c0, r0, c1 - c0 + 1, r1 - r0 + 1, [empty]))
-    # DOOR: la persiana sube de a DOOR_STEP px
+    # DOOR (12/10): como en el arcade, la puerta se abre POR LA MITAD: la hoja
+    # de arriba (filas 0..DOOR_SPLIT-1) sube y se mete en el marco, la de abajo
+    # (la barra amarilla y la reja de abajo) baja y se mete en el piso, de a
+    # DOOR_STEP px cada una. Las dos se recortan al rectangulo de la puerta.
     c0, r0 = DOOR_POS[0] // 8, DOOR_POS[1] // 8
     c1 = (DOOR_POS[0] + dw - 1) // 8
     r1 = (DOOR_POS[1] + dh - 1) // 8
     vars_ = []
     k = DOOR_STEP
-    while k < dh:
+    while k < max(DOOR_SPLIT, dh - DOOR_SPLIT):
         v = empty.copy()
-        paste(v, door.crop((0, k, dw, dh)), DOOR_POS)
+        if k < DOOR_SPLIT:
+            paste(v, door.crop((0, k, dw, DOOR_SPLIT)), DOOR_POS)
+        if k < dh - DOOR_SPLIT:
+            paste(v, door.crop((0, DOOR_SPLIT, dw, dh - k)),
+                  (DOOR_POS[0], DOOR_POS[1] + DOOR_SPLIT + k))
         vars_.append(v)
         k += DOOR_STEP
     vars_.append(empty)

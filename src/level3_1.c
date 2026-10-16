@@ -55,20 +55,56 @@ static const SbgRaw sewer31 = {
 // OLEADAS: se disparan cuando los PIES del que va adelante pasan trigX; la
 // camara queda clavada en lockX hasta que caen todos los de la oleada.
 // ---------------------------------------------------------------------------
-// (06/10) Los del MARTILLO, donde los pone el remaster de PC: uno por
-// delante y otro por detras, dos veces.
-#define P ENEMY_TYPE_FOOT_SOLDIER
-#define O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
-#define H ENEMY_TYPE_FOOT_SOLDIER_HAMMER
+// (12/10) ORDENADAS SEGUN EL ARCADE (partida completa grabada,
+// gameplayARCADE/tmnt.avi, 6:45-10:10): que foot soldier entra, por donde y
+// con la camara en que X (se midio el scroll del video contra este fondo: el
+// recorrido del arcade es el mismo, 0 -> 928). En la cloaca del arcade hay
+// morados, blancos del CUCHILLO y los ROSAS del martillo (el HAMMER del port).
+// Los morados salen del AGUA (salpicon y salto). Las camaras clavadas son las
+// del port (lockX = donde se frenaba el arcade). trigX ~ lockX + 172 (la
+// camara va 172 px detras de los pies del lider).
+#define P  ENEMY_TYPE_FOOT_SOLDIER
+#define KN ENEMY_TYPE_FOOT_SOLDIER_KNIFE
+#define H  ENEMY_TYPE_FOOT_SOLDIER_HAMMER
+#define WA STAGE_IN_WATER
+// (13/10) MOUSERS DE LOS HUECOS: SP_MOUSERS con side = cuantos y x = cual
+// hueco (swHoles, mas abajo). Del video: los huecos de la pared ya estan
+// pintados en el fondo (el arcade los rompe en ese momento) y de ahi saltan
+// los Mousers uno detras de otro mientras pelean los foot soldiers.
+#define SP_MOUSERS (STAGE_SPECIAL + 0)
+#define MO SP_MOUSERS
 static const StageWave waves31[] = {
-    {  150,   0, 2, { P, P },       { +1, +1 } },
-    {  420, 240, 3, { H, O, H },    { -1, +1, +1 } },
-    {  700, 500, 4, { O, P, P, O }, { -1, +1, -1, +1 } },
-    {  980, 780, 4, { H, P, O, H }, { +1, +1, -1, -1 } },
+    // Al caer a la cloaca: un blanco por la izquierda y un morado del agua.
+    {    0,   0, 2, { KN, P },  { -1, WA },  { 0, 198 } },
+    // Blanco y dos rosas por la derecha.
+    {  240,  70, 3, { KN, H, H }, { +1, +1, +1 }, { 0 } },
+    // Rosa y blanco por la derecha.
+    {  372, 200, 2, { H, KN }, { +1, +1 }, { 0 } },
+    // La grande (arcade 7:16-8:06): de los dos lados y dos morados del agua.
+    // (13/10) + los Mousers del hueco bajo (4) y del alto (2) (arcade 7:37).
+    {  444, 272, 8, { H, KN, P, MO, KN, H, P, MO }, { +1, -1, WA, 4, -1, -1, WA, 2 },
+                    { 0, 0, 550, 0, 0, 0, 470, 1 } },
+    // Dos morados, uno por cada lado (en el arcade se trepan a los caños).
+    // (13/10) + 4 Mousers del hueco bajo (arcade 7:51).
+    {  548, 376, 3, { P, MO, P }, { +1, 4, -1 }, { 0, 0, 0 } },
+    // (13/10) Antes de las rejas: 7 Mousers del hueco alto (arcade 8:05).
+    {  692, 520, 1, { MO }, { 7 }, { 2 } },
+    // Las rejas: cuatro blancos.
+    {  822, 650, 4, { KN, KN, KN, KN }, { +1, +1, +1, -1 }, { 0 } },
+    // Blancos por la izquierda, un rosa por la derecha, dos morados del agua.
+    {  975, 803, 5, { KN, H, P, KN, P }, { -1, +1, WA, -1, WA },
+                    { 0, 0, 1012, 0, 942 } },
+    // Antes de la sala de Baxter: morado del agua y otro por la derecha.
+    // (13/10) + 5 Mousers del hueco alto de la sala (arcade 8:42).
+    { 1061, 889, 3, { P, MO, P }, { WA, 5, +1 }, { 1110, 4, 0 } },
+    // Ya en la sala: el ultimo blanco por la izquierda, y despues Baxter.
+    { 1100, 928, 1, { KN }, { -1 }, { 0 } },
 };
 #undef P
-#undef O
+#undef KN
 #undef H
+#undef WA
+#undef MO
 
 // ---------------------------------------------------------------------------
 // MISILES DEL AGUA (29/09)
@@ -140,20 +176,166 @@ static u16 swWater[MAX_PLAYERS];
 static bool swBoss;
 static struct { Sprite* spr; s16 x, lane, z; s8 dir; bool rising; } swMis[SW_MIS_MAX];
 static struct { Sprite* spr; s16 x, lane; u8 frame, tick; } swBoom[SW_MIS_MAX];
+// (16/10) Salpicon del misil al salir del agua (sewer_mis_splash, 5 frames de
+// 64x64 en PAL3, gen_robot_enemies.py): una pasada en el punto donde emerge.
+#define SW_SPLASH_FRAMES    5
+#define SW_SPLASH_TICKS     5
+static struct { Sprite* spr; s16 x, lane; u8 frame, tick; } swSplash[SW_MIS_MAX];
+
+// ---------------------------------------------------------------------------
+// MOUSERS DE LOS HUECOS (13/10)
+// ---------------------------------------------------------------------------
+// Los huecos rotos de la pared (pintados en el fondo, centro de la boca en
+// coordenadas de mundo). Cada SP_MOUSERS abre uno: salta un Mouser cada
+// SW_HOLE_GAP frames (con a lo sumo SW_HOLE_ALIVE vivos), cae al piso y
+// ataca como los de Baxter (misma IA, baxter.c). Arte: la rata de Baxter en
+// la paleta del foot blanco (PAL3 durante el nivel, gen_sewer_mouser.py).
+#define SW_HOLES_N       5
+#define SW_HOLE_MAX      2      // huecos soltando a la vez
+#define SW_HOLE_GAP     45      // frames entre un Mouser y el siguiente
+#define SW_HOLE_FIRST   20      // del hueco ya abierto al primer Mouser
+#define SW_HOLE_ALIVE    3
+static const s16 swHoles[SW_HOLES_N][2] = {
+    { 449, 79 },    // bajo, a la derecha del primer caño redondo
+    { 531, 45 },    // alto, al lado del parche claro
+    { 692, 45 },    // alto, antes del caño de las rejas
+    { 861, 71 },    // bajo, despues de las rejas (sin Mousers: queda roto)
+    { 1045, 45 },   // alto, en la sala de Baxter
+};
+static struct { u8 on, hole, left; u16 t; } swHole[SW_HOLE_MAX];
+
+// ---------------------------------------------------------------------------
+// LA PARED SE RAJA (13/10): como en el arcade, los huecos con Mousers estan
+// SANOS hasta que llegan. El fondo ya los trae rotos, asi que se tapan con un
+// sprite de pared (PAL0, prioridad baja: los caños del primer plano quedan
+// adelante) que al abrirse pasa por dos rajaduras y se suelta
+// (tools/gen_sewer_holes.py: sewer_hole_N, 3 frames). El sprite existe solo
+// mientras el hueco esta en pantalla (30 tiles cada uno).
+// ---------------------------------------------------------------------------
+#define SW_CRACK_T       6      // frames por paso de la rajadura
+#define SW_PATCH_N       4
+enum { PATCH_CLOSED = 0, PATCH_CRACKING, PATCH_OPEN };
+static const struct { s16 x, y, w; u8 hole; const SpriteDefinition* def; } swPatchDef[SW_PATCH_N] = {
+    {  424,  58, 48, 0, &sewer_hole_0 },   // y de mundo = y del fondo - 32
+    {  508,  29, 48, 1, &sewer_hole_1 },
+    {  669,  29, 48, 2, &sewer_hole_2 },
+    { 1022,  29, 48, 4, &sewer_hole_3 },
+};
+static struct { u8 st, frame, tick; Sprite* spr; } swPatch[SW_PATCH_N];
+
+static s8 swPatchOf(u8 hole) {
+    for (u16 k = 0; k < SW_PATCH_N; k++) if (swPatchDef[k].hole == hole) return (s8)k;
+    return -1;
+}
+
+static bool swHoleIsOpen(u8 hole) {
+    s8 k = swPatchOf(hole);
+    return (k < 0) || swPatch[(u8)k].st == PATCH_OPEN;
+}
+
+static void swPatchesUpdate(s16 camX) {
+    for (u16 k = 0; k < SW_PATCH_N; k++) {
+        if (swPatch[k].st == PATCH_OPEN) continue;
+        if (swPatch[k].st == PATCH_CRACKING && ++swPatch[k].tick >= SW_CRACK_T) {
+            swPatch[k].tick = 0;
+            if (++swPatch[k].frame >= 3) {
+                swPatch[k].st = PATCH_OPEN;
+                if (swPatch[k].spr) { SPR_releaseSprite(swPatch[k].spr); swPatch[k].spr = NULL; }
+                continue;
+            }
+            if (swPatch[k].spr) SPR_setFrame(swPatch[k].spr, swPatch[k].frame);
+        }
+        s16 sx = (s16)(swPatchDef[k].x - camX);
+        bool inView = (bool)(sx < SCREEN_W && sx + swPatchDef[k].w > 0);
+        if (!inView) {
+            if (swPatch[k].spr) { SPR_releaseSprite(swPatch[k].spr); swPatch[k].spr = NULL; }
+            continue;
+        }
+        if (!swPatch[k].spr) {
+            if (!sprVramFits(swPatchDef[k].def->maxNumTile)) continue;
+            swPatch[k].spr = SPR_addSprite(swPatchDef[k].def, -64, -64,
+                                           TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+            if (!swPatch[k].spr) continue;
+            SPR_setAutoAnimation(swPatch[k].spr, FALSE);
+            SPR_setFrame(swPatch[k].spr, swPatch[k].frame);
+            SPR_setDepth(swPatch[k].spr, SPR_MAX_DEPTH);   // detras de todos
+        }
+        SPR_setPosition(swPatch[k].spr, sx, (s16)(swPatchDef[k].y - stageCamY));
+    }
+}
+
+static bool swHoleStart(u8 hole, u8 count) {
+    if (hole >= SW_HOLES_N || !count) return TRUE;
+    for (u16 i = 0; i < SW_HOLE_MAX; i++) {
+        if (swHole[i].on) continue;
+        swHole[i].on = 1; swHole[i].hole = hole; swHole[i].left = count;
+        swHole[i].t = SW_HOLE_GAP - SW_HOLE_FIRST;
+        s8 k = swPatchOf(hole);             // se raja (si estaba sano)
+        if (k >= 0 && swPatch[(u8)k].st == PATCH_CLOSED) {
+            swPatch[(u8)k].st = PATCH_CRACKING; swPatch[(u8)k].tick = 0;
+            XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                           SOUND_PCM_CH3, 10, FALSE, FALSE);
+        }
+        return TRUE;
+    }
+    return FALSE;                           // se reintenta
+}
+
+static void swHolesUpdate(void) {
+    for (u16 i = 0; i < SW_HOLE_MAX; i++) {
+        if (!swHole[i].on) continue;
+        if (!swHoleIsOpen(swHole[i].hole)) continue;   // todavia se esta rajando
+        if (++swHole[i].t < SW_HOLE_GAP) continue;
+        if (baxterRatAliveCount() >= SW_HOLE_ALIVE) continue;
+        s16 hx = swHoles[swHole[i].hole][0], hy = swHoles[swHole[i].hole][1];
+        // Cae a una lane de la vereda, cerca de la pared.
+        s16 top = stageWalkTopAt(hx);
+        if (top < 96) top = 96;
+        s16 land = (s16)(top + 4 + (s16)(random() % 24));
+        if (land > LVL31_LEDGE_TOP) land = LVL31_LEDGE_TOP;
+        s16 x = (s16)(hx - 8 + (s16)(random() % 16));
+        // Los pies arrancan en la boca del hueco (+10: la rata mide 40).
+        if (!baxterRatSpawnAt(&sewer_mouser, &sewer_mouser_boom, x, land, (s16)(land - (hy + 10))))
+            continue;                       // sin lugar/VRAM: el frame siguiente
+        swHole[i].t = 0;
+        if (--swHole[i].left == 0) swHole[i].on = 0;
+    }
+}
+
+static bool swSpecial(u8 type, s8 side, s16 x, s16 camX) {
+    (void)camX;
+    if (type == SP_MOUSERS) return swHoleStart((u8)x, (u8)side);
+    return TRUE;
+}
+
+static u16 swSpecialAlive(void) {
+    u16 n = 0;
+    for (u16 i = 0; i < SW_HOLE_MAX; i++) if (swHole[i].on) n++;
+    if (!swBoss) n = (u16)(n + baxterRatAliveCount());
+    return n;
+}
 
 static void swInit(void) {
     swBoss       = FALSE;
     swWaterTick  = 0;
     swWaterPhase = 0;
     for (u16 i = 0; i < MAX_PLAYERS; i++) swWater[i] = 0;
-    for (u16 i = 0; i < SW_MIS_MAX; i++) { swMis[i].spr = NULL; swBoom[i].spr = NULL; }
+    for (u16 i = 0; i < SW_MIS_MAX; i++) { swMis[i].spr = NULL; swBoom[i].spr = NULL; swSplash[i].spr = NULL; }
+    for (u16 i = 0; i < SW_HOLE_MAX; i++) swHole[i].on = 0;
+    for (u16 k = 0; k < SW_PATCH_N; k++) {
+        swPatch[k].st = PATCH_CLOSED; swPatch[k].frame = 0; swPatch[k].tick = 0; swPatch[k].spr = NULL;
+    }
 }
 
 static void swRelease(void) {
     for (u16 i = 0; i < SW_MIS_MAX; i++) {
         if (swMis[i].spr)  { SPR_releaseSprite(swMis[i].spr);  swMis[i].spr  = NULL; }
         if (swBoom[i].spr) { SPR_releaseSprite(swBoom[i].spr); swBoom[i].spr = NULL; }
+        if (swSplash[i].spr) { SPR_releaseSprite(swSplash[i].spr); swSplash[i].spr = NULL; }
     }
+    baxterRatReleaseAll();
+    for (u16 k = 0; k < SW_PATCH_N; k++)
+        if (swPatch[k].spr) { SPR_releaseSprite(swPatch[k].spr); swPatch[k].spr = NULL; }
 }
 
 static void swFire(const Player* p, s16 camX) {
@@ -164,7 +346,9 @@ static void swFire(const Player* p, s16 camX) {
         s8  dir = (px - camX < SCREEN_W / 2) ? -1 : 1;
         s16 x   = (dir < 0) ? (s16)(camX + SCREEN_W - SW_MIS_EDGE)
                             : (s16)(camX + SW_MIS_EDGE);
-        Sprite* s = SPR_addSprite(&sewer_missil, -64, -64, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        // (16/10) Arte nuevo en la paleta del foot blanco: PAL3 (con Baxter, que
+        // carga la suya en PAL3, no salen misiles: ver swBoss en swUpdate).
+        Sprite* s = SPR_addSprite(&sewer_missil, -64, -64, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
         if (!s) return;                     // sin VRAM: este no sale
         SPR_setAnimationLoop(s, TRUE);
         SPR_setHFlip(s, dir < 0);           // el arte mira a la derecha
@@ -175,6 +359,19 @@ static void swFire(const Player* p, s16 camX) {
         swMis[i].z    = SW_MIS_Z0;
         swMis[i].rising = TRUE;
         SPR_setPosition(s, (s16)(x - camX - 32), (s16)(swMis[i].lane - SW_MIS_Z0 - 16 - stageCamY));
+        // El salpicon donde sale (si no hay VRAM, sale sin salpicon).
+        if (!swSplash[i].spr) {
+            Sprite* w = SPR_addSprite(&sewer_mis_splash, -64, -64, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+            if (w) {
+                SPR_setAutoAnimation(w, FALSE);
+                SPR_setAnimAndFrame(w, 0, 0);
+                swSplash[i].spr   = w;
+                swSplash[i].x     = x;
+                swSplash[i].lane  = swMis[i].lane;
+                swSplash[i].frame = 0;
+                swSplash[i].tick  = 0;
+            }
+        }
         return;
     }
 }
@@ -202,6 +399,15 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
     const u16 period = (u16)((IS_PAL_SYSTEM ? 50 : 60) * SW_WATER_SECS);
 
     swWaterUpdate();
+    swPatchesUpdate(camX);
+
+    // (13/10) Mousers de los huecos (con Baxter los mueve bossUpdate31).
+    if (!swBoss) {
+        baxterRatSetArena(camX, (s16)(camX + SCREEN_W), 96, 216);   // como con Baxter
+        swHolesUpdate();
+        baxterRatUpdateAll(pls, nPl, camX, stageWalkTopAt);
+        baxterRatPlayerHits(pls, nPl);
+    }
 
     // Cuenta del agua por tortuga.
     for (u8 k = 0; k < nPl; k++) {
@@ -257,6 +463,24 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
         SPR_setDepth(swMis[i].spr, (s16)(-(swMis[i].lane) - 1));
     }
 
+    // Salpicones: una pasada de los 5 frames y se sueltan.
+    for (u16 i = 0; i < SW_MIS_MAX; i++) {
+        if (!swSplash[i].spr) continue;
+        if (++swSplash[i].tick >= SW_SPLASH_TICKS) {
+            swSplash[i].tick = 0;
+            if (++swSplash[i].frame >= SW_SPLASH_FRAMES) {
+                SPR_releaseSprite(swSplash[i].spr);
+                swSplash[i].spr = NULL;
+                continue;
+            }
+            SPR_setFrame(swSplash[i].spr, swSplash[i].frame);
+        }
+        // El centro del agua del arte esta en la fila 59 de la celda de 64.
+        SPR_setPosition(swSplash[i].spr, (s16)(swSplash[i].x - camX - 32),
+                        (s16)(swSplash[i].lane - 59 - stageCamY));
+        SPR_setDepth(swSplash[i].spr, (s16)(-(swSplash[i].lane)));
+    }
+
     // Explosiones: una pasada de los 7 frames y se sueltan.
     for (u16 i = 0; i < SW_MIS_MAX; i++) {
         if (!swBoom[i].spr) continue;
@@ -289,10 +513,9 @@ static void bossStart31(s16 camX, s16 levelW) {
     (void)levelW;
     swBoss = TRUE;
     baxterSpawn(&baxter, (s16)(camX + 16), (s16)(camX + SCREEN_W - 16), 96, 216);
-    // (30/09) "I'm invincible!" al entrar. (01/10) Completo y con prioridad,
-    // y el tema del jefe recien cuando termina (boss_vo.h).
-    bossVoStart(im_invinsible_baxter_vo, sizeof(im_invinsible_baxter_vo),
-                music_boss, 80);
+    // (14/10) Sin voice over: el "I'm invincible!" es de Krang, no de Baxter
+    // (estaba mal asignado). El tema del jefe lo arranca stage_level al
+    // entrar (bossMusicByVo = FALSE).
 }
 
 static bool bossUpdate31(Player** pls, u8 nPl, s16 camX) {
@@ -337,7 +560,7 @@ static const StageLevel level31 = {
     .musicVol     = 80,
     .bossMusic    = music_boss,
     .bossMusicVol = 80,
-    .bossMusicByVo = TRUE,      // lo arranca bossStart31 despues de la voz
+    .bossMusicByVo = FALSE,     // (14/10) sin voz: el tema entra directo
     .bossInit     = bossInit31,
     .bossStart    = bossStart31,
     .bossUpdate   = bossUpdate31,
@@ -346,6 +569,8 @@ static const StageLevel level31 = {
     .levelInit    = swInit,
     .levelUpdate  = swUpdate,
     .levelRelease = swRelease,
+    .specialSpawn = swSpecial,
+    .specialAlive = swSpecialAlive,
     .nextScene    = SCENE_4_1_TITLE,
 };
 

@@ -56,6 +56,9 @@ SPRITE taladro_capsula "sprites/taladro_capsula_v2.png" 12 15 NONE 0
 // jefes (tools/gen_april_sheet.py -> april_gen.png, para el garage). Aca April
 // esta desde el principio y PAL3 es del foot soldier blanco hasta Rocksteady,
 // asi que se queda con la hoja de antes en PAL1 (april_l12.png).
+// (15/10) april_l12.png sale ahora de "APRIL PALETA CHAMAS.png" (tools/
+// gen_april_l12.py): la paleta del fuego y los foot soldiers, PAL2 en el 1-2.
+// Mismo formato (2 frames de 32x64, pies en la fila 63).
 SPRITE april "sprites/april_l12.png" 4 8 NONE 12
 
 // Globo de dialogo del jefe "SAY YOUR PRAYERS!" (96x32 = grilla 12x4 de celdas

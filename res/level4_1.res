@@ -10,8 +10,8 @@
 //             AUTO estacionado y la PUERTA del ascensor ya pintados. 1968
 //             tiles unicos (formato ancho de stage_bg, se streamea por
 //             columnas; peor caso en 42 columnas: 656). bg_garage_var son las
-//             variantes de dos regiones (el lugar del auto vacio y la persiana
-//             del ascensor subiendo, ver src/level4_1_bg.h). PAL0.
+//             variantes de dos regiones (el lugar del auto vacio y la puerta
+//             del ascensor abriendose por la mitad, ver src/level4_1_bg.h). PAL0.
 // bg_garage   El de Ray (1288x224), queda como referencia: ya no se usa.
 //
 // Props (todos con la paleta del fondo, PAL0; el borde de abajo de la celda
@@ -23,10 +23,12 @@
 //   garage_car_l/r el auto que sale del estacionamiento, en dos mitades
 //   garage_boom    (01/10) la explosion del barril: la del TNT del foot
 //                  soldier (explosion.png, 7 frames de 64x64) en PAL0
+//   garage_pizza   (12/10) la caja de "Pizza time!" (la del 2-1 en PAL0)
 //   april_garage   (03/10) April atada adentro del ascensor. april_gen.png
-//                  (tools/gen_april_sheet.py): celdas de 32x64, anim 0 parada,
-//                  anim 1 atada (la que se usa aca). Paleta COMPARTIDA con
-//                  Bebop y Rocksteady (PAL3). time 12: balanceo de 2 frames.
+//                  (tools/gen_april_sheet.py): celdas de 32x80 (12/10; antes
+//                  32x64), anim 0 parada, 1 atada, 2 se le caen las sogas,
+//                  3 saludando. Paleta COMPARTIDA con Bebop y Rocksteady
+//                  (PAL3). time 12: balanceo de 2 frames.
 // =============================================================================
 PALETTE pal_garage      "images/lvl_4_garage/bg_garage_md.png"
 BIN     bg_garage_tiles "images/lvl_4_garage/bg_garage_tiles.bin" 2 2 0 NONE
@@ -43,4 +45,5 @@ SPRITE  garage_barrel   "images/lvl_4_garage/garage_barrel.png"  4 8  NONE 0
 SPRITE  garage_car_l    "images/lvl_4_garage/garage_car_l.png"   11 13 NONE 0
 SPRITE  garage_car_r    "images/lvl_4_garage/garage_car_r.png"   11 13 NONE 0
 SPRITE  garage_boom     "images/lvl_4_garage/garage_boom.png"    8 8  NONE 0
-SPRITE  april_garage    "sprites/april_gen.png"                  4 8  NONE 12
+SPRITE  garage_pizza    "images/lvl_4_garage/garage_pizza.png"   5 6  NONE 0
+SPRITE  april_garage    "sprites/april_gen.png"                  4 10 NONE 12

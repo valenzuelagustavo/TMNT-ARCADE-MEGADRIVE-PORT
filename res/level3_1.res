@@ -30,5 +30,29 @@ SPRITE  sewer_fg_top   "images/lvl_3_sewer/sewer_fg_top.png"   1 8 NONE 0
 // paleta de los foot soldiers (PAL2) por tools/gen_sewer_missile.py: en la
 // cloaca PAL3 es de Baxter. Misil: 2 frames de 64x32 (mira a la DERECHA).
 // Explosion: 7 frames de 32x32 (impacta de derecha a izquierda), a mano.
+// (16/10) El MISIL es ahora el de la hoja "Robot Enemies" (tools/
+// gen_robot_enemies.py), en la paleta del foot blanco: PAL3 (con Baxter no
+// salen misiles). 2 frames de 64x32 con la llama, mira a la DERECHA. La
+// explosion sigue siendo la de Traag en PAL2. gen_sewer_missile.py ya no se usa.
 SPRITE  sewer_missil   "sprites/sewer_missil.png"   8 4 NONE 4
+// (16/10) Salpicon del misil al salir del agua: 5 frames de 64x64, PAL3, a mano.
+SPRITE  sewer_mis_splash "sprites/sewer_mis_splash.png" 8 8 NONE 0
 SPRITE  sewer_explosao "sprites/sewer_explosao.png" 4 4 NONE 0
+
+// (13/10) Mousers que salen de los huecos de la pared (level3_1.c): la rata
+// y la explosion de Baxter pasadas a la paleta del foot blanco (PAL3 durante
+// el nivel) por tools/gen_sewer_mouser.py.
+// (16/10) sewer_mouser.png es ahora el Mouser AZUL de la hoja "Robot Enemies"
+// (tools/gen_robot_enemies.py), ya en la paleta del blanco. Fila 8 nueva: sale
+// del hueco caminando (RAT_ANIM_EMERGE). gen_sewer_mouser.py solo hace la
+// explosion.
+SPRITE  sewer_mouser      "sprites/sewer_mouser.png"      5 5 FAST 5
+SPRITE  sewer_mouser_boom "sprites/sewer_mouser_boom.png" 4 4 NONE 0
+
+// (13/10) La pared sana sobre los huecos de los Mousers, y como se raja
+// (tools/gen_sewer_holes.py): 3 frames cada uno (sana, rajadura chica,
+// grande); despues se suelta y queda el hueco del fondo. PAL0.
+SPRITE  sewer_hole_0 "images/lvl_3_sewer/sewer_hole_0.png" 6 5 NONE 0
+SPRITE  sewer_hole_1 "images/lvl_3_sewer/sewer_hole_1.png" 6 4 NONE 0
+SPRITE  sewer_hole_2 "images/lvl_3_sewer/sewer_hole_2.png" 6 4 NONE 0
+SPRITE  sewer_hole_3 "images/lvl_3_sewer/sewer_hole_3.png" 6 4 NONE 0

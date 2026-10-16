@@ -99,6 +99,7 @@
 
 #include <genesis.h>
 #include "scenes.h"
+#include "idle_missile.h"   // (14/10) modo ARCADE: el misil al que se queda quieto
 #include "level2_1.h"        // lvl21_pal, lvl21_sec00..10 (generado por rescomp)
 #include "level2_1_map.h"    // lvl21Map, tablas de secciones y de camara
 #include "level2_1_limits.h" // lvl21WalkTop/Bot + la cornisa (generado)
@@ -768,12 +769,12 @@ static void tvStartPhase(u8 phase) {
     if (phase == 0) {
         tvBubbleSet(&tv_help_bubble);
         XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo),
-                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                       SOUND_PCM_CH1, 15, FALSE, FALSE);
         tvPhaseLen = tvVoFrames(sizeof(help_me_april_vo));
     } else {
         tvBubbleSet(&tv_dine_bubble);
         XGM2_playPCMEx(dinne_turtle_vo, sizeof(dinne_turtle_vo),
-                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                       SOUND_PCM_CH1, 15, FALSE, FALSE);
         tvPhaseLen = tvVoFrames(sizeof(dinne_turtle_vo));
     }
 }
@@ -1343,7 +1344,7 @@ static void dlgUpdate(const Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) 
         dlgBubOff();
         dlgBub = SPR_addSprite(L->bub, 0, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
         if (dlgBub) SPR_setDepth(dlgBub, SPR_MIN_DEPTH);
-        XGM2_playPCMEx(L->vo, L->len, SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(L->vo, L->len, SOUND_PCM_CH1, 15, FALSE, FALSE);
         dlgOn = TRUE;
         dlgT  = 0;
     }
@@ -1660,6 +1661,7 @@ SceneId showScene21() {
     u16  outroHold = 0;
     SceneId jump = PAUSE_NO_JUMP;   // (26/09) nivel elegido en el menu de pausa
     pauseReset();
+    idleMissileReset();
     bossVoReset();
     while (running) {
         // Pausa (START del control 1). Primero de todo en el frame.
@@ -1702,6 +1704,7 @@ SceneId showScene21() {
                 break;
             }
         }
+        if (!outro) idleMissileUpdate(pls, nPl, cameraX, cameraY);   // (14/10) modo ARCADE
 
         // --- Camara ------------------------------------------------------
         // Lidera el que va mas adelante (el que mas avanzo en la "L", o sea
@@ -1796,7 +1799,7 @@ SceneId showScene21() {
                                                 TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
                     // El voice over arranca con el globo, una sola vez.
                     XGM2_playPCMEx(who_put_light_vo, sizeof(who_put_light_vo),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH1, 15, FALSE, FALSE);
                 }
                 if (lightBubble) {
                     s16 bx = (s16)(pls[talking]->x + FOOT_DX - LVL21_BUBBLE_W / 2 - cameraX);
@@ -2037,12 +2040,12 @@ SceneId showScene21() {
             if (e->state != ENEMY_STATE_ATTACK) continue;
             // El swing es UNO: pega al primer jugador alcanzado y se consume.
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerCanBeHit(pls[k])) continue;
+                if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(pls[k], getEnemyCenterX(e));
+                enemyDamagePlayer(e, pls[k]);
                 break;
             }
         }

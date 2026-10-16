@@ -7,7 +7,7 @@
 # en orden de lectura. Lo que muestran:
 #    0       negro
 #    1..6    una estrella cruza de izquierda a derecha en y = 23 dejando una
-#            linea fina rosa (40 px por cuadro)
+#            linea fina (40 px por cuadro; en el port VERDE, ver LASER_GREEN)
 #    7..26   la linea se hace gruesa (14 px) y baja 10 px por cuadro; arriba
 #            de ella va apareciendo el logo DIBUJADO EN AZUL (solo contornos)
 #   27       el logo azul entero
@@ -135,6 +135,19 @@ def save64(path, arr, pal64):
     print('%-44s %dx%d' % (os.path.relpath(path, ROOT), arr.shape[1], arr.shape[0]))
 
 
+# (14/10) Rosa del arcade -> verde tortuga (de oscuro a claro).
+LASER_GREEN = {
+    (64, 0, 64):    (0, 64, 0),
+    (104, 16, 88):  (0, 119, 0),       # piel, sombra
+    (144, 40, 112): (87, 146, 0),      # piel, medio
+    (224, 88, 168): (119, 206, 0),     # piel, luz
+    (224, 112, 176): (146, 219, 32),
+    (224, 136, 192): (174, 232, 96),
+    (232, 168, 208): (200, 240, 150),
+    (240, 224, 240): (232, 255, 224),  # el centro casi blanco
+}
+
+
 def fx_sprites(F, fxpal):
     def idx(c):
         c = tuple(int(v) for v in c)
@@ -192,6 +205,11 @@ def main():
     fxpal = []
     band, trail, stars = fx_sprites(F, fxpal)
     assert len(fxpal) <= 14, len(fxpal)      # el 15 queda para el fondo
+    # (14/10) El laser y la estrella en VERDE, con los verdes de la piel de
+    # las tortugas (0,119,0 / 87,146,0 / 119,206,0, la paleta de los
+    # jugadores) en el medio del degrade: cada rosa del arcade pasa a su
+    # verde de la misma luminosidad. Los indices no cambian.
+    fxpal = [LASER_GREEN.get(c, c) for c in fxpal]
     fx16 = [(0, 0, 0)] + fxpal + [(0, 0, 0)] * (15 - len(fxpal))
     for name, arr in (('konami_band.png', band), ('konami_trail.png', trail),
                       ('konami_star.png', stars)):

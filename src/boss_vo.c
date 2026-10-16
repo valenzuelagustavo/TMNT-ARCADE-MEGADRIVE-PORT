@@ -43,8 +43,10 @@ bool bossVoActive(void) { return (startDelay > 0) || (framesLeft > 0); }
 void bossVoUpdate(void) {
     if (startDelay > 0) {
         if (--startDelay == 0 && pendingVo) {
-            // CH1 (el de la musica, libre con el tema parado) y prioridad 15:
-            // ningun efecto del juego usa CH1, asi que nada la corta.
+            // CH1 (el de la musica, libre con el tema parado) y prioridad 15.
+            // (15/10) CH1 es el canal de las VOCES: ningun efecto lo usa, y las
+            // voces de las tortugas en pelea van con prioridad menor (8/12),
+            // asi que nada la corta.
             XGM2_playPCMEx(pendingVo, pendingLen, SOUND_PCM_CH1, 15, FALSE, FALSE);
             pendingVo = NULL;
         }

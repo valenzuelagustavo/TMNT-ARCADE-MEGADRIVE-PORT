@@ -53,7 +53,12 @@ static u8 enemyAnimIdle(const Enemy* e) {
         default:                             return ENEMY_ANIM_IDLE;
     }
 }
+// (12/10) En PATINETA (Scene 6) los foot soldiers no caminan: se deslizan
+// parados. La caminata (de frente y para arriba) usa la pose quieta.
+bool enemySkateMode = FALSE;
+
 static u8 enemyAnimWalk(const Enemy* e) {
+    if (enemySkateMode) return enemyAnimIdle(e);
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK;
@@ -66,6 +71,7 @@ static u8 enemyAnimWalk(const Enemy* e) {
     }
 }
 static u8 enemyAnimWalkUp(const Enemy* e) {
+    if (enemySkateMode) return enemyAnimIdle(e);
     switch (e->type) {
         case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: return ORANGE_ANIM_WALK_UP;
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  return WHITE_ANIM_WALK_UP;
@@ -112,6 +118,13 @@ static u8 enemyAnimExplode(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return SPEAR_ANIM_EXPLODE;
         default:                             return ENEMY_ANIM_EXPLODE;
     }
+}
+// (15/10) Golpe recibido en 4 poses a mano (blanco de espada y de cuchillo).
+#define ENEMY_HURT_TICKS       12
+#define ENEMY_HURT_POSE_TICKS   3
+static inline bool enemyHurt4(const Enemy* e) {
+    return e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE ||
+           e->type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE;
 }
 static u8 enemyAnimHit(Enemy* e) {
     if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) return ORANGE_ANIM_HIT;
@@ -284,6 +297,17 @@ static const ComboStep knifeComboKick[] = {
     { KNIFE_ANIM_KICK, 24, 4, 9, KNIFE_KICK_REACH, 0, PSEQ(knifeSeqKick) }
 };
 
+// (15/10) PATADA VOLADORA del blanco y del cuchillo: los mismos tiempos,
+// avance y ventana de golpe que la del morado (purpleSeqKick). Frames de sus
+// filas nuevas (gen_foot_white_unified.py): 0 despegue, 1 sube, 2 patada,
+// 3 baja; aterriza con el 0.
+static const ComboStep whiteComboFlyKick[] = {
+    { WHITE_ANIM_KICK, 51, 19, 32, ENEMY_HIT_RANGE_X, 0, PSEQ(purpleSeqKick) }
+};
+static const ComboStep knifeComboFlyKick[] = {
+    { KNIFE_ANIM_FLYKICK, 51, 19, 32, ENEMY_HIT_RANGE_X, 0, PSEQ(purpleSeqKick) }
+};
+
 static bool enemyHasWeapon(u8 type) {
     return type == ENEMY_TYPE_FOOT_SOLDIER_GUN ||
            type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER ||
@@ -299,9 +323,11 @@ static const ComboStep* comboStepsFor(u8 type, u8 attackType) {
     if (type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)  return spearComboThrust;
     if (type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) {
         if (attackType == ENEMY_ATTACK_KNIFE_THROW) return knifeComboThrow;
+        if (attackType == ENEMY_ATTACK_FLYKICK)     return knifeComboFlyKick;
         return (attackType == ENEMY_ATTACK_KICK) ? knifeComboKick : knifeComboStab;
     }
     if (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE) {
+        if (attackType == ENEMY_ATTACK_FLYKICK) return whiteComboFlyKick;
         return (attackType == ENEMY_ATTACK_PUNCH) ? whiteComboPunch
                                                   : whiteComboFront;
     }
@@ -1610,9 +1636,16 @@ bool damageEnemy(Enemy* e, s16 dmg) {
 
     // Golpe NO fatal: estado HURT sin retroceso (el enemigo no se mueve en X).
     e->state = ENEMY_STATE_HURT;
-    e->timer = 12;
+    e->timer = ENEMY_HURT_TICKS;
     e->invincible = ENEMY_INVINCIBLE;
     enemyRestartAnim(e, enemyAnimHit(e), FALSE);
+    // (15/10) El blanco (espada y cuchillo) tiene 4 poses de golpe: van a
+    // mano, repartidas en los 12 ticks del HURT (ver ENEMY_STATE_HURT). Con
+    // la auto-animacion (8 y 5 ticks por pose) se veian solo las primeras.
+    if (enemyHurt4(e)) {
+        e->manualAnim = 1;
+        SPR_setAutoAnimation(e->sprite, FALSE);
+    }
     return TRUE;
 }
 
@@ -1761,7 +1794,27 @@ static void thrownStep(Enemy* e) {
     SPR_setDepth(e->sprite, (s16)(-(e->y) - 1));
 }
 
+// (15/10) El salto con espadazo del blanco le gana a la patada voladora de la
+// tortuga: en ese choque el golpe de la tortuga no cuenta (y el espadazo si
+// le pega en el aire, ver enemyCanHitPlayer).
+static bool whiteAirSlashVsJumpKick(const Enemy* e, const Player* p) {
+    return e->type == ENEMY_TYPE_FOOT_SOLDIER_WHITE &&
+           e->state == ENEMY_STATE_ATTACK && e->attackType == ENEMY_ATTACK_JUMP &&
+           isPlayerJumpKicking(p);
+}
+
+bool enemyCanHitPlayer(const Enemy* e, const Player* p) {
+    if (whiteAirSlashVsJumpKick(e, p)) return playerCanBeHitAir(p);
+    return playerCanBeHit(p);
+}
+
+void enemyDamagePlayer(const Enemy* e, Player* p) {
+    if (whiteAirSlashVsJumpKick(e, p)) damagePlayerAir(p, getEnemyCenterX(e));
+    else                               damagePlayer(p, getEnemyCenterX(e));
+}
+
 bool playerAttackHitsEnemy(const Player* p, const Enemy* e) {
+    if (whiteAirSlashVsJumpKick(e, p)) return FALSE;
     bool hit = playerAttackHitsEnemyBox(p, e);
     // Combo del arcade: el golpe conecto contra ESTE soldier (candidato a la
     // llave del golpe siguiente).
@@ -2122,7 +2175,15 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 // en el aire seria injusto, pero si ocupa cupo: es un ataque
                 // melee que termina pegado al jugador.
                 if (e->attackCooldown == 0 && enemiesAttacking < ENEMY_MAX_ATTACKERS) {
-                    if (dist < WHITE_ATTACK_RANGE && absS16(dy) <= ENEMY_ATTACK_TOL_Y) {
+                    // (15/10) Patada voladora, como el morado: a media
+                    // distancia y con la lane casi exacta. Le gana a la
+                    // espada 1 de cada 4 veces que podria atacar ahi.
+                    s16 kd = absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - getEnemyCenterX(e)));
+                    if (kd >= MORADO_KICK_MIN && kd <= MORADO_KICK_MAX &&
+                        absS16(dy) <= MORADO_KICK_TOL_Y && (random() & 3) == 0) {
+                        e->attackType = ENEMY_ATTACK_FLYKICK;
+                        wantAttack = TRUE;
+                    } else if (dist < WHITE_ATTACK_RANGE && absS16(dy) <= ENEMY_ATTACK_TOL_Y) {
                         e->attackType = (dist < WHITE_LONG_RANGE_MIN)
                                         ? ENEMY_ATTACK_PUNCH   // cortes medios
                                         : ENEMY_ATTACK_FRONT;  // estocada larga
@@ -2148,6 +2209,13 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                         enemiesAttacking < ENEMY_MAX_ATTACKERS) {
                         e->attackType = (random() & 1) ? ENEMY_ATTACK_FRONT
                                                        : ENEMY_ATTACK_KICK;
+                        wantAttack = TRUE;
+                    } else if (cdist >= MORADO_KICK_MIN && cdist <= MORADO_KICK_MAX &&
+                               absS16(dy) <= MORADO_KICK_TOL_Y &&
+                               enemiesAttacking < ENEMY_MAX_ATTACKERS &&
+                               (random() & MORADO_KICK_CHANCE) == 0) {
+                        // (15/10) Patada voladora, igual que el morado.
+                        e->attackType = ENEMY_ATTACK_FLYKICK;
                         wantAttack = TRUE;
                     } else if (onScreen && absS16(dy) <= KNIFE_ALIGN_Y &&
                                cdist >= KNIFE_THROW_MIN && cdist <= KNIFE_THROW_MAX &&
@@ -2590,10 +2658,17 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         case ENEMY_STATE_HURT: {
             // Sin retroceso: el golpe NO desplaza al enemigo en X (queda clavado
             // en el lugar mientras muestra la anim de daño).
+            if (e->manualAnim && enemyHurt4(e)) {
+                u16 f = (u16)(ENEMY_HURT_TICKS - e->timer) / ENEMY_HURT_POSE_TICKS;
+                if (f > 3) f = 3;
+                SPR_setFrame(e->sprite, (s16)f);
+            }
             if (e->timer > 0) {
                 e->timer--;
             } else {
                 newState = ENEMY_STATE_CHASE;
+                if (e->manualAnim && enemyHurt4(e))       // vuelve la auto-animacion
+                    enemySetAnim(e, enemyAnimWalk(e), TRUE);
             }
             break;
         }

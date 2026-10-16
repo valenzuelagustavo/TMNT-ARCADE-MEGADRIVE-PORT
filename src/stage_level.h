@@ -37,13 +37,33 @@
 //     bossUpdate hasta que devuelve TRUE (derrotado y ya fuera de escena).
 // ===========================================================================
 
-#define STAGE_WAVE_MAX 4
+// (12/10) Hasta 8 por oleada (las del sewer del arcade traen hasta 6). Igual
+// nunca hay mas vivos que STAGE_MAX_ALIVE_*: el resto espera su turno.
+#define STAGE_WAVE_MAX 8
+// side: -1 entra por la izquierda, +1 por la derecha, STAGE_IN_WATER sale del
+// AGUA (sewer) en la X de mundo x[] con un salpicon. STAGE_FROM_BACK (12/10)
+// aparece en el FONDO del piso (walkYMin) en la X de mundo x[]: los que en el
+// arcade bajan de la caja del camion o del hueco del auto (garage).
+#define STAGE_IN_WATER  2
+#define STAGE_FROM_BACK 3
+// (12/10) Para los actores de un nivel que sueltan soldiers (stageSpawnEnemyAt):
+// STAGE_JUMP_IN salta (el morado) o baja caminando (los demas) en (x, y) --
+// los que saltan del auto de la autopista --; STAGE_IN_PLACE aparece ahi
+// caminando (el que ya tiro el misil pasa a ser un morado comun).
+#define STAGE_JUMP_IN   4
+#define STAGE_IN_PLACE  5
+// (12/10) type >= STAGE_SPECIAL en una oleada no es un soldier: es un ACTOR del
+// nivel (auto, motos, el del misil...). Lo arranca L->specialSpawn (FALSE =
+// todavia no, se reintenta el frame siguiente) y L->specialAlive dice cuantos
+// siguen en juego (cuentan como vivos: la camara no se suelta).
+#define STAGE_SPECIAL   0x80
 typedef struct {
     s16 trigX;                  // pies del lider (mundo) que la disparan
     s16 lockX;                  // camara clavada aca mientras dure
     u8  n;
     u8  type[STAGE_WAVE_MAX];   // ENEMY_TYPE_*
-    s8  side[STAGE_WAVE_MAX];   // -1 entra por la izquierda, +1 por la derecha
+    s8  side[STAGE_WAVE_MAX];   // -1 izquierda, +1 derecha, STAGE_IN_WATER, STAGE_FROM_BACK
+    s16 x[STAGE_WAVE_MAX];      // X de mundo de las que salen del agua / del fondo
 } StageWave;
 
 typedef struct {
@@ -79,6 +99,11 @@ typedef struct {
     const SbgRegion* bgRegions;
     u16           nBgRegions;
     const Image*  far;          // capa lejana (entera en VRAM, PAL3), o NULL
+    // (12/10) farPal0: la capa lejana va con PAL0 (su imagen ya trae los indices
+    // de la paleta del fondo) y PAL3 queda libre; pal3 = lo que se carga en
+    // PAL3 al revelar (NULL = negro, como siempre).
+    bool          farPal0;
+    const u16*    pal3;
     u16           farDiv;       // parallax: la capa lejana anda camX / farDiv
     u16           farRowShift;  // filas de la capa lejana que se saltean arriba
     u16           backdrop;     // indice de CRAM del color de fondo (0 = PAL0[0])
@@ -118,6 +143,21 @@ typedef struct {
     void (*levelInit)(void);
     void (*levelUpdate)(Player** pls, u8 nPl, s16 camX);
     void (*levelRelease)(void);
+    // (12/10) FONDO QUE CORRE SOLO (Scene 6, patinetas): autoScrollQ != 0 =
+    // la camara del juego queda fija (levelW = 320) y lo que avanza es el
+    // fondo, autoScrollQ (Q8 px/f) por frame, repitiendose en X. El avance
+    // (stageProgress) reemplaza a los pies del lider: dispara las oleadas
+    // (trigX) y el final (bossFeetX). skateLift != 0: tortugas y soldiers
+    // andan en patineta (se dibujan asi de mas arriba y no caminan).
+    u16           autoScrollQ;
+    // (14/10) Velocidad a la que SE VE correr el fondo (Q8 px/f); 0 = la de
+    // autoScrollQ. Separada del avance para poder darle mas sensacion de
+    // velocidad sin que las oleadas lleguen antes ni el nivel dure menos.
+    u16           autoScrollVisQ;
+    s16           skateLift;
+    // (12/10) Actores de oleada (ver STAGE_SPECIAL). Pueden ser NULL.
+    bool (*specialSpawn)(u8 type, s8 side, s16 x, s16 camX);
+    u16  (*specialAlive)(void);
     // --- Salida ---
     SceneId       nextScene;    // al ganar
 } StageLevel;
@@ -129,5 +169,16 @@ s16 stageWalkTopAt(s16 worldX);
 
 // (01/10) Arreglo de MAX_ENEMIES foot soldiers del nivel en curso.
 Enemy* stageEnemies(void);
+
+// (12/10) Suelta un soldier fuera de las oleadas (los actores del nivel): en
+// (x, y) de mundo con side STAGE_JUMP_IN / STAGE_IN_PLACE, o por un borde de
+// la camara (-1 / +1). FALSE si no se puede ahora (ya hay STAGE_MAX_ALIVE_*
+// vivos -- salvo STAGE_IN_PLACE, que reemplaza a un actor --, no hay lugar o
+// no entra su hoja en la VRAM): se reintenta despues.
+bool stageSpawnEnemyAt(u8 type, s8 side, s16 x, s16 y);
+// Soldiers vivos (estado != INACTIVE).
+u16 stageAliveEnemies(void);
+// (12/10) Avance del fondo en los niveles con autoScrollQ (px).
+s16 stageProgress(void);
 
 #endif

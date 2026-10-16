@@ -280,5 +280,15 @@ SPRITE whip_waves "sprites/whip_waves.png" 12 2 NONE 8
 // indice 0 transparente, de modo que juntas forman una imagen de ~32 colores.
 // BEST = maxima compresion (son de un solo uso). La cutscene libera la VRAM de
 // sprites (SPR_end) mientras las muestra: entre las dos suman ~1000 tiles.
-IMAGE bg_b_final "images/lvl_1_scene/BG_B_final_lvl1.png" BEST
-IMAGE bg_a_final "images/lvl_1_scene/BG_A_final_lvl1.png" BEST
+// (16/10) ARTE NUEVO: background.png (fondo, PAL0) y april_final_gen.png
+// (Shredder con April, PAL1; tools/gen_final_12.py le recorta 15 filas vacias
+// de arriba a april.png). Mas las tortugas como SPRITES en PAL2 (una paleta
+// mas): final_turtles, 4 frames de 64x64 = 0 Leo, 1 Mike, 2 Don, 3 Raph. Se
+// muestran las de los jugadores (showEnding, scenes.c).
+// Antes: BG_B_final_lvl1.png + BG_A_final_lvl1.png (las tortugas dibujadas).
+// NONE (no BEST): con BEST VDP_drawImageEx pide al heap un buffer de ~22 KB
+// para descomprimir y, con el motor de sprites armado, no hay lugar: el fondo
+// no se dibujaba (mismo caso que char_select_bg, ver char-select-arcade).
+IMAGE bg_b_final "images/lvl_1_scene/background.png" NONE
+IMAGE bg_a_final "images/lvl_1_scene/april_final_gen.png" NONE
+SPRITE final_turtles "images/lvl_1_scene/final_turtles_gen.png" 8 8 NONE 0

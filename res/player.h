@@ -727,6 +727,9 @@ bool isPlayerJumping(const Player* p);
 // a que altura de PANTALLA esta la tortuga sin mirarle la lane: la lane 'y'
 // es profundidad y NO cambia en el aire (ver jumpZ arriba).
 s16  getPlayerJumpZ(const Player* p);
+// (12/10) Patineta (Scene 6): != 0 la tortuga se dibuja asi de mas arriba
+// (parada en la tabla) y al moverse no camina. La pone y la saca el nivel.
+extern s16 playerSkateLift;
 
 // Dejarse caer hasta una lane mas adelante (newFeetY > y). Mueve la
 // profundidad de golpe y compensa con jumpZ, asi el sprite queda donde estaba
@@ -764,6 +767,7 @@ bool playerCanBeHitAir(const Player* p);
 // espalda), knockback alejándose del atacante e i-frames.
 // 'attackerX' = centro X del atacante en coordenadas de MUNDO.
 void damagePlayer(Player* p, s16 attackerX);
+void damagePlayerAir(Player* p, s16 attackerX);   // (15/10) tambien en el aire
 
 // Golpe que resta VARIAS barras de una (p.ej. el láser del robot = 4).
 void playerHitBars(Player* p, s16 attackerX, u8 bars);

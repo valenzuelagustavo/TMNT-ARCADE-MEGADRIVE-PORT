@@ -21,7 +21,8 @@ static const u8 bxQuarter[65] = {
     237, 239, 241, 243, 245, 247, 248, 250, 251, 252, 253, 254, 255, 255, 255,
     255, 255
 };
-static s16 bxSin(u8 ph) {
+// (12/10) Sin uso desde el vuelo por grilla (era de la Lissajous).
+__attribute__((unused)) static s16 bxSin(u8 ph) {
     u8 q = (u8)(ph & 63);
     switch (ph >> 6) {
         case 0:  return (s16)bxQuarter[q];
@@ -73,6 +74,7 @@ typedef struct {
     Player*  victim;       // a quien esta mordiendo
     u16      drain;        // frames hasta la proxima barra que saca
     Sprite*  boomSprite;
+    const SpriteDefinition* boomDef;   // (13/10) la de Baxter o la de la cloaca
     u8       boomFrame;
     u8       boomTick;
 } BaxterRat;
@@ -84,8 +86,16 @@ static s16 ratArenaL, ratArenaR;
 // ALTURAS DE VUELO: todo es la Y del BORDE DE ARRIBA del frame (72 px), en
 // mundo. El piso de la arena (laneBot de baxterSpawn) fija el tope, asi la
 // nave baja por encima del agua del canal.
-#define BAXTER_Y_MIN        44      // lo mas alto
-static s16 bxYMax  = 128;           // tope: el frame termina 8 px bajo laneBot
+// (14/10) Las alturas se miden EN PANTALLA (la camara de la cloaca sube y
+// baja con las tortugas): arriba de todo el borde de la nave queda justo
+// debajo del HUD y abajo de todo la nave toca el agua, como en el arcade
+// (antes eran Y de mundo fijas, 44..152, y con la camara arriba volaba solo
+// por la mitad de abajo de la pantalla).
+#define BAXTER_SCR_TOP      26      // fila de arriba: borde de la nave en pantalla
+#define BAXTER_SCR_BOT     146      // fila de abajo (la nave termina en 218)
+#define BAXTER_Y_MIN   ((s16)(stageCamY + BAXTER_SCR_TOP))
+static s16 bxYMaxW(void) { return (s16)(stageCamY + BAXTER_SCR_BOT); }
+#define bxYMax bxYMaxW()
 
 void baxterRatInitAll(void) {
     for (u16 i = 0; i < MAX_BAXTER_RATS; i++) {
@@ -93,6 +103,7 @@ void baxterRatInitAll(void) {
         rats[i].sprite     = NULL;
         rats[i].boomSprite = NULL;
         rats[i].victim     = NULL;
+        rats[i].boomDef    = &rat_boom;
     }
 }
 
@@ -162,7 +173,7 @@ static void ratStartBoom(BaxterRat* r, s16 camX) {
     r->timer     = 0;
     if (r->sprite) { SPR_releaseSprite(r->sprite); r->sprite = NULL; }
     if (!r->boomSprite)
-        r->boomSprite = SPR_addSprite(&rat_boom, -40, -40,
+        r->boomSprite = SPR_addSprite(r->boomDef ? r->boomDef : &rat_boom, -40, -40,
                                       TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
     if (r->boomSprite) {
         SPR_setAutoAnimation(r->boomSprite, FALSE);
@@ -229,12 +240,20 @@ static void ratSpawnFromShip(s16 x, s16 shipTop) {
                                   TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
         if (!r->sprite) return;
         r->state = RAT_FALL;
+        r->boomDef = &rat_boom;
         r->x     = x;
-        // Cae en una lane al azar de la franja, no siempre abajo de todo.
-        s16 span = (s16)(ratLaneBot - ratLaneTop - 16);
-        r->landY = (s16)(ratLaneTop + 8 + ((span > 0) ? (s16)(random() % (u16)span) : 0));
+        // (14/10) Sale de la PORTEZUELA (la panza de la nave) y cae derecho a
+        // una lane por debajo de ella: antes la lane era al azar en toda la
+        // franja y, con la nave baja, la rata aparecia de golpe mas arriba
+        // ("salen de arriba del nivel").
+        s16 belly = (s16)(shipTop + BAXTER_FRAME_H - 12);
+        s16 lo = (belly + 4 > ratLaneTop) ? (s16)(belly + 4) : ratLaneTop;
+        if (lo > ratLaneBot) lo = ratLaneBot;
+        s16 span = (s16)(ratLaneBot - lo);
+        if (span > 40) span = 40;
+        r->landY = (s16)(lo + ((span > 0) ? (s16)(random() % (u16)(span + 1)) : 0));
         r->y     = r->landY;
-        r->z     = (s16)(r->landY - (shipTop + BAXTER_FRAME_H - 12));   // sale de la panza
+        r->z     = (s16)(r->landY - belly);
         if (r->z < 0) r->z = 0;
         r->dir   = -1;
         r->timer = 0;
@@ -246,6 +265,40 @@ static void ratSpawnFromShip(s16 x, s16 shipTop) {
         if (r->sprite) { SPR_setAutoAnimation(r->sprite, FALSE); SPR_setFrame(r->sprite, 0); }
         return;
     }
+}
+
+// (13/10) Una rata que no viene de la nave: los Mousers que salen de los
+// huecos de la pared de la cloaca. Aparece en (x, landY) a 'fallZ' de altura
+// (la boca del hueco) y cae en la pose del salto. def/boomDef: su hoja y su
+// explosion (en la cloaca, pasadas a la paleta del blanco).
+bool baxterRatSpawnAt(const SpriteDefinition* def, const SpriteDefinition* boomDef,
+                      s16 x, s16 landY, s16 fallZ) {
+    if (!sprVramFits(def->maxNumTile)) return FALSE;
+    for (u16 i = 0; i < MAX_BAXTER_RATS; i++) {
+        BaxterRat* r = &rats[i];
+        if (r->state != RAT_INACTIVE) continue;
+        r->sprite = SPR_addSprite(def, -60, -60, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        if (!r->sprite) return FALSE;
+        r->state   = RAT_FALL;
+        r->boomDef = boomDef;
+        r->x = x; r->y = landY; r->landY = landY;
+        r->z = (fallZ > 0) ? fallZ : 0;
+        r->dir = -1; r->timer = 0;
+        r->accX = r->accY = r->accZ = 0;
+        r->anim = 0xFF; r->victim = NULL;
+        r->chaser = (ratChaserCount() < RAT_CHASERS) ? 1 : 0;
+        // (16/10) Primero sale del hueco caminando (fila 8, 3 poses a mano) y
+        // recien despues cae en la pose del salto (ver RAT_FALL).
+        ratSetAnim(r, RAT_ANIM_EMERGE, FALSE);
+        if (r->sprite) { SPR_setAutoAnimation(r->sprite, FALSE); SPR_setFrame(r->sprite, 0); }
+        return TRUE;
+    }
+    return FALSE;
+}
+
+void baxterRatSetArena(s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot) {
+    ratArenaL = arenaLeft; ratArenaR = arenaRight;
+    ratLaneTop = laneTop;  ratLaneBot = laneBot;
 }
 
 static void ratStartJump(BaxterRat* r, s8 dir) {
@@ -267,6 +320,15 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
         switch (r->state) {
 
         case RAT_FALL:
+            if (r->anim == RAT_ANIM_EMERGE) {       // saliendo del hueco
+                u16 f = (u16)(r->timer / RAT_EMERGE_TICKS);
+                if (f < 3) {
+                    if (r->sprite) SPR_setFrame(r->sprite, (s16)f);
+                    break;
+                }
+                ratSetAnim(r, RAT_ANIM_JUMP, FALSE);
+                if (r->sprite) { SPR_setAutoAnimation(r->sprite, FALSE); SPR_setFrame(r->sprite, 0); }
+            }
             r->z -= bxStep(&r->accZ, RAT_FALL_Q);
             if (r->z <= 0) ratToWalk(r);
             break;
@@ -459,8 +521,6 @@ void baxterSpawn(Baxter* b, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 lane
     ratLaneBot = laneBot;
     ratArenaL  = arenaLeft;
     ratArenaR  = arenaRight;
-    bxYMax = (s16)(laneBot - BAXTER_FRAME_H + 8);
-    if (bxYMax < 128) bxYMax = 128;
     // Centro del vuelo: el medio de la arena, a media altura.
     b->cx = (s16)((arenaLeft + arenaRight) / 2);
     b->cy = (s16)((BAXTER_Y_MIN + bxYMax) / 2);
@@ -631,6 +691,31 @@ bool baxterPlayerHits(Baxter* b, Player** pls, u8 nPl, s8* killer) {
     return FALSE;
 }
 
+// (12/10) Siguiente punto de la grilla: columna vecina (o la misma 1 de cada
+// 4) y otra altura; arriba de todo a veces cruza en horizontal.
+static s16 bxRowY(u8 row) {
+    if (row == 0) return BAXTER_Y_MIN;
+    if (row == 2) return bxYMax;
+    return (s16)((BAXTER_Y_MIN + bxYMax) / 2);
+}
+static void bxNextPoint(Baxter* b) {
+    u8 c = b->col, r = b->row;
+    u8 rr = (u8)(random() & 3);
+    if (rr != 0 || c == 1) {
+        if (c == 0) c = 1;
+        else if (c == 2) c = 1;
+        else c = (random() & 1) ? 0 : 2;
+    }
+    if (b->row == 0 && (random() & 3) == 0 && c != b->col) r = 0;      // cruce por arriba
+    else if (b->row == 0) r = (random() % 3 == 0) ? 1 : 2;
+    else r = (random() % 3 == 0) ? (u8)(3 - b->row) : 0;
+    if (r > 2) r = 1;
+    if (c == b->col && r == b->row) r = (u8)((r + 1) % 3);
+    b->col = c; b->row = r;
+    b->tx = (s16)(b->arenaLeft + c * BAXTER_COL_DX);
+    b->ty = bxRowY(r);
+}
+
 void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
     (void)pls; (void)nPl;
     if (b->state == BAXTER_INACTIVE || b->state == BAXTER_GONE) return;
@@ -648,30 +733,50 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
         if (b->x <= b->cx || b->y <= b->cy) {
             b->state = BAXTER_FLY;
             b->timer = 0;
-            // Arranca la Lissajous donde esta, sin saltos.
-            b->cx = b->x;
-            b->cy = b->y;
+            // (12/10) Arranca la grilla desde el punto mas cercano.
             b->flightT = 0;
             b->dropT = 0;
+            b->hoverLeft = 0;
+            b->col = 2; b->row = 1;
+            bxNextPoint(b);
         }
         break;
 
     case BAXTER_FLY: {
-        // Lissajous: de lado a lado (BAXTER_PER_X) y arriba-abajo
-        // (BAXTER_PER_Y), cada una con su periodo.
-        b->flightT++;
-        u8 phX = (u8)(((u32)b->flightT * 256) / BAXTER_PER_X);
-        u8 phY = (u8)(((u32)b->flightT * 256) / BAXTER_PER_Y);
-        if (b->flightT >= (u16)(BAXTER_PER_X * BAXTER_PER_Y / 30)) b->flightT = 0;
-        s16 tx = (s16)(b->cx + ((bxSin(phX) * BAXTER_AMP_X) >> 8));
-        s16 ty = (s16)(b->cy + ((bxSin(phY) * b->ampY) >> 8));
-        // De a poco hacia el centro de la arena (al entrar quedo corrido).
-        s16 mid = (s16)((b->arenaLeft + b->arenaRight) / 2);
-        if ((b->timer & 3) == 0) b->cx = (b->cx < mid) ? b->cx + 1 : ((b->cx > mid) ? b->cx - 1 : b->cx);
-        s16 midY = (s16)((BAXTER_Y_MIN + bxYMax) / 2);
-        if ((b->timer & 3) == 0) b->cy = (b->cy < midY) ? b->cy + 1 : ((b->cy > midY) ? b->cy - 1 : b->cy);
-        b->x = xclamp(tx, (s16)(b->arenaLeft + 8), (s16)(b->arenaRight - 8));
-        b->y = xclamp(ty, BAXTER_Y_MIN, bxYMax);
+        // (12/10) Grilla del arcade: va al punto (tx, ty); al llegar, a veces
+        // flota un rato y despues elige otro punto (ver bxNextPoint).
+        if (b->hoverLeft) {
+            if (++b->hoverT >= ((b->hoverPh & 1) ? BAXTER_BOB_HOLD : BAXTER_BOB_MOVE)) {
+                b->hoverT = 0;
+                b->hoverPh = (u8)((b->hoverPh + 1) & 3);
+                b->hoverLeft--;
+            }
+            s16 off;
+            if (b->hoverPh == 0)      off = (s16)-((BAXTER_BOB_DY * b->hoverT) / BAXTER_BOB_MOVE);
+            else if (b->hoverPh == 1) off = -BAXTER_BOB_DY;
+            else if (b->hoverPh == 2) off = (s16)(-BAXTER_BOB_DY + (BAXTER_BOB_DY * b->hoverT) / BAXTER_BOB_MOVE);
+            else                      off = 0;
+            if (b->row == 0) off = (s16)-off;   // arriba de todo flota hacia abajo (el HUD)
+            b->y = (s16)(b->hoverY0 + off);
+            if (!b->hoverLeft) { b->y = b->hoverY0; bxNextPoint(b); }
+        } else {
+            s16 sx = bxStep(&b->accX, BAXTER_FLY_XQ);
+            s16 sy = bxStep(&b->accY, BAXTER_FLY_YQ);
+            if (b->x < b->tx) b->x = (s16)((b->tx - b->x < sx) ? b->tx : b->x + sx);
+            else if (b->x > b->tx) b->x = (s16)((b->x - b->tx < sx) ? b->tx : b->x - sx);
+            if (b->y < b->ty) b->y = (s16)((b->ty - b->y < sy) ? b->ty : b->y + sy);
+            else if (b->y > b->ty) b->y = (s16)((b->y - b->ty < sy) ? b->ty : b->y - sy);
+            if (b->x == b->tx && b->y == b->ty) {
+                if ((u8)(random() % 100) < BAXTER_HOVER_PCT) {
+                    b->hoverLeft = (u8)(4 * (2 + (random() % 3)));   // 2 a 4 vueltas
+                    b->hoverPh = 0; b->hoverT = 0; b->hoverY0 = b->y;
+                } else {
+                    bxNextPoint(b);
+                }
+            }
+        }
+        b->x = xclamp(b->x, (s16)(b->arenaLeft), (s16)(b->arenaRight - 8));
+        b->y = xclamp(b->y, BAXTER_Y_MIN, bxYMax);
         // Suelta un Mouser cada BAXTER_DROP_T (abre la portezuela un rato).
         if (++b->dropT >= BAXTER_DROP_T) {
             b->dropT = 0;
@@ -708,8 +813,11 @@ void baxterUpdate(Baxter* b, Player** pls, u8 nPl, s16 camX) {
     // La portezuela se abre BAXTER_DOOR_T frames antes de cada Mouser
     // (primero entreabierta, despues abierta).
     s16 toDrop = (s16)(BAXTER_DROP_T - b->dropT);
-    bool door  = (b->state == BAXTER_FLY && toDrop <= BAXTER_DOOR_T);
-    u8 doorFr  = (toDrop <= BAXTER_DOOR_T / 2) ? 1 : 0;
+    // (14/10) ...y queda abierta BAXTER_DOOR_AFTER frames despues de
+    // soltarlo, asi se lo ve salir de la nave.
+    bool door  = (b->state == BAXTER_FLY &&
+                  (toDrop <= BAXTER_DOOR_T || b->dropT < BAXTER_DOOR_AFTER));
+    u8 doorFr  = (toDrop <= BAXTER_DOOR_T / 2 || b->dropT < BAXTER_DOOR_AFTER) ? 1 : 0;
     u8 want;
     if (b->hurtFlash || (lowHp && ((b->timer >> 3) & 1))) want = BAXTER_ANIM_HURT;
     else if (door) want = BAXTER_ANIM_DOOR;

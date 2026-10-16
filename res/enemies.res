@@ -82,6 +82,14 @@ SPRITE foot_soldier_orange "sprites/Foot_Soldier_Orange_new.png" 13 13 FAST 8
 //   [8] Golpe recibido (2f) | [9] Muerte: cae y explota (4f)
 // El arte mira a la DERECHA -> HFlip cuando dir == -1, igual que los otros dos.
 //
+// (15/10) HOJA UNICA: foot_soldier_white_gen.png, foot_soldier_knife_gen.png,
+// knife_proj_gen.png y water_splash_gen.png los genera ahora
+// tools/gen_foot_white_unified.py desde "Arcade - Teenage Mutant Ninja
+// Turtles - Enemies - Foot Soldier (White).png" (espada, cuchillo, cuchillo
+// tirado y salida del agua), con su paleta. Cada pose queda en el mismo lugar
+// de su celda que antes. Despues correr tools/gen_sewer_mouser.py.
+// Lo que sigue describe el armado VIEJO (gen_foot_white.py desde el rip
+// foot_soldier_white_sword.png), que ya no se usa:
 // OJO: el PNG que se declara es foot_soldier_white_gen.png, GENERADO por
 // tools/gen_foot_white.py a partir de foot_soldier_white_sword.png (el rip
 // original, que NO se toca). El generador repinta el parche del
@@ -106,6 +114,11 @@ SPRITE foot_soldier_knife "sprites/foot_soldier_knife_gen.png" 13 13 FAST 5
 // (10/10) Cuchillo tirado por el blanco del cuchillo: 3 frames de 40x24
 // (5x3 tiles), sin auto-animacion: [0] en vuelo, [1] chispazo, [2] pedazos.
 SPRITE knife_proj "sprites/knife_proj_gen.png" 5 3 FAST 0
+
+// (12/10) SALPICON del agua (sewer): los foot soldiers que salen del canal.
+// Sale de las poses del blanco saliendo del agua (fila 16 del rip), con SOLO
+// los colores del agua (tools/gen_foot_knife.py). 4 frames de 64x48, PAL3.
+SPRITE water_splash "sprites/water_splash_gen.png" 8 6 FAST 0
 
 // Shuriken: proyectil del foot soldier naranja. 16x16px = 2x2 tiles.
 // Misma paleta que el naranja (PAL3). Se crea/destruye en runtime.

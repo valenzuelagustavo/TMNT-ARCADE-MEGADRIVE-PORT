@@ -327,10 +327,10 @@ static s16 levelEndWallX(const Player* p, s16 y) {
 static void playAttackGrunt(const Player* p) {
     if (p->charIndex == 0 || p->charIndex == 3)
         XGM2_playPCMEx(leo_raph_attack_vo, sizeof(leo_raph_attack_vo),
-                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                       SOUND_PCM_CH1, 8, FALSE, FALSE);
     else
         XGM2_playPCMEx(mike_don_attack_vo, sizeof(mike_don_attack_vo),
-                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                       SOUND_PCM_CH1, 8, FALSE, FALSE);
 }
 
 // ---------------------------------------------------------------------------
@@ -384,8 +384,12 @@ static s16 specialHopZ(const Player* p) {
     return (s16)((4 * PLAYER_SPECIAL_HOP * (t - t0) * (tEnd - t)) / (span * span));
 }
 
+// (12/10) PATINETA (Scene 6): la tortuga se dibuja esta cantidad de px mas
+// arriba (parada sobre la tabla) y al moverse no camina (pose quieta).
+s16 playerSkateLift = 0;
+
 s16 playerDrawZ(const Player* p) {
-    s16 z = p->jumpZ;
+    s16 z = (s16)(p->jumpZ + playerSkateLift);
     // (09/10) Cada pose del salto a la altura que tiene en el arcade.
     if (p->state == STATE_JUMPING && p->sprite && p->sprite->animInd == ANIM_JUMP &&
         p->charIndex < PDX_CHARS && p->sprite->frameInd >= 0 && p->sprite->frameInd < PDX_FRAMES)
@@ -617,6 +621,11 @@ static bool walkStep(Player* p, u16 joy, s16 effRight, bool allowX, s8* dyOut) {
 // uno (la auto-animacion del .res va a 5).
 static void walkAnim(Player* p, u16 anim) {
     SPR_setAnimationLoop(p->sprite, TRUE);
+    if (playerSkateLift) {            // (12/10) en patineta: se desliza parada
+        if (!SPR_getAutoAnimation(p->sprite)) SPR_setAutoAnimation(p->sprite, TRUE);
+        SPR_setAnim(p->sprite, ANIM_IDLE);
+        return;
+    }
     if (!PLAYER_ARCADE_CONTROL) {
         SPR_setAutoAnimation(p->sprite, TRUE);
         SPR_setAnim(p->sprite, anim);
@@ -1670,7 +1679,7 @@ static void playerEnterKO(Player* p) {
     // disparo hit_turtles en el 2 y asi se escuchan los dos (impacto + grito)
     // en vez de que este pise al otro.
     XGM2_playPCMEx(lost_life_turtles_vo, sizeof(lost_life_turtles_vo),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH1, 12, FALSE, FALSE);
     p->state      = STATE_KO;
     p->koTimer    = PLAYER_KO_FRAMES;
     p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
@@ -1804,6 +1813,14 @@ void damagePlayer(Player* p, s16 attackerX) {
     }
     if (!playerCanBeHit(p)) return;
     // Control arcade: 2 barras y volteo (el golpe tipico del arcade).
+    if (PLAYER_ARCADE_CONTROL) playerTakeHit(p, attackerX, PLAYER_ARCADE_HIT_BARS, TRUE);
+    else                       playerTakeHit(p, attackerX, 1, FALSE);
+}
+
+// (15/10) Como damagePlayer pero tambien EN EL AIRE: el salto con espadazo
+// del blanco le gana a la patada voladora (ver enemyDamagePlayer).
+void damagePlayerAir(Player* p, s16 attackerX) {
+    if (!playerCanBeHitAir(p)) return;
     if (PLAYER_ARCADE_CONTROL) playerTakeHit(p, attackerX, PLAYER_ARCADE_HIT_BARS, TRUE);
     else                       playerTakeHit(p, attackerX, 1, FALSE);
 }

@@ -20,18 +20,26 @@ static s16 sToward(s16 v, s16 to, s16 step) {
     return v;
 }
 
+// La mas cercana, prefiriendo las que estan en juego (no KO) (13/10).
 static Player* nearestPlayer(Player** pls, u8 nPl, s16 x) {
     Player* best = pls[0];
     s16 bestD = 0x7FFF;
     for (u8 k = 0; k < nPl; k++) {
         if (isPlayerGameOver(pls[k])) continue;
         s16 d = sabs((s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2 - x));
+        if (pls[k]->state == STATE_KO) d = (s16)(d + 1000);
         if (d < bestD) { bestD = d; best = pls[k]; }
     }
     return best;
 }
 
-static bool isDown(Player* p) { return !playerCanBeHitAir(p) && !isPlayerGameOver(p); }
+// (13/10) "En el piso" = DERRIBADA (se va a levantar): ahi la espera. Antes
+// era "no se le puede pegar", y eso incluia el parpadeo al reaparecer despues
+// de perder una vida: los dos Shredder se quedaban quietos esperando ~2 s.
+static bool isDown(const Player* p) { return p->state == STATE_KNOCKED_DOWN; }
+// Perdio una vida y todavia no reaparecio (tirada, esfumandose, invisible):
+// no la ataca, solo se acomoda.
+static bool isOut(const Player* p) { return isPlayerGameOver(p) || p->state == STATE_KO; }
 
 // Ataques 1-4: ticks de cada frame, frame desde el que pega, alcance y si
 // derriba.
@@ -48,6 +56,39 @@ static const u16 beamReach[10] = { 40, 71, 104, 139, 171, 200, 234, 265, 269, 26
 
 // Un solo rayo a la vez entre el verdadero y la copia.
 static ShredderBoss* rayOwner = NULL;
+
+// (13/10) Flash de golpe: la paleta de Shredder (PAL2) en blanco 2 frames y
+// aclarada 2 mas. La comparten el verdadero y la copia, asi que destellan
+// los dos (es un instante).
+static u8  hitFlash;
+static u8  hitFlashOn;
+static u16 palWhite[16], palLight[16];
+
+static u16 lighten(u16 col) {
+    u16 out = 0;
+    for (u16 sh = 0; sh < 12; sh += 4) {
+        u16 ch = (u16)((col >> sh) & 0xE);
+        ch = (u16)(((ch + 0xE) >> 1) & 0xE);
+        out |= (u16)(ch << sh);
+    }
+    return out;
+}
+
+static void hitFlashStart(void) { hitFlash = SHRED_HIT_FLASH; }
+
+void shredderFxUpdate(void) {
+    if (!hitFlash) {
+        if (hitFlashOn) {
+            PAL_setColors(32, shredder_boss.palette->data, 16, DMA_QUEUE);
+            hitFlashOn = 0;
+        }
+        return;
+    }
+    const u16* pal = (hitFlash > SHRED_HIT_FLASH / 2) ? palWhite : palLight;
+    PAL_setColors(32, pal, 16, DMA_QUEUE);
+    hitFlashOn = 1;
+    hitFlash--;
+}
 
 static u8 animOf(const ShredderBoss* s, u8 a) {
     if (!s->bare) return a;
@@ -71,6 +112,12 @@ void shredderInit(ShredderBoss* s) {
     s->state = SHRED_INACTIVE;
     rayOwner = NULL;
     s->dir = -1;
+    hitFlash = hitFlashOn = 0;
+    const u16* src = shredder_boss.palette->data;
+    for (u16 i = 0; i < 16; i++) {
+        palWhite[i] = (i == 0) ? src[0] : 0xEEE;
+        palLight[i] = (i == 0) ? src[0] : lighten(src[i]);
+    }
 }
 
 static void hideExtras(ShredderBoss* s) {
@@ -111,7 +158,40 @@ void shredderSpawn(ShredderBoss* s, s16 x, s16 y, s16 arenaL, s16 arenaR, s16 la
     appear(s, sclamp(x, arenaL, arenaR), sclamp(y, laneT, laneB));
     // La risa del verdadero la toca level9_1 (bossVoStart, antes del tema).
     if (clone)
-        XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH2, 10, FALSE, FALSE);
+        XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH1, 10, FALSE, FALSE);
+}
+
+// (13/10) El verdadero esta en algo que se puede cortar para separarse.
+static bool canSplit(const ShredderBoss* o) {
+    return o && o->sprite && !o->beamOn &&
+           (o->state == SHRED_STANCE || o->state == SHRED_WALK || o->state == SHRED_WAIT);
+}
+
+bool shredderSpawnSplit(ShredderBoss* c, ShredderBoss* o,
+                        s16 arenaL, s16 arenaR, s16 laneT, s16 laneB) {
+    if (!canSplit(o)) return FALSE;
+    c->clone = TRUE;
+    c->arenaL = arenaL; c->arenaR = arenaR;
+    c->laneT = laneT;   c->laneB = laneB;
+    c->backTimer = 0;
+    c->twin = o;
+    o->twin = c;
+    s16 x = (s16)(o->xq >> 2);
+    s16 y = (s16)(o->yq >> 2);
+    appear(c, x, y);                 // vida, casco, sprite (en el mismo lugar)
+    c->dir = o->dir;
+    // El verdadero se corre a la derecha y la copia a la izquierda.
+    s16 oTo = sclamp((s16)(x + SHRED_SPLIT_ORIG_DX), arenaL, arenaR);
+    s16 cTo = (s16)(oTo - SHRED_CLONE_DX);
+    if (cTo < arenaL) { cTo = arenaL; oTo = sclamp((s16)(cTo + SHRED_CLONE_DX), arenaL, arenaR); }
+    o->splitTo = oTo;
+    c->splitTo = cTo;
+    o->accX = c->accX = 0;
+    enter(o, SHRED_SPLIT);
+    enter(c, SHRED_SPLIT);
+    if (c->sprite) setFrame(c, SHRED_ANIM_IDLE, 0);
+    XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH1, 10, FALSE, FALSE);
+    return TRUE;
 }
 
 bool shredderIsDying(const ShredderBoss* s) { return s->state == SHRED_DEATH || s->state == SHRED_GONE; }
@@ -159,7 +239,7 @@ bool shredderPlayerHits(ShredderBoss* s, Player** pls, u8 nPl, s8* killer) {
         XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
         s->hp -= dmg;
         s->invuln = SHRED_INVULN;
-        s->flash = 6;
+        hitFlashStart();                 // (13/10) flash blanco cortito
         u8 hurtAnim = SHRED_ANIM_HURT;
         if (s->clone && !s->bare && s->hp < SHRED_HELMET_HP) {
             helmetOff(s, x, y);
@@ -308,7 +388,7 @@ static void render(ShredderBoss* s, bool visible) {
     SPR_setHFlip(s->sprite, s->dir < 0);
     SPR_setPosition(s->sprite, x - s->camX - SHRED_FRAME_W / 2, y - s->camY - SHRED_FOOT_OFFSET);
     SPR_setDepth(s->sprite, (s16)(-y));
-    SPR_setVisibility(s->sprite, (visible && !(s->flash & 1)) ? VISIBLE : HIDDEN);
+    SPR_setVisibility(s->sprite, visible ? VISIBLE : HIDDEN);
 }
 
 static void fxAt(ShredderBoss* s, u8 anim, u8 frame, s16 wx, s16 wy) {
@@ -334,10 +414,17 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
 
     if (s->state == SHRED_GONE) {
         // La copia vuelve a los 6 s (con casco y media vida), mas abajo.
+        // (13/10) Vuelve saliendo otra vez del cuerpo del verdadero; si el
+        // esta en medio de algo, prueba en el frame siguiente.
         if (s->clone && s->backTimer != SHRED_NO_RETURN && s->backTimer && --s->backTimer == 0) {
-            appear(s, (s16)(s->xq >> 2), (s16)((s->yq >> 2) + 25));
-            s->yq = (s16)(sclamp((s16)(s->yq >> 2), s->laneT, s->laneB) * 4);
-            XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH2, 10, FALSE, FALSE);
+            if (s->twin) {
+                if (!shredderSpawnSplit(s, s->twin, s->arenaL, s->arenaR, s->laneT, s->laneB))
+                    s->backTimer = 1;
+            } else {
+                appear(s, (s16)(s->xq >> 2), (s16)((s->yq >> 2) + 25));
+                s->yq = (s16)(sclamp((s16)(s->yq >> 2), s->laneT, s->laneB) * 4);
+                XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH1, 10, FALSE, FALSE);
+            }
         }
         return;
     }
@@ -355,6 +442,7 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
     bool far     = alignY && sabs(dX) >  SHRED_FAR_DX;
     bool gameOn  = !isPlayerGameOver(tgt);
     bool tgtDown = isDown(tgt);
+    bool tgtOut  = isOut(tgt);       // (13/10) perdio una vida: no la ataca
     bool visible = TRUE;
 
     s->timer++;
@@ -363,6 +451,21 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
     beamUpdate(s, pls, nPl);
 
     switch (s->state) {
+
+    case SHRED_SPLIT: {
+        // (13/10) La copia sale del cuerpo: los dos con la pose de parado,
+        // titilando a frames alternos (uno se ve cuando el otro no), y se
+        // separan hasta su lugar.
+        setFrame(s, SHRED_ANIM_IDLE, 0);
+        s16 st = sStep(&s->accX, 384);           // 1,5 px/f
+        s->xq = (s16)(sToward(x, s->splitTo, st) * 4);
+        visible = ((s->timer + (s->clone ? 1 : 0)) & 1) != 0;
+        if (s->timer >= SHRED_SPLIT_T && (s->xq >> 2) == s->splitTo) {
+            faceTarget(s, (s16)(s->xq >> 2), px);
+            enter(s, SHRED_STANCE);
+        }
+        break;
+    }
 
     case SHRED_APPEAR: {
         u8 f = (u8)((s->timer * 7) / SHRED_APPEAR_T);
@@ -377,6 +480,7 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
         setFrame(s, SHRED_ANIM_IDLE, 0);
         faceTarget(s, x, px);
         if (s->timer < SHRED_STANCE_T || !gameOn) break;
+        if (tgtOut) { if (!near) enter(s, SHRED_WALK); break; }
         if (!near) enter(s, SHRED_WALK);
         else if (tgtDown) enter(s, SHRED_WAIT);
         else startAttack(s, (u8)(random() & 3));
@@ -400,6 +504,12 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
         setFrame(s, (dY < -1) ? SHRED_ANIM_WALKUP : SHRED_ANIM_WALK,
                  (u8)((s->timer / SHRED_WALK_FRAME) % 6));
         if (!gameOn || s->timer < SHRED_WALK_REACT) break;
+        if (tgtOut) {
+            // Se acomoda a su lado y la espera parado (no a la tortuga
+            // tirada: cuando reaparece, vuelve a caminar y atacar).
+            if (sabs((s16)(x - spot)) <= 2 && sabs(dY) <= 1) enter(s, SHRED_STANCE);
+            break;
+        }
         if (near) {
             if (tgtDown) {
                 if (random() & 1) enter(s, SHRED_WAIT);
@@ -468,7 +578,7 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
         else setFrame(s, SHRED_ANIM_HURT, (u8)(s->timer >= 12));
         if (s->timer >= SHRED_HURT_T) {
             s->rayReady = 1;
-            if (!near) {
+            if (!near || tgtOut) {
                 if ((random() % 3) == 0) enter(s, SHRED_STANCE);
                 else enter(s, SHRED_WALK);
             } else if (tgtDown) {

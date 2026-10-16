@@ -2,7 +2,7 @@
 #define _KRANG_H_
 
 #include <genesis.h>
-#include "final_bosses.h"   // krang_boss, krang_fist, krang_head, krang_bolt, krang_zap
+#include "final_bosses.h"   // krang_boss, krang_fist, krang_head, krang_eyebeam, krang_zap, krang_boom
 #include "player.h"
 #include "boss_flash.h"
 
@@ -22,16 +22,20 @@
 //              Alineado y cerca: 50% patada / 50% rayo. Alineado y lejos con
 //              el brazo cargado: PUNO COHETE (y el brazo queda descargado).
 //   PATADA 34  pega desde el ultimo frame y derriba.
-//   RAYO 36    la antena junta energia y un relampago cae del techo sobre la
-//              tortuga (o delante suyo); el que esta ahi cae.
+//   RAYO 44    la antena junta energia y de los OJOS salen dos laser finos en
+//              diagonal (45 grados) hasta el piso, delante suyo; el que esta
+//              en su lane donde el rayo baja cae. (13/10: antes caia un
+//              relampago del techo, que no es lo del arcade.)
 //   PUNO 48    se agacha y dispara el puno a 4,75 px/f por la lane.
 //   BURLA 54   saca pecho, intocable.
 //   Tras patada o rayo se recarga el brazo. Despues de cada accion: si la
 //   tortuga quedo en el piso, burla; si no, vuelve a caminar (o burla al
 //   azar si quedo lejos).
 //   Solo recibe dano QUIETO o CAMINANDO. Parpadea con poca vida.
-//   MUERE 240  grita, se electrocuta y estalla; del pecho sale la CABEZA, que
-//              flota hablando unos 4 s y se escapa por arriba.
+//   MUERE 240  grita, se electrocuta y estalla: el cuerpo desaparece en la
+//              explosion de BAXTER (4 seguidas: la primera justo donde estaba
+//              y las otras alrededor, con flash blanco de la sala). Del pecho
+//              sale la CABEZA, que flota hablando unos 4 s y se escapa.
 // ===========================================================================
 
 #define KRANG_ANIM_IDLE     0
@@ -73,14 +77,22 @@
 #define KRANG_HIT_DY        5
 #define KRANG_KICK_DMG      2
 
-// Rayo del techo
-#define KRANG_LASER_T      36
-#define KRANG_BOLT_AT      24     // el relampago sale en el ultimo frame
-#define KRANG_BOLT_MIN     24     // donde cae, delante suyo
-#define KRANG_BOLT_MAX     96
-#define KRANG_BOLT_FALL     8     // ticks que tarda en bajar
-#define KRANG_BOLT_LIFE    26
-#define KRANG_BOLT_HALF_W  14
+// Laser de los ojos (13/10). krang_eyebeam: tramos de 40x32 a 45 grados que
+// siguen el arranque del rayo dibujado en el frame 2 de la anim de laser
+// (ojos a 108 px de los pies, 12 px delante del centro). Tres tramos bajan
+// de 96 px de altura (24 px delante) hasta el piso (120 px delante).
+#define KRANG_LASER_T      44
+#define KRANG_BOLT_AT      24     // el laser sale en el ultimo frame
+#define KRANG_BEAM_SEGS     3
+#define KRANG_BEAM_SEG_H   32
+#define KRANG_BEAM_X0      24     // borde del primer tramo, delante del centro
+#define KRANG_BEAM_TOP     96     // altura del primer tramo sobre los pies
+#define KRANG_BEAM_SEG_W   40
+#define KRANG_BEAM_GROW     2     // ticks entre tramo y tramo (va bajando)
+#define KRANG_BEAM_LIFE    20     // KRANG_LASER_T - KRANG_BOLT_AT
+#define KRANG_BEAM_LAND   120     // donde toca el piso, delante del centro
+#define KRANG_BEAM_HIT_MIN 40     // de aca en adelante el rayo ya esta a la
+#define KRANG_BEAM_HIT_MAX 132    // altura de una tortuga
 #define KRANG_BOLT_DY       6
 #define KRANG_BOLT_DMG      2
 
@@ -102,6 +114,17 @@
 #define KRANG_HEAD_DZ      70     // la cabeza sale a esta altura
 #define KRANG_HEAD_FLOAT  240     // flota hablando
 #define KRANG_HEAD_UP_Q   512     // 2 px/f al escaparse
+
+// Explosion del cuerpo (13/10): la de Baxter (krang_boom, en PAL2), cuatro
+// una detras de la otra. La primera en el centro del cuerpo; las otras
+// alrededor (offsets en krang.c). Flash blanco de la sala con la primera y
+// con la tercera (krangWhiteFlash, lo aplica level9_1.c).
+#define KRANG_BOOMS         4
+#define KRANG_BOOM_GAP     14     // ticks entre una y otra
+#define KRANG_BOOM_FRAMES   8
+#define KRANG_BOOM_TICKS    4     // 8 x 4 = ~0,5 s cada una
+#define KRANG_BOOM_HALF    64
+#define KRANG_BOOM_DZ      56     // centro de la primera sobre los pies
 
 typedef enum {
     KRANG_INACTIVE, KRANG_DROP, KRANG_IDLE, KRANG_WALK, KRANG_KICK, KRANG_LASER,
@@ -137,8 +160,11 @@ bool krangIsDying(const Krang* k);   // muriendo o ya cabeza
 bool krangIsGone(const Krang* k);    // la cabeza ya se fue
 void krangRelease(Krang* k);
 
-// Puno y relampagos (estado de modulo; krangInit los limpia).
+// Puno, laser de los ojos y explosiones (estado de modulo; krangInit los
+// limpia). krangShotsUpdate tambien avanza las explosiones.
 void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY);
 void krangShotsReleaseAll(void);
+// TRUE mientras la sala tiene que verse blanca (explosion del cuerpo).
+bool krangWhiteFlash(void);
 
 #endif

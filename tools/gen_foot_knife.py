@@ -19,6 +19,7 @@
 #
 # ENTRADA   res/sprites/foot_soldier_white_sword.png  (el rip, no se toca)
 # SALIDAS   res/sprites/foot_soldier_knife_gen.png    (832 x 104*filas)
+#           res/sprites/water_splash_gen.png          (12/10: salpicon, 4 frames de 64x48)
 #           res/sprites/knife_proj_gen.png            (cuchillo tirado:
 #                                                      3 frames de 40x24)
 #
@@ -37,6 +38,7 @@ SRC   = os.path.join(SPR, "foot_soldier_white_sword.png")
 WHITE = os.path.join(SPR, "foot_soldier_white_gen.png")   # paleta (indice 0 igualado)
 DST   = os.path.join(SPR, "foot_soldier_knife_gen.png")
 PROJ  = os.path.join(SPR, "knife_proj_gen.png")
+SPLASH = os.path.join(SPR, "water_splash_gen.png")   # (12/10) salpicon del agua
 
 CELL       = 104
 FOOT_ROW   = 103     # ultima fila con arte (igual que la espada)
@@ -66,6 +68,13 @@ POSES = {
 # Proyectil: el cuchillo en vuelo, el chispazo y los pedazos al romperse.
 PROJ_POSES = [(56, 1654, 25, 10), (14, 1648, 29, 22), (10, 1688, 37, 22)]
 PROJ_W, PROJ_H = 40, 24
+# (12/10) SALPICON del agua (sewer): las 4 poses en las que el blanco sale del
+# agua (fila 16 del rip). Se queda SOLO el agua (indices 5, 9 y 10, los
+# violetas grisaceos del salpicon): el soldado que sale lo dibuja el juego con
+# su propia hoja, asi sirve para cualquier foot soldier. Pegado abajo.
+SPLASH_POSES = [(29, 2276, 30, 21), (99, 2259, 42, 41), (173, 2244, 54, 59), (257, 2213, 57, 90)]
+SPLASH_KEEP  = (5, 9, 10)
+SPLASH_W, SPLASH_H = 64, 48
 
 # Filas de la hoja generada = animaciones (KNIFE_ANIM_* en enemy.h).
 ANIMS = [
@@ -159,8 +168,24 @@ def main():
     pimg = Image.fromarray(proj, mode="P"); pimg.putpalette(pal)
     pimg.save(PROJ, transparency=0)
 
+    spl = np.zeros((SPLASH_H, SPLASH_W * len(SPLASH_POSES)), np.uint8)
+    for k, (x, y, w, h) in enumerate(SPLASH_POSES):
+        crop = a[y:y + h, x:x + w].copy()
+        crop[~np.isin(crop, SPLASH_KEEP)] = 0
+        ys = np.nonzero(crop.any(axis=1))[0]
+        crop = crop[ys[0]:ys[-1] + 1]
+        crop = crop[max(0, crop.shape[0] - SPLASH_H):]
+        hh = crop.shape[0]
+        ox = k * SPLASH_W + (SPLASH_W - w) // 2
+        oy = SPLASH_H - hh
+        m = crop != 0
+        spl[oy:oy + hh, ox:ox + w][m] = crop[m]
+    simg = Image.fromarray(spl, mode="P"); simg.putpalette(pal)
+    simg.save(SPLASH, transparency=0)
+
     print("salida: %s (%dx%d, %d anims)" % (os.path.relpath(DST, ROOT), out.shape[1], out.shape[0], rows))
     print("salida: %s (%d frames de %dx%d)" % (os.path.relpath(PROJ, ROOT), len(PROJ_POSES), PROJ_W, PROJ_H))
+    print("salida: %s (%d frames de %dx%d)" % (os.path.relpath(SPLASH, ROOT), len(SPLASH_POSES), SPLASH_W, SPLASH_H))
 
 
 if __name__ == "__main__":

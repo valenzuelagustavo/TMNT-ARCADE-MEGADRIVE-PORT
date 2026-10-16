@@ -7,6 +7,7 @@
 
 #include <genesis.h>
 #include "stage_level.h"
+#include "idle_missile.h"   // (14/10) modo ARCADE: el misil al que se queda quieto
 #include "level1.h"            // hud_font
 #include "enemies.h"           // foot_soldier (paleta)
 #include "hud.h"
@@ -87,6 +88,14 @@ static void camYApply(bool now) {
 // del nivel que les pegan (conos y barriles del garage).
 static Enemy* stageEnemyList;
 Enemy* stageEnemies(void) { return stageEnemyList; }
+static u16 stageMaxAliveV = 3;      // (12/10) el tope de vivos en curso
+static s16 stageCamXv;              // (12/10) la camara en curso (para los actores)
+static s16 stageSpawnY;             // (12/10) y de STAGE_JUMP_IN / STAGE_IN_PLACE
+static s16 stageProg;               // (12/10) avance del fondo (autoScrollQ), tope 32000
+static u16 stageScroll;             // (12/10) el scroll que se ve (u16: da la vuelta)
+static u8  stageProgAcc;
+static u8  stageVisAcc;             // (14/10) resto del scroll que se ve (autoScrollVisQ)
+s16 stageProgress(void) { return stageProg; }
 
 s16 stageWalkTopAt(s16 fx) {
     if (!cur || !cur->walkTop) return cur ? cur->walkYMin : 0;
@@ -291,7 +300,7 @@ static void farDraw(u16 vram) {
             if (sr < tm->h) {
                 u16 e = tm->tilemap[(u32)sr * tm->w + (c % tm->w)];
                 v = (u16)((e & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
-                          | TILE_ATTR(PAL3, FALSE, FALSE, FALSE)
+                          | TILE_ATTR(cur->farPal0 ? PAL0 : PAL3, FALSE, FALSE, FALSE)
                           | (vram + (e & TILE_INDEX_MASK)));
             }
             fgBuf[c & 31] = v;
@@ -305,7 +314,12 @@ static void farDraw(u16 vram) {
 static s16 scrA[STAGE_ROWS], scrB[STAGE_ROWS];
 
 static void applyScroll(s16 camX, TransferMethod tm) {
-    s16 farX = cur->far ? (s16)-(camX / (s16)(cur->farDiv ? cur->farDiv : 1)) : 0;
+    s16 farX = 0;
+    if (cur->far) {
+        u16 dv = cur->farDiv ? cur->farDiv : 1;
+        farX = cur->autoScrollQ ? (s16)-(s16)((u16)camX / dv)     // (12/10) scroll u16
+                                : (s16)-(camX / (s16)dv);
+    }
     for (u16 r = 0; r < STAGE_ROWS; r++) {
         if (cur->far) {
             scrA[r] = (s16)-camX;
@@ -323,8 +337,112 @@ static void applyScroll(s16 camX, TransferMethod tm) {
 // Spawn de un soldier de oleada: entra por el borde de la camara, por la
 // izquierda con la voltereta y por la derecha con la patada (spawns del 1-1).
 // ---------------------------------------------------------------------------
-static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX) {
+// (12/10) SALPICON del agua (sewer): efecto suelto, 4 frames.
+#define STAGE_SPLASH_MAX     2
+#define STAGE_SPLASH_TICKS   5
+#define STAGE_SPLASH_FRAMES  4
+#define STAGE_SPLASH_W      64
+#define STAGE_SPLASH_H      48
+// El que sale del agua: patada de entrada saltando para arriba desde la
+// lane del canal (el arco lo hace el SPAWNING de la patada, ver enemy.c).
+#define STAGE_WATER_V0_Q   (-1024)  // 4 px/f hacia arriba (gravedad 0,25: apice ~32 px)
+static struct { Sprite* spr; s16 x, y; u8 fr, tick; } splash[STAGE_SPLASH_MAX];
+
+static void splashInit(void) {
+    for (u16 i = 0; i < STAGE_SPLASH_MAX; i++) splash[i].spr = NULL;
+}
+static void splashRelease(void) {
+    for (u16 i = 0; i < STAGE_SPLASH_MAX; i++)
+        if (splash[i].spr) { SPR_releaseSprite(splash[i].spr); splash[i].spr = NULL; }
+}
+static void splashAt(s16 x, s16 y) {
+    for (u16 i = 0; i < STAGE_SPLASH_MAX; i++) {
+        if (splash[i].spr) continue;
+        Sprite* s = SPR_addSprite(&water_splash, -80, -80, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        if (!s) return;                        // sin VRAM: sale igual, sin salpicon
+        // Los colores del agua estan en la paleta del blanco (PAL3, que hasta
+        // el jefe es de los blancos; con capa lejana no hay agua).
+        if (!cur->far) PAL_setPalette(PAL3, foot_soldier_white.palette->data, DMA_QUEUE);
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setFrame(s, 0);
+        splash[i].spr = s; splash[i].x = x; splash[i].y = y;
+        splash[i].fr = 0; splash[i].tick = 0;
+        return;
+    }
+}
+static void splashUpdate(s16 camX) {
+    for (u16 i = 0; i < STAGE_SPLASH_MAX; i++) {
+        if (!splash[i].spr) continue;
+        if (++splash[i].tick >= STAGE_SPLASH_TICKS) {
+            splash[i].tick = 0;
+            if (++splash[i].fr >= STAGE_SPLASH_FRAMES) {
+                SPR_releaseSprite(splash[i].spr); splash[i].spr = NULL; continue;
+            }
+            SPR_setFrame(splash[i].spr, splash[i].fr);
+        }
+        SPR_setPosition(splash[i].spr, (s16)(splash[i].x - camX - STAGE_SPLASH_W / 2),
+                        (s16)(splash[i].y - STAGE_SPLASH_H + 6 - stageCamY));
+        SPR_setDepth(splash[i].spr, (s16)(-(splash[i].y) - 2));
+    }
+}
+
+static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX, s16 atX) {
     s16 w  = enemySpriteW(type);
+    if (side == STAGE_IN_WATER) {
+        // (12/10) Sale del AGUA como en el arcade: salpicon y un salto para
+        // arriba (la patada de entrada) hasta caer en el canal.
+        s16 y  = ledgeSnap((s16)(cur->walkYMax - 6));
+        s8  d  = (atX < camX + SCREEN_W / 2) ? 1 : -1;
+        u8  pl = (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE || type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? PAL3 : PAL2;
+        if (type == ENEMY_TYPE_FOOT_SOLDIER) {
+            initEnemyKickSpawn(e, (s16)(atX - w / 2), y, d, pl, type);
+            e->jumpZq  = 1 << 8;
+            e->jumpZ   = 1;
+            e->jumpVel = STAGE_WATER_V0_Q;
+        } else {
+            initEnemyWalkInSpawn(e, (s16)(atX - w / 2), y, d, pl, type);
+        }
+        setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
+        // (13/10) El salpicon DESPUES del soldier: antes se pedia primero y
+        // podia quedarse con la VRAM que sprVramFits habia visto libre para
+        // el soldier -> el soldier quedaba sin sprite y la oleada trabada.
+        if (e->sprite) splashAt(atX, y);
+        return;
+    }
+    if (side == STAGE_JUMP_IN || side == STAGE_IN_PLACE) {
+        // (12/10) Desde un actor del nivel (ver stage_level.h).
+        s16 y  = ledgeSnap(stageSpawnY);
+        s8  d  = (atX < camX + SCREEN_W / 2) ? 1 : -1;
+        u8  pl = (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE || type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? PAL3 : PAL2;
+        if (side == STAGE_JUMP_IN && type == ENEMY_TYPE_FOOT_SOLDIER) {
+            initEnemyKickSpawn(e, (s16)(atX - w / 2), y, d, pl, type);
+            e->jumpZq  = 1 << 8;
+            e->jumpZ   = 1;
+            e->jumpVel = STAGE_WATER_V0_Q;
+        } else {
+            initEnemyWalkInSpawn(e, (s16)(atX - w / 2), y, d, pl, type);
+        }
+        setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
+        return;
+    }
+    if (side == STAGE_FROM_BACK) {
+        // (12/10) Desde el FONDO del piso (garage): el morado baja de un salto
+        // (como del agua, sin salpicon); los demas salen caminando hacia el
+        // centro de la pantalla.
+        s16 y  = ledgeSnap((s16)(stageWalkTopAt(atX) + 4));
+        s8  d  = (atX < camX + SCREEN_W / 2) ? 1 : -1;
+        u8  pl = (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE || type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? PAL3 : PAL2;
+        if (type == ENEMY_TYPE_FOOT_SOLDIER) {
+            initEnemyKickSpawn(e, (s16)(atX - w / 2), y, d, pl, type);
+            e->jumpZq  = 1 << 8;
+            e->jumpZ   = 1;
+            e->jumpVel = STAGE_WATER_V0_Q;
+        } else {
+            initEnemyWalkInSpawn(e, (s16)(atX - w / 2), y, d, pl, type);
+        }
+        setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
+        return;
+    }
     s16 x  = (side < 0) ? (s16)(camX - w) : (s16)(camX + SCREEN_W);
     s16 fx = (s16)((side < 0) ? camX + 24 : camX + SCREEN_W - 24);
     s16 top = stageWalkTopAt(fx);
@@ -341,6 +459,34 @@ static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX) {
     else if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
     else               initEnemyKickSpawn(e, x, y, -1, PAL2, type);
     setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
+}
+
+u16 stageAliveEnemies(void) {
+    u16 n = 0;
+    if (!stageEnemyList) return 0;
+    for (u16 i = 0; i < MAX_ENEMIES; i++)
+        if (stageEnemyList[i].state != ENEMY_STATE_INACTIVE) n++;
+    return n;
+}
+
+bool stageSpawnEnemyAt(u8 type, s8 side, s16 x, s16 y) {
+    if (!cur || !stageEnemyList) return FALSE;
+    // STAGE_IN_PLACE reemplaza a un actor que ya estaba peleando (el del
+    // misil): no espera lugar en el tope de vivos.
+    if (side != STAGE_IN_PLACE && stageAliveEnemies() >= stageMaxAliveV) return FALSE;
+    u16 i;
+    for (i = 0; i < MAX_ENEMIES; i++)
+        if (stageEnemyList[i].state == ENEMY_STATE_INACTIVE) break;
+    if (i >= MAX_ENEMIES) return FALSE;
+    if (!sprVramFits(enemySheetDef(type)->maxNumTile)) return FALSE;
+    eStepZ[i] = 0;
+    stageSpawnY = y;
+    spawnWaveEnemy(&stageEnemyList[i], type, side, stageCamXv, x);
+    if (!stageEnemyList[i].sprite) {            // (13/10) sin sprite: no salio
+        stageEnemyList[i].state = ENEMY_STATE_INACTIVE;
+        return FALSE;
+    }
+    return TRUE;
 }
 
 // ===========================================================================
@@ -388,6 +534,11 @@ SceneId stageLevelRun(const StageLevel* L) {
     fgVram = (u16)(TILE_USER_INDEX + barBlocks);
     if (extra) VDP_loadTileSet(extra->tileset, fgVram, DMA);
     if (L->far) farDraw(fgVram);
+    // (12/10) Fondo que corre solo: la imagen se repite en X.
+    stageProg = 0; stageProgAcc = 0; stageScroll = 0; stageVisAcc = 0;
+    sbgSetWrap(L->autoScrollQ != 0);
+    playerSkateLift = L->skateLift;
+    enemySkateMode  = (bool)(L->skateLift != 0);
     sbgSetRegions(L->bgRegions, L->nBgRegions);   // (01/10) NULL/0 casi siempre
     if (L->bgRaw)
         sbgInitRaw(L->bgRaw, L->far ? BG_A : BG_B, PAL0,
@@ -437,6 +588,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     resetEnemyAI(cantidadJugadores);
     shurikenInit();
     boomerangInit();
+    splashInit();
     static Enemy enemies[MAX_ENEMIES];
     stageEnemyList = enemies;
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -446,6 +598,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     }
     bool plWasAir[MAX_PLAYERS] = { FALSE, FALSE, FALSE, FALSE };
     u16 maxAlive = dosJugadores ? STAGE_MAX_ALIVE_2P : STAGE_MAX_ALIVE_1P;
+    stageMaxAliveV = maxAlive;
 
     if (L->bossInit) L->bossInit();
     if (L->levelInit) L->levelInit();
@@ -464,7 +617,8 @@ SceneId stageLevelRun(const StageLevel* L) {
         target[i]      = L->bgRaw ? L->bgRaw->pal->data[i] : L->bg->palette->data[i];
         target[16 + i] = leo_player.palette->data[i];
         target[32 + i] = foot_soldier.palette->data[i];
-        target[48 + i] = L->far ? L->far->palette->data[i] : 0;
+        target[48 + i] = L->pal3 ? L->pal3[i]
+                       : ((L->far && !L->farPal0) ? L->far->palette->data[i] : 0);
     }
     for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);   // coloca los sprites
     if (camYOn()) {
@@ -491,6 +645,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     bool win     = FALSE;
     SceneId jump = PAUSE_NO_JUMP;
     pauseReset();
+    idleMissileReset();
     bossVoReset();
     while (running) {
         jump = pausePoll(pls, nPl);
@@ -504,6 +659,9 @@ SceneId stageLevelRun(const StageLevel* L) {
             clampWalk(&pls[k]->x, &pls[k]->y, prevX, prevY, FOOT_DX);
             ledgePlayer(pls[k], prevY, &plWasAir[k]);
         }
+        // (14/10) Modo ARCADE: quieto 7 s con la camara parada -> misil. En la
+        // patineta no (la camara no se mueve nunca: corre el fondo).
+        if (!L->autoScrollQ) idleMissileUpdate(pls, nPl, cameraX, stageCamY);
 
         // --- Camara: dead-zone a la derecha, nunca vuelve -------------------
         s16 leadX = p1.x;
@@ -558,6 +716,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 nPl          = 2;
                 dosJugadores = TRUE;
                 maxAlive     = STAGE_MAX_ALIVE_2P;
+                stageMaxAliveV = maxAlive;
                 resetEnemyAI(2);
             }
         }
@@ -571,8 +730,21 @@ SceneId stageLevelRun(const StageLevel* L) {
         u16 alive = 0;
         for (u16 i = 0; i < MAX_ENEMIES; i++)
             if (enemies[i].state != ENEMY_STATE_INACTIVE) alive++;
+        if (L->specialAlive) alive += L->specialAlive();   // (12/10) actores del nivel
+        stageCamXv = cameraX;
 
         s16 leadFeetX = leadX + FOOT_DX;
+        // (12/10) Con el fondo corriendo solo, el avance manda (no los pies).
+        if (L->autoScrollQ) {
+            u16 t = (u16)(stageProgAcc + L->autoScrollQ);
+            stageProgAcc = (u8)(t & 0xFF);
+            if (stageProg < 32000) stageProg = (s16)(stageProg + (s16)(t >> 8));
+            // (14/10) Lo que se ve puede correr mas rapido que el avance.
+            u16 v = (u16)(stageVisAcc + (L->autoScrollVisQ ? L->autoScrollVisQ : L->autoScrollQ));
+            stageVisAcc = (u8)(v & 0xFF);
+            stageScroll = (u16)(stageScroll + (v >> 8));
+            leadFeetX = stageProg;
+        }
         if ((waveIdx < 0 || waveSpawned >= L->waves[waveIdx].n) &&
             waveIdx + 1 < (s16)L->nWaves &&
             leadFeetX >= L->waves[waveIdx + 1].trigX) {
@@ -598,6 +770,14 @@ SceneId stageLevelRun(const StageLevel* L) {
                 // (la hoja mas chica); si tampoco entra, a los 2,5 s se lo
                 // saltea. La oleada nunca se traba.
                 u8 ty = w->type[waveSpawned];
+                if (ty >= STAGE_SPECIAL) {
+                    // (12/10) Actor del nivel: no ocupa lugar de soldier.
+                    if (L->specialSpawn &&
+                        !L->specialSpawn(ty, w->side[waveSpawned], w->x[waveSpawned], cameraX))
+                        break;                     // todavia no: se reintenta
+                    waveSpawned++;
+                    continue;
+                }
                 if (!sprVramFits(enemySheetDef(ty)->maxNumTile)) {
                     if (alive > 0) { vramWait = 0; break; }
                     vramWait++;
@@ -612,18 +792,30 @@ SceneId stageLevelRun(const StageLevel* L) {
                 }
                 vramWait = 0;
                 eStepZ[i] = 0;
-                spawnWaveEnemy(&enemies[i], ty, w->side[waveSpawned], cameraX);
+                spawnWaveEnemy(&enemies[i], ty, w->side[waveSpawned], cameraX, w->x[waveSpawned]);
+                // (13/10) Si SGDK no le dio el sprite (VRAM fragmentada, o la
+                // tomo otra cosa en el medio), no cuenta: se reintenta. Un
+                // soldier sin sprite no se actualiza nunca (updateEnemyN sale
+                // de una) y trababa la oleada para siempre.
+                if (!enemies[i].sprite) {
+                    enemies[i].state = ENEMY_STATE_INACTIVE;
+                    break;
+                }
                 waveSpawned++;
                 alive++;
             }
             if (waveSpawned >= w->n && alive == 0) camLockX = -1;   // limpia
         }
 
+        splashUpdate(cameraX);
+
         // --- Foot soldiers ---------------------------------------------------
         separateEnemies(enemies, MAX_ENEMIES);
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             Enemy* e = &enemies[i];
             if (e->state == ENEMY_STATE_INACTIVE) continue;
+            // (13/10) Red de seguridad: activo pero sin sprite = colgado.
+            if (!e->sprite) { e->state = ENEMY_STATE_INACTIVE; continue; }
             s16 prevEX = e->x, prevEY = e->y;
             setEnemyCamera(e, cameraX);
             updateEnemyN(e, pls, nPl);
@@ -632,7 +824,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             ledgeEnemy(e, i, prevEY);
             if (e->sprite)
                 SPR_setPosition(e->sprite, e->x - cameraX,
-                                e->y - e->footOffset - e->jumpZ - eStepZ[i] - stageCamY);
+                                e->y - e->footOffset - e->jumpZ - eStepZ[i] - L->skateLift - stageCamY);
         }
 
         // Golpe del jugador al soldier.
@@ -667,12 +859,12 @@ SceneId stageLevelRun(const StageLevel* L) {
             Enemy* e = &enemies[i];
             if (e->state != ENEMY_STATE_ATTACK) continue;
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerCanBeHit(pls[k])) continue;
+                if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH2, 15, FALSE, FALSE);
-                damagePlayer(pls[k], getEnemyCenterX(e));
+                enemyDamagePlayer(e, pls[k]);
                 break;
             }
         }
@@ -729,10 +921,15 @@ SceneId stageLevelRun(const StageLevel* L) {
         }
 
         // --- Fondo -----------------------------------------------------------
-        sbgUpdate(cameraX);
-        fgUpdate(cameraX);
-        fgTopUpdate(cameraX);
-        applyScroll(cameraX, DMA_QUEUE);
+        {
+            // (12/10) Con el fondo corriendo solo se pasa el scroll u16 tal
+            // cual (stage_bg lo trata como u16 con la imagen repetida).
+            s16 bgX = L->autoScrollQ ? (s16)stageScroll : cameraX;
+            sbgUpdate(bgX);
+            fgUpdate(cameraX);
+            fgTopUpdate(cameraX);
+            applyScroll(bgX, DMA_QUEUE);
+        }
 
         SPR_update();
         SYS_doVBlankProcess();
@@ -751,6 +948,10 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     shurikenReleaseAll();
     boomerangReleaseAll();
+    splashRelease();
+    sbgSetWrap(FALSE);                 // (12/10)
+    playerSkateLift = 0;
+    enemySkateMode  = FALSE;
     if (L->levelRelease) L->levelRelease();
     if (L->bossRelease) L->bossRelease();
     VDP_setTextPriority(0);

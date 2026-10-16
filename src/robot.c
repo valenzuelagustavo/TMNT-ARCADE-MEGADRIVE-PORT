@@ -65,8 +65,10 @@ static void robotFireLaser(Robot* r) {
     r->laserX = (r->dir > 0) ? r->x : (r->x - WHIP_SPRITE_W);
     r->laserY = r->y;
     s16 drawY = (r->y - ROBOT_FOOT_OFFSET) + 40;   // a la altura del arma
+    // (16/10) PAL3: el arte nuevo (gen_robot_enemies.py) va en la paleta del
+    // foot blanco, que el 1-1 ya tiene cargada en PAL3.
     r->laserSpr = SPR_addSprite(&whip_waves, r->laserX - r->cameraOffsetX, drawY,
-                                TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+                                TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
     if (r->laserSpr) {
         SPR_setHFlip(r->laserSpr, (r->laserDir < 0));
         SPR_setAnimationLoop(r->laserSpr, FALSE);
@@ -210,8 +212,9 @@ void robotSpawn(Robot* r, s16 centerX, s16 spawnY) {
     r->anim = 0xFF;
     r->drainTimer = 0;
     r->accX = r->accY = 0;
-    r->sprite = SPR_addSprite(&robot_whip, 0, 0, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
-    // Comparte PAL2 (paleta de los foot soldiers), ya cargada por el nivel.
+    r->sprite = SPR_addSprite(&robot_whip, 0, 0, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+    // (16/10) Comparte PAL3 (paleta del foot blanco), ya cargada por el 1-1.
+    // Antes PAL2 (la de los foot morados): el arte nuevo viene en la del blanco.
     // Si el presupuesto de VRAM de sprites esta agotado (modo 4 jugadores: 4
     // tortugas + 4 marcos de HUD + 4 robots), SPR_addSprite devuelve NULL. Un
     // robot sin sprite no actua y el nivel no terminaria nunca: se lo da por

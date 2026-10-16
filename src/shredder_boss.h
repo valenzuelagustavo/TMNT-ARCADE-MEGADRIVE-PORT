@@ -34,9 +34,14 @@
 //                del golpe tiene el rayo cargado; con 2 golpes seguidos, si
 //                lo siguen atacando de cerca, se cubre.
 //   SE CUBRE 35  agachado: los golpes no le hacen nada.
+//   Al recibir un golpe: flash blanco cortito (paleta PAL2, shredderFxUpdate).
+//   Tortuga "en el piso" (espera a que se levante) = solo DERRIBADA. Si perdio
+//   una vida (KO) no la espera: se acomoda; al reaparecer parpadeando la ataca
+//   como siempre (13/10: antes los dos se quedaban quietos ~2 s).
 //   Solo recibe dano CAMINANDO o en los ataques 1-3, y DE FRENTE (la tortuga
 //   mirandolo a el).
-//   LA COPIA     tiene media vida. Con poca vida pierde el CASCO (sale
+//   LA COPIA     (13/10) sale DEL CUERPO del verdadero: los dos titilan y
+//                se separan (SHRED_SPLIT); despues tiene media vida. Con poca vida pierde el CASCO (sale
 //                rebotando) y sigue sin casco (sin rayo). Al caer, a los 6 s
 //                vuelve a aparecer con casco.
 //   Un solo RAYO a la vez entre los dos.
@@ -107,13 +112,19 @@
 #define SHRED_CLONE_BACK   360     // 6 s hasta que vuelve
 #define SHRED_CLONE_DIE_T  120
 #define SHRED_DEATH_T      190     // lo que dura el grito
+#define SHRED_SPLIT_T       40     // (13/10) la copia se separa del verdadero
+#define SHRED_SPLIT_ORIG_DX 27     // el verdadero se corre a su derecha y la
+                                   // copia queda SHRED_CLONE_DX a la izquierda
+#define SHRED_HIT_FLASH      4     // frames de flash al golpearlo (2 blanco, 2 claro)
 
 typedef enum {
     SHRED_INACTIVE, SHRED_APPEAR, SHRED_STANCE, SHRED_WAIT, SHRED_WALK, SHRED_ATTACK,
-    SHRED_RAY, SHRED_HURT, SHRED_BLOCK, SHRED_DEATH, SHRED_DOWN, SHRED_GONE
+    SHRED_RAY, SHRED_HURT, SHRED_BLOCK, SHRED_DEATH, SHRED_DOWN, SHRED_GONE,
+    SHRED_SPLIT
 } ShredState;
 
-typedef struct {
+typedef struct ShredderBoss ShredderBoss;
+struct ShredderBoss {
     Sprite*    sprite;
     Sprite*    beamA;
     Sprite*    beamB;
@@ -141,7 +152,9 @@ typedef struct {
     s8         helmDir;
     u16        backTimer;     // la copia: cuenta para volver
     s16        arenaL, arenaR, laneT, laneB;
-} ShredderBoss;
+    ShredderBoss* twin;       // (13/10) el otro (la copia sale de el)
+    s16        splitTo;       // x a la que se corre al separarse
+};
 
 void shredderInit(ShredderBoss* s);
 // Aparece en (x, y) de mundo. clone = la copia (media vida, se para a la
@@ -156,6 +169,13 @@ bool shredderIsDying(const ShredderBoss* s);
 bool shredderIsGone(const ShredderBoss* s);
 // TRUE cuando termino de aparecer (para sacar la copia a su lado).
 bool shredderIsReady(const ShredderBoss* s);
+// (13/10) La copia sale del cuerpo del verdadero ('orig'): los dos titilan y
+// se separan. Devuelve FALSE si el verdadero esta en medio de algo (probar
+// en el frame siguiente).
+bool shredderSpawnSplit(ShredderBoss* clone, ShredderBoss* orig,
+                        s16 arenaL, s16 arenaR, s16 laneT, s16 laneB);
+// (13/10) Una vez por frame: el flash de golpe (paleta PAL2, compartida).
+void shredderFxUpdate(void);
 // El verdadero murio: la copia se desvanece y no vuelve.
 void shredderVanish(ShredderBoss* s);
 void shredderRelease(ShredderBoss* s);

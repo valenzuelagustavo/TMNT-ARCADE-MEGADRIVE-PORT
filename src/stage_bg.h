@@ -69,6 +69,10 @@ void sbgUpdate(s16 camX);
 
 // Cuantos slots estan ocupados ahora mismo (debug / calibracion).
 u16  sbgUsed(void);
+// (12/10) TRUE: la imagen se repite en X (columna de mundo % ancho). Para la
+// Scene 6, donde el fondo corre solo (ver StageLevel.autoScrollQ). Llamar
+// antes de sbgInit*; el nivel lo vuelve a FALSE al salir.
+void sbgSetWrap(bool on);
 
 // (01/10, garage) REGIONES VARIABLES: rectangulos de celdas del fondo (solo
 // el modo 1D: sbgInit/sbgInitRaw) con versiones alternas. La variante 0 es la

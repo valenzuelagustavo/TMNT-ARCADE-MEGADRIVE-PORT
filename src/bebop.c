@@ -339,6 +339,8 @@ bool bebopCanBeHit(const Bebop* b) {
         case BEBOP_IDLE:
         case BEBOP_WALK:
         case BEBOP_SHOOT:
+        case BEBOP_DUO_MOVE:       // (12/10) yendo al borde: se le puede pegar
+        case BEBOP_DUO_WAIT:
             return TRUE;
         case BEBOP_WINDUP:
         case BEBOP_CHARGE:
@@ -415,6 +417,46 @@ static void bebopToDown(Bebop* b) {
 
 static u8 bebopRand(u8 n) { return (u8)(random() % n); }
 
+// ---------------------------------------------------------------------------
+// (12/10) Embestida doble (ver bebop.h)
+// ---------------------------------------------------------------------------
+bool bebopDuoFree(const Bebop* b) {
+    return (bool)((b->state == BEBOP_IDLE || b->state == BEBOP_WALK) && b->hp > 0);
+}
+
+void bebopDuoGo(Bebop* b, s16 cx, s16 lane, s8 dir) {
+    b->duoX = cx; b->duoY = lane; b->duoDir = dir; b->duo = 1;
+    bebopEnter(b, BEBOP_DUO_MOVE);
+    b->accX = b->accY = 0;
+    bebopManual(b, BEBOP_ANIM_WALK, 0);
+}
+
+bool bebopDuoActive(const Bebop* b) {
+    return (bool)(b->duo && (b->state == BEBOP_DUO_MOVE || b->state == BEBOP_DUO_WAIT));
+}
+bool bebopDuoWaiting(const Bebop* b) { return (bool)(b->duo && b->state == BEBOP_DUO_WAIT); }
+
+void bebopDuoCharge(Bebop* b) {
+    bebopToWindup(b, b->duoDir);
+}
+
+bool bebopDuoCharging(const Bebop* b) {
+    return (bool)(b->duo && (b->state == BEBOP_WINDUP || b->state == BEBOP_CHARGE));
+}
+
+void bebopDuoBump(Bebop* b, s8 slideDir) {
+    bebopToDown(b);
+    b->duo = 1;
+    b->slideDir = slideDir;
+    b->dir = (s8)-slideDir;       // mira al que lo choco
+}
+
+void bebopDuoCancel(Bebop* b) {
+    bool wasDuoState = (bool)(b->state == BEBOP_DUO_MOVE || b->state == BEBOP_DUO_WAIT);
+    b->duo = 0;
+    if (wasDuoState) bebopToIdle(b);
+}
+
 bool bebopDamage(Bebop* b, s16 dmg) {
     return bebopDamageEx(b, dmg, (bool)(dmg >= BEBOP_SPECIAL_DMG));
 }
@@ -430,9 +472,12 @@ bool bebopDamageEx(Bebop* b, s16 dmg, bool special) {
         bebopFlashOff(b);
         bebopManual(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_HIT);
         XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
-                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                       SOUND_PCM_CH1, 15, FALSE, FALSE);
         return TRUE;
     }
+
+    // (12/10) Golpeado yendo a la embestida doble: la deja (el nivel la cancela).
+    if (b->state == BEBOP_DUO_MOVE || b->state == BEBOP_DUO_WAIT) b->duo = 0;
 
     // Embestida (amague o corrida): el golpe saca vida pero no la corta.
     if (b->state == BEBOP_WINDUP || b->state == BEBOP_CHARGE) {
@@ -626,14 +671,15 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
     }
 
     case BEBOP_WINDUP:
-        // Amague en el lugar, girando hacia la tortuga.
-        if (t) b->dir = toward;
+        // Amague en el lugar, girando hacia la tortuga (en la embestida doble
+        // mira siempre a Rocksteady).
+        if (t && !b->duo) b->dir = toward;
         if (++b->frameTick >= BEBOP_CHARGE_TICKS) {
             b->frameTick = 0;
             b->frame++;
             bebopManual(b, BEBOP_ANIM_CHARGE, chargeOrder[b->frame & 3]);
         }
-        if (b->timer >= BEBOP_WINDUP_T) {
+        if (b->timer >= (b->duo ? BEBOP_DUO_WINDUP_T : BEBOP_WINDUP_T)) {
             u8 f = b->frame;
             bebopEnter(b, BEBOP_CHARGE);
             b->frame = f;
@@ -648,14 +694,17 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
             bebopManual(b, BEBOP_ANIM_CHARGE, chargeOrder[b->frame & 3]);
         }
         b->x = (s16)(b->x + b->dir * bebopStepQ(&b->accX, BEBOP_CHARGE_Q));
-        b->y = bebopToward(b->y, tcy, bebopStepQ(&b->accY, BEBOP_WALK_Q));
+        if (!b->duo) b->y = bebopToward(b->y, tcy, bebopStepQ(&b->accY, BEBOP_WALK_Q));
         // Pega UNA vez por contacto.
         if (!b->chargeHit &&
             bebopContact(b, pls, nPl, BEBOP_CHARGE_DX, BEBOP_CHARGE_DX))
             b->chargeHit = 1;
         s16 c = bebopGetCenterX(b);
         if (c <= b->arena->xMin || c >= b->arena->xMax) {
+            b->duo = 0;
             bebopToIdle(b);                    // llego al borde
+        } else if (b->duo) {
+            // (12/10) Embestida doble: corre hasta chocar (lo resuelve el nivel).
         } else if (b->timer >= BEBOP_CHARGE_T) {
             if (c <= b->arena->xMin + BEBOP_EDGE_NEAR) bebopToWindup(b, toward);
             else                                       bebopToIdle(b);
@@ -702,16 +751,45 @@ void bebopUpdate(Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) {
         else              bebopToIdle(b);
         break;
 
-    case BEBOP_DOWN:
-        // Sentado deslizando hacia atras (frame 3) y arrodillado (4).
-        if (b->timer <= BEBOP_KD_SLIDE_F) {
-            b->x = (s16)(b->x + b->slideDir * bebopStepQ(&b->accX, BEBOP_SLIDE_Q));
-            if (b->timer == BEBOP_KD_SLIDE_F) bebopManual(b, BEBOP_ANIM_HURT, 4);
+    case BEBOP_DOWN: {
+        // Sentado deslizando hacia atras (frame 3) y arrodillado (4). Despedido
+        // por el choque con Rocksteady (12/10): desliza mas y mas rapido.
+        u16 slideF = b->duo ? BEBOP_DUO_SLIDE_F : BEBOP_KD_SLIDE_F;
+        if (b->timer <= slideF) {
+            b->x = (s16)(b->x + b->slideDir *
+                         bebopStepQ(&b->accX, b->duo ? BEBOP_DUO_SLIDE_Q : BEBOP_SLIDE_Q));
+            if (b->timer == slideF) bebopManual(b, BEBOP_ANIM_HURT, 4);
         }
-        if (b->timer >= BEBOP_KD_T) {
+        if (b->timer >= (b->duo ? BEBOP_DUO_KD_T : BEBOP_KD_T)) {
+            b->duo = 0;
             bebopEnter(b, BEBOP_GETUP);
             bebopManual(b, BEBOP_ANIM_HURT, 5);
         }
+        break;
+    }
+
+    // --- (12/10) EMBESTIDA DOBLE: ir al borde y esperar --------------------
+    case BEBOP_DUO_MOVE: {
+        s16 vx = bebopStepQ(&b->accX, BEBOP_WALK_Q);
+        s16 vy = bebopStepQ(&b->accY, BEBOP_WALK_Q);
+        s16 c  = bebopGetCenterX(b);
+        if (c != b->duoX) b->dir = (b->duoX < c) ? -1 : 1;
+        b->x = (s16)(bebopToward(c, b->duoX, vx) - BEBOP_FRAME_W / 2);
+        b->y = bebopToward(b->y, b->duoY, vy);
+        if (++b->frameTick >= BEBOP_WALK_TICKS) {
+            b->frameTick = 0;
+            bebopManual(b, BEBOP_ANIM_WALK, (u8)((b->frame + 1) % 6));
+        }
+        if (bebopGetCenterX(b) == b->duoX && b->y == b->duoY) {
+            bebopEnter(b, BEBOP_DUO_WAIT);
+            b->dir = b->duoDir;
+            bebopAuto(b, BEBOP_ANIM_IDLE, TRUE);
+        }
+        break;
+    }
+
+    case BEBOP_DUO_WAIT:
+        b->dir = b->duoDir;
         break;
 
     case BEBOP_GETUP:

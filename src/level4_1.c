@@ -56,6 +56,7 @@
 #include "rocksteady.h"
 #include "audio.h"
 #include "boss_vo.h"           // (01/10)
+#include "props_2_1.h"         // (12/10) pizza_time_bubble (el globo del 2-1)
 
 #define SCREEN_W            320
 #define LVL41_W            1288
@@ -81,22 +82,37 @@ static const SbgRegion garageRegs[2] = {
 // ---------------------------------------------------------------------------
 // OLEADAS
 // ---------------------------------------------------------------------------
-// (06/10) Los de la LANZA de entrada y a mitad, y los del FUSIL al final,
-// como en el remaster de PC.
+// (12/10) Del video del arcade (gameplayARCADE/tmnt.avi, 612-730 s): la camara
+// del arcade es la del port + 202 px (mismo fondo, escala 1:1). Ver
+// claude/garage-arcade-oleadas-12-10.md. BK = bajan del fondo del piso: los
+// morados de la caja del camion (x ~380) y los del fusil del hueco que deja el
+// auto al irse (x ~750).
 #define P ENEMY_TYPE_FOOT_SOLDIER
 #define O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
 #define G ENEMY_TYPE_FOOT_SOLDIER_GUN
 #define S ENEMY_TYPE_FOOT_SOLDIER_SPEAR
+#define W ENEMY_TYPE_FOOT_SOLDIER_WHITE
+#define Y ENEMY_TYPE_FOOT_SOLDIER_YELLOW
+#define BK STAGE_FROM_BACK
 static const StageWave waves41[] = {
-    {  160,   0, 3, { S, P, S },    { +1, -1, +1 } },
-    {  440, 260, 3, { O, S, P },    { -1, +1, +1 } },
-    {  720, 540, 4, { G, O, G, O }, { +1, -1, -1, +1 } },
-    {  980, 800, 4, { O, P, G, P }, { -1, +1, +1, -1 } },
+    {    0,   0, 3, { W, W, W },          { BK, +1, +1 },        { 286, 0, 0 } },
+    {  250,  70, 3, { S, S, S },          { +1, +1, +1 },        { 0 } },
+    {  296, 116, 3, { O, O, O },          { +1, +1, -1 },        { 0 } },
+    {  415, 235, 4, { W, W, P, P },       { +1, +1, BK, BK },    { 0, 0, 368, 398 } },
+    {  520, 340, 3, { P, P, P },          { +1, +1, -1 },        { 0 } },
+    {  700, 520, 2, { W, W },             { +1, +1 },            { 0 } },
+    {  790, 584, 5, { G, G, G, G, W },    { BK, BK, BK, BK, +1 }, { 730, 760, 745, 775, 0 } },
+    {  823, 643, 1, { O },                { +1 },                { 0 } },
+    {  899, 719, 2, { G, W },             { +1, +1 },            { 0 } },
+    { 1009, 829, 4, { G, Y, W, G },       { +1, +1, -1, +1 },    { 0 } },
 };
 #undef P
 #undef O
 #undef G
 #undef S
+#undef W
+#undef Y
+#undef BK
 
 // ===========================================================================
 // PROPS
@@ -211,6 +227,9 @@ static void propRelease(Prop* p) {
     if (p->boom) { SPR_releaseSprite(p->boom); p->boom = NULL; }
 }
 
+static void pizzaInit41(void);
+static void pizzaRelease41(void);
+
 static void lvl41Init(void) {
     for (u16 i = 0; i < N_PROPS; i++) {
         props[i].spr = props[i].boom = NULL;
@@ -224,12 +243,14 @@ static void lvl41Init(void) {
     car.state = CAR_PARKED;
     car.spr[0] = car.spr[1] = NULL;
     car.hitMask = 0;
+    pizzaInit41();
 }
 
 static void lvl41Release(void) {
     for (u16 i = 0; i < N_PROPS; i++) propRelease(&props[i]);
     for (u16 k = 0; k < 2; k++)
         if (car.spr[k]) { SPR_releaseSprite(car.spr[k]); car.spr[k] = NULL; }
+    pizzaRelease41();
 }
 
 // Frame que tiene que mostrar el prop segun su estado.
@@ -561,9 +582,126 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// (12/10) PIZZA TIME! (arcade, cuadros 6766-6900 del tramo del garage)
+// ---------------------------------------------------------------------------
+// Limpia la ultima oleada y con la camara ya en el tope, una caja de pizza
+// entra DESLIZANDOSE desde el borde derecho por el piso y se frena; ahi sale
+// el globo "Pizza time!" con la voz. La tortuga que la toca recupera toda la
+// vida: la caja se abre con "ENERGY" y desaparece (igual que la del 2-1, con
+// su hoja pasada a la paleta del garage: garage_pizza, PAL0).
+#define PZ41_TRIG_CAM     900    // camara desde la que sale
+#define PZ41_STOP_X      1226    // celda (mundo) donde se frena
+#define PZ41_FEET         168    // pies de la caja (mundo)
+#define PZ41_CELL_H        48
+#define PZ41_FEET_DY       46    // la caja apoya en la fila 46 de la celda
+#define PZ41_BOX_X0         4    // la caja dentro de la celda de 40
+#define PZ41_BOX_X1        35
+#define PZ41_SLIDE_Q      384    // 1,5 px/f deslizando
+#define PZ41_PICK_DX       14
+#define PZ41_PICK_DY       14
+#define PZ41_OPEN_TICKS     8
+#define PZ41_SHOW_TICKS    68
+#define PZ41_BUB_DX       (-56)  // el globo arriba a la izquierda de la caja (arcade)
+#define PZ41_BUB_DY      (-10)
+#define PZ41_BUB_T         64
+enum { PZ_OFF = 0, PZ_SLIDE, PZ_WAIT, PZ_OPEN, PZ_DONE };
+static u8      pzState;
+static s16     pzX;
+static u8      pzAcc;
+static u16     pzTick;
+static Sprite* pzSpr;
+static u8      pzBubSt;      // 0 todavia no, 1 en pantalla, 2 ya fue
+static u16     pzBubT;
+static Sprite* pzBub;
+
+static void pizzaInit41(void) {
+    pzState = PZ_OFF; pzX = 0; pzAcc = 0; pzTick = 0; pzSpr = NULL;
+    pzBubSt = 0; pzBubT = 0; pzBub = NULL;
+}
+
+static void pizzaRelease41(void) {
+    if (pzSpr) SPR_releaseSprite(pzSpr);
+    if (pzBub) SPR_releaseSprite(pzBub);
+    pzSpr = pzBub = NULL;
+}
+
+static void pizzaUpdate41(Player** pls, u8 nPl, s16 camX) {
+    if (pzState == PZ_DONE) return;
+    if (pzState == PZ_OFF) {
+        // Con la camara ya cerca del tope (y la ultima oleada limpia: hasta
+        // entonces la camara queda clavada mas atras) y nadie vivo. Entra
+        // desde el borde derecho del NIVEL: se la ve llegar mientras la camara
+        // termina de abrirse, como en el arcade (antes de que se abra el
+        // ascensor).
+        if (camX < PZ41_TRIG_CAM) return;
+        Enemy* en = stageEnemies();
+        for (u16 i = 0; i < MAX_ENEMIES; i++)
+            if (en[i].state != ENEMY_STATE_INACTIVE) return;
+        if (!sprVramFits(garage_pizza.maxNumTile)) return;
+        pzSpr = SPR_addSprite(&garage_pizza, 0, -128, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        if (!pzSpr) return;
+        SPR_setAutoAnimation(pzSpr, FALSE);
+        pzState = PZ_SLIDE;
+        pzX = LVL41_W;
+        pzAcc = 0;
+    }
+
+    if (pzState == PZ_SLIDE) {
+        u16 t = (u16)(pzAcc + PZ41_SLIDE_Q);
+        pzAcc = (u8)(t & 0xFF);
+        pzX = (s16)(pzX - (s16)(t >> 8));
+        if (pzX <= PZ41_STOP_X) { pzX = PZ41_STOP_X; pzState = PZ_WAIT; }
+    } else if (pzState == PZ_WAIT) {
+        // El globo, una vez, apenas se frena.
+        if (pzBubSt == 0 && sprVramFits(pizza_time_bubble.maxNumTile)) {
+            pzBub = SPR_addSprite(&pizza_time_bubble, 0, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+            if (pzBub) {
+                SPR_setDepth(pzBub, SPR_MIN_DEPTH);
+                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+                pzBubSt = 1; pzBubT = 0;
+            }
+        }
+        for (u8 k = 0; k < nPl; k++) {
+            Player* p = pls[k];
+            if (isPlayerGameOver(p) || p->state == STATE_KO) continue;
+            s16 fx = (s16)(p->x + PLAYER_SPRITE_W / 2);
+            if (fx < pzX + PZ41_BOX_X0 - PZ41_PICK_DX || fx > pzX + PZ41_BOX_X1 + PZ41_PICK_DX) continue;
+            if (a16((s16)(p->y - PZ41_FEET)) > PZ41_PICK_DY) continue;
+            p->health = PLAYER_MAX_HEALTH;        // toda la vida
+            pzState = PZ_OPEN; pzTick = 0;
+            break;
+        }
+    } else if (pzState == PZ_OPEN) {
+        if (++pzTick >= 2 * PZ41_OPEN_TICKS + PZ41_SHOW_TICKS) {
+            pizzaRelease41();
+            pzState = PZ_DONE;
+            return;
+        }
+    }
+
+    if (pzBubSt == 1) {
+        if (++pzBubT >= PZ41_BUB_T) {
+            SPR_releaseSprite(pzBub); pzBub = NULL; pzBubSt = 2;
+        } else {
+            s16 by = (s16)(PZ41_FEET - PZ41_FEET_DY + PZ41_BUB_DY - stageCamY);
+            SPR_setPosition(pzBub, (s16)(pzX + PZ41_BUB_DX - camX), by);
+        }
+    }
+    if (pzSpr) {
+        s16 f = 0;
+        if (pzState == PZ_OPEN)
+            f = (pzTick < PZ41_OPEN_TICKS) ? 1 : (pzTick < 2 * PZ41_OPEN_TICKS) ? 2 : 3;
+        SPR_setAnimAndFrame(pzSpr, 0, f);
+        SPR_setPosition(pzSpr, (s16)(pzX - camX), (s16)(PZ41_FEET - PZ41_FEET_DY - stageCamY));
+        SPR_setDepth(pzSpr, (s16)(-PZ41_FEET));
+    }
+}
+
 static void lvl41Update(Player** pls, u8 nPl, s16 camX) {
     carUpdate(pls, nPl, camX);
     propsUpdate(pls, nPl, camX);
+    pizzaUpdate41(pls, nPl, camX);
 }
 
 // ===========================================================================
@@ -593,7 +731,8 @@ static const RocksteadyArena rockArena41 = {
     PAL2        // (03/10) parpadeo: el sprite pasa a PAL2 (quemada)
 };
 
-#define DOOR_STEP_TICKS      4   // ticks por paso de la persiana (8 px)
+#define DOOR_STEP_TICKS      3   // (12/10) ticks por paso: la puerta se abre por la
+                                 // mitad en 6 pasos (~18 f, como el arcade)
 #define ROCK_AFTER_BEBOP    70   // frames despues de Bebop (ya salto del ascensor)
 #define ROCK_VRAM_RESERVE   24   // aire para las balas y el disparo de Bebop
 
@@ -614,12 +753,109 @@ static u16  rockWait;
 // las tortugas). Paleta compartida con los jefes: PAL3.
 #define APRIL41_X          1117  // centro de los pies (mundo): lado derecho del interior
 #define APRIL41_Y           116  // pies (mundo): piso del ascensor
-#define APRIL41_SHOW_STEP     6  // paso de la persiana que ya le destapa la cabeza
+#define APRIL41_SHOW_STEP     4  // (12/10) paso de la puerta que ya le destapa la cabeza
 #define APRIL41_FEET_X       15  // ancla de la celda de 32x64 (gen_april_sheet.py)
-#define APRIL41_FEET_Y       63
+#define APRIL41_FEET_Y       79  // (12/10) celdas de 32x80
 #define APRIL41_DEPTH      -100  // detras de cualquiera con pies en y >= 100
 #define APRIL_ANIM_TIED       1
+#define APRIL_ANIM_RELEASE    2  // (12/10) parada con las sogas cayendo (2 frames)
+#define APRIL_ANIM_WAVE       3  // (12/10) saludando (del video del arcade)
+#define APRIL_ANIM_STAND      0
+// (12/10) Al ganar: se sacude atada, se le caen las sogas, se para y saluda
+// con el brazo en alto (arcade: queda saludando hasta que llega la van).
+#define APR_STRUGGLE_T       36  // sacudiendose (frames atada cada 4)
+#define APR_DROP_F            8  // cada frame de las sogas cayendo
+#define APR_STAND_F           8  // parada antes de saludar
+#define APR_WAVE_HOLD        90  // saludando antes de cerrar el nivel
+enum { APR_TIED = 0, APR_STRUGGLE, APR_DROP, APR_STAND, APR_WAVE };
+static u8  aprState;
+static u16 aprT;
 static Sprite* aprilSpr;
+
+// ---------------------------------------------------------------------------
+// (12/10) EMBESTIDA DOBLE (arcade, cuadros 8580-8720 del tramo del garage)
+// ---------------------------------------------------------------------------
+// Se separan a los dos bordes de la arena en la misma lane, amagan juntos ~32
+// frames, embisten uno contra el otro a ~3,5 px/f (la tortuga del medio se
+// come los dos golpes), chocan y salen despedidos ~100 px hacia atras,
+// sentados ~50 frames, y se levantan. En el video pasa una vez, a los ~27 s de
+// pelea; aca la primera a los DUO_FIRST_T y despues cada DUO_EVERY_T. Si a
+// alguno le pegan mientras va a su borde, se suspende y se reintenta despues.
+// El choque NO les saca vida (en el video no se ve la barra de los jefes).
+#define DUO_FIRST_T    1560     // ~26 s con los dos en pelea
+#define DUO_EVERY_T    2700     // ~45 s entre una y otra
+#define DUO_RETRY_T     600     // suspendida: reintenta a los ~10 s
+#define DUO_MOVE_MAX    360     // tope para llegar a los bordes
+#define DUO_LEFT_CX    (LVL41_CAM_MAX_X + 56)               // centro del cuerpo
+#define DUO_RIGHT_CX   (LVL41_CAM_MAX_X + SCREEN_W - 52)
+#define DUO_LANE_MIN   (LVL41_WALK_Y_MIN + 8)
+#define DUO_LANE_MAX   (LVL41_WALK_Y_MAX - 8)
+#define DUO_HIT_DX      44      // centro a centro: chocan
+#define DUO_HIT_DY      12
+enum { DUO_IDLE = 0, DUO_MOVING, DUO_CHARGING };
+static u8  duoSt;
+static u16 duoT, duoNext;
+
+static void duoInit41(void) { duoSt = DUO_IDLE; duoT = 0; duoNext = DUO_FIRST_T; }
+
+static void duoCancel41(Bebop* b, Rocksteady* r) {
+    bebopDuoCancel(b);
+    rocksteadyDuoCancel(r);
+    duoSt = DUO_IDLE; duoT = 0; duoNext = DUO_RETRY_T;
+}
+
+static void duoUpdate41(Bebop* b, Rocksteady* r) {
+    bool bAlive = (bool)(b->hp > 0 && b->state != BEBOP_DEAD && b->state != BEBOP_GONE);
+    bool rAlive = (bool)(r->hp > 0 && r->state != ROCKSTEADY_DEAD && r->state != ROCKSTEADY_GONE);
+    if (!bAlive || !rAlive) {
+        if (duoSt == DUO_MOVING) duoCancel41(b, r);
+        duoSt = DUO_IDLE;
+        return;
+    }
+    if (duoT < 0xFFFF) duoT++;
+    s16 bcx = bebopGetCenterX(b), rcx = rocksteadyGetCenterX(r);
+    switch (duoSt) {
+    case DUO_IDLE: {
+        if (duoT < duoNext || !bebopDuoFree(b) || !rocksteadyDuoFree(r)) break;
+        s16 lane = (s16)((b->y + r->y) / 2);
+        if (lane < DUO_LANE_MIN) lane = DUO_LANE_MIN;
+        if (lane > DUO_LANE_MAX) lane = DUO_LANE_MAX;
+        bool bLeft = (bool)(bcx <= rcx);
+        bebopDuoGo(b, bLeft ? DUO_LEFT_CX : DUO_RIGHT_CX, lane, bLeft ? 1 : -1);
+        rocksteadyDuoGo(r, bLeft ? DUO_RIGHT_CX : DUO_LEFT_CX, lane, bLeft ? -1 : 1);
+        duoSt = DUO_MOVING; duoT = 0;
+        break;
+    }
+    case DUO_MOVING:
+        if (!bebopDuoActive(b) || !rocksteadyDuoActive(r) || duoT > DUO_MOVE_MAX) {
+            duoCancel41(b, r);
+            break;
+        }
+        if (bebopDuoWaiting(b) && rocksteadyDuoWaiting(r)) {
+            bebopDuoCharge(b);
+            rocksteadyDuoCharge(r);
+            duoSt = DUO_CHARGING; duoT = 0;
+        }
+        break;
+    case DUO_CHARGING:
+        if (!bebopDuoCharging(b) || !rocksteadyDuoCharging(r)) {
+            // Uno se freno (borde): el otro termina su embestida solo.
+            b->duo = 0; r->duo = 0;
+            duoSt = DUO_IDLE; duoT = 0; duoNext = DUO_EVERY_T;
+            break;
+        }
+        if (b->state == BEBOP_CHARGE && r->state == ROCKSTEADY_CHARGE &&
+            a16((s16)(bcx - rcx)) <= DUO_HIT_DX && a16((s16)(b->y - r->y)) <= DUO_HIT_DY) {
+            bebopDuoBump(b, (s8)((bcx < rcx) ? -1 : 1));
+            rocksteadyDuoBump(r, (s8)((rcx < bcx) ? -1 : 1));
+            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            duoSt = DUO_IDLE; duoT = 0; duoNext = DUO_EVERY_T;
+        }
+        break;
+    }
+}
+
+static bool bossDying41(void);
 
 static void bossInit41(void) {
     bebopInit(&bebop);
@@ -630,6 +866,9 @@ static void bossInit41(void) {
     bebopOut = rockOut = FALSE;
     rockWait = 0;
     aprilSpr = NULL;
+    aprState = APR_TIED;
+    aprT = 0;
+    duoInit41();
 }
 
 static void aprilUpdate41(s16 camX) {
@@ -642,6 +881,28 @@ static void aprilUpdate41(s16 camX) {
         if (!aprilSpr) return;
         SPR_setAnim(aprilSpr, APRIL_ANIM_TIED);
         SPR_setDepth(aprilSpr, APRIL41_DEPTH);
+    }
+    // (12/10) La liberacion (la arranca bossUpdate41 con aprState = APR_STRUGGLE).
+    if (aprState != APR_TIED) {
+        aprT++;
+        switch (aprState) {
+        case APR_STRUGGLE:
+            SPR_setAutoAnimation(aprilSpr, FALSE);
+            SPR_setAnimAndFrame(aprilSpr, APRIL_ANIM_TIED, (aprT >> 2) & 1);
+            if (aprT >= APR_STRUGGLE_T) { aprState = APR_DROP; aprT = 0; }
+            break;
+        case APR_DROP:
+            SPR_setAnimAndFrame(aprilSpr, APRIL_ANIM_RELEASE, (aprT < APR_DROP_F) ? 0 : 1);
+            if (aprT >= 2 * APR_DROP_F) { aprState = APR_STAND; aprT = 0; }
+            break;
+        case APR_STAND:
+            SPR_setAnimAndFrame(aprilSpr, APRIL_ANIM_STAND, 0);
+            if (aprT >= APR_STAND_F) { aprState = APR_WAVE; aprT = 0; }
+            break;
+        default:
+            SPR_setAnimAndFrame(aprilSpr, APRIL_ANIM_WAVE, 0);
+            break;
+        }
     }
     SPR_setPosition(aprilSpr, (s16)(APRIL41_X - APRIL41_FEET_X - camX),
                     (s16)(APRIL41_Y - APRIL41_FEET_Y - stageCamY));
@@ -740,9 +1001,16 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
         rockHits(pls, nPl);
     }
 
-    // Termina cuando cayeron los dos.
-    return bebopOut && bebopIsGone(&bebop) &&
-           rockOut && rock.state == ROCKSTEADY_GONE;
+    if (bebopOut && rockOut) duoUpdate41(&bebop, &rock);
+
+    // (12/10) Cayeron los dos: April se suelta, se para y saluda. El nivel
+    // termina cuando se fueron los dos y ella ya saludo un rato.
+    bool bothGone = (bool)(bebopOut && bebopIsGone(&bebop) &&
+                           rockOut && rock.state == ROCKSTEADY_GONE);
+    if (aprState == APR_TIED && bossDying41()) { aprState = APR_STRUGGLE; aprT = 0; }
+    if (!bothGone) return FALSE;
+    if (!aprilSpr) return TRUE;                 // sin sprite (VRAM): no se espera
+    return (bool)(aprState == APR_WAVE && aprT >= APR_WAVE_HOLD);
 }
 
 static bool bossDying41(void) {

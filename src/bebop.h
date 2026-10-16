@@ -206,6 +206,8 @@ typedef enum {
     BEBOP_HURT,
     BEBOP_DOWN,        // cae y queda arrodillado
     BEBOP_GETUP,
+    BEBOP_DUO_MOVE,    // (12/10) choque con Rocksteady: va a su borde
+    BEBOP_DUO_WAIT,    // (12/10) ... y espera ahi mirando al otro
     BEBOP_DEAD,        // cayendo muerto
     BEBOP_GONE         // termino: el nivel puede cerrar
 } BebopState;
@@ -233,6 +235,11 @@ typedef struct {
     const BebopArena* arena;  // escenario de la pelea
     u8         accX, accY;    // restos Q8 del movimiento
     s8         slideDir;      // hacia donde desliza al caer
+    // (12/10) Embestida DOBLE del garage (ver bebopDuo*): punto al que va
+    // (centro del cuerpo y lane), hacia donde mira y si esta en la jugada.
+    s16        duoX, duoY;
+    s8         duoDir;
+    u8         duo;
 } Bebop;
 
 void bebopInit(Bebop* b);
@@ -259,5 +266,31 @@ void bebopRelease(Bebop* b);
 // pero la escena puede necesitar soltarlos por su cuenta.
 void bebopShotInit(void);
 void bebopShotReleaseAll(void);
+
+// ---------------------------------------------------------------------------
+// (12/10) EMBESTIDA DOBLE (garage, arcade cuadros 8580-8720 del tramo): Bebop
+// y Rocksteady se separan a los dos bordes, amagan juntos, embisten uno contra
+// el otro (pisando a la tortuga que este en el medio), CHOCAN y salen
+// despedidos ~100 px hacia atras, quedan sentados y se levantan. La jugada la
+// arma el nivel (level4_1.c); aca solo los pasos.
+// ---------------------------------------------------------------------------
+#define BEBOP_DUO_WINDUP_T   32   // amague (el mismo que el de Rocksteady)
+#define BEBOP_DUO_SLIDE_F    26   // despedido: sentado deslizando ...
+#define BEBOP_DUO_KD_T       52   // ... y sentado hasta aca
+#define BEBOP_DUO_SLIDE_Q   922   // 3,6 px/f (medido)
+// Libre para la jugada: quieto o caminando.
+bool bebopDuoFree(const Bebop* b);
+// Que vaya caminando a (cx, lane) -- centro del cuerpo -- y espere mirando a dir.
+void bebopDuoGo(Bebop* b, s16 cx, s16 lane, s8 dir);
+// En la jugada (yendo o esperando); FALSE si lo golpearon y la dejo.
+bool bebopDuoActive(const Bebop* b);
+bool bebopDuoWaiting(const Bebop* b);
+// Arranca el amague + la embestida (sin seguir la lane ni el tiempo tope).
+void bebopDuoCharge(Bebop* b);
+bool bebopDuoCharging(const Bebop* b);
+// El choque: sale despedido hacia slideDir y queda sentado.
+void bebopDuoBump(Bebop* b, s8 slideDir);
+// Se suspende la jugada (al otro lo golpearon): vuelve a la pelea normal.
+void bebopDuoCancel(Bebop* b);
 
 #endif

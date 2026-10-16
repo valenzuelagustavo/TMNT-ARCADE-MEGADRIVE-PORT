@@ -53,6 +53,7 @@ extern const u8 music_scene_clear2[1792];
 extern const u8 music_techno_cutscene[2816];
 extern const u8 music_boss[12032];
 extern const u8 music_scene_clear[1280];
+extern const u8 music_konami[1280];
 extern const u8 golpe[1024];
 
 #endif // _RES_AUDIO_H_
