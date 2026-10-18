@@ -32,7 +32,8 @@ SPRITE intro_tapa    "images/intro_tmnt/genesis/intro_tapa.png"    8 4 NONE 0
 //     su direccion. Paleta propia PAL2 (5 colores): la PAL0 de arriba ya
 //     esta al limite de 16. Sprites estaticos (sin animacion, time 0). ---
 SPRITE intro_nube_chica  "images/intro_tmnt/genesis/intro_nube_chica.png"  11 4 NONE 0
-SPRITE intro_nube_grande "images/intro_tmnt/genesis/intro_nube_grande.png" 26 5 NONE 0
+// (16/10) SACADO (sin uso, ver intro_arcade.c):
+// SPRITE intro_nube_grande "images/intro_tmnt/genesis/intro_nube_grande.png" 26 5 NONE 0
 
 // --- Escena C: salto de las 4 tortugas. Hoja REDUCIDA: fila 6 (ANIM_JUMP)
 //     frames 1..9 de cada personaje, recortados a 72x80 (9x10 tiles):

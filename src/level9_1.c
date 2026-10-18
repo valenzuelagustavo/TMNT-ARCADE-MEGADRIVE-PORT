@@ -23,6 +23,7 @@
 // toda la pantalla con flashes blancos, y al final todo se funde en blanco;
 // sobre el blanco suena el jingle y despues la pantalla final.
 // Musica: el tema de jefe con cada uno (se corta cuando cae Krang).
+// (17/10) Cada uno con el suyo: music_vs_krang y music_vs_shredder.
 // ===========================================================================
 
 #include <genesis.h>
@@ -291,7 +292,7 @@ SceneId showScene91() {
             laneTop = L9_KRANG_LANE_T;
             for (u8 k = 0; k < nPl; k++) setPlayerLane(pls[k], laneTop, L9_LANE_B);
             XGM2_setLoopNumber(-1);
-            playMusicVol(music_boss, VOL_MUSIC);
+            playMusicVol(music_vs_krang, VOL_MUSIC);   // (17/10) tema propio
         }
         if (phase == 1) {
             // Primero los golpes de las tortugas y despues la IA (asi el golpe
@@ -309,7 +310,7 @@ SceneId showScene91() {
                 for (u8 k = 0; k < nPl; k++) setPlayerLane(pls[k], laneTop, L9_LANE_B);
                 shredderSpawn(&shred, L9_BOSS_X, L9_BOSS_Y, arenaL, arenaR, L9_LANE_T, L9_LANE_B, FALSE);
                 bossVoStart(shredder_laugh_sfx, sizeof(shredder_laugh_sfx),
-                            music_boss, VOL_MUSIC);   // (01/10) risa y despues el tema
+                            music_vs_shredder, VOL_MUSIC);   // (01/10) risa y despues el tema (17/10: el suyo)
             }
         }
         if (phase == 2) {

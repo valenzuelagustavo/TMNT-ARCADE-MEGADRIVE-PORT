@@ -120,6 +120,7 @@
 #define RAT_LATCH_Z         20     // ... y a esta altura
 #define RAT_DRAIN_T        120     // una barra cada 2 s
 #define RAT_HURT_T          30     // golpeada: despedida ...
+#define RAT_THROW_H         12     // (18/10) saltito al sacarsela del brazo
 #define RAT_FLING_Q        853     // ... a 3,33 px/f
 #define RAT_DEAD_T          22     // tirada antes de explotar
 

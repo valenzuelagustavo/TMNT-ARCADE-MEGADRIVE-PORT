@@ -1,5 +1,5 @@
 #include "enemy.h"
-#include "audio.h"   // foot_soldier_explode (la llave)
+#include "audio.h"   // foot_soldier_explode (la llave), hit_foot_sfx, shuriken_throw_sfx
 
 // Ancho visible de la MegaDrive en píxeles. Se redefine localmente (igual
 // que en scenes.c/intro_arcade.c) para no acoplar enemy.c a un header de
@@ -511,6 +511,9 @@ void shurikenSpawn(s16 x, s16 y, s8 dir, u8 palette) {
     shurikens[i].cameraOffsetX = 0;
     shurikens[i].active = 1;
     shurikens[i].kind = SHOT_SHURIKEN;
+    // (16/10) "foot shuriken (kunai) throw" del arcade. CH3: en CH2 lo
+    // cortarian los golpes.
+    XGM2_playPCMEx(shuriken_throw_sfx, sizeof(shuriken_throw_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
     shurikens[i].spark = 0;
     shurikens[i].acc = 0;
     shurikens[i].zq = 0;
@@ -577,6 +580,7 @@ static void enemyKnifeSpawn(s16 cx, s16 lane, s8 dir, u8 palette) {
     shurikens[i].cameraOffsetX = 0;
     shurikens[i].active = 1;
     shurikens[i].kind = SHOT_KNIFE;
+    XGM2_playPCMEx(shuriken_throw_sfx, sizeof(shuriken_throw_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
     shurikens[i].spark = 0;
     shurikens[i].acc = 0;
     shurikens[i].zq = (s16)(KNIFE_PROJ_Z << 8);
@@ -1315,6 +1319,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
                    : (type == ENEMY_TYPE_FOOT_SOLDIER_SPEAR)  ? ENEMY_HP_SPEAR
                                                               : ENEMY_HP_PURPLE;
     e->invincible  = 0;
+    e->shake       = 0;
     e->palette     = palette;
     e->type        = type;
     e->anim        = 0xFF;   // sentinela: fuerza el primer enemySetAnim
@@ -1598,6 +1603,13 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     if (e->state == ENEMY_STATE_DEAD || e->state == ENEMY_STATE_INACTIVE)
         return FALSE;
 
+    // (16/10) El golpe del arcade a un foot soldier ("hit foot"). Suena aca
+    // y no en cada nivel: cualquier cosa que le pegue (tortuga, tapa, chorro
+    // del hidrante, cono, auto) dispara el mismo sonido. CH2 como los golpes.
+    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    // (16/10) Y el sprite vibra unos frames (ver enemyShakeX).
+    e->shake = ENEMY_SHAKE_TICKS;
+
     // Si estaba AGARRANDO a un jugador, el golpe lo libera (el otro jugador
     // le pega al soldier para rescatar al agarrado).
     if (e->state == ENEMY_STATE_GRAB && e->grabbed) {
@@ -1788,7 +1800,7 @@ static void thrownStep(Enemy* e) {
     }
     SPR_setVFlip(e->sprite, vflip);
     SPR_setHFlip(e->sprite, (e->dir < 0));
-    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX,
+    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e),
                     e->y - e->footOffset - e->jumpZ - stageCamY +
                     (vflip ? thrownVFlipShift(e) : 0));
     SPR_setDepth(e->sprite, (s16)(-(e->y) - 1));
@@ -1883,6 +1895,12 @@ void updateEnemy(Enemy* e, Player* player1, Player* player2, bool twoPlayers) {
     updateEnemyN(e, pls, twoPlayers ? 2 : 1);
 }
 
+s16 enemyShakeX(const Enemy* e) {
+    if (e->shake == 0) return 0;
+    s16 amp = (e->shake > ENEMY_SHAKE_SOFT_TICKS) ? ENEMY_SHAKE_AMP : 1;
+    return (e->shake & 1) ? amp : (s16)-amp;
+}
+
 void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     if (nPl < 1) nPl = 1;
     if (nPl > ENEMY_MAX_TARGETS) nPl = ENEMY_MAX_TARGETS;
@@ -1890,6 +1908,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
 
     if (e->invincible > 0) e->invincible--;
     if (e->attackCooldown > 0) e->attackCooldown--;
+    if (e->shake > 0) e->shake--;
 
     // RED DE SEGURIDAD del arco del blanco. jumpZ solo lo mueven dos lugares:
     // la entrada saltando (SPAWNING) y el ataque de salto (ATTACK con
@@ -1933,7 +1952,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         if (enemyHasWeapon(e->type))
             SPR_setVisibility(e->sprite, (e->timer < FW_BLINK_TIME && (e->timer & 2))
                                          ? HIDDEN : VISIBLE);
-        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e), e->y - e->footOffset - e->jumpZ - stageCamY);
         return;
     }
 
@@ -1975,6 +1994,13 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         // que hay que hacer es soltar el cartucho en el frame justo.
         if (e->tntThrow && e->timer == ENEMY_TNT_RELEASE_TIMER) {
             tntLaunch(e->x, e->y, e->dir, e->tntLandX, e->tntLandY, e->palette);
+            // (16/10) TNT_HAND_Z es la mano sobre los PIES DIBUJADOS: si el
+            // tirador esta parado mas arriba de su lane (jumpZ = alto visual
+            // del escalon, el vano o la vereda), el cartucho sale de ahi.
+            if (tnt.state == TNT_FLYING && tnt.t == 0) {
+                tnt.z0 = (s16)(tnt.z0 + e->jumpZ);
+                tnt.z  = tnt.z0;
+            }
             e->tntThrow = 0;      // una sola vez, nunca mas
         }
         // ...y despues BAJA DE LA ESCALERA: el jumpZ con el que lo spawnea la
@@ -2013,7 +2039,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             SPR_setAutoAnimation(e->sprite, TRUE);
         }
         SPR_setHFlip(e->sprite, (e->dir < 0));
-        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e), e->y - e->footOffset - e->jumpZ - stageCamY);
         SPR_setDepth(e->sprite, -(e->y));
         return;
     }
@@ -2768,7 +2794,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     }
 
     SPR_setHFlip(e->sprite, (e->dir < 0));
-    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
+    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e), e->y - e->footOffset - e->jumpZ - stageCamY);
     SPR_setDepth(e->sprite, -(e->y));
 }
 

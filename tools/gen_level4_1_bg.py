@@ -174,6 +174,24 @@ def main():
     paste(main_im, gen['car'], CAR_POS)
     paste(main_im, gen['sprite_cover_car'], COVER_POS)
     paste(main_im, gen['elevator_door'], DOOR_POS)
+    # (16/10) Paleta para la VDP. rescomp pasa cada canal a 3 bits CORTANDO
+    # (v >> 5), y con los grises calidos del arcade eso hacia dos cosas mal:
+    # el 1 (74,74,74) y el 2 (90,90,82) caian en el MISMO gris (68) -- el piso
+    # perdia todo el granulado y quedaba mas oscuro -- y el 4 (132,132,123)
+    # salia amarillento. Estos van elegidos a mano (comparados en pantalla
+    # contra la hoja del arcade) y escritos de forma que el corte de rescomp
+    # de el nivel buscado (36*n -> n). Solo cambia la PALETTE: los indices de
+    # los tiles y de los props siguen iguales.
+    #   2 piso      (90,90,82)   -> 3,3,3 (antes 2,2,2 = igual que el 1)
+    #   3           (107,107,99) -> 4,4,4 (antes 3,3,3; el 2 paso a ocupar ese)
+    #   4           (132,132,123)-> 4,4,3 (antes 4,4,3; queda igual)
+    #   7 azul      (0,99,156)   -> 0,3,5 (antes 0,3,4)
+    #   12 rojo osc (166,54,30)  -> 5,2,1 (antes 5,1,0)
+    MD_PAL_FIX = {2: (3, 3, 3), 3: (4, 4, 4), 4: (4, 4, 3), 7: (0, 3, 5), 12: (5, 2, 1)}
+    mdpal = list(main_im.getpalette()[:48])
+    for i, lv in MD_PAL_FIX.items():
+        mdpal[i * 3:i * 3 + 3] = [36 * v for v in lv]
+    main_im.putpalette(mdpal)
     main_im.save(os.path.join(D, 'bg_garage_md.png'))
 
     door = gen['elevator_door']

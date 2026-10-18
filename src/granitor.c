@@ -230,7 +230,8 @@ bool granitorPlayerHits(Granitor* g, Player** pls, u8 nPl, s8* killer) {
         if (!playerAttackHitsBox(pls[k], gx, gy, GRAN_BODY_HALF_W, GRAN_BODY_H)) continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? GRAN_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? GRAN_JUMPKICK_DMG : 1);
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        // (16/10) Rock soldier: el "hit foot (hit rock soldier)" del arcade.
+        XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
         g->hp -= dmg;
         g->flash = 8;
         g->invuln = GRAN_HURT_TICKS;

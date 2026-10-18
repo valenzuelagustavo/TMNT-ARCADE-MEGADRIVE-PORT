@@ -1,6 +1,6 @@
 #include "street_2_1.h"
 #include "enemy.h"    // sprVramFits
-#include "audio.h"    // scream_april
+#include "audio.h"    // scream_april, window_broken_sfx, hydrant_sfx
 
 // ===========================================================================
 // UTILERIA DE LA CALLE del 2-1 -- ver street_2_1.h
@@ -72,7 +72,10 @@ bool streetWindowVisible(u8 w, s16 camX, s16 camY) {
 }
 
 void streetBreakWindow(u8 w) {
-    if (w < L21W_COUNT) winBroken[w] = TRUE;
+    if (w >= L21W_COUNT || winBroken[w]) return;
+    winBroken[w] = TRUE;
+    // (16/10) El foot entra rompiendo la ventana ("window_broken" del arcade).
+    XGM2_playPCMEx(window_broken_sfx, sizeof(window_broken_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
 }
 
 static void winRelease(u8 w) {
@@ -238,6 +241,8 @@ static void hydUpdate(s16 camX, s16 camY) {
 
 static void hydOpen(u8 i, s8 dir, s8 owner) {
     hyd[i].state = HYD_SPRAY;
+    // (16/10) El hidrante se rompe ("hydrant" del arcade).
+    XGM2_playPCMEx(hydrant_sfx, sizeof(hydrant_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
     hyd[i].dir   = dir;
     hyd[i].owner = owner;
     hyd[i].tick  = 0;
@@ -468,6 +473,8 @@ static void pizzaUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             if (fx < PIZZA_BOX_X0 - PIZZA_PICK_DX || fx > PIZZA_BOX_X1 + PIZZA_PICK_DX) continue;
             if (abs(p->y - (PIZZA_FEET + 6)) > PIZZA_PICK_DY) continue;
             p->health  = PLAYER_MAX_HEALTH;          // toda la vida
+            // (16/10) "get pizza" del arcade.
+            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
             pizzaState = PIZZA_OPEN;
             pizzaTick  = 0;
             break;

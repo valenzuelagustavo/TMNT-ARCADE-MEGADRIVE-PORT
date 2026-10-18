@@ -251,7 +251,7 @@ extern u8 cantidadJugadores;
 // enemy.c ya lo baja a 0 despues de tirar el cartucho, o sea que "baja del
 // portal" a la calle -- exactamente lo mismo que hace el de la escalera del
 // 1-1 con TNT_THROWER_Z.
-#define LVL21_TNT_CENTER_X   363   // lo que marca la flecha sobre el arte, -1 tile
+#define LVL21_TNT_CENTER_X   371   // (16/10) +8: vuelve a la flecha sobre el arte (antes -1 tile)
 #define LVL21_TNT_Y          171   // pies (la punta de la flecha) -- lane REAL
 #define LVL21_TNT_Z           16   // 2 tiles de alto visual (el vano del portal)
 #define LVL21_TNT_X         (LVL21_TNT_CENTER_X - ENEMY_SPRITE_W_PURPLE / 2)
@@ -519,6 +519,14 @@ static void lvl21BgInit(u16 vramBase, s16 camX, s16 camY) {
     for (s16 c = planeCol - LVL21_VIS_COLS + 1; c <= planeCol; c++)
         for (s16 r = planeRow - LVL21_VIS_ROWS + 1; r <= planeRow; r++)
             if (c >= 0 && r >= 0) lvl21DrawCell(c, r);
+
+    // (17/10) Scroll de la camara YA, antes del fundido de entrada. Antes lo
+    // ponia recien lvl21BgUpdate en el primer frame del bucle: durante el
+    // fade el plano se veia con el scroll en 0 (otro encuadre, con franjas
+    // negras arriba y a la izquierda) y al arrancar "saltaba" al de la
+    // camara. Se veia como un cambio de modo de video por un instante.
+    VDP_setHorizontalScroll(BG_B, -camX);
+    VDP_setVerticalScroll(BG_B, camY);
 }
 
 // Revela lo que haga falta para esta posicion de camara y aplica el scroll.
@@ -946,11 +954,19 @@ static const u32 l21EvHold = ~(EVB(1) | EVB(5) | EVB(7));
 // distancias que el de la puerta amarilla (-99 en X, +23 en profundidad), o
 // sea que cae justo delante de la tele. Sin alto visual (el de la puerta
 // amarilla sale del vano, este esta parado en la vereda).
-#define LVL21_TNT2_CENTER_X  592   // (11/10) -8: pegado al borde del pilar
-#define LVL21_TNT2_Y         150
+#define LVL21_TNT2_CENTER_X  584   // (16/10) otros -8: el cuerpo arranca en el borde del pilar (x~574)
+// (16/10) Con el centro en 584 los pies caen en la columna 73 de la tabla de
+// limites (x 584..591), donde la vereda NO se mete: walkTop es 160, no 123.
+// Parado en y=150 quedaba FUERA del area caminable y despues del tiro
+// clampToWalk le rechazaba todos los pasos (trabado en la pared). Igual que
+// el de la puerta amarilla y el del taxi: la lane REAL va adentro de la calle
+// y lo que falta es alto VISUAL (jumpZ), que enemy.c baja a 0 despues del
+// tiro. Se lo sigue viendo con los pies en 150 mientras tira.
+#define LVL21_TNT2_FEET      150   // pies en pantalla mientras tira (visual)
+#define LVL21_TNT2_Y         164   // lane real: walkTop 160 + 4
 #define LVL21_TNT2_X        (LVL21_TNT2_CENTER_X - ENEMY_SPRITE_W_PURPLE / 2)
 #define LVL21_TNT2_LAND_X   (LVL21_TNT2_CENTER_X - 99)
-#define LVL21_TNT2_LAND_Y   (LVL21_TNT2_Y + 23)
+#define LVL21_TNT2_LAND_Y   (LVL21_TNT2_FEET + 23)
 #define LVL21_TNT2_TRIG_X   (LVL21_TNT2_CENTER_X - 96)   // 504: pasando la tele
 
 // (11/10) El TERCERO, el de atras del taxi (E21). Medido en el video: se
@@ -1047,6 +1063,7 @@ static bool l21SpawnReq(Enemy* e, const L21Req* r, s16 camX, s16 camY,
         } else if (r->arg == 1) {
             initEnemyTntSpawn(e, LVL21_TNT2_X, LVL21_TNT2_Y, LVL21_TNT_DIR, PAL2,
                               LVL21_TNT2_LAND_X, LVL21_TNT2_LAND_Y);
+            e->jumpZ = LVL21_TNT2_Y - LVL21_TNT2_FEET;   // (16/10) ver LVL21_TNT2_FEET
         } else {
             // (11/10) El del taxi.
             initEnemyTntSpawn(e, LVL21_TNT3_X, LVL21_TNT3_Y, LVL21_TNT_DIR, PAL2,
@@ -2005,7 +2022,7 @@ SceneId showScene21() {
             // (updateEnemy solo sabe de camX) y por jumpZ (el blanco salta).
             if (e->sprite && e->state != ENEMY_STATE_INACTIVE)
                 SPR_setPosition(e->sprite,
-                                e->x - cameraX,
+                                e->x - cameraX + enemyShakeX(e),
                                 e->y - e->footOffset - e->jumpZ - cameraY);
         }
 
@@ -2020,9 +2037,7 @@ SceneId showScene21() {
                 break;
             }
             if (dmg > 0) {
-                damageEnemy(&enemies[i], dmg);
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damageEnemy(&enemies[i], dmg);          // (16/10) suena hit_foot adentro
                 if (att && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                                    SOUND_PCM_CH3, 15, FALSE, FALSE);
@@ -2105,9 +2120,7 @@ SceneId showScene21() {
             if (!lidHitsEnemy(i, getEnemyCenterX(&enemies[i]),
                               getEnemyCenterY(&enemies[i]),
                               enemyBodyHalfW(&enemies[i]), &owner)) continue;
-            damageEnemy(&enemies[i], LID_ENEMY_DMG);
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+            damageEnemy(&enemies[i], LID_ENEMY_DMG);    // (16/10) suena hit_foot adentro
             if (enemies[i].state == ENEMY_STATE_DEAD) {
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                                SOUND_PCM_CH3, 15, FALSE, FALSE);
@@ -2153,8 +2166,6 @@ SceneId showScene21() {
                                 getEnemyCenterY(&enemies[i]),
                                 enemyBodyHalfW(&enemies[i]), &owner, &kill)) continue;
             damageEnemy(&enemies[i], kill ? (s16)(enemies[i].hp > 0 ? enemies[i].hp : ENEMY_HP) : 1);
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
             if (enemies[i].state == ENEMY_STATE_DEAD) {
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                                SOUND_PCM_CH3, 15, FALSE, FALSE);

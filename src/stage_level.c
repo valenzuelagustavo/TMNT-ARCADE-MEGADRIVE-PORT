@@ -823,7 +823,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             clampWalk(&e->x, &e->y, prevEX, prevEY, (s16)(getEnemyCenterX(e) - e->x));
             ledgeEnemy(e, i, prevEY);
             if (e->sprite)
-                SPR_setPosition(e->sprite, e->x - cameraX,
+                SPR_setPosition(e->sprite, e->x - cameraX + enemyShakeX(e),
                                 e->y - e->footOffset - e->jumpZ - eStepZ[i] - L->skateLift - stageCamY);
         }
 
@@ -840,9 +840,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 break;
             }
             if (dmg > 0) {
-                damageEnemy(&enemies[i], dmg);
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damageEnemy(&enemies[i], dmg);          // (16/10) suena hit_foot adentro
                 if (att && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                                    SOUND_PCM_CH3, 15, FALSE, FALSE);

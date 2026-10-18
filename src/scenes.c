@@ -1971,7 +1971,8 @@ static const s16 optHeadX[4] = { 45, 73, 227, 255 };
 // Sound test: TODOS los VGM de musica del juego, en el orden de los archivos
 // de res/music ("01 - ...", "02 - ..."). En pantalla se llaman BGM01, BGM02...:
 // asi el nombre siempre entra.
-// (11/10) Fuera del sound test: SanSenpai Credit y el jingle del logo de SEGA.
+// (11/10) Fuera del sound test: SanSenpai Credit y el jingle del logo de SEGA
+// (17/10: y el del logo de KONAMI, "19").
 //   BGM01 01 Opening Demo          BGM10 10 The Sewers
 //   BGM02 02 Character Profiles    BGM11 11 Parking Garage / Factory
 //   BGM03 03 Choose Your Turtle    BGM12 12 Scene Clear Theme 2
@@ -1979,6 +1980,7 @@ static const s16 optHeadX[4] = { 45, 73, 227, 255 };
 //   BGM05 05 April's Room          BGM14 14 Highway Chaser
 //   BGM06 06 Fight! (jefes)        BGM15 15 It's Technodrome
 //   BGM07 07 April is Kidnapped    BGM16 16 The Technodrome
+//   BGM17 17 VS. Krank (17/10)     BGM18 18 VS. Shredder (17/10)
 //   BGM08 08 Downtown
 //   BGM09 09 Scene Clear Theme 1
 static const u8* const soundTracks[] = {
@@ -1986,7 +1988,7 @@ static const u8* const soundTracks[] = {
     music_level1, music_level2, music_boss, music_ending,
     music_stage2_1, music_scene_clear, music_level3, music_garage,
     music_scene_clear2, music_freeway, music_skate, music_techno_cutscene,
-    music_technodrome,
+    music_technodrome, music_vs_krang, music_vs_shredder,   // (17/10) BGM17, BGM18
 };
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 
@@ -3848,12 +3850,9 @@ SceneId showScene11() {
             }
 
             if (dmg > 0) {
+                // (16/10) damageEnemy toca hit_foot en CUALQUIER golpe (antes
+                // aca sonaba hit_turtles solo con la patada con salto).
                 damageEnemy(&enemies[i], dmg);
-                // Mismo golpe seco de los foot soldiers, pero cuando el impacto
-                // vino de la patada con salto de la tortuga. Los i-frames del
-                // enemigo (ENEMY_INVINCIBLE) evitan que se repita cada frame.
-                if (attacker && isPlayerJumpKicking(attacker))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 // El enemigo pasó enemyCanBeHit (estaba vivo). Si este golpe lo
                 // dejó en DEAD, es una baja: +1 punto al jugador que lo remató.
                 if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
@@ -3886,10 +3885,8 @@ SceneId showScene11() {
                 break;
             }
             if (rdmg > 0 && ratt) {
+                // (16/10) robotDamage toca mouser_hit en cualquier golpe.
                 robotDamage(&robots[r], rdmg, getPlayerWorldX(ratt) + PLAYER_SPRITE_W / 2);
-                // Impacto de la patada con salto también contra el mini-jefe
-                if (isPlayerJumpKicking(ratt))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 if (robots[r].state == ROBOT_DEAD)
                     addPlayerScore(ratt, 5);   // baja del mini-jefe
             }
@@ -5192,9 +5189,7 @@ SceneId showScene12() {
             }
 
             if (dmg > 0) {
-                damageEnemy(&enemies[i], dmg);
-                if (attacker && isPlayerJumpKicking(attacker))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damageEnemy(&enemies[i], dmg);          // (16/10) suena hit_foot adentro
                 if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
                     addPlayerScore(attacker, 1);

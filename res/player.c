@@ -198,6 +198,9 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->idleTimer     = 0;
     p->idleTwice     = 0;
     p->grabType      = GRAB_TYPE_WHIP;
+    p->palIdx        = palette;
+    p->hitBtnSpr     = NULL;     // (18/10) el motor de sprites ya se reinicio
+    p->hitBtnT       = 0;
     p->heldFrame     = 0;
     p->heldTimer     = 0;
     p->heldHit       = 0;
@@ -318,12 +321,20 @@ static s16 levelEndWallX(const Player* p, s16 y) {
 // ---------------------------------------------------------------------------
 // LÓGICA PRINCIPAL — llamar una vez por frame para cada instancia
 // ---------------------------------------------------------------------------
+// (16/10) Patada voladora: "jump attack.wav" del arcade. CH3: en CH2 lo
+// cortarian los golpes y CH1 es de las voces.
+static void playJumpAttack(const Player* p) {
+    (void)p;
+    XGM2_playPCMEx(jump_attack_sfx, sizeof(jump_attack_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
+}
+
 // Gruñido de ataque POR PERSONAJE (14/09). Leo (charIndex 0)
 // y Raph (3) comparten un wav, Mike (1) y Don (2) el otro. Va en el canal PCM 3,
 // el mismo donde estaba el "Attack!!" generico de los golpes normales: asi el
 // golpe que conecta (hit_turtles, canal 2) se superpone en vez de cortarlo.
 // El "Attack!!" (attack_turtles) queda SOLO para los especiales (A y B+C), que
 // asi mantienen su acento propio.
+// (16/10) Wavs reemplazados por los del arcade (ver audio.res).
 static void playAttackGrunt(const Player* p) {
     if (p->charIndex == 0 || p->charIndex == 3)
         XGM2_playPCMEx(leo_raph_attack_vo, sizeof(leo_raph_attack_vo),
@@ -344,13 +355,17 @@ static void playAttackGrunt(const Player* p) {
 // (01/10) Saltito mas alto (PLAYER_SPECIAL_HOP 32) y mas largo: los frames
 // en el aire pasan de 6-6-6-7 a 8-8-8-9 (30 -> 38 ticks en total) para que
 // el giro se lea entero antes de apoyar.
-static const u8 specialFrameTicks[] = { 5, 8, 8, 8, 9 };
+// (16/10) +4 ticks (38 -> 42) para que entre el sonido nuevo del especial
+// (special_attack_sfx, 0,33 s): uno mas en cada frame del giro.
+static const u8 specialFrameTicks[] = { 5, 9, 9, 9, 10 };
 #define SPECIAL_TICK_TABLE ((u16)(sizeof(specialFrameTicks) / sizeof(specialFrameTicks[0])))
 // (09/10) Hoja nueva: el giro son 7 frames y solo pega el 6to, el del arma
 // estirada adelante (SPECIAL_HIT_FRAMES en tools/gen_player_hitbox.py). 30 ticks en
 // total (con la tabla de arriba eran 56 y se veia muy lento); el frame del
 // golpe dura un poco mas para que se lea.
-static const u8 specialFrameTicksNew[] = { 4, 4, 4, 4, 4, 6, 4 };
+// (16/10) +4 ticks (30 -> 34): el giro (frames 2 y 3) y el golpe (6to) un
+// tick mas cada uno, y el remate otro, para acompanar special_attack_sfx.
+static const u8 specialFrameTicksNew[] = { 4, 4, 5, 5, 4, 7, 5 };
 #define SPECIAL_TICK_TABLE_NEW ((u16)(sizeof(specialFrameTicksNew) / sizeof(specialFrameTicksNew[0])))
 
 static u16 specialTicksOf(const Player* p, u16 f) {
@@ -419,7 +434,9 @@ static void startSpecial(Player* p) {
     SPR_setAutoAnimation(p->sprite, FALSE);
     SPR_setAnimationLoop(p->sprite, FALSE);
     SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
-    XGM2_playPCMEx(attack_turtles, sizeof(attack_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    // (16/10) "turtles special attack" del arcade (antes el "Attack!!" de
+    // attack_turtles, que queda declarado pero sin uso).
+    XGM2_playPCMEx(special_attack_sfx, sizeof(special_attack_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
 // Un tick del especial. Devuelve TRUE cuando termino (ya quedo en IDLE).
@@ -643,6 +660,40 @@ static void walkAnim(Player* p, u16 anim) {
     p->walkTick++;
 }
 
+// ---------------------------------------------------------------------------
+// (18/10) CARTEL "HIT BUTTONS": mientras un foot soldier la tiene agarrada por
+// la espalda, arriba de la cabeza aparece hit_buttons (chars.res, 80x32, dos
+// frames que se alternan). Va en la paleta de las tortugas (la misma linea
+// que el jugador) y con prioridad alta, por delante del primer plano. El
+// sprite existe solo mientras dura el agarre (40 tiles).
+// ---------------------------------------------------------------------------
+#define HITBTN_W        80
+#define HITBTN_H        32
+#define HITBTN_HEAD     66   // de los pies al borde de abajo del cartel
+#define HITBTN_TICKS    10   // frames por cada uno de los dos cuadros
+
+static void hitButtonsRelease(Player* p) {
+    if (p->hitBtnSpr) { SPR_releaseSprite(p->hitBtnSpr); p->hitBtnSpr = NULL; }
+}
+
+static void hitButtonsUpdate(Player* p) {
+    if (!playerIsFootGrabbed(p)) { hitButtonsRelease(p); return; }
+    if (!p->hitBtnSpr) {
+        p->hitBtnSpr = SPR_addSprite(&hit_buttons, -128, -128,
+                                     TILE_ATTR(p->palIdx, TRUE, FALSE, FALSE));
+        if (!p->hitBtnSpr) return;          // sin VRAM: sin cartel, el agarre sigue
+        SPR_setAutoAnimation(p->hitBtnSpr, FALSE);
+        SPR_setFrame(p->hitBtnSpr, 0);
+        SPR_setDepth(p->hitBtnSpr, SPR_MIN_DEPTH);
+        p->hitBtnT = 0;
+    }
+    if (++p->hitBtnT >= 2 * HITBTN_TICKS) p->hitBtnT = 0;
+    SPR_setFrame(p->hitBtnSpr, (p->hitBtnT < HITBTN_TICKS) ? 0 : 1);
+    s16 cx = (s16)(p->x + PLAYER_SPRITE_W / 2 - p->cameraOffsetX);
+    SPR_setPosition(p->hitBtnSpr, (s16)(cx - HITBTN_W / 2),
+                    (s16)(p->y - HITBTN_HEAD - HITBTN_H - stageCamY));
+}
+
 void updatePlayer(Player* p) {
     // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
     // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
@@ -650,7 +701,10 @@ void updatePlayer(Player* p) {
     // devolveria basura -- y los estados que esperan SPR_isAnimationDone se
     // colgarian para siempre. Sin sprite el jugador queda invisible e inerte,
     // pero el juego sigue.
-    if (!p->sprite) return;
+    if (!p->sprite) { hitButtonsRelease(p); return; }
+    // (18/10) Al principio, antes de cualquier return temprano de los estados:
+    // asi el cartel se suelta siempre que termina el agarre.
+    hitButtonsUpdate(p);
 
     u16 joy = playerRemapJoy(JOY_readJoypad(p->joyId));   // (10/10) CONTROL PAD de opciones
 
@@ -948,6 +1002,7 @@ void updatePlayer(Player* p) {
                 bool giro = !fuerte && PLAYER_ARCADE_CONTROL && playerHasNewSheet(p) &&
                             p->jumpZ >= PLAYER_AJ_SPIN_MIN_Z;
                 p->isJumpKicking = fuerte ? JUMPKICK_STRONG : (giro ? JUMPKICK_SPIN : JUMPKICK_SOFT);
+                if (!giro) playJumpAttack(p);   // (16/10) el giro lleva el grunido
                 // (09/10) Arcade: si todavia subia, el golpe la frena arriba.
                 if (PLAYER_ARCADE_CONTROL && p->jumpVq < 0) p->jumpVq = 0;
                 // Auto-anim ya está apagada desde el inicio del salto: el
@@ -1208,6 +1263,17 @@ void updatePlayer(Player* p) {
             if (justPressed(joy, p->prevJoy, BUTTON_A)) mash += PLAYER_GRAB_MASH_STEP;
             if (justPressed(joy, p->prevJoy, BUTTON_B)) mash += PLAYER_GRAB_MASH_STEP;
             if (justPressed(joy, p->prevJoy, BUTTON_C)) mash += PLAYER_GRAB_MASH_STEP;
+
+            // (18/10) Mordida del Mouser: cada boton sacude el brazo un frame
+            // (0 -> 1 -> 2 -> 0...). La anim no corre sola: va al ritmo del
+            // jugador. Se hace ANTES del zafe para que el ultimo toque se vea.
+            if (p->grabType == GRAB_TYPE_MOUSER && mash > 0) {
+                p->heldFrame = (u8)((p->heldFrame + 1) % 3);
+                if (playerHasBiteAnim(p))
+                    SPR_setAnimAndFrame(p->sprite, ANIM_MOUSER_BITE, p->heldFrame);
+                else
+                    setHeldFrame(p, p->heldFrame);
+            }
 
             if (mash > 0 && p->grabTimer > 0) {
                 p->grabTimer = (p->grabTimer > mash) ? (u8)(p->grabTimer - mash) : 0;
@@ -1722,7 +1788,9 @@ static void playerEnterKO(Player* p) {
 
 // Núcleo del daño recibido: resta 'bars' barras. Si llega a 0 -> knockout; si
 // no, reacción de golpe (frente/espalda) con knockback e i-frames.
-static void playerTakeHit(Player* p, s16 attackerX, u8 bars, bool volteo) {
+// (17/10) 'exact': las barras se restan TAL CUAL, sin pasar por
+// playerDiffBars (ver footHitBars).
+static void playerTakeHitEx(Player* p, s16 attackerX, u8 bars, bool volteo, bool exact) {
     // Golpe recibido EN EL AIRE (sólo lo permite playerCanBeHitAir, hoy las
     // balas del jefe): hay que bajar la tortuga al piso a mano, porque el
     // estado pasa a HURT y nadie más vuelve a tocar jumpZ — si no, se queda
@@ -1749,7 +1817,7 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars, bool volteo) {
     p->attackIsSpecial = 0;
 
     // Vida: restar 'bars' barras (clamp a 0). (10/10) En NORMAL, menos.
-    bars = playerDiffBars(p, bars);
+    if (!exact) bars = playerDiffBars(p, bars);
     if (p->health > (s16)bars) p->health -= (s16)bars;
     else                       p->health = 0;
 
@@ -1793,6 +1861,22 @@ static void playerTakeHit(Player* p, s16 attackerX, u8 bars, bool volteo) {
     SPR_setAnimAndFrame(p->sprite, anim, 0);
 }
 
+static void playerTakeHit(Player* p, s16 attackerX, u8 bars, bool volteo) {
+    playerTakeHitEx(p, attackerX, bars, volteo, FALSE);
+}
+
+// (17/10) Golpe de foot soldier y de sus proyectiles (shuriken, cuchillo,
+// lanza, boomerang, bala). GAME LEVEL NORMAL: SIEMPRE 1 barra exacta (antes
+// era el 3/4 del golpe de 2 del control arcade: 1, 2, 1, 2...). ARCADE: como
+// siempre (PLAYER_ARCADE_HIT_BARS con el control arcade, 1 si no).
+static void footHit(Player* p, s16 attackerX) {
+    bool volteo = PLAYER_ARCADE_CONTROL;
+    if (dificultad == DIFICULTAD_NORMAL)
+        playerTakeHitEx(p, attackerX, 1, volteo, TRUE);
+    else
+        playerTakeHit(p, attackerX, PLAYER_ARCADE_CONTROL ? PLAYER_ARCADE_HIT_BARS : 1, volteo);
+}
+
 // Golpe de foot soldier (1 barra).
 void damagePlayer(Player* p, s16 attackerX) {
     // AgarraDO por un foot soldier: el golpe NO lo suelta. Muestra el frame 3
@@ -1800,7 +1884,8 @@ void damagePlayer(Player* p, s16 attackerX) {
     // si le pegan al soldier. Si la barra llega a 0 → knockout (que sí termina
     // el agarre al pasar a STATE_KO).
     if (p->state == STATE_GRABBED && p->grabType == GRAB_TYPE_FOOT) {
-        if (p->health > 0) p->health -= playerDiffBars(p, 1);
+        // (17/10) NORMAL: 1 barra exacta (ver footHit).
+        if (p->health > 0) p->health -= (dificultad == DIFICULTAD_NORMAL) ? 1 : playerDiffBars(p, 1);
         if (p->health == 0) {
             p->hurtDir = 0;
             playerEnterKO(p);
@@ -1813,16 +1898,14 @@ void damagePlayer(Player* p, s16 attackerX) {
     }
     if (!playerCanBeHit(p)) return;
     // Control arcade: 2 barras y volteo (el golpe tipico del arcade).
-    if (PLAYER_ARCADE_CONTROL) playerTakeHit(p, attackerX, PLAYER_ARCADE_HIT_BARS, TRUE);
-    else                       playerTakeHit(p, attackerX, 1, FALSE);
+    footHit(p, attackerX);
 }
 
 // (15/10) Como damagePlayer pero tambien EN EL AIRE: el salto con espadazo
 // del blanco le gana a la patada voladora (ver enemyDamagePlayer).
 void damagePlayerAir(Player* p, s16 attackerX) {
     if (!playerCanBeHitAir(p)) return;
-    if (PLAYER_ARCADE_CONTROL) playerTakeHit(p, attackerX, PLAYER_ARCADE_HIT_BARS, TRUE);
-    else                       playerTakeHit(p, attackerX, 1, FALSE);
+    footHit(p, attackerX);
 }
 
 // Golpe que resta VARIAS barras (p.ej. el láser del robot = 4).
@@ -1985,8 +2068,34 @@ void playerFootGrab(Player* p) {
     SPR_setAnimAndFrame(p->sprite, ANIM_HELD, 0);
 }
 
+// (18/10) Mordida de un Mouser: el agarre de siempre (STATE_GRABBED + mash)
+// con la anim de la mordida, que avanza un frame por boton (updatePlayer).
+void playerMouserGrab(Player* p) {
+    if (!playerCanBeHit(p)) return;
+    if (playerIsGrabbed(p)) return;
+
+    p->comboStep     = 0;
+    arcCut(p);
+    p->comboBuffered = 0;
+    p->comboLinger   = 0;
+    p->attackIsSpecial = 0;
+
+    p->state     = STATE_GRABBED;
+    p->grabType  = GRAB_TYPE_MOUSER;
+    p->grabTimer = PLAYER_GRAB_ESCAPE;
+    p->heldFrame = 0;
+    p->heldTimer = 0;
+    p->heldHit   = 0;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, playerHasBiteAnim(p) ? ANIM_MOUSER_BITE : ANIM_HELD, 0);
+}
+
 bool playerIsGrabbed(const Player* p) {
     return (p->state == STATE_GRABBED);
+}
+
+bool playerIsFootGrabbed(const Player* p) {
+    return (p->state == STATE_GRABBED && p->grabType == GRAB_TYPE_FOOT);
 }
 
 // Drena 1 barra (llamado por el robot ~1 vez por segundo mientras agarra). Si
@@ -2024,7 +2133,11 @@ void addPlayerScore(Player* p, u16 points) {
     p->score += points;
     if (dificultad == DIFICULTAD_NORMAL) {
         u16 gained = (u16)(p->score / PLAYER_EXTRA_LIFE_PTS - before / PLAYER_EXTRA_LIFE_PTS);
+        u8 livesBefore = p->lives;
         while (gained-- > 0 && p->lives < PLAYER_MAX_LIVES) p->lives++;
+        // (16/10) "1 up" del arcade. CH3: en CH2 lo cortarian los golpes.
+        if (p->lives != livesBefore)
+            XGM2_playPCMEx(one_up_sfx, sizeof(one_up_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
     }
 }
 

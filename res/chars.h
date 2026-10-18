@@ -8,5 +8,6 @@ extern const SpriteDefinition leo_player;
 extern const SpriteDefinition mike_player;
 extern const SpriteDefinition raph_player;
 extern const SpriteDefinition don_player;
+extern const SpriteDefinition hit_buttons;
 
 #endif // _RES_CHARS_H_

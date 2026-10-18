@@ -56,3 +56,9 @@ SPRITE  sewer_hole_0 "images/lvl_3_sewer/sewer_hole_0.png" 6 5 NONE 0
 SPRITE  sewer_hole_1 "images/lvl_3_sewer/sewer_hole_1.png" 6 4 NONE 0
 SPRITE  sewer_hole_2 "images/lvl_3_sewer/sewer_hole_2.png" 6 4 NONE 0
 SPRITE  sewer_hole_3 "images/lvl_3_sewer/sewer_hole_3.png" 6 4 NONE 0
+
+// (18/10) Ratas DECORATIVAS de la primera parte (level3_1.c, swRat): corren
+// por la base de la pared, sin interaccion. tools/gen_sewer_rat.py pasa
+// rat.png (RGBA) a la paleta del fondo (PAL0). Celdas de 32x16: [0] quieta,
+// [1] corriendo (3 frames). time 0: los frames van a mano.
+SPRITE  sewer_rat "images/lvl_3_sewer/sewer_rat.png" 4 2 NONE 0

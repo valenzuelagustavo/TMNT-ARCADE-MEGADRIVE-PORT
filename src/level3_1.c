@@ -205,6 +205,94 @@ static const s16 swHoles[SW_HOLES_N][2] = {
 static struct { u8 on, hole, left; u16 t; } swHole[SW_HOLE_MAX];
 
 // ---------------------------------------------------------------------------
+// RATAS DECORATIVAS (18/10)
+// ---------------------------------------------------------------------------
+// Tres ratitas (sewer_rat, 32x16, PAL0) cruzan la primera parte del nivel por
+// la BASE DE LA PARED (la linea de pasto, y = 124 del fondo), detras de todo
+// lo que camina: dos entran por la derecha y una por la izquierda. Corren,
+// frenan una o dos veces (anim [0]) y siguen hasta salir por el lado
+// contrario. Puramente esteticas: no chocan ni se golpean.
+// La hoja mira a la IZQUIERDA: corriendo a la derecha se espeja.
+#define SW_RAT_N          3
+#define SW_RAT_W         32
+#define SW_RAT_TOP       77     // borde de arriba del sprite (mundo) = 124 - 15 - 32
+#define SW_RAT_SPEED_Q  400     // 1,56 px/f (8.8)
+#define SW_RAT_ANIM_T     4     // frames de juego por cuadro de la corrida
+#define SW_RAT_MAX_LIFE 1800    // red de seguridad: se suelta igual a los 30 s
+enum { RAT_WAIT = 0, RAT_RUN, RAT_STOP, RAT_DONE };
+// camX: la camara que la hace entrar; dir: -1 entra por la derecha y corre a
+// la izquierda, +1 al reves; stops: cuantas veces frena (1 o 2).
+static const struct { s16 camX; s8 dir; u8 stops; } swRatDef[SW_RAT_N] = {
+    {  40, -1, 1 },
+    { 170, +1, 2 },
+    { 320, -1, 2 },
+};
+static struct {
+    Sprite* spr; u8 st, stops, frame, tick; s16 x; u8 acc; u16 t, life;
+} swRat[SW_RAT_N];
+
+static void swRatRelease(u16 i) {
+    if (swRat[i].spr) { SPR_releaseSprite(swRat[i].spr); swRat[i].spr = NULL; }
+}
+
+static void swRatsUpdate(s16 camX) {
+    for (u16 i = 0; i < SW_RAT_N; i++) {
+        s8 dir = swRatDef[i].dir;
+        if (swRat[i].st == RAT_DONE) continue;
+        if (swRat[i].st == RAT_WAIT) {
+            if (swBoss || camX < swRatDef[i].camX) continue;
+            if (!sprVramFits(sewer_rat.maxNumTile)) continue;
+            Sprite* s = SPR_addSprite(&sewer_rat, -64, -64, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+            if (!s) continue;
+            SPR_setAutoAnimation(s, FALSE);
+            SPR_setAnimAndFrame(s, 1, 0);
+            SPR_setHFlip(s, dir > 0);
+            // Detras de los personajes, delante de los parches de la pared.
+            SPR_setDepth(s, SPR_MAX_DEPTH - 1);
+            swRat[i].spr = s;
+            swRat[i].st = RAT_RUN;
+            swRat[i].stops = swRatDef[i].stops;
+            swRat[i].x = (dir < 0) ? (s16)(camX + SCREEN_W) : (s16)(camX - SW_RAT_W);
+            swRat[i].acc = 0; swRat[i].frame = 0; swRat[i].tick = 0; swRat[i].life = 0;
+            swRat[i].t = (u16)(50 + (random() % 50));   // corrida hasta el 1er freno
+        }
+        if (++swRat[i].life >= SW_RAT_MAX_LIFE) { swRatRelease(i); swRat[i].st = RAT_DONE; continue; }
+        if (swRat[i].st == RAT_RUN) {
+            u16 q = (u16)(swRat[i].acc + SW_RAT_SPEED_Q);
+            swRat[i].acc = (u8)(q & 0xFF);
+            swRat[i].x = (s16)(swRat[i].x + dir * (s16)(q >> 8));
+            if (++swRat[i].tick >= SW_RAT_ANIM_T) {
+                swRat[i].tick = 0;
+                if (++swRat[i].frame >= 3) swRat[i].frame = 0;
+                SPR_setAnimAndFrame(swRat[i].spr, 1, swRat[i].frame);
+            }
+            // Solo frena con la rata entera en pantalla.
+            s16 sx = (s16)(swRat[i].x - camX);
+            bool inView = (bool)(sx >= 8 && sx <= SCREEN_W - SW_RAT_W - 8);
+            if (swRat[i].stops && swRat[i].t) swRat[i].t--;
+            if (swRat[i].stops && !swRat[i].t && inView) {
+                swRat[i].stops--;
+                swRat[i].st = RAT_STOP;
+                swRat[i].t = (u16)(30 + (random() % 45));   // cuanto se queda quieta
+                SPR_setAnimAndFrame(swRat[i].spr, 0, 0);
+            }
+            // Salio por el lado contrario.
+            if ((dir < 0 && sx < -SW_RAT_W) || (dir > 0 && sx > SCREEN_W)) {
+                swRatRelease(i); swRat[i].st = RAT_DONE; continue;
+            }
+        } else if (swRat[i].st == RAT_STOP) {
+            if (--swRat[i].t == 0) {
+                swRat[i].st = RAT_RUN;
+                swRat[i].t = (u16)(40 + (random() % 50));
+                swRat[i].frame = 0; swRat[i].tick = 0;
+                SPR_setAnimAndFrame(swRat[i].spr, 1, 0);
+            }
+        }
+        SPR_setPosition(swRat[i].spr, (s16)(swRat[i].x - camX), (s16)(SW_RAT_TOP - stageCamY));
+    }
+}
+
+// ---------------------------------------------------------------------------
 // LA PARED SE RAJA (13/10): como en el arcade, los huecos con Mousers estan
 // SANOS hasta que llegan. El fondo ya los trae rotos, asi que se tapan con un
 // sprite de pared (PAL0, prioridad baja: los caños del primer plano quedan
@@ -325,6 +413,7 @@ static void swInit(void) {
     for (u16 k = 0; k < SW_PATCH_N; k++) {
         swPatch[k].st = PATCH_CLOSED; swPatch[k].frame = 0; swPatch[k].tick = 0; swPatch[k].spr = NULL;
     }
+    for (u16 i = 0; i < SW_RAT_N; i++) { swRat[i].spr = NULL; swRat[i].st = RAT_WAIT; }
 }
 
 static void swRelease(void) {
@@ -334,6 +423,7 @@ static void swRelease(void) {
         if (swSplash[i].spr) { SPR_releaseSprite(swSplash[i].spr); swSplash[i].spr = NULL; }
     }
     baxterRatReleaseAll();
+    for (u16 i = 0; i < SW_RAT_N; i++) swRatRelease(i);
     for (u16 k = 0; k < SW_PATCH_N; k++)
         if (swPatch[k].spr) { SPR_releaseSprite(swPatch[k].spr); swPatch[k].spr = NULL; }
 }
@@ -400,6 +490,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
 
     swWaterUpdate();
     swPatchesUpdate(camX);
+    swRatsUpdate(camX);         // (18/10) decorativas
 
     // (13/10) Mousers de los huecos (con Baxter los mueve bossUpdate31).
     if (!swBoss) {

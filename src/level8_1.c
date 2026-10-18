@@ -87,6 +87,16 @@ extern u8 cantidadJugadores;
 #define L8_FLOOR_MARGIN      12          // pies a esto del borde, como minimo
 #define L8_ARM_FRAMES        36          // todos encima este tiempo -> arranca
 #define L8_RIDE_SPEED         4
+// (18/10) Mientras baja el ascensor suena elevator_tecnodrome_sfx en LOOP por
+// CH2 (en el viaje no hay soldiers ni golpes que lo necesiten). Si algo le
+// pisa el canal (un golpe al aire, el jingle de pausa va por CH3), se vuelve
+// a disparar en el cuadro siguiente. Se corta al llegar abajo o al salir.
+#define L8_ELEV_SFX_CH     SOUND_PCM_CH2
+#define L8_ELEV_SFX_PRIO   10
+static void elevSfxPlay(void) {
+    XGM2_playPCMEx(elevator_tecnodrome_sfx, sizeof(elevator_tecnodrome_sfx),
+                   L8_ELEV_SFX_CH, L8_ELEV_SFX_PRIO, FALSE, TRUE);
+}
 
 // --- Abajo -------------------------------------------------------------------
 #define L8_BOT_CAM_Y       2592          // 2816 - 224
@@ -451,6 +461,7 @@ SceneId showScene81() {
                 if (++arm >= L8_ARM_FRAMES) {
                     phase = PH_RIDE;
                     for (u8 k = 0; k < nPl; k++) clampToPad(pls[k], elevX, elevY);
+                    elevSfxPlay();
                 }
             } else {
                 arm = 0;
@@ -467,6 +478,7 @@ SceneId showScene81() {
                 }
             }
         } else if (phase == PH_RIDE) {
+            if (!XGM2_isPlayingPCM(1 << L8_ELEV_SFX_CH)) elevSfxPlay();
             s16 s = L8_RIDE_SPEED;
             if (cameraY + s > L8_BOT_CAM_Y) s = (s16)(L8_BOT_CAM_Y - cameraY);
             elevX += s; elevY += s;
@@ -478,6 +490,7 @@ SceneId showScene81() {
             }
             if (cameraY >= L8_BOT_CAM_Y) {
                 phase = PH_BOTTOM;
+                XGM2_stopPCM(L8_ELEV_SFX_CH);
                 wave = &botWave;
                 botFired = TRUE;
                 waveSpawned = 0;
@@ -578,7 +591,7 @@ SceneId showScene81() {
                 } else offTime[i] = 0;
             }
             if (e->sprite)
-                SPR_setPosition(e->sprite, e->x - cameraX,
+                SPR_setPosition(e->sprite, e->x - cameraX + enemyShakeX(e),
                                 e->y - e->footOffset - e->jumpZ - cameraY);
         }
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
@@ -591,9 +604,7 @@ SceneId showScene81() {
                 break;
             }
             if (dmg > 0) {
-                damageEnemy(&enemies[i], dmg);
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                damageEnemy(&enemies[i], dmg);          // (16/10) suena hit_foot adentro
                 if (att && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                                    SOUND_PCM_CH3, 15, FALSE, FALSE);
@@ -657,6 +668,7 @@ SceneId showScene81() {
         XGM2_setLoopNumber(-1);
     }
 
+    if (phase == PH_RIDE) XGM2_stopPCM(L8_ELEV_SFX_CH);   // salio en pleno viaje
     traagRelease(&traag);
     DMA_setMaxQueueSizeToDefault();
     VDP_setTextPriority(0);

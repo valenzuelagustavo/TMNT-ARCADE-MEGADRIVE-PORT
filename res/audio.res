@@ -29,12 +29,13 @@
 // usar una muestra distinta por altura.
 // Ver DEVLOG, entradas del 17/09.
 XGM2 music_sega      "musica_intro.vgm"
-XGM2 music_level1    "music/04 - Fire! (Stage 1-1).vgm"
-XGM2 music_level2    "music/05 - April's Room (Stage 1-2).vgm"
+// (17/10) Tanda nueva de vgm: cada archivo se llama como su escenario.
+XGM2 music_level1    "music/04 - Fire.vgm"
+XGM2 music_level2    "music/05 - April's Room.vgm"
 XGM2 music_charselect "music/03 - Choose Your Turtle.vgm"
 XGM2 music_profiles  "music/02 - Character Profiles.vgm"
 XGM2 music_credits   "music/00 - SanSenpai Credit.vgm"
-XGM2 music_ending    "music/07 - April is Kidnapped (Cutscene).vgm"
+XGM2 music_ending    "music/07 - April is Kidnapped.vgm"
 // (12/10) Version con FM6 LIBRE (tools/vgm_free_fm6.py): el original usaba
 // FM6 como canal FM y apagaba el DAC, y con eso la voz de la intro (PCM)
 // salia muda. FM5 era una copia exacta del bajo de FM4: ahora FM5 hace lo que
@@ -44,30 +45,32 @@ XGM2 music_ending    "music/07 - April is Kidnapped (Cutscene).vgm"
 // vuelve al vgm original. Para reactivarla, usar la linea comentada.
 XGM2 music_intro_arcade "music/01 - Opening Demo.vgm"
 // XGM2 music_intro_arcade "music/01 - Opening Demo (FM6 libre).vgm"
-XGM2 music_level3    "music/10 - The Sewers (Stage 2-2).vgm"
+XGM2 music_level3    "music/10 - The Sewers.vgm"
 // (01/10) Temas del garage (Scene 4) y de la autopista (Scene 5).
-XGM2 music_garage    "music/11 - Parking Garage (Scene 2-3) & The Factory (Scene 4).vgm"
-XGM2 music_freeway   "music/13 - Highway Blockade (Scene 3-1).vgm"
+XGM2 music_garage    "music/11 - Parking Garage - The Factory.vgm"
+XGM2 music_freeway   "music/13 - Highway Blockade.vgm"
 
 // (06/10) Highway Chaser (Scene 3-2): el skate del 6-1. 45,5 s con loop de
 // 29,3 s; trae el bloque PCM de bateria pero no lo dispara (FM+PSG puro).
-XGM2 music_skate     "music/14 - Highway Chaser (Scene 3-2).vgm"
+XGM2 music_skate     "music/14 - Highway Chaser.vgm"
 // (06/10) The Technodrome (Scene 5): el 8-1 hasta que aparece Traag. 66,5 s
 // con loop de 47 s, sin PCM. La sala de Shredder (9-1) sigue con el del jefe.
-XGM2 music_technodrome "music/16 - The Technodrome (Scene 5).vgm"
+XGM2 music_technodrome "music/16 - The Technodrome.vgm"
 
 // (24/09) Tema del Stage 2-1 (Downtown). 77,7 s con punto de loop a los 38,5 s
 // (loop de 39,2 s), asi que con XGM2_setLoopNumber(-1) repite solo. Trae un
 // bloque PCM de 7690 bytes (el mismo de bateria que los "con samples"), pero
 // NUNCA lo dispara: 0 comandos de start de stream (0x95), solo setup. O sea
 // que suena FM+PSG puro y no le pisa los canales PCM a los voice over.
-XGM2 music_stage2_1  "music/08 - Downtown (Stage 2-1).vgm"
+XGM2 music_stage2_1  "music/08 - Downtown.vgm"
 
 // (10/10) Declarados solo para el SOUND TEST de opciones (BGM13 y BGM16): por
 // ahora ninguna escena los usa. 4,2 s y 5,6 s, sin loop, FM+PSG (traen el
 // bloque PCM de bateria pero no lo disparan).
 XGM2 music_scene_clear2    "music/12 - Scene Clear Theme 2 (1).vgm"
-XGM2 music_techno_cutscene "music/15 - It's Technodrome (Cutscene).vgm"
+// (17/10) "15 - It's Technodrome" es para una cinematica que todavia no
+// existe: por ahora solo suena en el sound test.
+XGM2 music_techno_cutscene "music/15 - It's Technodrome.vgm"
 
 // Tema de TODOS los jefes. Arranca con la pelea y se mantiene hasta el final:
 // el VGM trae punto de loop, asi que con XGM2_setLoopNumber(-1) repite solo.
@@ -75,7 +78,13 @@ XGM2 music_techno_cutscene "music/15 - It's Technodrome (Cutscene).vgm"
 // con loop de 31,1 s, FM+PSG puro (sin bloque PCM). Reemplaza a la "Fight con
 // samples (Prueba Gus)", que pitcheaba la bateria 82 veces entre 16
 // frecuencias y en XGM2 sonaba rota (ver el comentario de arriba).
-XGM2 music_boss      "music/06 - Fight! (Boss Theme).vgm"
+XGM2 music_boss      "music/06 - Fight!.vgm"
+// (17/10) Temas propios de la sala final (level9_1.c): Krang y Shredder ya no
+// usan music_boss. FM+PSG puro (sin bloques PCM). Medidos:
+//   17 - VS. Krank     41,5 s, loop 38,3 s
+//   18 - VS. Shredder  51,8 s, loop 37,2 s
+XGM2 music_vs_krang    "music/17 - VS. Krank.vgm"
+XGM2 music_vs_shredder "music/18 - VS. Shredder.vgm"
 
 // Jingle de nivel completado (4s, SIN punto de loop -> hay que reproducirlo con
 // XGM2_setLoopNumber(0) ANTES del play, si no el driver lo repite). Declarado y
@@ -84,7 +93,7 @@ XGM2 music_scene_clear "music/09 - Scene Clear Theme 1.vgm"
 
 // (14/10) Jingle del logo animado de KONAMI (2,5 s, SIN punto de loop: va con
 // XGM2_setLoopNumber(0) antes del play). Lo toca src/konami_logo.c.
-XGM2 music_konami "music/17 - Konami Logo.vgm"
+XGM2 music_konami "music/19 - Konami Logo.vgm"
 
 // --- Efectos de Sonido ---
 XGM2 golpe         "golpe.vgm"
@@ -111,7 +120,7 @@ WAV attack_vo "audio/attack.wav" XGM2
 // WAV intro_vo_power  "music/intro_voice/gen/04_turtle_power.wav" XGM2
 WAV scream_april "audio/scream_april.wav" XGM2
 WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
-WAV attack_turtles "audio/attack_turtles.wav" XGM2
+// WAV attack_turtles "audio/attack_turtles.wav" XGM2
 WAV hit_turtles "audio/hit_turtles.wav" XGM2
 WAV boss_hit "audio/boss_hit.wav" XGM2
 // (01/10) Embestida de Rocksteady: el sonido de la CORRIDA hacia el logo de SEGA
@@ -158,8 +167,11 @@ WAV help_me_april_vo "audio/help_me_april.wav" XGM2
 // Los dos gruñidos de ataque quedan con RMS por encima de la banda de voz
 // (20-24%) a proposito: son golpes cortos que tienen que cortar por encima de
 // la musica, igual que hit_turtles (23,2%).
-WAV leo_raph_attack_vo  "audio/leo_raph_attack.wav" XGM2
-WAV mike_don_attack_vo  "audio/mike_don_attack.wav" XGM2
+// (16/10) Los dos grunidos REEMPLAZADOS por los del arcade ("leo (raph)
+// attack.wav" y "mike (don) attack.wav"): los de arriba quedaron en
+// audio/reemplazados/. Los nuevos salen de tools/gen_sfx_arcade.py.
+WAV leo_raph_attack_vo  "audio/gen/leo_raph_attack.wav" XGM2
+WAV mike_don_attack_vo  "audio/gen/mike_don_attack.wav" XGM2
 WAV cowabunga_vo        "audio/cowabunga.wav" XGM2
 WAV boss_scream_rocksteady_vo "audio/boss_scream_rocksteady.wav" XGM2
 WAV lost_life_turtles_vo "audio/lost_life_turtles.wav" XGM2
@@ -227,6 +239,57 @@ WAV shut_your_mouth_vo "audio/shut_your_mouth.wav" XGM2
 // que dinne_turtle. Medido despues de convertir:
 //   im_invinsible_baxter    1,947s  pico 96,6%  rms 22,0%  21.469 B
 // El original queda al lado como im_invinsible_baxter_orig.wav.
-WAV im_invinsible_baxter_vo "audio/im_invinsible_baxter.wav" XGM2
+// WAV im_invinsible_baxter_vo "audio/im_invinsible_baxter.wav" XGM2
+
+// --- SFX del arcade (16/10) -------------------------------------------------
+// Llegaron ESTEREO 8-bit 44100/48000 Hz con los nombres del rip ("1 up.wav",
+// "hydrant.wav", ...; quedan tal cual en audio/). tools/gen_sfx_arcade.py los
+// pasa a la convencion de la casa (MONO, 8-bit, 11025 Hz, puntas recortadas,
+// pico 96,9%; los que quedaban por debajo de rms 18% suben hasta ahi con la
+// rodilla tanh) y los deja en audio/gen/. Medidos despues de convertir:
+//   hit_foot        0,302s  rms 30,9%   golpe a un foot soldier / rock soldier
+//   mouser_hit      0,272s  rms 26,3%   golpe a un Mouser o al robot del latigo
+//   shuriken_throw  0,135s  rms 18,0%   un foot tira shuriken o cuchillo
+//   window_broken   0,736s  rms 22,3%   foot entrando por una ventana (2-1)
+//   hydrant         1,355s  rms 17,9%   se rompe un hidrante (2-1)
+//   car             1,829s  rms 33,5%   sale el auto del garage (4-1)
+//   one_up          1,039s  rms 24,2%   vida extra
+//   pause           0,640s  rms 22,1%   pausa
+// Canales: los golpes en CH2 (como hit_turtles), el resto en CH3. CH1 sigue
+// reservado a las voces.
+WAV hit_foot_sfx       "audio/gen/hit_foot.wav" XGM2
+WAV mouser_hit_sfx     "audio/gen/mouser_hit.wav" XGM2
+WAV shuriken_throw_sfx "audio/gen/shuriken_throw.wav" XGM2
+WAV window_broken_sfx  "audio/gen/window_broken.wav" XGM2
+WAV hydrant_sfx        "audio/gen/hydrant.wav" XGM2
+WAV car_sfx            "audio/gen/car.wav" XGM2
+WAV one_up_sfx         "audio/gen/one_up.wav" XGM2
+WAV pause_sfx          "audio/gen/pause.wav" XGM2
+//   jump_attack     0,116s  rms 40,2%   patada voladora de la tortuga
+WAV jump_attack_sfx    "audio/gen/jump_attack.wav" XGM2
+//   special_attack  0,329s  rms 34,4%   el especial de la tortuga (reemplaza al
+//                                       "Attack!!" de attack_turtles ahi)
+WAV special_attack_sfx "audio/gen/special_attack.wav" XGM2
+// (16/10) Robot del latigo, pizza y electrocucion de las tortugas:
+//   rodney_lasso    0,440s  rms 29,3%   el robot tira el latigo
+//   rodney_shoot    0,456s  rms 21,1%   el robot dispara el laser
+//   rodney_stop     0,161s  rms 34,4%   el robot frena (derrape) y se da vuelta
+//   get_pizza       0,620s  rms 27,4%   una tortuga agarra la pizza
+//   shock_pain      0,693s  rms 28,3%   una tortuga electrocutada (CH1: es voz)
+WAV rodney_lasso_sfx   "audio/gen/rodney_lasso.wav" XGM2
+WAV rodney_shoot_sfx   "audio/gen/rodney_shoot.wav" XGM2
+WAV rodney_stop_sfx    "audio/gen/rodney_stop.wav" XGM2
+WAV get_pizza_sfx      "audio/gen/get_pizza.wav" XGM2
+WAV shock_pain_vo      "audio/gen/shock_pain.wav" XGM2
 
 // forzando ejecucion
+
+// (18/10) Auto de los foot soldiers de la autopista (5-1) y ascensor del
+// Technodrome (8-1). Llegaron MONO 8-bit 16000 Hz y bajos (pico 25% / 9%,
+// rms 6% / 3%); tools/gen_sfx_arcade.py los pasa a la convencion de la casa
+// en audio/gen/. Los originales quedan en audio/.
+//   car_highway          0,960s  rms 24,0%   pasa el auto (CH3, una vez)
+//   elevator_tecnodrome  8,015s  rms 32,9%   en LOOP (CH2) mientras baja el
+//                                            ascensor; se corta al llegar
+WAV car_highway_sfx         "audio/gen/car_highway.wav" XGM2
+WAV elevator_tecnodrome_sfx "audio/gen/elevator_tecnodrome.wav" XGM2

@@ -22,7 +22,8 @@ IMAGE title_menu4 "/images/intro_tmnt/genesis/title_menu4.png" NONE ALL
 // (09/10) La cabecita de cursor del arte nuevo (24x16), misma paleta que
 // title_menu_bg (PAL0). Reemplaza a title_scene/selector_turtle.png.
 SPRITE title_cursor "/images/intro_tmnt/genesis/title_cursor.png" 3 2 NONE 0
-SPRITE sega_logo_sprite "/images/title_scene/sega_logo.png" 17 10 FAST 8
+// (16/10) SACADO (sin uso):
+// SPRITE sega_logo_sprite "/images/title_scene/sega_logo.png" 17 10 FAST 8
 
 // --- Seleccion de personaje (08/10) ---
 // Cortados de "hud/select player_15 CORES.png" por tools/gen_char_select.py.

@@ -79,8 +79,9 @@ SPRITE hud_2p "images/hud/hud_2p.png" 9 4 NONE 0
 // fila) con el fondo local del marco (filas 9-10 = borde claro, fila 11 =
 // sombra) y dibujando el glifo nuevo con el color de la tortuga + sombra.
 // Misma paleta y mismas 4 filas de color -> NO llevan PALETTE propia.
-SPRITE hud_3p "images/hud/hud_3p.png" 9 4 NONE 0
-SPRITE hud_4p "images/hud/hud_4p.png" 9 4 NONE 0
+// (16/10) SACADOS (sin uso: el HUD de 3-4 jugadores es el compartido):
+// SPRITE hud_3p "images/hud/hud_3p.png" 9 4 NONE 0
+// SPRITE hud_4p "images/hud/hud_4p.png" 9 4 NONE 0
 // (06/10) HUD de 3-4 jugadores: el contorno compartido y los carteles
 // "1UP".."4UP" (tools/gen_hud4_shared.py). El contorno va optimizado por
 // TILES (28 en vez de 35): los cuatro marcos usan esos mismos tiles.

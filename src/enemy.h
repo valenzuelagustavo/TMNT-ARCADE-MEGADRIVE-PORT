@@ -94,6 +94,13 @@
 #define ENEMY_HP_YELLOW    4    // (29/09) El del boomerang: como el morado
 #define MAX_ACTIVE_ENEMIES  4    // Foot soldiers vivos al mismo tiempo (tope de spawn)
 #define ENEMY_INVINCIBLE    20
+// (16/10) VIBRACION al recibir un golpe (peso del impacto): durante
+// ENEMY_SHAKE_TICKS frames el sprite se corre en X alternando de lado cada
+// frame, ENEMY_SHAKE_AMP px los primeros y 1 px los ultimos
+// ENEMY_SHAKE_SOFT_TICKS. Es SOLO visual: e->x no cambia (hitbox igual).
+#define ENEMY_SHAKE_TICKS       8
+#define ENEMY_SHAKE_AMP         2
+#define ENEMY_SHAKE_SOFT_TICKS  3
 
 // ---------------------------------------------------------------------------
 // Animaciones del spritesheet del foot soldier (orden de filas en Aseprite).
@@ -726,6 +733,7 @@ typedef struct {
     u16         timer;
     s16         hp;
     u8          invincible;
+    u8          shake;        // (16/10) frames de vibracion que quedan (ver enemyShakeX)
     u8          palette;      // Línea de paleta normal del sprite (PAL0..PAL3)
     u8          type;         // ENEMY_TYPE_FOOT_SOLDIER / _ORANGE / _WHITE
 
@@ -893,6 +901,9 @@ void setEnemyCamera(Enemy* e, s16 camX);
 void setEnemyBounds(Enemy* e, s16 laneTop, s16 laneBottom,
                     s16 wallXTop, s16 wallXBottom, s16 levelW);
 bool damageEnemy(Enemy* e, s16 dmg);
+// (16/10) Desplazamiento en X de la vibracion del golpe: sumarlo a la X de
+// pantalla en cada SPR_setPosition del soldier.
+s16 enemyShakeX(const Enemy* e);
 // (27/09) Llamar despues del golpe de una tortuga que lo MATO: lo lanza
 // alejandolo de 'fromX' (el centro de la tortuga; si coinciden, hacia donde
 // ella mira). 'special' = el especial, que lo lanza mas lejos.

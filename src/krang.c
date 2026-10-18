@@ -331,6 +331,8 @@ void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
                 beams[i].hitMask |= bit;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 playerHitBarsKnockdown(pls[k], beams[i].x, KRANG_BOLT_DMG);
+                // (16/10) El rayo electrocuta: "turtles shock pain" (CH1, voz).
+                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH1, 12, FALSE, FALSE);
             }
         }
         for (u16 g = 0; g < KRANG_BEAM_SEGS; g++) {

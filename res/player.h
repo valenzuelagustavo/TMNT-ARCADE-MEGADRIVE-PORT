@@ -52,15 +52,21 @@ typedef enum {
     ANIM_ATTACK_4     = 22,  // Combo paso 4 (finalizador)
     ANIM_JUMP_KICK_DIR = 23, // Golpe en el aire con direccion (el otro es
                              // ANIM_JUMP_KICK, sin direccion)
-    ANIM_THROW        = 24   // (09/10) La llave: agarra al foot soldier y lo
+    ANIM_THROW        = 24,  // (09/10) La llave: agarra al foot soldier y lo
                              // tira por encima del hombro. Se dibuja ESPEJADA
                              // (la tortuga le da la espalda al que agarra).
+    ANIM_MOUSER_BITE  = 25   // (18/10) Un Mouser le muerde el brazo (3 frames:
+                             // sacude el brazo de arriba a abajo). Los frames
+                             // van A MANO: cada boton que toca el jugador
+                             // avanza uno (ver GRAB_TYPE_MOUSER). Hoy solo la
+                             // hoja de Leo la trae; las demas caen a ANIM_HELD.
 } PlayerAnim;
 
 // Hoja NUEVA (09/10): trae ANIM_ATTACK_4 y ANIM_JUMP_KICK_DIR. Las hojas viejas
 // (Mike y Raph, que solo salen en el modo de 4) llegan hasta ANIM_MANHOLE.
 #define PLAYER_NEW_SHEET_ANIMS  24
 #define playerHasNewSheet(p)    ((p)->numAnims >= PLAYER_NEW_SHEET_ANIMS)
+#define playerHasBiteAnim(p)    ((p)->numAnims > ANIM_MOUSER_BITE)
 
 // ---------------------------------------------------------------------------
 // Estados lógicos del personaje
@@ -426,6 +432,8 @@ typedef enum {
 // mientras lo sostienen — y tiene un tope de seguridad por tiempo).
 #define GRAB_TYPE_WHIP   0   // robot: anim WHIP_SHOCK con auto-animación
 #define GRAB_TYPE_FOOT   1   // foot soldier: anim HELD manual (frames 0-2)
+#define GRAB_TYPE_MOUSER 2   // (18/10) Mouser prendido del brazo: ANIM_MOUSER_BITE,
+                             // un frame por cada boton (sin la hoja: ANIM_HELD)
 #define PLAYER_HELD_LOOP_TICKS 12  // Frames entre pasos del loop de HELD 0→1→2
 #define PLAYER_HELD_HIT_FRAMES 8   // Frames mostrando el frame 3 (golpe en el agarre)
 
@@ -620,6 +628,11 @@ typedef struct {
     u8          arcBuf;      // 1 = se apreto el golpe durante este golpe
     u8          arcLink;     // frames de espera en la ultima pose
     void*       arcTarget;   // el Enemy que recibio el ultimo golpe (la llave)
+    // --- Cartel "toca los botones" (18/10) ---
+    u8          palIdx;      // linea de paleta del sprite (la de initPlayer)
+    Sprite*     hitBtnSpr;   // hit_buttons arriba de la cabeza (solo agarrada
+                             // por la espalda por un foot soldier), o NULL
+    u8          hitBtnT;     // ticks para alternar sus dos frames
 } Player;
 
 // ---------------------------------------------------------------------------
@@ -812,6 +825,15 @@ void playerElectroDrain(Player* p);
 // loop manual; el frame 3 solo al recibir un golpe en pleno agarre). La tortuga
 // se zafa masheando A/B/C (grabTimer) o si alguien le pega al soldier.
 void playerFootGrab(Player* p);
+
+// (18/10) Mordida de un Mouser (baxter.c): mismo agarre con mash, pero con
+// ANIM_MOUSER_BITE y el frame avanzando con cada boton que toca el jugador
+// (cuanto mas rapido toca, mas rapido sacude el brazo).
+void playerMouserGrab(Player* p);
+
+// (18/10) TRUE mientras un foot soldier la tiene agarrada POR LA ESPALDA
+// (GRAB_TYPE_FOOT): lo usa el cartel de "toca los botones" (hit_buttons).
+bool playerIsFootGrabbed(const Player* p);
 
 // Suelta a la tortuga de CUALQUIER agarre: vuelve a STATE_IDLE con i-frames
 // para que no la vuelvan a agarrar en el acto. La llaman enemy.c (le pegaron

@@ -74,6 +74,12 @@ static void sfxHit(void) {
     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
 }
 
+// (16/10) Golpe de la tortuga a un foot soldier que no es Enemy (las motos y
+// el de la bomba): el mismo "hit foot" que suena en damageEnemy.
+static void sfxHitFoot(void) {
+    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+}
+
 // --- Explosiones (la del TNT, PAL2) -----------------------------------------
 #define BOOM_MAX     3
 #define BOOM_T      42      // 7 frames de 6
@@ -117,6 +123,10 @@ static void boomUpdate(s16 camX) {
 #define CAR_HIT_X0      10
 #define CAR_HIT_X1     182
 #define CAR_BARS         2
+// (18/10) car_highway_sfx (0,96 s) suena UNA vez cuando el centro del auto
+// cruza este X de pantalla: medio auto ya a la vista, y el golpe de sonido
+// (fuerte al principio, se apaga) acompana la pasada por el medio.
+#define CAR_SFX_X        0
 enum { CAR_RED = 0, CAR_BLUE = 1, CAR_YELLOW = 2 };
 // Los que saltan de cada auto (arcade): rojo 4 morados, azul 3 del martillo,
 // amarillo 2 morados.
@@ -127,6 +137,7 @@ static struct {
     u8 on; u8 color; s16 x; u8 acc; Sprite* s[2];
     u8 left;        // los que todavia tienen que saltar
     u8 gap; u8 hitMask;
+    u8 sfx;         // (18/10) ya sono car_highway_sfx en esta pasada
 } car;
 
 static void carRelease(void) {
@@ -147,6 +158,7 @@ static bool carStart(u8 color, s16 camX) {
     }
     car.on = 1; car.color = color; car.x = (s16)(camX - CAR_W); car.acc = 0;
     car.left = carRiders[color]; car.gap = CAR_LEAP_GAP; car.hitMask = 0;
+    car.sfx = 0;
     return TRUE;
 }
 
@@ -157,6 +169,11 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
         car.x = (s16)(car.x + (s16)(t >> 8));
         // Los soldiers saltan del auto.
         s16 sc = (s16)(car.x + CAR_W / 2 - camX);
+        if (!car.sfx && sc >= CAR_SFX_X) {
+            car.sfx = 1;
+            XGM2_playPCMEx(car_highway_sfx, sizeof(car_highway_sfx),
+                           SOUND_PCM_CH3, 13, FALSE, FALSE);
+        }
         if (car.gap) car.gap--;
         if (car.left && !car.gap && sc >= CAR_LEAP_X0 && sc <= CAR_LEAP_X1) {
             s16 lx = (s16)(car.x + 50 + (s16)(random() % 90));
@@ -270,7 +287,7 @@ static void bikesUpdate(Player** pls, u8 nPl, s16 camX) {
         bool dead = FALSE;
         for (u8 k = 0; k < nPl; k++) {
             if (!playerAttackHitsBox(pls[k], cx, bike[i].y, BIKE_HALF_W, BIKE_BODY_H)) continue;
-            sfxHit();
+            sfxHitFoot();
             boomAt(cx, bike[i].y);
             addPlayerScore(pls[k], 1);
             dead = TRUE;
@@ -550,7 +567,7 @@ static void thrUpdate(Player** pls, u8 nPl, s16 camX) {
         if (thr[i].cd) thr[i].cd--;
         else for (u8 k = 0; k < nPl; k++) {
             if (!playerAttackHitsBox(pls[k], thr[i].x, thr[i].y, THR_HALF_W, THR_BODY_H)) continue;
-            sfxHit();
+            sfxHitFoot();
             thr[i].cd = THR_HIT_CD;
             if (--thr[i].hp == 0) {
                 boomAt(thr[i].x, thr[i].y);
@@ -668,6 +685,8 @@ static void pizzaUpdate(Player** pls, u8 nPl, s16 camX) {
             if (fx < PZ_X + PZ_BOX_X0 - PZ_PICK_DX || fx > PZ_X + PZ_BOX_X1 + PZ_PICK_DX) continue;
             if (a16((s16)(p->y - PZ_FEET)) > PZ_PICK_DY) continue;
             p->health = PLAYER_MAX_HEALTH;
+            // (16/10) "get pizza" del arcade.
+            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
             pzSt = PZ_OPEN; pzT = 0;
             break;
         }

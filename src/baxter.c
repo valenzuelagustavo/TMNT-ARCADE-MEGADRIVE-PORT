@@ -1,5 +1,5 @@
 #include "baxter.h"
-#include "audio.h"    // hit_turtles, foot_soldier_explode
+#include "audio.h"    // hit_turtles, foot_soldier_explode, mouser_hit_sfx
 #include "enemy.h"    // sprVramFits / sprDefragLock (30/09)
 
 // ===========================================================================
@@ -64,6 +64,7 @@ typedef struct {
     s16      x;            // centro (mundo)
     s16      y;            // pies (lane)
     s16      z;            // altura (caida y salto), solo visual
+    s16      zThrow;       // (18/10) altura al salir despedida: cae en arco desde ahi
     s8       dir;
     u16      timer;
     u8       accX, accY, accZ;
@@ -206,6 +207,7 @@ static void ratFling(BaxterRat* r, s8 dir) {
     r->timer = 0;
     r->dir   = (s8)-dir;                 // mira hacia quien le pego
     r->accX  = 0;
+    r->zThrow = (r->z > 0) ? r->z : 0;   // (18/10) desde el brazo: cae en arco
     ratSetAnim(r, RAT_ANIM_HURT, FALSE);
 }
 
@@ -397,7 +399,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                     if (!playerCanBeHit(p) || playerIsGrabbed(p)) continue;
                     if (xabs(getPlayerHurtCX(p) - r->x) > RAT_BITE_DX) continue;
                     if (xabs(getPlayerY(p) - r->y) > RAT_BITE_DY) continue;
-                    playerFootGrab(p);
+                    playerMouserGrab(p);     // (18/10) mordida del brazo (mash)
                     if (!playerIsGrabbed(p)) continue;
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                    SOUND_PCM_CH2, 15, FALSE, FALSE);
@@ -418,8 +420,12 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
             // suelta cuando la tortuga zafa (mash) o cae.
             Player* p = r->victim;
             if (!p || !playerIsGrabbed(p)) {
+                // (18/10) La tortuga se la saco de encima: sale despedida
+                // hacia AFUERA (el lado de la rata, -dir), cae del brazo al
+                // piso en arco y muere. Antes salia con +dir, atravesando a
+                // la tortuga.
                 r->victim = NULL;
-                ratFling(r, r->dir);
+                ratFling(r, (s8)-r->dir);
                 break;
             }
             r->x = (s16)(getPlayerHurtCX(p) - r->dir * RAT_LATCH_DX);
@@ -433,7 +439,15 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
         case RAT_HURT:
             // Despedida hacia atras y despues muere.
             r->x -= r->dir * bxStep(&r->accX, RAT_FLING_Q);
-            r->z = 0;
+            if (r->zThrow > 0 && r->timer < RAT_HURT_T) {
+                // (18/10) Arrojada desde el brazo: baja de zThrow a 0 con un
+                // saltito de RAT_THROW_H en el medio.
+                s16 t = (s16)r->timer;
+                r->z = (s16)((r->zThrow * (RAT_HURT_T - t)) / RAT_HURT_T
+                             + (4 * RAT_THROW_H * t * (RAT_HURT_T - t)) / (RAT_HURT_T * RAT_HURT_T));
+            } else {
+                r->z = 0;
+            }
             if (r->timer >= RAT_HURT_T) ratKill(r);
             break;
 
@@ -478,7 +492,8 @@ void baxterRatPlayerHits(Player** pls, u8 nPl) {
         for (u8 k = 0; k < nPl; k++) {
             if (!playerAttackHitsBox(pls[k], r->x, r->y, RAT_HALF_W, RAT_BODY_H))
                 continue;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+            // (16/10) Golpe a un Mouser: el sonido propio del arcade.
+            XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx),
                            SOUND_PCM_CH2, 15, FALSE, FALSE);
             s16 px = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
             ratFling(r, (px <= r->x) ? 1 : -1);

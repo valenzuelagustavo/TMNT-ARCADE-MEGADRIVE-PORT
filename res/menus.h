@@ -7,7 +7,6 @@ extern const Image title_menu_bg;
 extern const Image title_menu3;
 extern const Image title_menu4;
 extern const SpriteDefinition title_cursor;
-extern const SpriteDefinition sega_logo_sprite;
 extern const Image char_select_bg;
 extern const SpriteDefinition char_select_badge;
 extern const SpriteDefinition char_select_head;

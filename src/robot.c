@@ -59,6 +59,8 @@ static void robotKillLaser(Robot* r) {
 static void robotFireLaser(Robot* r) {
     if (r->laserActive) return;
     r->laserActive = TRUE;
+    // (16/10) "rodney shoot" del arcade. CH3: CH2 es de los golpes.
+    XGM2_playPCMEx(rodney_shoot_sfx, sizeof(rodney_shoot_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
     r->laserDir = r->dir;
     r->laserAcc = 0;
     // Sale de la posición del arma (centro del cuerpo) hacia 'dir'.
@@ -181,6 +183,8 @@ static void robotToFlee(Robot* r) {
 // (11/10) Frenada: primero DERRAPA con las chispas ([3]) siguiendo de largo.
 static void robotToBrake(Robot* r) {
     robotEnter(r, ROBOT_BRAKE);
+    // (16/10) "rodney stop": el derrape antes de plantarse / darse vuelta.
+    XGM2_playPCMEx(rodney_stop_sfx, sizeof(rodney_stop_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
     robotRestartAnim(r, ROBOT_ANIM_WALK, TRUE);
 }
 
@@ -249,6 +253,8 @@ void robotDamage(Robot* r, s16 dmg, s16 attackerX) {
     (void)dmg;                      // cualquier golpe saca uno
     if (!robotCanBeHit(r)) return;
     r->hp -= ROBOT_SPECIAL_DMG;
+    // (16/10) "mouser (rodney or manhole) hit" del arcade, en cualquier golpe.
+    XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
 
     // (11/10) Sale DESPEDIDO alejandose del que le pego, mirandolo. El golpe
     // final hace el mismo arco y explota al tocar el piso.
@@ -265,6 +271,8 @@ void robotDamage(Robot* r, s16 dmg, s16 attackerX) {
 // recogerlo al revés si no engancha).
 static void robotBeginThrow(Robot* r) {
     r->state = ROBOT_THROW;
+    // (16/10) "rodney lasso": sale el latigo.
+    XGM2_playPCMEx(rodney_lasso_sfx, sizeof(rodney_lasso_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
     robotRestartAnim(r, ROBOT_ANIM_WHIP_THROW, FALSE);
     SPR_setAutoAnimation(r->sprite, FALSE);   // frames a mano
     r->throwFrames = (u8)r->sprite->animation->numFrame;
@@ -430,6 +438,8 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
                 // Zumbido en loop hasta que zafe.
                 XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx),
                                SOUND_PCM_CH2, 15, FALSE, TRUE);
+                // (16/10) Y el grito de la tortuga ("turtles shock pain").
+                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH1, 12, FALSE, FALSE);
             }
             if (r->anim != ROBOT_ANIM_CAUGHT) {
                 r->electroTgl++;
@@ -447,6 +457,8 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
             if (++r->drainTimer >= fps * ROBOT_ELECTRO_SECONDS) {
                 r->drainTimer = 0;
                 playerElectroDrain(tgt);
+                // (16/10) Cada barra que pierde, grita de nuevo.
+                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH1, 12, FALSE, FALSE);
             }
             // Zafó (mashing) o cayó KO -> soltar y volver a correr.
             if (!playerIsGrabbed(tgt)) {

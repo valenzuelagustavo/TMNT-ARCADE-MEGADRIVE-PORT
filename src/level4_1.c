@@ -446,9 +446,8 @@ static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
                 if (!enemyCanBeHit(&en[e])) continue;
                 if (a16((s16)(getEnemyCenterX(&en[e]) - cx)) > in->halfW + enemyBodyHalfW(&en[e])) continue;
                 if (a16((s16)(getEnemyCenterY(&en[e]) - base)) > 14) continue;
-                damageEnemy(&en[e], CONE_ENEMY_DMG);
+                damageEnemy(&en[e], CONE_ENEMY_DMG);    // (16/10) suena hit_foot adentro
                 p->hitMask |= (u8)(1 << e);
-                sfxHit();
                 if (en[e].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                                    SOUND_PCM_CH3, 15, FALSE, FALSE);
@@ -546,6 +545,8 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
         carPlace(camX);
         sbgSetVariant(LVL41_REG_CAR, 1);       // el lugar queda vacio
         car.state = CAR_DRIVE;
+        // (16/10) El auto arrancando ("car.wav" del arcade), una sola vez.
+        XGM2_playPCMEx(car_sfx, sizeof(car_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
         break;
     }
     case CAR_DRIVE: {
@@ -669,6 +670,8 @@ static void pizzaUpdate41(Player** pls, u8 nPl, s16 camX) {
             if (fx < pzX + PZ41_BOX_X0 - PZ41_PICK_DX || fx > pzX + PZ41_BOX_X1 + PZ41_PICK_DX) continue;
             if (a16((s16)(p->y - PZ41_FEET)) > PZ41_PICK_DY) continue;
             p->health = PLAYER_MAX_HEALTH;        // toda la vida
+            // (16/10) "get pizza" del arcade.
+            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
             pzState = PZ_OPEN; pzTick = 0;
             break;
         }
