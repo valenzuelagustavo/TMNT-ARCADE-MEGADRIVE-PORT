@@ -1,4 +1,5 @@
 #include "rocksteady.h"
+#include "difficulty.h"  // (20/10) vida segun jugadores
 #include "audio.h"   // hit_turtles (sonido de patada del jefe)
 
 // ===========================================================================
@@ -173,7 +174,8 @@ void rocksteadyInit(Rocksteady* r) {
     r->sprite = NULL;
     r->state = ROCKSTEADY_INACTIVE;
     r->dir = -1;
-    r->hp = ROCKSTEADY_HP;
+    r->hp = diffBossHp(ROCKSTEADY_HP);
+    diffBossTrack(&r->hp);
     r->anim = 0xFF;
     r->slideDir = 1;
     bossFlashReset(&r->flash);
@@ -188,7 +190,8 @@ void rocksteadySpawnArena(Rocksteady* r, const RocksteadyArena* a) {
     rocksteadyInit(r);
     r->x = ra.spawnX;
     r->y = ra.spawnY;
-    r->hp = ra.hp ? ra.hp : ROCKSTEADY_HP;
+    r->hp = diffBossHp(ra.hp ? ra.hp : ROCKSTEADY_HP);
+    diffBossTrack(&r->hp);
     r->state = ROCKSTEADY_EMERGE;
     r->timer = 0;
     r->dur = ra.emergeStand;          // quieto en la puerta antes de bajar
@@ -313,7 +316,7 @@ static void rsToKnockdown(Rocksteady* r) {
     r->kdHits = 0;
     r->slideDir = (s8)-r->dir;
     r->accX = 0;
-    XGM2_stopPCM(SOUND_PCM_CH2);      // por si cae en plena embestida
+    XGM2_stopPCM(SOUND_PCM_CH3);      // por si cae en plena embestida
     // (10/10) Con el arma cae con la anim [10] (frames 3..6) y NO la suelta.
     if (r->armed) rsManual(r, ROCKSTEADY_ANIM_HURT_ARMS, 3);
     else          rsManual(r, ROCKSTEADY_ANIM_HURT, 2);
@@ -322,13 +325,13 @@ static void rsToKnockdown(Rocksteady* r) {
 static void rsToDead(Rocksteady* r) {
     r->hp = 0;
     r->state = ROCKSTEADY_DEAD;
-    XGM2_stopPCM(SOUND_PCM_CH2);
+    XGM2_stopPCM(SOUND_PCM_CH3);
     rocksteadyRestartAnim(r, ROCKSTEADY_ANIM_HURT, FALSE);
     // Grito de muerte en el instante del golpe fatal: canal PCM 1 (el de las
     // voces, 15/10), prioridad 15. El wav dura 101 frames y entra
     // justo antes de que arranque music_ending.
     XGM2_playPCMEx(boss_scream_rocksteady_vo, sizeof(boss_scream_rocksteady_vo),
-                   SOUND_PCM_CH1, 15, FALSE, FALSE);
+                   SOUND_PCM_CH2, 15, FALSE, FALSE);
 }
 
 static u8 rsRand(u8 n) { return (u8)(random() % n); }
@@ -443,7 +446,7 @@ static void rsContact(Rocksteady* r, Player** pls, u8 nPl, s16 fwd, s16 back) {
         s16 rel = (getPlayerHurtCX(p) - bcx) * r->dir;   // + = adelante
         if (rel > fwd || rel < -back) continue;
         playerHitBarsKnockdown(p, bcx, ROCKSTEADY_CONTACT_DMG);
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
     }
 }
 
@@ -561,7 +564,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             if (r->timer >= r->dur) {
                 rsEnter(r, ROCKSTEADY_CHARGE, r->duo ? 600 : RS_CHARGE_T);
                 XGM2_playPCMEx(rocksteady_charge_sfx, sizeof(rocksteady_charge_sfx),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
             }
             break;
         }
@@ -574,11 +577,11 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             if (r->x <= ra.xMin || r->x >= ra.xMax) {
                 r->duo = 0;
                 r->x = rclamp(r->x, ra.xMin, ra.xMax);
-                XGM2_stopPCM(SOUND_PCM_CH2);
+                XGM2_stopPCM(SOUND_PCM_CH3);
                 if (rsRand(2)) rsToWalk(r, RS_MODE_CHASE);
                 else           rsToIdle(r);
             } else if (r->timer >= r->dur) {
-                XGM2_stopPCM(SOUND_PCM_CH2);
+                XGM2_stopPCM(SOUND_PCM_CH3);
                 rsToIdle(r);
             }
             break;
@@ -802,7 +805,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
 
     // Parpadeo de vida baja por linea de sprite (garage).
     if (ra.flashPal && r->sprite &&
-        bossFlashStep(&r->flash, r->hp, ra.hp ? ra.hp : ROCKSTEADY_HP))
+        bossFlashStep(&r->flash, r->hp, diffBossHp(ra.hp ? ra.hp : ROCKSTEADY_HP)))
         SPR_setPalette(r->sprite, r->flash.on ? ra.flashPal : ra.pal);
 
     rocksteadyRender(r);

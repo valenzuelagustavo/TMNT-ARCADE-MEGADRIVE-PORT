@@ -66,6 +66,12 @@ static s16 s_persistHealth[MAX_PLAYERS];
 // o sin continues). Antes el nivel siguiente lo reinicializaba vivo: en 2P la
 // tortuga muerta volvia a aparecer al pasar de pantalla.
 static bool s_persistOut[MAX_PLAYERS];
+// (20/10) Para la tabla de puntajes (hiscore.c): quien jugo esta partida, con
+// que tortuga y su ultimo puntaje (se actualiza con cada punto, asi vale igual
+// si la partida termina por game over o despues de los creditos).
+static bool s_finalPlayed[MAX_PLAYERS];
+static u8   s_finalChar[MAX_PLAYERS];
+static u16  s_finalScore[MAX_PLAYERS];
 static bool s_persistInit = FALSE;
 
 static void persistEnsureInit(void) {
@@ -159,6 +165,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->airTimer      = 0;
     p->attackIsSpecial = 0;
     p->specialTick   = 0;
+    p->specialSpin   = 0;
     p->bcWindow      = 0;
     p->jumpVq        = 0;
     p->jumpZq        = 0;
@@ -193,6 +200,12 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     // P1, JOY_2 -> P2.
     p->lives         = s_persistLives[persistSlot(joyId)];
     p->score         = s_persistScore[persistSlot(joyId)];
+    {
+        u8 fs = persistSlot(joyId);
+        s_finalPlayed[fs] = TRUE;
+        s_finalChar[fs]   = p->charIndex;
+        s_finalScore[fs]  = p->score;
+    }
     p->numAnims      = (u8)spriteDef->numAnimation;   // habilita anims nuevas si la sheet las tiene
     p->grabTimer     = 0;
     p->idleTimer     = 0;
@@ -338,10 +351,10 @@ static void playJumpAttack(const Player* p) {
 static void playAttackGrunt(const Player* p) {
     if (p->charIndex == 0 || p->charIndex == 3)
         XGM2_playPCMEx(leo_raph_attack_vo, sizeof(leo_raph_attack_vo),
-                       SOUND_PCM_CH1, 8, FALSE, FALSE);
+                       SOUND_PCM_CH2, 8, FALSE, FALSE);
     else
         XGM2_playPCMEx(mike_don_attack_vo, sizeof(mike_don_attack_vo),
-                       SOUND_PCM_CH1, 8, FALSE, FALSE);
+                       SOUND_PCM_CH2, 8, FALSE, FALSE);
 }
 
 // ---------------------------------------------------------------------------
@@ -368,15 +381,30 @@ static const u8 specialFrameTicks[] = { 5, 9, 9, 9, 10 };
 static const u8 specialFrameTicksNew[] = { 4, 4, 5, 5, 4, 7, 5 };
 #define SPECIAL_TICK_TABLE_NEW ((u16)(sizeof(specialFrameTicksNew) / sizeof(specialFrameTicksNew[0])))
 
+// (20/10) Raph, boton A: el giro (ANIM_ATTACK_4 de su hoja). Todos los frames
+// menos el ultimo ruedan; el ultimo es la patada y dura mas.
+static bool playerHasRaphSpin(const Player* p) {
+    return p->charIndex == 3 && p->numAnims > ANIM_ATTACK_4 && p->sprite;
+}
+
+static u16 specialAnimOf(const Player* p) {
+    return p->specialSpin ? ANIM_ATTACK_4 : ANIM_SPECIAL;
+}
+
 static u16 specialTicksOf(const Player* p, u16 f) {
+    if (p->specialSpin) {
+        u16 nf = p->sprite->definition->animations[ANIM_ATTACK_4]->numFrame;
+        return (f + 1 >= nf) ? PLAYER_RAPH_KICK_TICKS : PLAYER_RAPH_SPIN_TICKS;
+    }
     if (playerHasNewSheet(p))
         return specialFrameTicksNew[(f < SPECIAL_TICK_TABLE_NEW) ? f : (SPECIAL_TICK_TABLE_NEW - 1)];
     return specialFrameTicks[(f < SPECIAL_TICK_TABLE) ? f : (SPECIAL_TICK_TABLE - 1)];
 }
 
 static u16 specialNumFrames(const Player* p) {
-    if (!p->sprite || p->numAnims <= ANIM_SPECIAL) return 1;
-    return p->sprite->definition->animations[ANIM_SPECIAL]->numFrame;
+    u16 anim = specialAnimOf(p);
+    if (!p->sprite || p->numAnims <= anim) return 1;
+    return p->sprite->definition->animations[anim]->numFrame;
 }
 
 // Ticks acumulados hasta el comienzo del frame 'f'.
@@ -390,6 +418,7 @@ static u16 specialTicksBefore(const Player* p, u16 f) {
 // Altura del saltito en este tick: 0 durante la preparacion, arco
 // parabolico desde que despega hasta el ultimo tick, 0 otra vez al apoyar.
 static s16 specialHopZ(const Player* p) {
+    if (p->specialSpin) return 0;          // el giro de Raph rueda por el piso
     u16 nf = specialNumFrames(p);
     s32 t0 = specialTicksBefore(p, PLAYER_SPECIAL_HOP_FROM);
     s32 tEnd = specialTicksBefore(p, nf);
@@ -421,6 +450,7 @@ static void startSpecial(Player* p) {
     p->comboLinger     = 0;
     p->attackIsSpecial = 1;
     p->specialTick     = 0;
+    p->specialSpin     = 0;
     p->bcWindow        = 0;
     p->idleTimer       = 0;
     p->idleTwice       = 0;
@@ -439,22 +469,36 @@ static void startSpecial(Player* p) {
     XGM2_playPCMEx(special_attack_sfx, sizeof(special_attack_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
+// (20/10) Raph, boton A: el giro con patada. Mismo estado que el especial
+// (mata foot soldiers de un golpe, pega mientras dura con el alcance de cada
+// frame), pero sin saltito y avanzando en X (ver specialStep).
+static void startRaphSpin(Player* p) {
+    startSpecial(p);
+    p->specialSpin = 1;
+    SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_4, 0);
+}
+
 // Un tick del especial. Devuelve TRUE cuando termino (ya quedo en IDLE).
-static bool specialStep(Player* p) {
+static bool specialStep(Player* p, s16 effRight) {
     p->specialTick++;
     u16 nf  = specialNumFrames(p);
+    u16 anim = specialAnimOf(p);
     u16 acc = 0;
     for (u16 f = 0; f < nf; f++) {
         acc += specialTicksOf(p, f);
         if (p->specialTick < acc) {
-            if (p->sprite->frameInd != (s16)f)
-                SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, (s16)f);
+            if (p->sprite->frameInd != (s16)f || p->sprite->animInd != (s16)anim)
+                SPR_setAnimAndFrame(p->sprite, (s16)anim, (s16)f);
+            // El giro de Raph rueda hacia adelante; la patada final, quieta.
+            if (p->specialSpin && f + 1 < nf)
+                p->x = clampS16(p->x + p->dir * PLAYER_RAPH_SPIN_VX, p->boundLeft, effRight);
             return FALSE;
         }
     }
     p->state           = STATE_IDLE;
     p->attackIsSpecial = 0;
     p->specialTick     = 0;
+    p->specialSpin     = 0;
     SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, TRUE);
     SPR_setAnim(p->sprite, ANIM_IDLE);
@@ -499,8 +543,35 @@ static const AtkSeq atkDon[ARC_MOVES] = {
     { ANIM_THROW,    7, { {0,4}, {1,4}, {2,3}, {3,3}, {4,4}, {5,3}, {6,3} } },
 };
 
+// (20/10) Mike, hoja nueva (rip 50887_mike.png): sus golpes tienen los
+// mismos frames que los de Leo (5/6/4/4) y la llave 7, como la de Don.
+static const AtkSeq atkMike[ARC_MOVES] = {
+    { ANIM_ATTACK_1, 5, { {0,3}, {1,3}, {2,2}, {3,3}, {4,5} } },
+    { ANIM_ATTACK_2, 6, { {0,3}, {1,3}, {2,2}, {3,2}, {4,3}, {5,4} } },
+    { ANIM_KICK,     4, { {0,4}, {1,4}, {2,8}, {1,4} } },
+    { ANIM_ATTACK_3, 4, { {0,4}, {1,2}, {2,4}, {3,6} } },
+    { ANIM_ATTACK_4, 4, { {0,4}, {1,3}, {2,3}, {3,6} } },
+    { ANIM_THROW,    7, { {0,4}, {1,4}, {2,3}, {3,3}, {4,4}, {5,3}, {6,3} } },
+};
+
+// (20/10) Raph, hoja nueva (rip 50923_RAPH.png): tres golpes con el sai
+// (3/6/3 frames) y la patada de 4. Su "Attack" 4 del rip es el giro del
+// especial (boton A), asi que el 4to golpe del combo repite la estocada
+// agachado de ATTACK_1. Los totales, los de Leo.
+static const AtkSeq atkRaph[ARC_MOVES] = {
+    { ANIM_ATTACK_1, 3, { {0,4}, {1,5}, {2,7} } },
+    { ANIM_ATTACK_2, 6, { {0,3}, {1,3}, {2,2}, {3,3}, {4,3}, {5,3} } },
+    { ANIM_KICK,     4, { {0,4}, {1,4}, {2,8}, {3,4} } },
+    { ANIM_ATTACK_3, 3, { {0,4}, {1,4}, {2,8} } },
+    { ANIM_ATTACK_1, 3, { {0,4}, {1,5}, {2,7} } },
+    { ANIM_THROW,    6, { {0,4}, {1,4}, {2,4}, {3,4}, {4,4}, {5,4} } },
+};
+
 static const AtkSeq* arcSeq(const Player* p, u8 move) {
-    return ((p->charIndex == 2) ? atkDon : atkLeo) + move;
+    if (p->charIndex == 3 && playerHasNewSheet(p)) return atkRaph + move;
+    if (p->charIndex == 2) return atkDon + move;
+    if (p->charIndex == 1) return atkMike + move;
+    return atkLeo + move;
 }
 
 static void arcSetPose(Player* p) {
@@ -524,7 +595,8 @@ static void arcStartMove(Player* p, u8 move) {
     // soldier adelante con el bo y lo revolea por arriba hacia atras. Igual en
     // los dos el soldier esta adelante y sale volando para atras; la
     // direccion (p->dir) no cambia.
-    bool mirror = (move == ARC_THROW) && (p->charIndex != 2);
+    // (20/10) Mike tampoco: engancha al soldier adelante (frame 0) y lo revolea.
+    bool mirror = (move == ARC_THROW) && (p->charIndex != 2) && (p->charIndex != 1);
     SPR_setHFlip(p->sprite, mirror ? (p->dir > 0) : (p->dir < 0));
     arcSetPose(p);
     playAttackGrunt(p);
@@ -844,7 +916,9 @@ void updatePlayer(Player* p) {
             } else if (justPressed(joy, p->prevJoy, BUTTON_A)) {
                 // ESPECIAL (A): antes disparaba ANIM_KICK; el kick queda
                 // reservado para otro uso futuro.
-                startSpecial(p);
+                // (20/10) Raph: el giro con patada (B+C sigue con el sai).
+                if (playerHasRaphSpin(p)) startRaphSpin(p);
+                else                      startSpecial(p);
             }
             break;
         }
@@ -852,7 +926,7 @@ void updatePlayer(Player* p) {
         case STATE_ATTACKING: {
             // Especial: frames y saltito a mano (ver specialStep).
             if (p->attackIsSpecial) {
-                specialStep(p);
+                specialStep(p, effRight);
                 break;
             }
             // B+C con el C un poco tarde: el primer golpe del combo se
@@ -1019,6 +1093,7 @@ void updatePlayer(Player* p) {
                     // en el frame del arma estirada (SPECIAL_HIT_FRAMES).
                     SPR_setAutoAnimation(p->sprite, FALSE);
                     SPR_setAnimationLoop(p->sprite, FALSE);
+                    p->specialSpin = 0;     // el giro en el aire es el del arma
                     SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
                     p->airTimer = 0;
                     playAttackGrunt(p);         // golpe normal: el grunido, no el "Attack!!"
@@ -1028,7 +1103,12 @@ void updatePlayer(Player* p) {
                     // vez, quedando en el ultimo frame hasta aterrizar.
                     SPR_setAutoAnimation(p->sprite, TRUE);
                     SPR_setAnimationLoop(p->sprite, FALSE);
-                    SPR_setAnimAndFrame(p->sprite, fuerte ? ANIM_JUMP_KICK_DIR : ANIM_JUMP_KICK, 0);
+                    // (20/10) Raph: la patada voladora con direccion
+                    // (JUMP_KICK_DIR) es tambien la de media altura; su
+                    // JUMP_KICK queda para lo mas bajo del salto.
+                    bool dirAnim = fuerte ||
+                        (p->charIndex == 3 && p->jumpZ >= PLAYER_RAPH_LOW_KICK_Z);
+                    SPR_setAnimAndFrame(p->sprite, dirAnim ? ANIM_JUMP_KICK_DIR : ANIM_JUMP_KICK, 0);
                 } else {
                 SPR_setAnim(p->sprite, ANIM_JUMP_KICK);
                 {
@@ -1407,6 +1487,24 @@ s16 getPlayerHurtX(const Player* p) {
     return (s16)(getPlayerHurtCX(p) - PLAYER_SPRITE_W / 2);
 }
 
+// (21/10) Jefes: la lane tiene que estar dentro de SU alcance (ver player.h).
+static bool bossLaneOk(const Player* p, s16 targetFeetY, s16 tolUp, s16 tolDown) {
+    s16 dy = (s16)(p->y - targetFeetY);
+    return (dy >= -tolUp && dy <= tolDown);
+}
+
+bool playerAttackHitsBoss(const Player* p, s16 targetCX, s16 targetFeetY,
+                          s16 targetHalfW, s16 targetBodyH, s16 tolUp, s16 tolDown) {
+    if (!bossLaneOk(p, targetFeetY, tolUp, tolDown)) return FALSE;
+    return playerAttackHitsBox(p, targetCX, targetFeetY, targetHalfW, targetBodyH);
+}
+
+bool playerAttackHitsBossBand(const Player* p, s16 targetCX, s16 targetFeetY,
+                              s16 targetHalfW, s16 yTop, s16 yBot, s16 tolUp, s16 tolDown) {
+    if (!bossLaneOk(p, targetFeetY, tolUp, tolDown)) return FALSE;
+    return playerAttackHitsBand(p, targetCX, targetFeetY, targetHalfW, yTop, yBot);
+}
+
 bool playerAttackHitsBand(const Player* p, s16 targetCX, s16 targetFeetY,
                           s16 targetHalfW, s16 yTop, s16 yBot) {
     if (!isPlayerAttackActive(p))
@@ -1555,7 +1653,15 @@ static const KdStep kdDonNew[] = {
     { ANIM_HIT_3, 5, 3, 0 }, { ANIM_HIT_3, 6, 3, 0 }, { ANIM_HIT_3, 7, 3, 0 },
     { ANIM_GET_UP_1, 0, 4, 0 }, { ANIM_GET_UP_1, 1, 4, 0 },
 };
-// Hojas viejas (Mike y Raph en el modo de 4): HIT_3 de 6 + GET_UP_1 de 4.
+// (20/10) Mike, hoja nueva: como Don, vuela con f0-1 (los dos del rip ya en
+// el aire) el mismo tiempo total; despues 6 en el piso y GET_UP_1 de 3.
+static const KdStep kdMikeNew[] = {
+    { ANIM_HIT_3, 0, 3, 1 }, { ANIM_HIT_3, 1, 15, 1 },
+    { ANIM_HIT_3, 2, 3, 0 }, { ANIM_HIT_3, 3, 3, 0 }, { ANIM_HIT_3, 4, 3, 0 },
+    { ANIM_HIT_3, 5, 4, 0 }, { ANIM_HIT_3, 6, 3, 0 }, { ANIM_HIT_3, 7, 3, 0 },
+    { ANIM_GET_UP_1, 0, 3, 0 }, { ANIM_GET_UP_1, 1, 3, 0 }, { ANIM_GET_UP_1, 2, 3, 0 },
+};
+// Hojas viejas (Raph en el modo de 4): HIT_3 de 6 + GET_UP_1 de 4.
 static const KdStep kdOld[] = {
     { ANIM_HIT_3, 0, 3, 1 }, { ANIM_HIT_3, 1, 8, 1 }, { ANIM_HIT_3, 2, 7, 1 },
     { ANIM_HIT_3, 3, 4, 0 }, { ANIM_HIT_3, 4, 4, 0 }, { ANIM_HIT_3, 5, 5, 0 },
@@ -1566,7 +1672,9 @@ static const KdStep kdOld[] = {
 
 static const KdStep* kdTable(const Player* p, u8* n) {
     if (playerHasNewSheet(p)) {
-        if (p->charIndex == 2) { *n = KD_N(kdDonNew); return kdDonNew; }
+        // (20/10) Raph: su HIT_3 es como el de Don (8 + levantada de 2).
+        if (p->charIndex == 2 || p->charIndex == 3) { *n = KD_N(kdDonNew); return kdDonNew; }
+        if (p->charIndex == 1) { *n = KD_N(kdMikeNew); return kdMikeNew; }
         *n = KD_N(kdLeoNew); return kdLeoNew;
     }
     *n = KD_N(kdOld); return kdOld;
@@ -1745,7 +1853,7 @@ static void playerEnterKO(Player* p) {
     // disparo hit_turtles en el 2 y asi se escuchan los dos (impacto + grito)
     // en vez de que este pise al otro.
     XGM2_playPCMEx(lost_life_turtles_vo, sizeof(lost_life_turtles_vo),
-                   SOUND_PCM_CH1, 12, FALSE, FALSE);
+                   SOUND_PCM_CH2, 12, FALSE, FALSE);
     p->state      = STATE_KO;
     p->koTimer    = PLAYER_KO_FRAMES;
     p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
@@ -1923,6 +2031,25 @@ void playerHitBars(Player* p, s16 attackerX, u8 bars) {
 void playerHitProjectile(Player* p, s16 attackerX, u8 bars) {
     if (!playerCanBeHitAir(p)) return;
     playerTakeHit(p, attackerX, bars, FALSE);   // balas: golpe liviano
+}
+
+// (18/10) Llamarada del lanzallamas de Granitor. Mismo golpe liviano que un
+// proyectil (resta las barras y corta lo que estuviera haciendo), pero en vez
+// del HIT la tortuga queda QUIETA con la cabeza carbonizada (ANIM_BURN, 2
+// frames en loop) PLAYER_BURN_FRAMES, sin empuje. Sale por STATE_HURT como
+// cualquier golpe (hurtTimer en 0 + fin de la vuelta de la anim).
+#define PLAYER_BURN_FRAMES  45
+void playerBurnHit(Player* p, s16 attackerX, u8 bars) {
+    if (!playerCanBeHitAir(p)) return;
+    playerTakeHit(p, attackerX, bars, FALSE);
+    if (p->state != STATE_HURT || !playerHasBurnAnim(p)) return;   // KO, o sin la anim
+    p->hurtDir    = 0;                       // sin empuje: se queda donde estaba
+    p->hurtTimer  = PLAYER_BURN_FRAMES;
+    if (p->invincible < PLAYER_BURN_FRAMES + PLAYER_HURT_INVINCIBLE)
+        p->invincible = PLAYER_BURN_FRAMES + PLAYER_HURT_INVINCIBLE;
+    SPR_setAutoAnimation(p->sprite, TRUE);
+    SPR_setAnimationLoop(p->sprite, TRUE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_BURN, 0);
 }
 
 // Golpe fuerte que DERRIBA (patada de Rocksteady): cae de espaldas, queda
@@ -2131,6 +2258,7 @@ void addPlayerScore(Player* p, u16 points) {
     // PLAYER_MAX_LIVES: las vidas del HUD son UN digito.
     u16 before = p->score;
     p->score += points;
+    s_finalScore[persistSlot(p->joyId)] = p->score;   // (20/10) tabla de puntajes
     if (dificultad == DIFICULTAD_NORMAL) {
         u16 gained = (u16)(p->score / PLAYER_EXTRA_LIFE_PTS - before / PLAYER_EXTRA_LIFE_PTS);
         u8 livesBefore = p->lives;
@@ -2157,6 +2285,17 @@ void playerPersistClearOut(const Player* p) {
     s_persistOut[persistSlot(p->joyId)] = FALSE;
 }
 
+bool playerFinalPeek(u8 k, u16* score, u8* ch) {
+    if (k >= MAX_PLAYERS || !s_finalPlayed[k]) return FALSE;
+    *score = s_finalScore[k];
+    *ch    = s_finalChar[k];
+    return TRUE;
+}
+
+void playerFinalClear(void) {
+    for (u8 i = 0; i < MAX_PLAYERS; i++) s_finalPlayed[i] = FALSE;
+}
+
 void playerPersistPeek(u8 k, u8* lives, u16* score, s16* health, bool* out) {
     persistEnsureInit();
     if (k >= MAX_PLAYERS) k = 0;
@@ -2175,6 +2314,8 @@ void playerPersistSetHealth(u8 k, s16 health) {
 void playerPersistReset(void) {
     s_persistInit = TRUE;
     for (u8 i = 0; i < MAX_PLAYERS; i++) {
+        s_finalPlayed[i]   = FALSE;
+        s_finalScore[i]    = 0;
         s_persistLives[i]  = vidasIniciales;
         s_persistScore[i]  = 0;
         s_persistHealth[i] = PLAYER_MAX_HEALTH;

@@ -36,13 +36,20 @@
 // generador del nivel arma sus propios BIN: los tiles (4bpp, como SGDK) y un
 // mapa u16 con el indice en los bits 0-11 y los flips corridos 2 bits a la
 // izquierda de donde los pone SGDK (H en el bit 13, V en el 14).
-#define SBG_RAW_INDEX_MASK  0x0FFF
+// (21/10, nieve) El indice pasa a 13 bits (bit 12 incluido, que estaba libre:
+// ningun mapa existente lo usa): hasta 8192 tiles en ROM. El tope real lo
+// pone SBG_MAX_TILES en stage_bg.c (RAM de la tabla tile -> slot).
+#define SBG_RAW_INDEX_MASK  0x1FFF
 #define SBG_RAW_FLIP_SHIFT  2
 typedef struct {
     const u32* tiles;
     const u16* map;
     u16        w, h;          // en tiles
     const Palette* pal;       // 16 colores
+    // (18/10) Opcional: DICCIONARIO DE COLUMNAS (tools/stage_raw.py build_cols).
+    // Si no es NULL, 'map' son las columnas unicas (h celdas seguidas cada
+    // una) y colOff[c] el desplazamiento (en u16) de la columna c de la imagen.
+    const u16* colOff;
 } SbgRaw;
 
 // img: IMAGE de rescomp (NONE). plane/pal: donde y con que paleta se dibuja.
@@ -59,7 +66,16 @@ void sbgInitRaw(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
 // sobre un plano circular de 64x32. Mapa en formato ancho; el indice 0 es el
 // vacio (tile 0, transparente, no ocupa cache). Una instancia por vez: no se
 // mezcla con sbgInit/sbgInitRaw.
-void sbgInitRaw2D(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
+// (18/10) El mapa va POR BLOQUES de 8x8 celdas (SbgBlk2D): el plano entero
+// del Technodrome (411 KB) pasaba la ROM de los 4 MB que ve la consola.
+typedef struct {
+    const u32* tiles;
+    const u16* blocks;        // bloques unicos, 64 celdas (formato ancho) cada uno
+    const u8*  bidx;          // bloque de cada (fila, columna) de bloques
+    u16        w, h;          // en celdas (multiplos de 8; h <= 512)
+    const Palette* pal;
+} SbgBlk2D;
+void sbgInitRaw2D(const SbgBlk2D* map, VDPPlane plane, u16 pal, u16 vramBase,
                   u16 slots, s16 camX, s16 camY);
 void sbgUpdate2D(s16 camX, s16 camY);
 

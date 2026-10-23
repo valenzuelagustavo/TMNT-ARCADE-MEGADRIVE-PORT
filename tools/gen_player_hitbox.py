@@ -48,10 +48,11 @@ BANDS = CELL // BAND
 NONE  = -128        # centinela: esa franja no tiene un solo pixel opaco
 
 # (09/10) Leo y Don con las hojas nuevas (tools/gen_players_new.py).
+# (20/10) Mike tambien (rip 50887_mike.png).
 CHARS = [("leo",  "players/leo_new_13x13.png"),
-         ("mike", "mike_anim_13x13.png"),
+         ("mike", "players/mike_new_13x13.png"),
          ("don",  "players/don_new_13x13.png"),
-         ("raph", "raph_anim_13x13.png")]
+         ("raph", "players/raph_new_13x13.png")]   # (20/10) rip 50923_RAPH.png
 
 # Animaciones que pueden golpear, en el orden en que van a la tabla.
 # (indice en PlayerAnim, nombre)
@@ -63,7 +64,11 @@ KICK_ANIMS = (2, 7, 23)     # KICK y JUMP_KICK(_DIR): pega el pie, no el arma
 KICK_IGNORE = [4, 10, 13]   # sombra y grises del arma (paleta unica)
 # (09/10) Hojas nuevas: el especial (el giro) solo pega en el frame del arma
 # estirada adelante. El resto de sus frames queda en PHB_NONE.
-SPECIAL_HIT_FRAMES = {"leo": [5], "don": [5]}
+SPECIAL_HIT_FRAMES = {"leo": [5], "don": [5], "mike": [5], "raph": [5]}   # Mike: el nunchaku estirado adelante; Raph: el sai
+# (20/10) Raph: su fila ATTACK_4 es el GIRO del especial del boton A (rueda y
+# termina con una patada). (20/10, pedido de Gustavo) Solo pega la PATADA
+# final (frame 7); mientras rueda no hace dano.
+SPIN_HIT_FRAMES = {"raph": [7]}
 # (09/10) Desplazamiento en X de cada frame (tools/gen_players_new.py): el
 # motor corre el sprite, asi que el alcance se mide con ese corrimiento.
 OFFSETS = os.path.join(SPR, "players", "offsets.json")
@@ -118,6 +123,8 @@ def measure(path, name=None, offs=None):
                 dx = offs[anim][c]
             bands = [b + dx if b != NONE else NONE for b in bands]
             if anim == 10 and name in SPECIAL_HIT_FRAMES and c not in SPECIAL_HIT_FRAMES[name]:
+                bands = [NONE] * BANDS
+            if anim == 22 and name in SPIN_HIT_FRAMES and c not in SPIN_HIT_FRAMES[name]:
                 bands = [NONE] * BANDS
             frames.append(bands)
         data[anim] = frames

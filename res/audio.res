@@ -85,6 +85,10 @@ XGM2 music_boss      "music/06 - Fight!.vgm"
 //   18 - VS. Shredder  51,8 s, loop 37,2 s
 XGM2 music_vs_krang    "music/17 - VS. Krank.vgm"
 XGM2 music_vs_shredder "music/18 - VS. Shredder.vgm"
+// (20/10) Pistas extra del sound test, se desbloquean con A B A C A B B en la
+// pantalla de cantidad de jugadores (scenes.c, soundExtra).
+XGM2 music_shogun   "music/20 - Shogun.vgm"
+XGM2 music_winter   "music/21 - Winter's Here.vgm"
 
 // Jingle de nivel completado (4s, SIN punto de loop -> hay que reproducirlo con
 // XGM2_setLoopNumber(0) ANTES del play, si no el driver lo repite). Declarado y
@@ -292,4 +296,10 @@ WAV shock_pain_vo      "audio/gen/shock_pain.wav" XGM2
 //   elevator_tecnodrome  8,015s  rms 32,9%   en LOOP (CH2) mientras baja el
 //                                            ascensor; se corta al llegar
 WAV car_highway_sfx         "audio/gen/car_highway.wav" XGM2
-WAV elevator_tecnodrome_sfx "audio/gen/elevator_tecnodrome.wav" XGM2
+// (18/10) A MEDIA FRECUENCIA (6650 Hz, se toca con halfRate en level8_1.c):
+// son 8 s en loop y a 13300 ocupaban 106 KB; con eso la ROM pasaba los 4 MB.
+// (18/10) LOOP CORTO: 4 ciclos (1,617 s) de elevator_tecnodrome.wav con volumen
+// parejo y el empalme fundido (tools/gen_elevator_loop.py), ya a 6650 Hz y con
+// 42 x 256 muestras exactas (sin relleno de silencio en el loop). 10,5 KB en
+// vez de 53,5 KB.
+WAV elevator_tecnodrome_sfx "audio/gen/elevator_tecnodrome_loop.wav" XGM2 6650

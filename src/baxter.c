@@ -1,4 +1,5 @@
 #include "baxter.h"
+#include "difficulty.h"  // (20/10) vida segun jugadores
 #include "audio.h"    // hit_turtles, foot_soldier_explode, mouser_hit_sfx
 #include "enemy.h"    // sprVramFits / sprDefragLock (30/09)
 
@@ -402,7 +403,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                     playerMouserGrab(p);     // (18/10) mordida del brazo (mash)
                     if (!playerIsGrabbed(p)) continue;
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
                     r->state  = RAT_LATCH;
                     r->victim = p;
                     r->drain  = RAT_DRAIN_T;
@@ -494,7 +495,7 @@ void baxterRatPlayerHits(Player** pls, u8 nPl) {
                 continue;
             // (16/10) Golpe a un Mouser: el sonido propio del arcade.
             XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
             s16 px = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
             ratFling(r, (px <= r->x) ? 1 : -1);
             addPlayerScore(pls[k], 1);
@@ -520,7 +521,8 @@ void baxterInit(Baxter* b) {
     b->sprite     = NULL;
     for (u16 q = 0; q < BAXTER_BOOM_PARTS; q++) b->boomSprite[q] = NULL;
     b->state      = BAXTER_INACTIVE;
-    b->hp         = BAXTER_HP;
+    b->hp         = diffBossHp(BAXTER_HP);
+    diffBossTrack(&b->hp);
     b->anim       = 0xFF;
 }
 
@@ -543,7 +545,8 @@ void baxterSpawn(Baxter* b, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 lane
     if (b->ampY > BAXTER_AMP_Y) b->ampY = BAXTER_AMP_Y;
     // Entra en diagonal desde abajo a la derecha.
     b->state = BAXTER_ENTER;
-    b->hp    = BAXTER_HP;
+    b->hp    = diffBossHp(BAXTER_HP);
+    diffBossTrack(&b->hp);
     b->x     = (s16)(arenaRight + 40);
     b->y     = (s16)(b->cy + BAXTER_ENTER_DY);
     b->accX = b->accY = 0;
@@ -692,7 +695,7 @@ bool baxterPlayerHits(Baxter* b, Player** pls, u8 nPl, s8* killer) {
                                     BAXTER_HALF_W))
             continue;
         // Cualquier golpe saca uno.
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
         b->hp -= 1;
         b->hurtFlash = BAXTER_INVULN;
         b->invuln    = BAXTER_INVULN;

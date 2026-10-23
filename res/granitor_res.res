@@ -14,3 +14,7 @@
 // =============================================================================
 SPRITE granitor_boss  "sprites/granitor_boss.png"  18 18 NONE 8
 SPRITE granitor_flame "sprites/granitor_flame.png"  4  4 NONE 6
+// (18/10) granitor_boom 64x64: la explosion de Krang (krang_boom_gen.png) en
+// la paleta de Granitor, solo los cuartos de la izquierda (anim 0 arriba,
+// 1 abajo; 8 frames). tools/gen_factory_fx.py. Para la muerte (en cadena).
+SPRITE granitor_boom  "sprites/granitor_boom_gen.png" 8 8 NONE 0

@@ -33,6 +33,8 @@ static void robotRender(Robot* r) {
     s16 fl = r->x - (flip ? (ROBOT_FRAME_W - ROBOT_BODY_CX) : ROBOT_BODY_CX);
     SPR_setHFlip(r->sprite, flip);
     SPR_setPosition(r->sprite, fl - r->cameraOffsetX, r->y - ROBOT_FOOT_OFFSET - r->z);
+    // (21/10) Titila mientras es invulnerable.
+    SPR_setVisibility(r->sprite, (r->invuln & 4) ? HIDDEN : AUTO_FAST);
     SPR_setDepth(r->sprite, -(r->y));
 }
 
@@ -231,7 +233,7 @@ void robotSpawn(Robot* r, s16 centerX, s16 spawnY) {
     robotRender(r);
     // Grito del robot al salir del suelo. CH2: SOUND_PCM_CH4 NO existe en el
     // driver XGM2 (solo hay 3 canales PCM reales) y corrompia el comando.
-    XGM2_playPCMEx(robot_twip_sfx, sizeof(robot_twip_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(robot_twip_sfx, sizeof(robot_twip_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
 bool robotIsActive(const Robot* r) {
@@ -243,7 +245,8 @@ bool robotCanBeHit(const Robot* r) {
     // una tortuga enganchada (el agarre se suelta solo cuando ella zafa).
     return (r->state != ROBOT_INACTIVE && r->state != ROBOT_GONE &&
             r->state != ROBOT_APPEAR && r->state != ROBOT_HURT &&
-            r->state != ROBOT_DEAD && r->state != ROBOT_GRAB);
+            r->state != ROBOT_DEAD && r->state != ROBOT_GRAB &&
+            r->invuln == 0);
 }
 
 s16 robotGetCenterX(const Robot* r) { return r->x; }
@@ -254,7 +257,7 @@ void robotDamage(Robot* r, s16 dmg, s16 attackerX) {
     if (!robotCanBeHit(r)) return;
     r->hp -= ROBOT_SPECIAL_DMG;
     // (16/10) "mouser (rodney or manhole) hit" del arcade, en cualquier golpe.
-    XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
 
     // (11/10) Sale DESPEDIDO alejandose del que le pego, mirandolo. El golpe
     // final hace el mismo arco y explota al tocar el piso.
@@ -292,6 +295,7 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
     if (r->state == ROBOT_INACTIVE || r->state == ROBOT_GONE || !r->sprite) return;
     r->cameraOffsetX = cameraX;
     r->timer++;
+    if (r->invuln) r->invuln--;
 
     // Jugador objetivo: el MAS CERCANO en X, entre los que haya (1..4). Los
     // que estan sin vidas no cuentan (salvo que no quede nadie).
@@ -437,9 +441,9 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
                 SPR_setFrame(r->sprite, r->grabFrame);
                 // Zumbido en loop hasta que zafe.
                 XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx),
-                               SOUND_PCM_CH2, 15, FALSE, TRUE);
+                               SOUND_PCM_CH3, 15, FALSE, TRUE);
                 // (16/10) Y el grito de la tortuga ("turtles shock pain").
-                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH1, 12, FALSE, FALSE);
+                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
             }
             if (r->anim != ROBOT_ANIM_CAUGHT) {
                 r->electroTgl++;
@@ -458,11 +462,11 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
                 r->drainTimer = 0;
                 playerElectroDrain(tgt);
                 // (16/10) Cada barra que pierde, grita de nuevo.
-                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH1, 12, FALSE, FALSE);
+                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
             }
             // Zafó (mashing) o cayó KO -> soltar y volver a correr.
             if (!playerIsGrabbed(tgt)) {
-                XGM2_stopPCM(SOUND_PCM_CH2);
+                XGM2_stopPCM(SOUND_PCM_CH3);
                 robotToFlee(r);
             }
             break;
@@ -498,6 +502,7 @@ void robotUpdateN(Robot* r, s16 cameraX, Player** pls, u8 nPl, u16 fps) {
                 }
             } else if (r->timer >= ROBOT_HURT_T + ROBOT_DOWN_T) {
                 r->dir = toward;
+                r->invuln = ROBOT_INVULN_T;     // (21/10) ver ROBOT_INVULN_T
                 robotToFlee(r);
             }
             break;

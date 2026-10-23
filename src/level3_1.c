@@ -40,6 +40,9 @@
 #include "player.h"
 
 #define SCREEN_W            320
+// (18/10) Tope de la vereda: 96 + los 8 px que se bajo la colision (ver
+// SIDEWALK_DY en tools/gen_level3_1.py), para no pisar la pared.
+#define LVL31_WALK_MIN      104
 #define LVL31_W            1248
 #define LVL31_LEDGE_TOP     160     // ultima Y de pies de la vereda
 #define LVL31_LEDGE_BOT     190     // primera Y de pies del canal (29/09: +1 tile)
@@ -215,7 +218,8 @@ static struct { u8 on, hole, left; u16 t; } swHole[SW_HOLE_MAX];
 // La hoja mira a la IZQUIERDA: corriendo a la derecha se espeja.
 #define SW_RAT_N          3
 #define SW_RAT_W         32
-#define SW_RAT_TOP       77     // borde de arriba del sprite (mundo) = 124 - 15 - 32
+#define SW_RAT_TOP       85     // borde de arriba del sprite (mundo) = 124 - 15 - 32, +8 (18/10:
+                                // mas abajo, sobre la vereda; ver LVL31_WALK_MIN)
 #define SW_RAT_SPEED_Q  400     // 1,56 px/f (8.8)
 #define SW_RAT_ANIM_T     4     // frames de juego por cuadro de la corrida
 #define SW_RAT_MAX_LIFE 1800    // red de seguridad: se suelta igual a los 30 s
@@ -378,7 +382,7 @@ static void swHolesUpdate(void) {
         s16 hx = swHoles[swHole[i].hole][0], hy = swHoles[swHole[i].hole][1];
         // Cae a una lane de la vereda, cerca de la pared.
         s16 top = stageWalkTopAt(hx);
-        if (top < 96) top = 96;
+        if (top < LVL31_WALK_MIN) top = LVL31_WALK_MIN;
         s16 land = (s16)(top + 4 + (s16)(random() % 24));
         if (land > LVL31_LEDGE_TOP) land = LVL31_LEDGE_TOP;
         s16 x = (s16)(hx - 8 + (s16)(random() % 16));
@@ -494,7 +498,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
 
     // (13/10) Mousers de los huecos (con Baxter los mueve bossUpdate31).
     if (!swBoss) {
-        baxterRatSetArena(camX, (s16)(camX + SCREEN_W), 96, 216);   // como con Baxter
+        baxterRatSetArena(camX, (s16)(camX + SCREEN_W), LVL31_WALK_MIN, 216);   // como con Baxter
         swHolesUpdate();
         baxterRatUpdateAll(pls, nPl, camX, stageWalkTopAt);
         baxterRatPlayerHits(pls, nPl);
@@ -539,7 +543,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
             if (dx < 0) dx = (s16)-dx;
             if (dy < 0) dy = (s16)-dy;
             if (dx >= SW_MIS_HALF_X || dy >= SW_MIS_TOL_Y) continue;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             playerHitProjectile(p, swMis[i].x, SW_MIS_DMG);
             hit = TRUE;
         }
@@ -603,7 +607,7 @@ static void bossInit31(void) {
 static void bossStart31(s16 camX, s16 levelW) {
     (void)levelW;
     swBoss = TRUE;
-    baxterSpawn(&baxter, (s16)(camX + 16), (s16)(camX + SCREEN_W - 16), 96, 216);
+    baxterSpawn(&baxter, (s16)(camX + 16), (s16)(camX + SCREEN_W - 16), LVL31_WALK_MIN, 216);
     // (14/10) Sin voice over: el "I'm invincible!" es de Krang, no de Baxter
     // (estaba mal asignado). El tema del jefe lo arranca stage_level al
     // entrar (bossMusicByVo = FALSE).
@@ -640,7 +644,7 @@ static const StageLevel level31 = {
     .levelW       = LVL31_W,
     .walkTop      = lvl31WalkTop,
     .walkCols     = LVL31_COLS,
-    .walkYMin     = 96,             // tope de la vereda (pies)
+    .walkYMin     = LVL31_WALK_MIN, // tope de la vereda (pies)
     .walkYMax     = 216,            // piso del canal
     .ledgeTop     = LVL31_LEDGE_TOP,
     .ledgeBot     = LVL31_LEDGE_BOT,
@@ -662,7 +666,7 @@ static const StageLevel level31 = {
     .levelRelease = swRelease,
     .specialSpawn = swSpecial,
     .specialAlive = swSpecialAlive,
-    .nextScene    = SCENE_4_1_TITLE,
+    .nextScene    = SCENE_CUT_SHREDDER_APRIL,   // (18/10) fin de la SCENE 2
 };
 
 SceneId showScene31() {

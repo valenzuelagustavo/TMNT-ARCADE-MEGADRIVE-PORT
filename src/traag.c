@@ -1,5 +1,8 @@
 #include "traag.h"
+#include "difficulty.h"  // (20/10) vida segun jugadores
 #include "audio.h"    // boss_hit, hit_turtles, foot_soldier_explode
+#include "enemy.h"    // sprDefragLock
+#include "baxter_res.h"  // baxter_boom (la explosion del misil)
 
 // ===========================================================================
 // TRAAG + BOMBAS — ver traag.h
@@ -46,9 +49,20 @@ static struct {
     u8      accX;
 } bombs[MAX_TRAAG_MISSILES];
 
+// (21/10) La explosion es la de la muerte de Baxter: 128x128 en cuatro
+// cuartos de 64x64 (baxter_boom, fila = cuarto). (21/10) Con su PROPIA
+// paleta en PAL2: en el Technodrome PAL2 es la de los soldiers, y la pelea
+// con Traag arranca recien sin soldiers vivos y no entran mas (traagSpawn la
+// carga). Se arma con los dos de la
+// izquierda y sus espejos (128 tiles), o si no entra con uno solo y sus tres
+// espejos (64): los
+// espejos apuntan a la VRAM de su dueno, asi que mientras haya explosiones no
+// se desfragmenta (sprDefragLock).
+#define BOOM_PARTS 4
 static struct {
     bool    active;
-    Sprite* sprite;
+    Sprite* part[BOOM_PARTS];
+    u8      anim[BOOM_PARTS];
     s16     x, lane;
     u8      frame, tick, t;
     u8      hitMask;       // jugadores ya alcanzados
@@ -56,31 +70,96 @@ static struct {
 
 static void missileInitAll(void) {
     for (u16 i = 0; i < MAX_TRAAG_MISSILES; i++) { bombs[i].active = FALSE; bombs[i].sprite = NULL; }
-    for (u16 i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) { booms[i].active = FALSE; booms[i].sprite = NULL; }
+    for (u16 i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) {
+        booms[i].active = FALSE;
+        for (u16 q = 0; q < BOOM_PARTS; q++) booms[i].part[q] = NULL;
+    }
+}
+
+static Sprite* boomMaster(u16 anim) {
+    Sprite* s = SPR_addSpriteEx(&baxter_boom, -128, -128,
+                                TILE_ATTR(PAL2, FALSE, FALSE, FALSE),
+                                SPR_FLAG_AUTO_VISIBILITY | SPR_FLAG_AUTO_VRAM_ALLOC |
+                                SPR_FLAG_AUTO_TILE_UPLOAD |
+                                SPR_FLAG_DISABLE_DELAYED_FRAME_UPDATE);
+    if (s) {
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, (s16)anim, 0);
+    }
+    return s;
+}
+
+static Sprite* boomMirror(const Sprite* m, u16 anim, bool hflip, bool vflip) {
+    if (!m) return NULL;
+    u16 idx = m->attribut & TILE_INDEX_MASK;
+    Sprite* s = SPR_addSpriteEx(&baxter_boom, -128, -128,
+                                TILE_ATTR_FULL(PAL2, FALSE, FALSE, FALSE, idx),
+                                SPR_FLAG_AUTO_VISIBILITY);
+    if (s) {
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, (s16)anim, 0);
+        SPR_setHFlip(s, hflip);
+        SPR_setVFlip(s, vflip);
+    }
+    return s;
+}
+
+static void boomRelease(u16 i) {
+    for (u16 q = 0; q < BOOM_PARTS; q++)
+        if (booms[i].part[q]) { SPR_releaseSprite(booms[i].part[q]); booms[i].part[q] = NULL; }
+    booms[i].active = FALSE;
+    bool any = FALSE;
+    for (u16 j = 0; j < MAX_TRAAG_EXPLOSIONS; j++) if (booms[j].active) any = TRUE;
+    if (!any) sprDefragLock = 0;
+}
+
+static void boomCreate(u16 i) {
+    Sprite** sp = booms[i].part;
+    u8* an = booms[i].anim;
+    sprDefragLock = 1;
+    const u16 T = baxter_boom.maxNumTile;
+    // Arranca en la mitad (no los 4 cuartos como Baxter): en el Technodrome
+    // la cola de DMA ya va cargada con el mapa, y 4 cuartos son 8 KB por
+    // cambio de frame (se vio un frame con la explosion a pedazos).
+    if (SPR_getFreeVRAM() >= 2 * T) {
+        sp[0] = boomMaster(0);
+        sp[2] = boomMaster(2);
+        if (sp[0] && sp[2]) {
+            sp[1] = boomMirror(sp[0], 0, TRUE, FALSE);
+            sp[3] = boomMirror(sp[2], 2, TRUE, FALSE);
+            an[0] = an[1] = 0;
+            an[2] = an[3] = 2;
+            return;
+        }
+        for (u16 q = 0; q < BOOM_PARTS; q++)
+            if (sp[q]) { SPR_releaseSprite(sp[q]); sp[q] = NULL; }
+    }
+    sp[0] = boomMaster(0);
+    if (!sp[0]) return;                 // sin VRAM: solo el sonido y el dano
+    sp[1] = boomMirror(sp[0], 0, TRUE,  FALSE);
+    sp[2] = boomMirror(sp[0], 0, FALSE, TRUE);
+    sp[3] = boomMirror(sp[0], 0, TRUE,  TRUE);
+    for (u16 q = 0; q < BOOM_PARTS; q++) an[q] = 0;
 }
 
 static void boomAt(s16 x, s16 lane) {
-    for (u16 i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) {
-        if (booms[i].active) continue;
-        if (!booms[i].sprite)
-            booms[i].sprite = SPR_addSprite(&traag_explosao, -48, -48,
-                                            TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
-        booms[i].active  = TRUE;
-        booms[i].x       = x;
-        booms[i].lane    = lane;
-        booms[i].frame   = 0;
-        booms[i].tick    = 0;
-        booms[i].t       = 0;
-        booms[i].hitMask = 0;
-        if (booms[i].sprite) {
-            SPR_setAutoAnimation(booms[i].sprite, FALSE);
-            SPR_setAnimAndFrame(booms[i].sprite, 0, 0);
-            SPR_setVisibility(booms[i].sprite, VISIBLE);
-        }
-        XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                       SOUND_PCM_CH3, 13, FALSE, FALSE);
-        return;
+    u16 i;
+    for (i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) if (!booms[i].active) break;
+    if (i >= MAX_TRAAG_EXPLOSIONS) {
+        // Las dos ocupadas: la mas vieja deja lugar.
+        i = (booms[0].t >= booms[1].t) ? 0 : 1;
+        boomRelease(i);
     }
+    booms[i].active  = TRUE;
+    booms[i].x       = x;
+    booms[i].lane    = lane;
+    booms[i].frame   = 0;
+    booms[i].tick    = 0;
+    booms[i].t       = 0;
+    booms[i].hitMask = 0;
+    boomCreate(i);
+    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                   SOUND_PCM_CH3, 13, FALSE, FALSE);
 }
 
 static void bombHide(u16 i) {
@@ -132,18 +211,13 @@ void traagMissileUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
     }
     for (u16 i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) {
         if (!booms[i].active) continue;
-        booms[i].t++;
-        if (++booms[i].tick >= TRAAG_EXPL_TICKS) {
+        if (booms[i].t < 255) booms[i].t++;
+        if (++booms[i].tick >= TRAAG_BOOM_TICKS) {
             booms[i].tick = 0;
-            if (booms[i].frame < 6) {
-                booms[i].frame++;
-                if (booms[i].sprite) SPR_setFrame(booms[i].sprite, booms[i].frame);
-            }
-        }
-        if (booms[i].t > TRAAG_EXPL_TICKS * 7 + 4) {
-            booms[i].active = FALSE;
-            if (booms[i].sprite) SPR_setVisibility(booms[i].sprite, HIDDEN);
-            continue;
+            if (++booms[i].frame >= TRAAG_BOOM_FRAMES) { boomRelease(i); continue; }
+            for (u16 q = 0; q < BOOM_PARTS; q++)
+                if (booms[i].part[q])
+                    SPR_setAnimAndFrame(booms[i].part[q], booms[i].anim[q], booms[i].frame);
         }
         // La explosion alcanza al principio (una vez a cada tortuga).
         if (booms[i].t <= TRAAG_EXPL_HIT_T) {
@@ -154,14 +228,18 @@ void traagMissileUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (gabs((s16)(px - booms[i].x)) >= TRAAG_EXPL_HALF_W) continue;
                 if (gabs((s16)(getPlayerY(pls[k]) - booms[i].lane)) > TRAAG_EXPL_TOL_Y) continue;
                 booms[i].hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 playerHitBarsKnockdown(pls[k], booms[i].x, TRAAG_EXPL_DMG);
             }
         }
-        if (booms[i].sprite) {
-            SPR_setPosition(booms[i].sprite, booms[i].x - camX - 16,
-                            booms[i].lane - 24 - camY);
-            SPR_setDepth(booms[i].sprite, (s16)(-(booms[i].lane) - 2));
+        // Centro del lienzo de 128x128 a media altura sobre el piso.
+        s16 bx = (s16)(booms[i].x - camX - TRAAG_BOOM_HALF);
+        s16 by = (s16)(booms[i].lane - 40 - camY - TRAAG_BOOM_HALF);
+        for (u16 q = 0; q < BOOM_PARTS; q++) {
+            if (!booms[i].part[q]) continue;
+            SPR_setPosition(booms[i].part[q], (s16)(bx + (q & 1) * TRAAG_BOOM_HALF),
+                            (s16)(by + (q >> 1) * TRAAG_BOOM_HALF));
+            SPR_setDepth(booms[i].part[q], (s16)(-(booms[i].lane) - 2));
         }
     }
 }
@@ -171,10 +249,7 @@ void traagMissileReleaseAll(void) {
         if (bombs[i].sprite) { SPR_releaseSprite(bombs[i].sprite); bombs[i].sprite = NULL; }
         bombs[i].active = FALSE;
     }
-    for (u16 i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) {
-        if (booms[i].sprite) { SPR_releaseSprite(booms[i].sprite); booms[i].sprite = NULL; }
-        booms[i].active = FALSE;
-    }
+    for (u16 i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) boomRelease(i);
 }
 
 // ---------------------------------------------------------------------------
@@ -187,7 +262,7 @@ void traagInit(Traag* g) {
     g->sprite = NULL;
     g->state = TRAAG_INACTIVE;
     g->dir = -1;
-    g->hp = TRAAG_HP;
+    g->hp = diffBossHp(TRAAG_HP); diffBossTrack(&g->hp);
     g->anim = 0xFF;
     g->laneTop = 142; g->laneBot = 196;
     g->topAt = NULL;
@@ -199,12 +274,15 @@ void traagSpawn(Traag* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBo
     for (u16 i = 0; i < 16; i++) traagPal[i] = traag_boss.palette->data[i];
     bossFlashBurn(traagPal, traagPalBurn);
     PAL_setPalette(PAL3, traagPal, DMA);
+    // (21/10) PAL2 (la de los soldiers, que ya no quedan): la explosion de
+    // Baxter con sus colores.
+    PAL_setPalette(PAL2, baxter_boom.palette->data, DMA);
     bossFlashReset(&g->flashLow);
     if (!g->sprite)
         g->sprite = SPR_addSpriteSafe(&traag_boss, -160, -160,
                                       TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
     g->state = TRAAG_ENTER;
-    g->hp = TRAAG_HP;
+    g->hp = diffBossHp(TRAAG_HP); diffBossTrack(&g->hp);
     g->xq = (s16)((arenaRight + 56) * 4);
     g->yq = (s16)(((laneTop + laneBot) / 2) * 4);
     g->dir = -1;
@@ -273,7 +351,7 @@ static void traagKill(Traag* g) {
     g->blinks = 0;
     PAL_setPalette(PAL3, traagPal, DMA);
     traagManual(g, TRAAG_ANIM_DAMAGE, TRAAG_DMG_FLASH);
-    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
 bool traagPlayerHits(Traag* g, Player** pls, u8 nPl, s8* killer) {
@@ -281,14 +359,17 @@ bool traagPlayerHits(Traag* g, Player** pls, u8 nPl, s8* killer) {
     s16 gx = (s16)(g->xq >> 2);
     s16 gy = (s16)(g->yq >> 2);
     for (u8 k = 0; k < nPl; k++) {
-        if (!playerAttackHitsBox(pls[k], gx, gy, TRAAG_BODY_HALF_W, TRAAG_BODY_H)) continue;
+        if (!playerAttackHitsBoss(pls[k], gx, gy, TRAAG_BODY_HALF_W, TRAAG_BODY_H,
+                                  TRAAG_HIT_DY_UP, TRAAG_HIT_DY_DOWN)) continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? TRAAG_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? TRAAG_JUMPKICK_DMG : 1);
         // (16/10) Rock soldier: el "hit foot (hit rock soldier)" del arcade.
-        XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
         g->hp -= dmg;
         g->flash = 8;
         g->invuln = TRAAG_HURT_TICKS;
+        if (g->chain < 255) g->chain++;      // (21/10) golpes seguidos
+        g->chainT = 0;
         if (g->hp <= 0) {
             traagKill(g);
             if (killer) *killer = (s8)k;
@@ -338,6 +419,8 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
     g->timer++;
     if (g->flash)    g->flash--;
     if (g->invuln)   g->invuln--;
+    if (g->chainT < 0xFFFF) g->chainT++;
+    if (g->chainT > TRAAG_CHAIN_RESET_T) g->chain = 0;
 
     switch (g->state) {
 
@@ -405,7 +488,7 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (gabs((s16)(kx - hx)) >= TRAAG_PUNCH_HIT_W) continue;
                 s16 ky = (s16)(getPlayerY(pls[k]) - y);
                 if (ky < -TRAAG_HIT_DY_UP || ky > TRAAG_HIT_DY_DOWN) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 playerHitBarsKnockdown(pls[k], x, TRAAG_PUNCH_DMG);
             }
         }
@@ -414,7 +497,19 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
     }
 
     case TRAAG_HURT:
-        if (g->timer >= TRAAG_HURT_TICKS) traagAfterAction(g, alignY);
+        if (g->timer < TRAAG_HURT_TICKS) break;
+        if (g->chain >= TRAAG_COUNTER_HITS && gameOn) {
+            // (21/10) CONTRAATAQUE: se da vuelta hacia el que tiene mas
+            // cerca y le tira el culatazo ya levantando el arma (mientras
+            // dura el culatazo no se le puede pegar: ver traagCanBeHit).
+            g->chain = 0;
+            g->dir = (dX >= 0) ? 1 : -1;
+            traagEnter(g, TRAAG_PUNCH);
+            g->timer = TRAAG_COUNTER_SKIP;
+            traagManual(g, TRAAG_ANIM_PUNCH, 0);
+            break;
+        }
+        traagAfterAction(g, alignY);
         break;
 
     case TRAAG_DEATH:
@@ -451,7 +546,7 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
     }
 
     // Parpadeo de vida baja (PAL3 es solo suya y de sus bombas).
-    if (g->state != TRAAG_DEATH && bossFlashStep(&g->flashLow, g->hp, TRAAG_HP))
+    if (g->state != TRAAG_DEATH && bossFlashStep(&g->flashLow, g->hp, diffBossHp(TRAAG_HP)))
         PAL_setPalette(PAL3, g->flashLow.on ? traagPalBurn : traagPal, DMA);
 
     // Arena y lane (con la pared del nivel).

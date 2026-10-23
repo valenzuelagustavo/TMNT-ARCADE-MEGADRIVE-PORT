@@ -49,7 +49,9 @@
 
 #define KRANG_FRAME_W     144
 #define KRANG_FOOT_OFFSET 144
-#define KRANG_BODY_HALF_W  20
+// (21/10) 20 -> 26: con 20 la patada voladora le tocaba el brazo/costado y no
+// pasaba nada (el torso del arte, sin los brazos, mide ~52 px).
+#define KRANG_BODY_HALF_W  26
 #define KRANG_BODY_H      110
 
 #define KRANG_HP           40
@@ -95,6 +97,13 @@
 #define KRANG_BEAM_HIT_MAX 132    // altura de una tortuga
 #define KRANG_BOLT_DY       6
 #define KRANG_BOLT_DMG      2
+// (21/10) El laser tiene PRIORIDAD sobre la patada voladora: desde que se le
+// prenden los ojos (frame 1 de la anim, KRANG_LASER_EYES_T) hasta el final,
+// la tortuga que le llega con la patada a la CABEZA (franja KRANG_HEAD_TOP..
+// KRANG_HEAD_BOT sobre los pies) recibe el rayo y el no.
+#define KRANG_LASER_EYES_T 12
+#define KRANG_HEAD_TOP    124
+#define KRANG_HEAD_BOT     84
 
 // Puno cohete
 #define KRANG_ARM_T        48

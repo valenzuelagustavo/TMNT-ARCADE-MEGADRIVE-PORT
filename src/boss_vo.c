@@ -47,7 +47,7 @@ void bossVoUpdate(void) {
             // (15/10) CH1 es el canal de las VOCES: ningun efecto lo usa, y las
             // voces de las tortugas en pelea van con prioridad menor (8/12),
             // asi que nada la corta.
-            XGM2_playPCMEx(pendingVo, pendingLen, SOUND_PCM_CH1, 15, FALSE, FALSE);
+            XGM2_playPCMEx(pendingVo, pendingLen, SOUND_PCM_CH2, 15, FALSE, FALSE);
             pendingVo = NULL;
         }
         return;

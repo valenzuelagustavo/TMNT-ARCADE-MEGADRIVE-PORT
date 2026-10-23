@@ -549,6 +549,17 @@
                                     // (dentro del alcance del uppercut, 24px)
 #define MORADO_GOAL_TOL         4   // Tolerancia al llegar a ese punto (≈1 paso)
 #define MORADO_FLANK_TIMEOUT   90   // Frames intentando flanquear antes de encarar
+// (22/10) RODEAR: si el morado esta del lado de ADELANTE de la tortuga (a
+// menos de MORADO_CIRCLE_RANGE) y tiene que llegar a su espalda, no la cruza
+// por la misma lane: baja MORADO_CIRCLE_DY (+ 0..MORADO_CIRCLE_JITTER, por
+// soldier) por debajo de sus pies, cruza por delante y del otro lado vuelve a
+// subir. Mientras rodea el flankTimer no corre.
+#define MORADO_CIRCLE_RANGE    96
+#define MORADO_CIRCLE_DY       20
+#define MORADO_CIRCLE_JITTER   15   // mascara: 0..15
+#define MORADO_CIRCLE_READY     6   // cruza recien con la Y a esto de la de rodeo
+#define MORADO_CIRCLE_CLEAR    12   // del otro lado y a esto del centro: termino
+#define MORADO_CIRCLE_FACE     10   // frame 12/1 (de espaldas) a menos de esto en X
 
 // Naranja (ENEMY_TYPE_FOOT_SOLDIER_ORANGE): NO kitea ni se aleja del jugador.
 // A distancia lanza shurikens (solo se acerca caminando si el jugador está
@@ -750,10 +761,17 @@ typedef struct {
     u8          attackType;   // ENEMY_ATTACK_PUNCH / KICK / FRONT / SHURIKEN
     u8          attackHit;    // 1 = este ataque ya conectó (un golpe por swing)
     u8          hitToggle;    // alterna las 3 anims de golpe recibido (0/1/2)
+    u8          hurtPose;     // (21/10) blanco: pose del golpe recibido (0, 1 o 3)
     u8          attackCooldown; // Frames hasta poder volver a atacar (0 = listo)
     u8          target;       // Jugador asignado: 0 = P1, 1 = P2
     u8          retargetTimer; // Frames hasta la próxima re-evaluación de target
     u8          flankTimer;   // Morado: frames intentando flanquear (fallback por timeout)
+    // (22/10) Morado RODEANDO a la tortuga para llegar a su espalda: 0 = no,
+    // 1 = por DEBAJO (pasa por delante, se lo ve de espaldas: fila 12),
+    // 2 = por arriba (sin lugar abajo: caminata normal). circleDY: cuanto
+    // baja/sube respecto de los pies de la tortuga (sorteado por soldier).
+    u8          circling;
+    u8          circleDY;
 
     // --- Animaciones nuevas del morado (31/07) ---
     s16         w;            // Ancho del frame (px, según el tipo)

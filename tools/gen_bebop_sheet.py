@@ -36,6 +36,8 @@ import sys
 import numpy as np
 from PIL import Image
 
+import boss_shadow   # (22/10) sombra a los pies
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPR = os.path.join(ROOT, "res", "sprites")
 
@@ -193,6 +195,7 @@ def main():
     a = np.asarray(im).astype(np.uint8)
     body, rings = split_rings(a)
     grid, cw, ch = build_grid(cut_frames(body))
+    grid = boss_shadow.add(grid, cw, ch)     # (22/10) sombra a los pies
     save(grid, DST, im)
     # Los aros ya vienen con la paleta del jefe (mismo PNG): no hay remapeo.
     save(build_shot(rings), DST_SHOT, im)

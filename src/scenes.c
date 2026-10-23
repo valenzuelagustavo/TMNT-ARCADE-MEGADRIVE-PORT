@@ -7,6 +7,7 @@
 #include "audio.h"   // music_sega, golpe, music_level1, music_level2, music_boss, music_charselect, music_profiles, music_credits, music_ending
 #include "player.h"  // sistema del jugador (incluye chars.h internamente)
 #include "enemy.h"   // sistema de enemigos (incluye enemies.h → foot_soldier)
+#include "difficulty.h"  // (20/10) oleadas y jefes segun jugadores
 #include "robot.h"   // robot del látigo (mini-jefe del final; robot_whip, whip_waves)
 #include "hud.h"     // HUD compartido (marcos, retratos, barra de vida, puntaje)
 #include "pause_menu.h" // pausa con START del control 1 + selector de niveles (26/09)
@@ -834,7 +835,7 @@ static void ironBallUpdate(IronBall* b, s16 cameraX, Player** pls, u8 nPl) {
         s16 pcx = getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2;
         if (!playerCanBeHit(pls[k])) continue;
         if (!ironBallHits(b, pcx, getPlayerY(pls[k]))) continue;
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
         damagePlayer(pls[k], b->x);
     }
 
@@ -1686,6 +1687,15 @@ static const u16 secretSeq[SECRET_LEN] = {
 };
 static bool secret4P = FALSE;
 
+// (20/10) A B A C A B B: suena el "COWABUNGA!" y el sound test de OPCIONES
+// suma dos pistas (BGM20 Shogun y BGM21 Winter's Here). Igual que los otros
+// codigos, dura hasta apagar la consola.
+#define SNDCODE_LEN  7
+static const u16 sndCodeSeq[SNDCODE_LEN] = {
+    BUTTON_A, BUTTON_B, BUTTON_A, BUTTON_C, BUTTON_A, BUTTON_B, BUTTON_B
+};
+static bool soundExtra = FALSE;
+
 // (27/09) CODIGO KONAMI: prende el selector de niveles de la pausa (ver
 // pause_menu.h). Arriba y abajo tambien mueven el cursor del menu, no
 // importa: lo que cuenta es la secuencia. B y A no hacen nada en este menu.
@@ -1778,6 +1788,7 @@ SceneId showPlayerSelect() {
     u16 prev = 0;
     u8  secretStep = 0;   // progreso dentro de secretSeq
     u16 konamiLast[KONAMI_LEN] = { 0 };   // ultimas entradas (la mas nueva al final)
+    u16 sndLast[SNDCODE_LEN] = { 0 };     // (20/10) idem para A B A C A B B
 
     // Modo ATRACTO: si nadie toca nada durante PLAYER_SELECT_IDLE_SECS, la
     // pantalla se va sola a los perfiles de las tortugas (SCENE_PROFILES), que
@@ -1816,7 +1827,7 @@ SceneId showPlayerSelect() {
                     secret4P   = TRUE;
                     secretStep = 0;
                     XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                   SOUND_PCM_CH1, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
                     menuDraw4P(TRUE);
                 }
             }
@@ -1844,7 +1855,30 @@ SceneId showPlayerSelect() {
                 if (match && in == konamiSeq[KONAMI_LEN - 1]) {
                     pauseSetLevelSelect(TRUE);
                     XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                   SOUND_PCM_CH1, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                }
+            }
+        }
+
+        // --- (20/10) A B A C A B B: pistas extra del sound test ---
+        if (!soundExtra) {
+            u16 in = 0;
+            if      (justPressedJoy(value, prev, BUTTON_A)) in = BUTTON_A;
+            else if (justPressedJoy(value, prev, BUTTON_B)) in = BUTTON_B;
+            else if (justPressedJoy(value, prev, BUTTON_C)) in = BUTTON_C;
+            else if (justPressedJoy(value, prev, BUTTON_UP | BUTTON_DOWN | BUTTON_LEFT | BUTTON_RIGHT))
+                in = BUTTON_UP;                 // una direccion corta el codigo
+            if (in) {
+                bool match = TRUE;
+                for (u16 i = 0; i < SNDCODE_LEN - 1; i++) {
+                    sndLast[i] = sndLast[i + 1];
+                    if (sndLast[i] != sndCodeSeq[i]) match = FALSE;
+                }
+                sndLast[SNDCODE_LEN - 1] = in;
+                if (match && in == sndCodeSeq[SNDCODE_LEN - 1]) {
+                    soundExtra = TRUE;
+                    XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
                 }
             }
         }
@@ -1893,7 +1927,7 @@ SceneId showPlayerSelect() {
         // musica con XGM2_play, que reinicia el driver y cortaria el PCM a
         // mitad. 1,22s a 60fps ≈ 73 frames; se dejan 78 de margen.
         XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                       SOUND_PCM_CH1, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, FALSE, FALSE);
         for (u16 t = 0; t < COWABUNGA_HOLD_FRAMES; t++) {
             SPR_update();
             SYS_doVBlankProcess();
@@ -1989,8 +2023,12 @@ static const u8* const soundTracks[] = {
     music_stage2_1, music_scene_clear, music_level3, music_garage,
     music_scene_clear2, music_freeway, music_skate, music_techno_cutscene,
     music_technodrome, music_vs_krang, music_vs_shredder,   // (17/10) BGM17, BGM18
+    music_shogun, music_winter,      // (20/10) BGM20, BGM21: solo con A B A C A B B
 };
+#define SOUND_TRACK_EXTRA  2
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
+// Pistas que se pueden elegir (las extra, con el codigo).
+#define SOUND_TRACK_AVAIL  (soundExtra ? SOUND_TRACK_COUNT : SOUND_TRACK_COUNT - SOUND_TRACK_EXTRA)
 
 // Que hace cada boton en cada TYPE (mismo orden que controlTipo, player.c).
 static const char* const optPadText[CONTROL_TIPOS][3] = {
@@ -2026,7 +2064,10 @@ static void optDrawPad(void) {
 
 static void optDrawSound(u8 trackIdx, bool playing) {
     char buf[9] = "BGM01   ";
+    // El numero es el del archivo: las extra son 20 y 21 (el 19 es el jingle
+    // de KONAMI, que no esta en el sound test).
     u8 n = trackIdx + 1;
+    if (trackIdx >= SOUND_TRACK_COUNT - SOUND_TRACK_EXTRA) n++;
     buf[3] = (char)('0' + n / 10);
     buf[4] = (char)('0' + n % 10);
     if (playing) { buf[6] = 'O'; buf[7] = 'N'; }
@@ -2139,7 +2180,7 @@ SceneId showOptions() {
                 break;
             case OPT_ROW_SOUNDTEST:
                 if (dir) {
-                    trackIdx = optWrap(trackIdx, dir, 0, SOUND_TRACK_COUNT - 1);
+                    trackIdx = optWrap(trackIdx, dir, 0, (u8)(SOUND_TRACK_AVAIL - 1));
                     // setLoopNumber(-1) SIEMPRE antes del play: el driver
                     // latchea el loop en el instante del play.
                     if (sndPlaying) {
@@ -2790,18 +2831,15 @@ SceneId showScene21Title() {
 }
 
 // ---------------------------------------------------------------------------
-// 7 ter. Títulos de las SCENE 3 a 9 (cloaca, garage, freeway, skate,
-// fabrica, Technodrome, sala final) (26-27/09)
+// 7 ter. Titulos de las SCENE 3 a 6 (18/10: recorrido del arcade + NES)
 // ---------------------------------------------------------------------------
-// Mismo tratamiento que los otros dos. La segunda línea es PROVISORIA: falta
-// confirmar el texto exacto del arcade para cada escena.
-#define SCENE3_TITLE_LINE2  "INTO THE SEWER!!"
-#define SCENE4_TITLE_LINE2  "THE PARKING GARAGE!!"
-#define SCENE5_TITLE_LINE2  "HIT THE FREEWAY!!"
-#define SCENE6_TITLE_LINE2  "SKATE THE HIGHWAY!!"
-#define SCENE7_TITLE_LINE2  "INTO THE FACTORY!!"
-#define SCENE8_TITLE_LINE2  "WE GOTTA FIND THE TECHNODROME!"   
-#define SCENE9_TITLE_LINE2  "SHOWDOWN WITH SHREDDER!!"
+// Mismo tratamiento que los de la SCENE 1 y 2. Antes habia un titulo por
+// nivel (SCENE 3..9); ahora cada SCENE agrupa dos niveles y el titulo va solo
+// antes del primero (ver el recorrido en scenes.h).
+#define SCENE_S3_LINE2  "LET'S MELT SNOW AND REBUILD N.Y. CITY"
+#define SCENE_S4_LINE2  "LET'S GET TO THAT SECRET FACTORY!!"
+#define SCENE_S5_LINE2  "C'MON, LET'S BUST THIS JOINT!!"
+#define SCENE_S6_LINE2  "WE GOTTA FIND OUT THE TECHNODROME!!"
 
 static SceneId showStageTitle(const char* line1, const char* line2, SceneId next) {
     clearScene();
@@ -2834,78 +2872,69 @@ static SceneId showStageTitle(const char* line1, const char* line2, SceneId next
     return next;
 }
 
-SceneId showScene31Title() {
-    return showStageTitle("SCENE 3", SCENE3_TITLE_LINE2, SCENE_3_1);
-}
-
-SceneId showScene41Title() {
-    return showStageTitle("SCENE 4", SCENE4_TITLE_LINE2, SCENE_4_1);
-}
-
-SceneId showScene51Title() {
-    return showStageTitle("SCENE 5", SCENE5_TITLE_LINE2, SCENE_5_1);
-}
-
-SceneId showScene61Title() {
-    return showStageTitle("SCENE 6", SCENE6_TITLE_LINE2, SCENE_6_1);
-}
-
-SceneId showScene71Title() {
-    return showStageTitle("SCENE 7", SCENE7_TITLE_LINE2, SCENE_7_1);
-}
-
-SceneId showScene81Title() {
-    return showStageTitle("SCENE 8", SCENE8_TITLE_LINE2, SCENE_8_1);
-}
-
-SceneId showScene91Title() {
-    return showStageTitle("SCENE 9", SCENE9_TITLE_LINE2, SCENE_9_1);
-}
+SceneId showSceneS3Title() { return showStageTitle("SCENE 3", SCENE_S3_LINE2, SCENE_SNOW); }
+SceneId showSceneS4Title() { return showStageTitle("SCENE 4", SCENE_S4_LINE2, SCENE_5_1); }
+SceneId showSceneS5Title() { return showStageTitle("SCENE 5", SCENE_S5_LINE2, SCENE_7_1); }
+SceneId showSceneS6Title() { return showStageTitle("SCENE 6", SCENE_S6_LINE2, SCENE_8_1); }
 
 // ---------------------------------------------------------------------------
-// 7 quater. Pantalla FINAL (27/09): despues de vencer a Shredder. Mismo
-// tratamiento que los titulos; los textos son PROVISORIOS. Despues, los
-// creditos del equipo (SCENE_SGDK), los del soundtrack y de vuelta a la intro.
+// 7 quater. PANTALLAS PROVISORIAS (18/10)
 // ---------------------------------------------------------------------------
-#define THE_END_LINE1  "CONGRATULATIONS!!"
-#define THE_END_LINE2  "STAY TUNED FOR UPDATES."
-#define THE_END_LINE3  "THE END"
-#define THE_END_SECS   8
+// Las cinematicas intermedias y los dos niveles del port de NES todavia no
+// tienen arte. Mientras tanto, cada una es una pantalla negra con un texto
+// que dice que es y la escena sigue sola (START adelanta). Cuando llegue el
+// arte, se reemplaza su entrada en main.c por la funcion de verdad: el
+// recorrido (a donde va cada una) ya esta armado aca.
+#define PENDING_SECS  3
 
-SceneId showTheEnd() {
+typedef struct {
+    SceneId     id;
+    const char* line1;
+    const char* line2;
+    SceneId     next;
+} PendingScene;
+
+static const PendingScene pendingScenes[] = {
+    { SCENE_CUT_SHREDDER_APRIL, "SHREDDER GETS AWAY WITH APRIL", "(CUTSCENE COMING SOON)", SCENE_S3_TITLE },
+    { SCENE_SNOW,               "SCENE 3-1: SNOW IN N.Y.",       "(LEVEL COMING SOON)",    SCENE_CUT_CITY },
+    { SCENE_CUT_CITY,           "THE CITY IS BACK TO NORMAL",    "(CUTSCENE COMING SOON)", SCENE_4_1 },
+    { SCENE_CUT_VAN,            "THE TURTLE VAN IS DERAILED!",   "(CUTSCENE COMING SOON)", SCENE_S5_TITLE },
+    { SCENE_CUT_SPLINTER,       "SPLINTER HAS SOMETHING TO SAY", "(CUTSCENE COMING SOON)", SCENE_DOJO },
+    { SCENE_DOJO,               "SCENE 5-2: THE DOJO",           "(LEVEL COMING SOON)",    SCENE_CUT_TECHNODROME },
+    { SCENE_CUT_TECHNODROME,    "JUMP INTO THE TECHNODROME!",    "(CUTSCENE COMING SOON)", SCENE_S6_TITLE },
+};
+#define PENDING_COUNT  ((u16)(sizeof(pendingScenes) / sizeof(pendingScenes[0])))
+
+SceneId showPendingScene(SceneId id) {
+    const PendingScene* ps = NULL;
+    for (u16 i = 0; i < PENDING_COUNT; i++)
+        if (pendingScenes[i].id == id) ps = &pendingScenes[i];
+    if (!ps) return SCENE_SEGA;
+
     clearScene();
     while (JOY_readJoypad(JOY_1) & BUTTON_START)
         SYS_doVBlankProcess();
 
+    VDP_setScreenWidth320();
     VDP_loadFont(&title_font, DMA);
-    PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
+    VDP_setTextPlane(BG_A);
     VDP_setTextPalette(PAL0);
     VDP_setBackgroundColor(0);
+    VDP_drawText(ps->line1, (u16)((40 - strlen(ps->line1)) / 2), 12);
+    VDP_drawText(ps->line2, (u16)((40 - strlen(ps->line2)) / 2), 15);
+    PAL_fadeIn(0, 15, title_font_pal.data, 20, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
 
-    const char* lines[3] = { THE_END_LINE1, THE_END_LINE2, THE_END_LINE3 };
-    static const u16 rows[3] = { 9, 12, 17 };
-    bool skipped = FALSE;
-    for (u16 i = 0; i < 3 && !skipped; i++)
-        skipped = drawTextTypewriter(lines[i], (u16)((40 - strlen(lines[i])) / 2), rows[i],
-                                     TITLE_CHAR_DELAY);
-    if (skipped)
-        for (u16 i = 0; i < 3; i++)
-            VDP_drawText(lines[i], (u16)((40 - strlen(lines[i])) / 2), rows[i]);
-
-    XGM2_setLoopNumber(0);
-    playMusicVol(music_ending, 90);
-    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * THE_END_SECS;
+    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * PENDING_SECS;
     while (timer > 0) {
         timer--;
         if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
         SYS_doVBlankProcess();
     }
-    XGM2_stop();
-    XGM2_setLoopNumber(-1);
 
     VDP_loadFont(&font_default, DMA);
     clearScene();
-    return SCENE_SGDK;
+    return ps->next;
 }
 
 // ---------------------------------------------------------------------------
@@ -2998,18 +3027,42 @@ static const WaveSpawn l12WaveB[] = {
     { ENEMY_TYPE_FOOT_SOLDIER_GUN, +1, 174, 0 },
 };
 static const WaveSpawn l12LastFoot = { FS_P, -1, 178, 0 };
-#define WAVE_N(a) ((u8)(sizeof(a) / sizeof(a[0])))
+#define WAVE_BASE(a) ((u8)(sizeof(a) / sizeof(a[0])))
+
+// (20/10) Total de una oleada con los foot soldiers EXTRA de la dificultad
+// (difficulty.h): se calcula la primera vez que se la pide en el nivel y queda
+// fijo (los extra repiten la tabla desde el principio). waveTotalsReset() al
+// empezar el 1-1 y el 1-2.
+#define WAVE_TOT_SLOTS 8
+static const WaveSpawn* waveTotArr[WAVE_TOT_SLOTS];
+static u8 waveTotN[WAVE_TOT_SLOTS];
+static void waveTotalsReset(void) {
+    for (u8 i = 0; i < WAVE_TOT_SLOTS; i++) waveTotArr[i] = NULL;
+}
+__attribute__((noinline)) static u8 waveTotal(const WaveSpawn* w, u8 n) {
+    u8 i;
+    for (i = 0; i < WAVE_TOT_SLOTS; i++) {
+        if (waveTotArr[i] == w) return waveTotN[i];
+        if (!waveTotArr[i]) break;
+    }
+    u8 tot = (u8)(n + diffWaveExtra(n));
+    if (i < WAVE_TOT_SLOTS) { waveTotArr[i] = w; waveTotN[i] = tot; }
+    return tot;
+}
+#define WAVE_N(a) waveTotal(a, WAVE_BASE(a))
 
 // Cola de una oleada: va soltando de a uno mientras haya menos de 'maxOn'
-// vivos. Devuelve TRUE cuando ya salieron todos.
-static bool waveQueueStep(Enemy* list, const WaveSpawn* w, u8 n, u8* next,
+// vivos. Devuelve TRUE cuando ya salieron todos. 'n' = entradas de la tabla;
+// con los extra de la dificultad se vuelve a empezar por la primera.
+__attribute__((noinline)) static bool waveQueueStep(Enemy* list, const WaveSpawn* w, u8 n, u8* next,
                           u16* active, u8 maxOn, s16 camX) {
-    while (*next < n && *active < maxOn) {
-        if (!waveSpawnOne(list, &w[*next], camX)) break;
+    u8 tot = waveTotal(w, n);
+    while (*next < tot && *active < maxOn) {
+        if (!waveSpawnOne(list, &w[*next % n], camX)) break;
         (*next)++;
         (*active)++;
     }
-    return *next >= n;
+    return *next >= tot;
 }
 
 // ---------------------------------------------------------------------------
@@ -3074,6 +3127,7 @@ SceneId showScene11() {
     // Estado global de la IA de grupo: contador de atacantes simultáneos y
     // reparto de targets entre los jugadores presentes (1 o 2).
     resetEnemyAI(cantidadJugadores);
+    waveTotalsReset();   // (20/10) oleadas con los extra de la dificultad
 
     // Shurikens: resetear el sistema de proyectiles del foot soldier naranja.
     shurikenInit();
@@ -3295,9 +3349,11 @@ SceneId showScene11() {
                                    TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     if (bubble) SPR_setDepth(bubble, SPR_MIN_DEPTH);
 
-    // Voice over: PCM 13.3 kHz, canal 2, prioridad máxima (15) para que suene
-    // aunque la música reserve ese canal PCM.
-    XGM2_playPCMEx(attack_vo, sizeof(attack_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+    // Voice over: PCM 13.3 kHz, prioridad máxima (15).
+    // (18/10) REPARTO DE CANALES PCM (XGM2): CH1 es de la MUSICA -- con un tema
+    // sonando, lo que se manda por CH1 no suena (asi se perdia este "Attack!").
+    // CH2 = solo voces, CH3 = efectos. Ver claude/canal-pcm-voces en el proyecto.
+    XGM2_playPCMEx(attack_vo, sizeof(attack_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
 
     // Primer foot soldier: ya spawneado y VISIBLE pegado al borde derecho de la
     // pantalla, entrando (CHASE) hacia el jugador.
@@ -3601,7 +3657,7 @@ SceneId showScene11() {
                 }
             } else if (elevPhase == 4) {
                 // Oleada 2 despejada -> encuentro de ascensores terminado.
-                waveQueueStep(enemies, l11Elev2, WAVE_N(l11Elev2), &elev2Next,
+                waveQueueStep(enemies, l11Elev2, WAVE_BASE(l11Elev2), &elev2Next,
                               &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
                 if (elev2Next >= WAVE_N(l11Elev2) && activeEnemies == 0)
                     elevPhase = 5;   // hecho: no vuelve a disparar
@@ -3643,7 +3699,7 @@ SceneId showScene11() {
                 zNext = 0;
             }
             if (combatZone == 1)
-                waveQueueStep(enemies, l11Zone1, WAVE_N(l11Zone1), &zNext,
+                waveQueueStep(enemies, l11Zone1, WAVE_BASE(l11Zone1), &zNext,
                               &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
             if (combatZone == 1 && zNext >= WAVE_N(l11Zone1) && activeEnemies == 0) {
                 cameraLockX = -1;
@@ -3671,7 +3727,7 @@ SceneId showScene11() {
                 zNext = 0;
             }
             if (combatZone == 3)
-                waveQueueStep(enemies, l11Zone2, WAVE_N(l11Zone2), &zNext,
+                waveQueueStep(enemies, l11Zone2, WAVE_BASE(l11Zone2), &zNext,
                               &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
             if (combatZone == 3 && zNext >= WAVE_N(l11Zone2) && activeEnemies == 0) {
                 cameraLockX = -1;
@@ -3685,7 +3741,7 @@ SceneId showScene11() {
                 zNext = 0;
             }
             if (combatZone == 5)
-                waveQueueStep(enemies, l11Zone3, WAVE_N(l11Zone3), &zNext,
+                waveQueueStep(enemies, l11Zone3, WAVE_BASE(l11Zone3), &zNext,
                               &activeEnemies, MAX_ACTIVE_ENEMIES, cameraLockX);
             if (combatZone == 5 && zNext >= WAVE_N(l11Zone3) && activeEnemies == 0) {
                 cameraLockX = -1;
@@ -3700,7 +3756,7 @@ SceneId showScene11() {
                 zNext = 0;
             }
             if (z3bState == 1) {
-                bool done = waveQueueStep(enemies, l11Zone3b, WAVE_N(l11Zone3b), &zNext,
+                bool done = waveQueueStep(enemies, l11Zone3b, WAVE_BASE(l11Zone3b), &zNext,
                                           &activeEnemies, 3, cameraLockX);
                 if (done && activeEnemies == 0) {
                     cameraLockX = -1;
@@ -3907,7 +3963,7 @@ SceneId showScene11() {
                 if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -3919,7 +3975,7 @@ SceneId showScene11() {
         {
             for (u8 k = 0; k < nPl; k++) {
                 if (shurikenBreakByPlayerAttack(pls[k]))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             }
         }
 
@@ -3929,7 +3985,7 @@ SceneId showScene11() {
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 damagePlayer(pls[k], hitX);
             }
         }
@@ -3988,7 +4044,7 @@ SceneId showScene11() {
             else if (robots[r].state != ROBOT_INACTIVE) robotsDone = FALSE;
         }
         if (robotsDone && algunoGone && activeEnemies == 0) {
-            XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH1, 15, FALSE, FALSE);
+            XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH2, 15, FALSE, FALSE);
             win = TRUE;
             break;
         }
@@ -4330,13 +4386,47 @@ static void smokeUpdate(s16 cameraX) {
 #define CAPSULA_DOOR_TICKS    28    // La puerta se abre a mitad de lo que tardaba antes
 #define CAPSULA_SHAKE_AMP     8     // Amplitud del temblor de pantalla (px)
 
+// (19/10) Feedback: "Animation of Rocksteady's Drill vehicle disappears
+// mid-animation". Los frames de la capsula son de hasta 112 tiles (3,5 KB) y
+// SGDK los encolaba solo al cambiar de frame: si la cola de DMA (64 entradas)
+// estaba llena en ese cuadro (tortugas, foot soldiers, April, columnas del
+// fondo), DMA_queueDma fallaba y el frame nuevo quedaba sin sus tiles (a
+// medias o vacio) hasta el proximo cambio. Ahora la capsula se crea SIN
+// subida automatica: los tiles se encolan aca y el frame cambia SOLO si la
+// cola los acepto (tiles y tabla de sprites llegan en el mismo vblank); si no
+// entraron, sigue el frame anterior y se reintenta el cuadro siguiente
+// (capsUpdate). Tambien se reencola si el defrag de VRAM la mueve.
+static u16 capsVram = 0xFFFF;
+static u8  capsAnim, capsFrame;          // frame que se ve
+static u8  capsWantAnim, capsWantFrame;  // frame pedido
+static bool capsPending;
+static bool capsQueue(Sprite* s, u16 anim, u16 frame) {
+    const TileSet* ts = taladro_capsula.animations[anim]->frames[frame]->tileset;
+    u16 vram = s->attribut & TILE_INDEX_MASK;
+    if (!DMA_queueDma(DMA_VRAM, (void*) ts->tiles, (u16)(vram * 32), (u16)(ts->numTile * 16), 2))
+        return FALSE;
+    SPR_setAnimAndFrame(s, (s16)anim, (s16)frame);
+    capsAnim = (u8)anim; capsFrame = (u8)frame; capsVram = vram;
+    return TRUE;
+}
+static void capsSetFrame(Sprite* s, u16 anim, u16 frame) {
+    capsWantAnim = (u8)anim; capsWantFrame = (u8)frame;
+    capsPending = !capsQueue(s, anim, frame);
+}
+// Una vez por cuadro: reintento pendiente o VRAM movida por el defrag.
+static void capsUpdate(Sprite* s) {
+    if (capsPending) capsPending = !capsQueue(s, capsWantAnim, capsWantFrame);
+    else if ((s->attribut & TILE_INDEX_MASK) != capsVram) capsQueue(s, capsAnim, capsFrame);
+}
+
 // Flash de paleta por HP bajo del jefe (efecto "quemado" brillante). Con poca
 // vida la paleta de Rocksteady alterna entre la normal y una versión quemada
 // cada ROCKSTEADY_FLASH_TICKS frames (4/4 constante, ver boss_flash.h).
 // Umbral RELATIVO al HP total del jefe (el ultimo cuarto, BOSS_FLASH_DIV),
 // no un numero suelto, para que no se desfase si cambia ROCKSTEADY_HP.
-#define ROCKSTEADY_FLASH_HP        (ROCKSTEADY_HP / BOSS_FLASH_DIV)
-#define ROCKSTEADY_FLASH_CRIT_HP   (ROCKSTEADY_HP / (BOSS_FLASH_DIV * 2))
+// (20/10) Con la vida escalada por la cantidad de jugadores (difficulty.h).
+#define ROCKSTEADY_FLASH_HP        (diffBossHp(ROCKSTEADY_HP) / BOSS_FLASH_DIV)
+#define ROCKSTEADY_FLASH_CRIT_HP   (diffBossHp(ROCKSTEADY_HP) / (BOSS_FLASH_DIV * 2))
 #define ROCKSTEADY_FLASH_TICKS      BOSS_FLASH_TICKS
 #define ROCKSTEADY_FLASH_CRIT_TICKS BOSS_FLASH_TICKS
 
@@ -4466,6 +4556,7 @@ SceneId showScene12() {
 
     // --- Estado global de la IA de grupo y proyectiles ---
     resetEnemyAI(cantidadJugadores);
+    waveTotalsReset();   // (20/10) oleadas con los extra de la dificultad
     shurikenInit();
 
     // --- La paleta PAL3 (foot soldier BLANCO) la carga levelFadeIn al final
@@ -4627,7 +4718,7 @@ SceneId showScene12() {
     // SGDK -- solo tiene 3 canales PCM reales, PCM0..PCM2 = CH1..CH3 -- y
     // usarlo corrompia el comando del Z80, dejando un pitido constante;
     // bug encontrado 29/08, ver DEVLOG).
-    XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+    XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
 
     // --- Fases del nivel ---
     // 0 = oleada A (2 morados)  ·  1 = oleada B (2 blancos + 1 naranja)
@@ -4719,7 +4810,7 @@ SceneId showScene12() {
         // 4b. Fases / oleadas.
         // (11/10) Sala A: solo los 2 morados del arranque (ver l12WaveB).
         if (phase == 1)
-            waveQueueStep(enemies, l12WaveB, WAVE_N(l12WaveB), &waveBNext,
+            waveQueueStep(enemies, l12WaveB, WAVE_BASE(l12WaveB), &waveBNext,
                           &activeEnemies, 3, cameraX);
 
         if (phase == 0 && activeEnemies == 0) {
@@ -4761,10 +4852,13 @@ SceneId showScene12() {
             // huecos) -- exactamente el sintoma reportado (parpadeo, se ve
             // mayormente transparente). SPR_addSpriteSafe reintenta con
             // SPR_defragVRAM() si la primera pasada falla.
-            capsulaSpr = SPR_addSpriteSafe(&taladro_capsula, CAPSULA_SCREEN_X,
+            capsulaSpr = SPR_addSpriteExSafe(&taladro_capsula, CAPSULA_SCREEN_X,
                                        CAPSULA_SCREEN_Y,
-                                       TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+                                       TILE_ATTR(PAL0, FALSE, FALSE, FALSE),
+                                       SPR_FLAG_AUTO_VRAM_ALLOC | SPR_FLAG_AUTO_VISIBILITY);
             if (capsulaSpr) {
+                SPR_setAutoAnimation(capsulaSpr, FALSE);
+                capsSetFrame(capsulaSpr, 0, 0);
                 // OJO (29/08): SPR_MAX_DEPTH (0x7FFF) es el valor por
                 // DEFECTO de cualquier sprite nuevo -- no la aleja de nada.
                 // Ademas, como capsulaSpr se crea recien ACA (bien entrada
@@ -4828,20 +4922,20 @@ SceneId showScene12() {
                     // cambiar de frame. El de la puerta (stage 2) lo corta.
                     if (bossTimer == 0 && capsulaFrame == 0 && capsulaSpr) {
                         SPR_setVisibility(capsulaSpr, VISIBLE);
-                        SPR_setAnimAndFrame(capsulaSpr, 0, 0);
+                        capsSetFrame(capsulaSpr, 0, 0);
                         XGM2_stop();   // cortar la música de fondo durante la secuencia
                         XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx),
-                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
-                    } else if (bossTimer == 0 && !XGM2_isPlayingPCM(SOUND_PCM_CH2_MSK)) {
+                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    } else if (bossTimer == 0 && !XGM2_isPlayingPCM(SOUND_PCM_CH3_MSK)) {
                         XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx),
-                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
                     }
                     if (++bossTimer >= CAPSULA_FRAME_TICKS) {
                         bossTimer = 0;
                         if (capsulaFrame < CAPSULA_FRAMES - 1) {
                             capsulaFrame++;
                             if (capsulaSpr)
-                                SPR_setAnimAndFrame(capsulaSpr, 0, capsulaFrame);
+                                capsSetFrame(capsulaSpr, 0, capsulaFrame);
                         } else {
                             bossStage = 2; bossTimer = 0;
                         }
@@ -4849,9 +4943,9 @@ SceneId showScene12() {
                     break;
                 case 2:   // la puerta se abre (índice [1], CAPSULA_DOOR_FRAMES frames) + suena capsule_door
                     if (bossTimer == 0 && capsulaSpr) {
-                        SPR_setAnimAndFrame(capsulaSpr, 1, 0);
+                        capsSetFrame(capsulaSpr, 1, 0);
                         XGM2_playPCMEx(capsule_door_sfx, sizeof(capsule_door_sfx),
-                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
                     }
                     // Avanza un frame cada CAPSULA_DOOR_TICKS y queda FIJO en el
                     // último (CAPSULA_DOOR_FRAMES-1) hasta el final de la secuencia
@@ -4859,7 +4953,7 @@ SceneId showScene12() {
                     if (bossTimer > 0 && (bossTimer % CAPSULA_DOOR_TICKS) == 0 && capsulaSpr) {
                         u16 doorFrame = bossTimer / CAPSULA_DOOR_TICKS;
                         if (doorFrame >= CAPSULA_DOOR_FRAMES) doorFrame = CAPSULA_DOOR_FRAMES - 1;
-                        SPR_setAnimAndFrame(capsulaSpr, 1, doorFrame);
+                        capsSetFrame(capsulaSpr, 1, doorFrame);
                     }
                     // Espera a que suene el arranque de la puerta (~1.2s, ya
                     // reducido 1s respecto a la duración completa del wav).
@@ -5039,7 +5133,7 @@ SceneId showScene12() {
                         }
                         if (aprilSpr) { SPR_releaseSprite(aprilSpr); aprilSpr = NULL; }
                         XGM2_playPCMEx(scream_april, sizeof(scream_april),
-                                       SOUND_PCM_CH1, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
                     } else if (cutTimer == SHREDDER_RAPTO_TICKS) {
                         if (shredderSpr) SPR_setAnimAndFrame(shredderSpr, 2, 1);
                     }
@@ -5215,15 +5309,15 @@ SceneId showScene12() {
             s16     by    = rocksteadyGetCenterY(&boss);
             s16     bdmg = 0;
             Player* batt = NULL;
-            if (playerAttackHitsBox(&p1, bcx, by, ROCKSTEADY_BODY_HALF_W,
-                                    ROCKSTEADY_BODY_H)) {
+            if (playerAttackHitsBoss(&p1, bcx, by, ROCKSTEADY_BODY_HALF_W,
+                                     ROCKSTEADY_BODY_H, RS_HIT_DY_UP, RS_HIT_DY_DOWN)) {
                 bdmg = isPlayerSpecialAttack(&p1) ? ROCKSTEADY_SPECIAL_DMG
                      : (isPlayerJumpKicking(&p1) ? ROCKSTEADY_JUMPKICK_DMG : 1);
                 batt = &p1;
             } else {
                 for (u8 k = 1; k < nPl; k++) {
-                    if (!playerAttackHitsBox(pls[k], bcx, by, ROCKSTEADY_BODY_HALF_W,
-                                             ROCKSTEADY_BODY_H)) continue;
+                    if (!playerAttackHitsBoss(pls[k], bcx, by, ROCKSTEADY_BODY_HALF_W,
+                                              ROCKSTEADY_BODY_H, RS_HIT_DY_UP, RS_HIT_DY_DOWN)) continue;
                     bdmg = isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG
                          : (isPlayerJumpKicking(pls[k]) ? ROCKSTEADY_JUMPKICK_DMG : 1);
                     batt = pls[k];
@@ -5236,7 +5330,7 @@ SceneId showScene12() {
                 // foot soldiers, que usa hit_turtles).
                 XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 if (batt && isPlayerJumpKicking(batt))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 if (batt && boss.state == ROCKSTEADY_DEAD)
                     addPlayerScore(batt, 10);   // baja del jefe final
             }
@@ -5252,7 +5346,7 @@ SceneId showScene12() {
                 if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -5262,7 +5356,7 @@ SceneId showScene12() {
         {
             for (u8 k = 0; k < nPl; k++) {
                 if (shurikenBreakByPlayerAttack(pls[k]))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             }
         }
         {
@@ -5270,7 +5364,7 @@ SceneId showScene12() {
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 damagePlayer(pls[k], hitX);
             }
         }
@@ -5286,7 +5380,7 @@ SceneId showScene12() {
                 if (!playerCanBeHitAir(pls[k])) continue;
                 if (!rocksteadyBulletCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
                                                    getPlayerJumpZ(pls[k]), &hitX)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 playerHitProjectile(pls[k], hitX, ROCKSTEADY_BULLET_DMG);
             }
         }
@@ -5365,7 +5459,10 @@ SceneId showScene12() {
             // activos, muy lejos del límite).
             capsX -= shake;
         }
-        if (capsulaSpr) SPR_setPosition(capsulaSpr, capsX, CAPSULA_SCREEN_Y);
+        if (capsulaSpr) {
+            capsUpdate(capsulaSpr);
+            SPR_setPosition(capsulaSpr, capsX, CAPSULA_SCREEN_Y);
+        }
         bgUpdate2(dispCam);
 
         // 8. Animar el fuego del primer plano + su scroll de parallax.
@@ -5540,7 +5637,7 @@ SceneId showEnding() {
             if (laughDelay > 0) laughDelay--;
             else {
                 XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx),
-                               SOUND_PCM_CH1, 10, FALSE, FALSE);
+                               SOUND_PCM_CH2, 10, FALSE, FALSE);
                 laughed = TRUE;
             }
         }
@@ -5595,5 +5692,7 @@ SceneId showGameOver() {
         SYS_doVBlankProcess();
 
     clearScene();
-    return SCENE_SEGA;   // reiniciar el juego desde el logo de SEGA
+    // (20/10) Antes de reiniciar: iniciales de los que entran en el top 10 y
+    // la tabla "BEST 10 PLAYERS" (hiscore.c).
+    return SCENE_HISCORE_ENTRY;
 }

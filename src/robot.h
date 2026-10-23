@@ -110,6 +110,10 @@
 #define ROBOT_HURT_Q         640   // ... a 2,5 px/f ...
 #define ROBOT_HURT_PEAK       20   // ... y estos px de alto
 #define ROBOT_DOWN_T          14   // tirado en el piso antes de volver a rodar
+// (21/10) Feedback: arrinconado contra el borde, apenas se levantaba ya se lo
+// podia volver a golpear y moria sin llegar a hacer nada. Al levantarse queda
+// invulnerable (titilando) estos frames.
+#define ROBOT_INVULN_T        50
 #define ROBOT_WHIP_PICK_DX   150   // a esto o menos (y alineado): prefiere el latigo
 #define ROBOT_WHIP_PICK_DY    24
 #define ROBOT_SPAWN_CENTER  1256   // centro de mundo donde emerge
@@ -197,6 +201,7 @@ typedef struct {
     s16         hp;
     s16         z;             // (11/10) altura del arco al salir despedido
     bool        dying;         // (11/10) el arco es el del golpe final
+    u8          invuln;        // (21/10) frames invulnerable al levantarse (titila)
     u8          anim;          // anim actual (evita re-setear)
     u16         timer;         // frames desde que arranco el estado
     u8          accX, accY;    // restos Q8 del movimiento

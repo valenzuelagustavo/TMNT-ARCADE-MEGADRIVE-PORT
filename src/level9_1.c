@@ -17,7 +17,7 @@
 // del techo al rato de entrar. Al vencerlo estalla y su cabeza se escapa
 // hablando; recien entonces aparece SHREDDER (shredder_boss.c) delante del
 // portal, con la risa, y al lado su COPIA. Al vencer al verdadero: jingle y
-// la pantalla final (showTheEnd).
+// la pantalla final (18/10: el epilogo, showEpilogue en ending.c).
 // (13/10) Al vencer a Shredder EXPLOTA EL TECNODROMO: cuando se esfuma, la
 // sala tiembla, salen explosiones (la mediana, explosion_sprite, en PAL2) por
 // toda la pantalla con flashes blancos, y al final todo se funde en blanco;
@@ -27,6 +27,7 @@
 // ===========================================================================
 
 #include <genesis.h>
+#include "difficulty.h"  // (20/10) vida de Krang y Shredder segun jugadores
 #include "scenes.h"
 #include "level9_1.h"          // final_room, final_portal (rescomp)
 #include "level1.h"            // hud_font
@@ -205,16 +206,21 @@ SceneId showScene91() {
                       (u16)(hudVram + k * HUD_VRAM_PER_PLAYER));
 
     static Krang krang;
-    static ShredderBoss shred, clone;
+    static ShredderBoss shred, clone, clone2;   // (21/10) clone2 solo con 4 jugadores
+    difficultySetPlayers(nPl);          // (20/10) antes de darles la vida a los jefes
     krangInit(&krang);
     shredderInit(&shred);
     shredderInit(&clone);
+    shredderInit(&clone2);
+    clone2.second = 1;
     u8 phase = 0;                       // 0 espera, 1 Krang, 2 Shredder, 3 explota
     u16 tdT = 0, tdNext = 0;            // (13/10) explosion del tecnodromo
     u8  tdFlash = 0;
     for (u16 i = 0; i < TD_BOOMS; i++) tdBoom[i].s = NULL;
     s16 laneTop = L9_LANE_T;
     bool cloneOut = FALSE, cloneGone = FALSE;
+    bool clone2Out = FALSE;
+    const bool want2 = (nPlSetup >= 4);  // (21/10) 3 Shredders a la vez solo en la pelea de 4
     const s16 arenaL = L9_CAM_X + 24, arenaR = L9_CAM_X + SCREEN_W - 24;
 
     // Revelado: PAL0 la sala, PAL1 las tortugas, PAL2 en negro (la cargan
@@ -276,6 +282,7 @@ SceneId showScene91() {
                 hudPlayerInit(&huds[1], &p2, hudPlayerCol(1),
                               (u16)(hudVram + HUD_VRAM_PER_PLAYER));
                 nPl = 2;
+                difficultySetPlayers(2);    // (20/10) mas vida al jefe de turno
             }
         }
         for (u8 k = 0; k < nPl; k++) hudPlayerUpdate(&huds[k]);
@@ -318,21 +325,31 @@ SceneId showScene91() {
             // separan); si el esta en medio de un ataque, en el proximo frame.
             if (!cloneOut && shredderIsReady(&shred) && !shredderIsDying(&shred))
                 cloneOut = shredderSpawnSplit(&clone, &shred, arenaL, arenaR, L9_LANE_T, L9_LANE_B);
+            // (21/10) Con 4 jugadores sale una 2da copia, cuando la 1ra ya termino de separarse.
+            else if (want2 && cloneOut && !clone2Out && !cloneGone && clone.state != SHRED_SPLIT &&
+                     shredderIsReady(&shred) && !shredderIsDying(&shred))
+                clone2Out = shredderSpawnSplit(&clone2, &shred, arenaL, arenaR, L9_LANE_T, L9_LANE_B);
             s8 killer = -1;
             if (shredderPlayerHits(&shred, pls, nPl, &killer) && killer >= 0)
                 addPlayerScore(pls[(u8)killer], 10);
             killer = -1;
             if (cloneOut && shredderPlayerHits(&clone, pls, nPl, &killer) && killer >= 0)
                 addPlayerScore(pls[(u8)killer], 2);
+            killer = -1;
+            if (clone2Out && shredderPlayerHits(&clone2, pls, nPl, &killer) && killer >= 0)
+                addPlayerScore(pls[(u8)killer], 2);
             shredderUpdate(&shred, pls, nPl, L9_CAM_X, L9_CAM_Y);
             if (cloneOut) shredderUpdate(&clone, pls, nPl, L9_CAM_X, L9_CAM_Y);
+            if (clone2Out) shredderUpdate(&clone2, pls, nPl, L9_CAM_X, L9_CAM_Y);
             if (shredderIsDying(&shred) && !cloneGone) {
                 cloneGone = TRUE;               // la copia se va con el
                 shredderVanish(&clone);
+                if (clone2Out) shredderVanish(&clone2);
             }
             shredderFxUpdate();
             if (shredderIsGone(&shred)) {
                 // (13/10) Se esfumo: explota el tecnodromo.
+                shredderRelease(&clone2);
                 shredderRelease(&clone);
                 shredderRelease(&shred);
                 phase = 3;
@@ -435,6 +452,7 @@ SceneId showScene91() {
     }
 
     krangRelease(&krang);
+    shredderRelease(&clone2);
     shredderRelease(&clone);
     shredderRelease(&shred);
     VDP_setTextPriority(0);
@@ -442,6 +460,6 @@ SceneId showScene91() {
     VDP_setTextPlane(BG_A);
     clearScene();
     if (jump != PAUSE_NO_JUMP) return jump;
-    if (win && !allOut) return SCENE_THE_END;
+    if (win && !allOut) return SCENE_EPILOGUE;   // (18/10) epilogo y creditos (ending.c)
     return SCENE_GAME_OVER;
 }

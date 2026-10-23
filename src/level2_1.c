@@ -98,6 +98,7 @@
 // ===========================================================================
 
 #include <genesis.h>
+#include "difficulty.h"  // (20/10) foot soldiers extra por evento
 #include "scenes.h"
 #include "idle_missile.h"   // (14/10) modo ARCADE: el misil al que se queda quieto
 #include "level2_1.h"        // lvl21_pal, lvl21_sec00..10 (generado por rescomp)
@@ -777,12 +778,12 @@ static void tvStartPhase(u8 phase) {
     if (phase == 0) {
         tvBubbleSet(&tv_help_bubble);
         XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo),
-                       SOUND_PCM_CH1, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, FALSE, FALSE);
         tvPhaseLen = tvVoFrames(sizeof(help_me_april_vo));
     } else {
         tvBubbleSet(&tv_dine_bubble);
         XGM2_playPCMEx(dinne_turtle_vo, sizeof(dinne_turtle_vo),
-                       SOUND_PCM_CH1, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, FALSE, FALSE);
         tvPhaseLen = tvVoFrames(sizeof(dinne_turtle_vo));
     }
 }
@@ -1030,6 +1031,20 @@ static bool l21Fire(u8 ev) {
     for (u8 k = 0; k < E->n && l21qN < L21Q_SIZE; k++) {
         l21q[(l21qHead + l21qN) % L21Q_SIZE] = E->r[k];
         l21qN++;
+    }
+    // (20/10) Dificultad (difficulty.h): foot soldiers EXTRA, copias de los
+    // que entran caminando o con voltereta por un costado (los de ventanas,
+    // dinamita, cornisa y puntos fijos son unicos del guion).
+    u8 walkers = 0;
+    for (u8 k = 0; k < E->n; k++)
+        if (E->r[k].kind == L21K_WALK || E->r[k].kind == L21K_SOMERSAULT) walkers++;
+    u8 extra = walkers ? diffWaveExtra(walkers) : 0;
+    for (u8 k = 0; extra > 0 && l21qN < L21Q_SIZE; k++) {
+        const L21Req* r = &E->r[k % E->n];
+        if (r->kind != L21K_WALK && r->kind != L21K_SOMERSAULT) continue;
+        l21q[(l21qHead + l21qN) % L21Q_SIZE] = *r;
+        l21qN++;
+        extra--;
     }
     return TRUE;
 }
@@ -1361,7 +1376,7 @@ static void dlgUpdate(const Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) 
         dlgBubOff();
         dlgBub = SPR_addSprite(L->bub, 0, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
         if (dlgBub) SPR_setDepth(dlgBub, SPR_MIN_DEPTH);
-        XGM2_playPCMEx(L->vo, L->len, SOUND_PCM_CH1, 15, FALSE, FALSE);
+        XGM2_playPCMEx(L->vo, L->len, SOUND_PCM_CH2, 15, FALSE, FALSE);
         dlgOn = TRUE;
         dlgT  = 0;
     }
@@ -1816,7 +1831,7 @@ SceneId showScene21() {
                                                 TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
                     // El voice over arranca con el globo, una sola vez.
                     XGM2_playPCMEx(who_put_light_vo, sizeof(who_put_light_vo),
-                                   SOUND_PCM_CH1, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
                 }
                 if (lightBubble) {
                     s16 bx = (s16)(pls[talking]->x + FOOT_DX - LVL21_BUBBLE_W / 2 - cameraX);
@@ -2059,7 +2074,7 @@ SceneId showScene21() {
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -2070,7 +2085,7 @@ SceneId showScene21() {
         // vuelve a la mano dispara la atrapada del soldier.
         if (boomerangStep(pls, nPl, cameraX, cameraY))
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
 
         // --- Proyectiles del guion (19/09) ---------------------------------
         // Dinamita: mismo bloque que el 1-1, pero con tntUpdateEx porque aca la
@@ -2108,7 +2123,7 @@ SceneId showScene21() {
         for (u8 k = 0; k < nPl; k++) {
             if (lidReflectByPlayerAttack(pls[k], (s8)k))
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
         }
 
         // Tapa devuelta contra los soldiers: LID_ENEMY_DMG de vida por soldier,
@@ -2136,7 +2151,7 @@ SceneId showScene21() {
             if (!lidHits(getPlayerHurtCX(pls[k]), getPlayerY(pls[k]),
                          PLAYER_BODY_HALF_W, &lx)) continue;
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
             damagePlayer(pls[k], lx);     // una barra
         }
 
@@ -2146,7 +2161,7 @@ SceneId showScene21() {
         // soldier). Parados, sus bases las frena clampToWalk.
         if (metersPlayerHits(pls, nPl))
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
         metersUpdate(cameraX, cameraY);
 
         // --- Utileria de la calle (11/10): ver street_2_1.h ----------------
@@ -2156,7 +2171,7 @@ SceneId showScene21() {
         if (l21Done(L21E20)) streetBillboardFall();
         if (streetPlayerHits(pls, nPl))
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
         streetUpdate(pls, nPl, cameraX, cameraY);
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (!enemyCanBeHit(&enemies[i])) continue;
@@ -2268,13 +2283,14 @@ SceneId showScene21() {
                 s16 bcx = bebopGetCenterX(&bebop);
                 s16 by  = bebopGetCenterY(&bebop);
                 for (u8 k = 0; k < nPl; k++) {
-                    if (!playerAttackHitsBox(pls[k], bcx, by,
-                                             BEBOP_BODY_HALF_W, BEBOP_BODY_H))
+                    if (!playerAttackHitsBoss(pls[k], bcx, by,
+                                              BEBOP_BODY_HALF_W, BEBOP_BODY_H,
+                                              BEBOP_HIT_DY_UP, BEBOP_HIT_DY_DOWN))
                         continue;
                     s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG
                             : (isPlayerJumpKicking(pls[k]) ? BEBOP_JUMPKICK_DMG : 1);
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
                     if (bebopDamage(&bebop, dmg)) addPlayerScore(pls[k], 5);
                     break;
                 }
@@ -2344,5 +2360,5 @@ SceneId showScene21() {
     clearScene();
     DMA_setMaxQueueSizeToDefault();
     if (jump != PAUSE_NO_JUMP) return jump;
-    return won ? SCENE_3_1_TITLE : SCENE_GAME_OVER;
+    return won ? SCENE_3_1 : SCENE_GAME_OVER;   // (18/10) 2-2 la cloaca, sin titulo
 }

@@ -55,11 +55,15 @@ typedef enum {
     ANIM_THROW        = 24,  // (09/10) La llave: agarra al foot soldier y lo
                              // tira por encima del hombro. Se dibuja ESPEJADA
                              // (la tortuga le da la espalda al que agarra).
-    ANIM_MOUSER_BITE  = 25   // (18/10) Un Mouser le muerde el brazo (3 frames:
+    ANIM_MOUSER_BITE  = 25,  // (18/10) Un Mouser le muerde el brazo (3 frames:
                              // sacude el brazo de arriba a abajo). Los frames
                              // van A MANO: cada boton que toca el jugador
-                             // avanza uno (ver GRAB_TYPE_MOUSER). Hoy solo la
-                             // hoja de Leo la trae; las demas caen a ANIM_HELD.
+                             // avanza uno (ver GRAB_TYPE_MOUSER). La traen las
+                             // hojas de Leo y Don; Mike y Raph caen a ANIM_HELD.
+    ANIM_BURN         = 26   // (18/10) Quemada por el lanzallamas de Granitor:
+                             // la cabeza carbonizada (2 frames en loop, ver
+                             // playerBurnHit). Solo Leo y Don; Mike y Raph
+                             // reciben el golpe liviano de siempre.
 } PlayerAnim;
 
 // Hoja NUEVA (09/10): trae ANIM_ATTACK_4 y ANIM_JUMP_KICK_DIR. Las hojas viejas
@@ -67,6 +71,7 @@ typedef enum {
 #define PLAYER_NEW_SHEET_ANIMS  24
 #define playerHasNewSheet(p)    ((p)->numAnims >= PLAYER_NEW_SHEET_ANIMS)
 #define playerHasBiteAnim(p)    ((p)->numAnims > ANIM_MOUSER_BITE)
+#define playerHasBurnAnim(p)    ((p)->numAnims > ANIM_BURN)
 
 // ---------------------------------------------------------------------------
 // Estados lógicos del personaje
@@ -192,6 +197,23 @@ typedef enum {
 // (C) de siempre, y si el otro llega dentro de esta ventana se convierte en el
 // especial.
 #define PLAYER_SPECIAL_BC_WINDOW  4
+
+// --- (20/10) Especial de RAPH con el boton A ---
+// Su sai es mas corto que las armas de los demas: en el arcade su especial es
+// un GIRO hecho bolita que avanza en X y termina con una patada (la ultima
+// tanda "Attack" del rip, antes de "Jump"; en su hoja va en la fila de
+// ANIM_ATTACK_4). B+C sigue siendo el especial con el arma, como el resto.
+// Los frames del giro duran PLAYER_RAPH_SPIN_TICKS y la patada final
+// PLAYER_RAPH_KICK_TICKS; mientras rueda avanza PLAYER_RAPH_SPIN_VX px por
+// frame hacia donde mira (frena contra los limites del nivel, como caminar).
+#define PLAYER_RAPH_SPIN_TICKS    4
+#define PLAYER_RAPH_KICK_TICKS   14
+#define PLAYER_RAPH_SPIN_VX       3
+// (20/10) Patada en el aire de Raph SIN direccion: por debajo de esta altura
+// (px) usa su patada baja (ANIM_JUMP_KICK, el 2do "Jump Attack" del rip); de
+// aca hasta PLAYER_AJ_SPIN_MIN_Z, la patada voladora (ANIM_JUMP_KICK_DIR, el
+// 1ro, la misma que con direccion); mas arriba, el giro con el sai.
+#define PLAYER_RAPH_LOW_KICK_Z   50
 
 // ---------------------------------------------------------------------------
 // CONTROL ARCADE (09/10) -- el "modo Arcade" de Pruebas_TMNT_Control, medido
@@ -538,6 +560,7 @@ typedef struct {
     // TODO: cuando exista HP, usarlo debe restar vida al jugador.
     u8          attackIsSpecial;
     u8          specialTick;    // ticks desde que arranco el especial
+    u8          specialSpin;    // (20/10) 1 = el giro con patada de Raph (boton A)
     u8          bcWindow;       // frames que quedan para completar B+C
     u8          charIndex;      // 0=Leo 1=Mike 2=Don 3=Raph (indexa playerAtkReach)
 
@@ -708,6 +731,16 @@ bool playerAttackHitsBox(const Player* p, s16 targetCX, s16 targetFeetY,
 bool playerAttackHitsBand(const Player* p, s16 targetCX, s16 targetFeetY,
                           s16 targetHalfW, s16 yTop, s16 yBot);
 
+// (21/10) JEFES: igual que las de arriba pero con la tolerancia de lane DEL
+// JEFE (la misma con la que sus golpes alcanzan a la tortuga: lane de la
+// tortuga - lane del jefe en [-tolUp, +tolDown]). Feedback: con los +-20 px de
+// PLAYER_ATK_TOL_Y se le podia pegar desde una lane donde sus golpes (+-5..7)
+// no llegaban, y se le ganaba solo apretando golpe.
+bool playerAttackHitsBoss(const Player* p, s16 targetCX, s16 targetFeetY,
+                          s16 targetHalfW, s16 targetBodyH, s16 tolUp, s16 tolDown);
+bool playerAttackHitsBossBand(const Player* p, s16 targetCX, s16 targetFeetY,
+                              s16 targetHalfW, s16 yTop, s16 yBot, s16 tolUp, s16 tolDown);
+
 // (02/10) Centro X (mundo) de la HURTBOX de la tortuga (PLAYER_HURT_*), y la
 // misma posicion expresada como "X del frame" (para las funciones que le suman
 // PLAYER_SPRITE_W / 2 adentro, como enemyTryHitPlayerBox).
@@ -791,6 +824,10 @@ void playerHitBars(Player* p, s16 attackerX, u8 bars);
 // regla general de "saltando no te pegan" no podia conectar nunca. Quien llama
 // ya filtro la altura (la bala compara su z contra el torso del jugador).
 void playerHitProjectile(Player* p, s16 attackerX, u8 bars);
+// (18/10) Llamarada (Granitor): resta 'bars' como playerHitProjectile y, si le
+// queda vida y la hoja la trae, la tortuga queda quieta con ANIM_BURN
+// PLAYER_BURN_FRAMES antes de volver al idle.
+void playerBurnHit(Player* p, s16 attackerX, u8 bars);
 
 // Golpe FUERTE que DERRIBA: la tortuga cae de espaldas, queda tirada un
 // momento y se levanta (la usa la patada de Rocksteady). Misma regla de vida
@@ -871,6 +908,10 @@ void playerPersistSave(const Player* p);
 // Vuelve el estado persistente a los valores iniciales (partida nueva).
 // Llamar al iniciar una partida (selección de personajes).
 void playerPersistReset(void);
+// (20/10) Tabla de puntajes: TRUE si el jugador k (0..3) jugo esta partida,
+// con su ultimo puntaje y su tortuga. playerFinalClear: ya se cargaron.
+bool playerFinalPeek(u8 k, u16* score, u8* ch);
+void playerFinalClear(void);
 
 // (01/10) Olvida que el jugador habia quedado FUERA de juego (lo llama el
 // continue antes de reinicializarlo). Ver initPlayer / playerPersistSave.

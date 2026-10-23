@@ -21,11 +21,20 @@
 //   CAMINA        la persigue (lane exacta, hasta GRAN_MIN_DIST). Alineado y
 //                 cerca -> culatazo; alineado y lejos -> 2/3 lanzallamas.
 //   CULATAZO (21) pega en el frame del impacto y derriba.
-//   LANZALLAMAS (60) un chorro: una llama cada GRAN_FLAME_EVERY frames.
+//   LANZALLAMAS (36) un chorro: una llama cada GRAN_FLAME_EVERY frames.
 //   SALTA         en el lugar; al caer tiembla el piso y le saca una barra a
 //                 toda tortuga que este parada.
-//   Solo recibe dano quieto o caminando. Sin caida ni contraataque.
-//   MUERTE    parpadea, se quiebra y queda un montoncito que desaparece.
+//   Solo recibe dano quieto o caminando.
+//   (18/10, pedido de Gustavo):
+//   ENTRADA   cae desde arriba cerca de la puerta del ascensor; al caer
+//             (y al caer de cada salto) tiembla la pantalla (stageShake).
+//   ANTI-TRABADO  aguanta GRAN_STREAK_MAX golpes seguidos; el siguiente lo
+//             absorbe y contraataca en el acto con el culatazo hacia el que le
+//             pega. Ademas da el culatazo a cualquier tortuga pegada a el (lane
+//             +-GRAN_CLOSE_DY), no solo a la perfectamente alineada: antes se
+//             lo trababa pegandole desde una lane de al lado.
+//   MUERTE    parpadea, se quiebra y queda un montoncito que desaparece,
+//             con EXPLOSIONES en cadena sobre el cuerpo (como Krang).
 // ===========================================================================
 
 #define GRAN_ANIM_IDLE1    0
@@ -41,9 +50,21 @@
 
 #define GRAN_FRAME_W       144
 #define GRAN_FRAME_H       144
-#define GRAN_FOOT_OFFSET   130
-#define GRAN_BODY_HALF_W    24     // hurtbox (como la tortuga, un poco mas ancho)
-#define GRAN_BODY_H         80
+// (18/10) 130 -> 140: la bota de atras llega a la fila 141 de la celda. Con
+// 130 los pies LOGICOS quedaban 11 px arriba de los que se ven: parado a la
+// misma altura que el jefe, la tortuga estaba "en otra lane" (y las patadas
+// voladoras no entraban).
+#define GRAN_FOOT_OFFSET   140
+// (18/10, captura de Gustavo) Hurtbox: el TORSO. Centro un poco hacia
+// adelante (los pies estan en x+4 de la celda y el pecho mira al arma),
+// 40 px de ancho, de 30 a 84 px sobre los pies (antes +-24 y 0..80).
+#define GRAN_BODY_DX         8
+#define GRAN_BODY_HALF_W    20
+#define GRAN_BODY_TOP       84
+#define GRAN_BODY_BOT       30
+// (18/10) En el aire (patada voladora) tambien cuenta de los hombros a la
+// cabeza: el salto llega a 123 px y la patada pasaba por arriba del torso.
+#define GRAN_BODY_TOP_AIR  124
 
 #define GRAN_HP             40
 #define GRAN_SPECIAL_DMG     5
@@ -65,14 +86,14 @@
 #define GRAN_PUNCH_HIT_T     4     // frames que pega desde el impacto
 #define GRAN_PUNCH_HIT_DX   64
 #define GRAN_PUNCH_HIT_W    40
-#define GRAN_HIT_DY_UP       5     // lane de la tortuga respecto de la suya
-#define GRAN_HIT_DY_DOWN     7
+#define GRAN_HIT_DY_UP      12     // (18/10) lane de la tortuga respecto de la suya (antes 5/7)
+#define GRAN_HIT_DY_DOWN    12
 #define GRAN_PUNCH_DMG       1
 
 // Lanzallamas
-#define GRAN_FIRE_T         60
+#define GRAN_FIRE_T         36     // (18/10) era 60: el chorro duraba demasiado
 #define GRAN_FLAME_EVERY     5
-#define GRAN_FLAME_DX       54     // la boca del arma delante del centro
+#define GRAN_FLAME_DX       78     // (18/10) la llama nace en la punta del arma (x +71 de la celda)
 #define GRAN_FLAME_Q      1067     // 4,17 px/f
 #define GRAN_FLAME_LIFE     23
 #define GRAN_FLAME_HALF_W   12
@@ -88,6 +109,22 @@
 #define GRAN_QUAKE_DMG       1
 
 #define GRAN_HURT_TICKS     12
+// (18/10) Anti-trabado y cercania (ver arriba).
+#define GRAN_STREAK_MAX      3
+#define GRAN_STREAK_RESET   50     // frames sin recibir golpes que cortan la racha
+#define GRAN_CLOSE_DY       12
+#define GRAN_CLOSE_CD       60     // despues de un culatazo "de cercania", tanto sin repetirlo
+// (18/10) Entrada: cae desde arriba en arenaLeft + GRAN_DROP_DX (la puerta).
+#define GRAN_DROP_DX       176
+#define GRAN_DROP_Z        200
+#define GRAN_SHAKE_LAND     20     // frames de temblor al caer
+// (18/10) Explosiones de la muerte.
+#define GRAN_BOOMS           5
+#define GRAN_BOOM_GAP       14
+#define GRAN_BOOM_FRAMES     8
+#define GRAN_BOOM_TICKS      4
+#define GRAN_BOOM_HALF      64
+#define GRAN_BOOM_DZ        74     // centro de la primera sobre los pies (+10: GRAN_FOOT_OFFSET 140)
 #define GRAN_DEATH_BLINK     4
 #define GRAN_DEATH_BREAK_T  30
 #define GRAN_DEATH_PILE_T   70
@@ -117,14 +154,16 @@ typedef struct {
     u8            accX, accY;   // restos Q8 de la caminata
     u8            dPhase, blinks;
     BossFlash     flashLow;     // parpadeo de vida baja
+    u8            streak, streakT;   // (18/10) golpes seguidos / frames sin golpes
+    u8            closeCd;           // (18/10) espera para el proximo culatazo de cercania
     s16           arenaLeft, arenaRight;
     s16           laneTop, laneBot;
     GranitorTopAtFn topAt;
 } Granitor;
 
 void granitorInit(Granitor* g);
-// Arena en X de mundo (la camara esta clavada) y franja de pies. Entra
-// caminando desde la derecha. Carga PAL3.
+// Arena en X de mundo (la camara esta clavada) y franja de pies. (18/10) Cae
+// desde arriba en arenaLeft + GRAN_DROP_DX. Carga PAL3.
 void granitorSpawn(Granitor* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot,
                    GranitorTopAtFn topAt);
 void granitorUpdate(Granitor* g, Player** pls, u8 nPl, s16 camX);

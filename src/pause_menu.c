@@ -48,15 +48,15 @@ typedef struct {
 } PauseRow;
 
 static const PauseRow levelRows[] = {
-    { "SCENE 1", 2, { "1-1", "1-2" }, { SCENE_1_1, SCENE_1_2 } },
-    { "SCENE 2", 1, { "2-1" },        { SCENE_2_1 } },
-    { "SCENE 3", 1, { "3-1" },        { SCENE_3_1 } },
-    { "SCENE 4", 1, { "4-1" },        { SCENE_4_1 } },
-    { "SCENE 5", 1, { "5-1" },        { SCENE_5_1 } },
-    { "SCENE 6", 1, { "6-1" },        { SCENE_6_1 } },
-    { "SCENE 7", 1, { "7-1" },        { SCENE_7_1 } },
-    { "SCENE 8", 1, { "8-1" },        { SCENE_8_1 } },
-    { "SCENE 9", 1, { "9-1" },        { SCENE_9_1 } },
+    // (18/10) Recorrido nuevo (ver scenes.h): 2 niveles por SCENE. Los
+    // niveles del port de NES (3-1, 5-2) son por ahora la pantalla provisoria.
+    { "SCENE 1", 2, { "1-1", "1-2" }, { SCENE_1_1,  SCENE_1_2 } },
+    { "SCENE 2", 2, { "2-1", "2-2" }, { SCENE_2_1,  SCENE_3_1 } },
+    { "SCENE 3", 2, { "3-1", "3-2" }, { SCENE_SNOW, SCENE_4_1 } },
+    { "SCENE 4", 2, { "4-1", "4-2" }, { SCENE_5_1,  SCENE_6_1 } },
+    { "SCENE 5", 2, { "5-1", "5-2" }, { SCENE_7_1,  SCENE_DOJO } },
+    { "SCENE 6", 2, { "6-1", "6-2" }, { SCENE_8_1,  SCENE_9_1 } },
+    { "FINAL",   2, { "EPI", "CRE" }, { SCENE_EPILOGUE, SCENE_STAFF_CREDITS } },
 };
 #define LEVEL_ROWS  ((u16)(sizeof(levelRows) / sizeof(levelRows[0])))
 #define ITEMS       ((u16)(LEVEL_ROWS + 1))   // item 0 = SEGUIR
@@ -152,11 +152,33 @@ static u8 darkestPal1(void) {
 }
 
 // Glifos con el fondo pintado (menos el espacio, ver arriba).
-static void opaqueFont(u8 bg) {
+// (19/10) La fuente es la MISMA del puntaje del HUD: pintarle el fondo a los
+// numeros dejaba el contador con fondo negro durante la pausa. Sin el
+// selector de niveles el cuadro no usa numeros, asi que esos se saltean
+// (con el selector, que es de prueba, si se pintan: "1-1", "2-1"...).
+#define FONT_DIGIT0  ('0' - 32)
+static void opaqueFont(u8 bg, bool digits) {
     const u32* src = hud_font.tiles;
     u16 total = hud_font.numTile;
     for (u16 t0 = 1; t0 < total; t0 += 8) {
         u16 n = (u16)((total - t0 < 8) ? (total - t0) : 8);
+        if (!digits && t0 + n > FONT_DIGIT0 && t0 < FONT_DIGIT0 + 10) {
+            // Bloque con numeros: tile por tile, salteando los numeros.
+            for (u16 t = t0; t < t0 + n; t++) {
+                if (t >= FONT_DIGIT0 && t < FONT_DIGIT0 + 10) continue;
+                for (u16 i = 0; i < 8; i++) {
+                    u32 v = src[t * 8 + i];
+                    u32 out = 0;
+                    for (u16 s = 0; s < 32; s += 4) {
+                        u32 px = (v >> s) & 0xF;
+                        out |= (px ? px : bg) << s;
+                    }
+                    fontBuf[i] = out;
+                }
+                VDP_loadTileData(fontBuf, (u16)(TILE_FONT_INDEX + t), 1, CPU);
+            }
+            continue;
+        }
         for (u16 i = 0; i < n * 8; i++) {
             u32 v = src[t0 * 8 + i];
             u32 out = 0;
@@ -265,7 +287,7 @@ SceneId pausePoll(Player** pls, u8 nPl) {
     saveUnderBox();
     u8 bg = darkestPal1();
     VDP_fillTileData((u8)(bg | (bg << 4)), SOLID_TILE, 1, TRUE);
-    opaqueFont(bg);
+    opaqueFont(bg, levelSelectOn);
     solidAttr = TILE_ATTR_FULL(PAL1, TRUE, FALSE, FALSE, SOLID_TILE);
 
     for (u16 r = 0; r < PAUSE_BOX_H; r++) boxFill(0, r, PAUSE_BOX_W, solidAttr);
@@ -289,6 +311,12 @@ SceneId pausePoll(Player** pls, u8 nPl) {
     bool blinkOff = FALSE;
     while (1) {
         SYS_doVBlankProcess();
+        // (19/10) XGM2_pause solo pausa si el driver YA marca la musica como
+        // sonando: con un tema recien mandado a arrancar (principio de nivel,
+        // tema del jefe despues de su voz) la orden se perdia y el tema
+        // arrancaba con el juego en pausa (la "nota colgada" del feedback).
+        // Mientras dure la pausa, cualquier tema que este sonando se pausa.
+        if (XGM2_isPlaying()) XGM2_pause();
         joy = JOY_readJoypad(playerJoy(0));
         u16 hit = (u16)(joy & ~prevJoy);
         prevJoy = joy;

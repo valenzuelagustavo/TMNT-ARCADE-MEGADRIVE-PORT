@@ -36,7 +36,10 @@
 
 #define TRAAG_FRAME_W       144
 #define TRAAG_FRAME_H       144
-#define TRAAG_FOOT_OFFSET   130
+// (21/10) Las botas llegan a la fila 142 de la celda: con 130 los pies logicos
+// quedaban 12 px arriba de los que se ven (mismo caso que Granitor, 18/10) y
+// la tortuga parada a su misma altura estaba en otra lane.
+#define TRAAG_FOOT_OFFSET   142
 #define TRAAG_BODY_HALF_W    24     // hurtbox (como la tortuga, un poco mas ancho)
 #define TRAAG_BODY_H         80
 
@@ -66,7 +69,7 @@
 
 // Bomba
 #define TRAAG_GUN_DX         54     // el brazo delante del centro
-#define TRAAG_GUN_DY         76     // altura del brazo sobre los pies
+#define TRAAG_GUN_DY         88     // altura del brazo sobre los pies (21/10: 76 + 12, ver FOOT_OFFSET)
 #define TRAAG_THROW_T        20     // tira (frame 0) ...
 #define TRAAG_RELOAD_T       26     // ... y recarga (frame 1)
 #define TRAAG_BOMB_XQ       352     // 1,375 px/f hacia adelante
@@ -76,11 +79,23 @@
 #define MAX_TRAAG_EXPLOSIONS  2
 #define TRAAG_EXPL_TICKS      4     // por frame de la explosion
 #define TRAAG_EXPL_HIT_T      8     // alcanza solo al principio
-#define TRAAG_EXPL_HALF_W    24
+#define TRAAG_EXPL_HALF_W    36     // (21/10) la explosion es mas grande (era 24)
 #define TRAAG_EXPL_TOL_Y     16
 #define TRAAG_EXPL_DMG        1     // voltea
 
 #define TRAAG_HURT_TICKS     12
+// (21/10) Feedback: se lo trababa a golpes. Despues de TRAAG_COUNTER_HITS
+// golpes seguidos (sin pasar TRAAG_CHAIN_RESET_T frames entre uno y otro),
+// al salir del golpeado CONTRAATACA con el culatazo (arranca ya levantando el
+// arma, TRAAG_COUNTER_SKIP frames adelantado) y mientras dura no se le puede
+// pegar.
+#define TRAAG_COUNTER_HITS    2
+#define TRAAG_CHAIN_RESET_T  90
+#define TRAAG_COUNTER_SKIP    6
+// Explosion del misil: la de Baxter (128x128, cuartos de 64x64).
+#define TRAAG_BOOM_HALF      64
+#define TRAAG_BOOM_FRAMES     8
+#define TRAAG_BOOM_TICKS      5
 #define TRAAG_DEATH_BLINK     4
 #define TRAAG_DEATH_BREAK_T  30
 #define TRAAG_DEATH_PILE_T   70
@@ -106,6 +121,8 @@ typedef struct {
     u8            invuln;
     u8            accX, accY;   // restos Q8 de la caminata
     u8            dPhase, blinks;
+    u8            chain;        // (21/10) golpes seguidos recibidos
+    u16           chainT;       // frames desde el ultimo golpe
     BossFlash     flashLow;     // parpadeo de vida baja
     s16           arenaLeft, arenaRight;
     s16           laneTop, laneBot;

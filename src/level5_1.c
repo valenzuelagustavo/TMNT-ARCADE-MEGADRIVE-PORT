@@ -71,13 +71,13 @@ static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 #define SP_TIRE        (STAGE_SPECIAL + 7)
 
 static void sfxHit(void) {
-    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
 // (16/10) Golpe de la tortuga a un foot soldier que no es Enemy (las motos y
 // el de la bomba): el mismo "hit foot" que suena en damageEnemy.
 static void sfxHitFoot(void) {
-    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
 // --- Explosiones (la del TNT, PAL2) -----------------------------------------
@@ -674,7 +674,7 @@ static void pizzaUpdate(Player** pls, u8 nPl, s16 camX) {
             pzBub = SPR_addSprite(&pizza_time_bubble, -128, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
             if (pzBub) {
                 SPR_setDepth(pzBub, SPR_MIN_DEPTH);
-                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 pzBubSt = 1; pzBubT = 0;
             }
         }
@@ -750,6 +750,25 @@ static u16 thrActive(void) {
 
 static u16 lvl51SpecialAlive(void) {
     return (u16)((car.on ? 1 : 0) + car.left + (bikesOn ? 1 : 0) + thrActive());
+}
+
+// (18/10) Con 4 jugadores el auto (las dos mitades, ~250 tiles) no entra en
+// la VRAM de sprites: stage_level lo saltea y llama a esto. Sus foot soldiers
+// igual entran, caminando por la izquierda (el mismo camino que los que
+// quedan arriba cuando el auto ya se fue: car.left). Motos, misil y cubierta
+// simplemente no salen.
+static void lvl51Fallback(u8 type, s8 side, s16 x, s16 camX) {
+    (void)side; (void)x; (void)camX;
+    u8 color;
+    switch (type) {
+    case SP_CAR_RED:    color = CAR_RED;    break;
+    case SP_CAR_BLUE:   color = CAR_BLUE;   break;
+    case SP_CAR_YELLOW: color = CAR_YELLOW; break;
+    default: return;
+    }
+    if (car.on || car.left) return;
+    car.color = color;
+    car.left  = carRiders[color];
 }
 
 static bool lvl51Special(u8 type, s8 side, s16 x, s16 camX) {
@@ -856,7 +875,8 @@ static const StageLevel level51 = {
     .levelRelease = lvl51Release,
     .specialSpawn = lvl51Special,
     .specialAlive = lvl51SpecialAlive,
-    .nextScene    = SCENE_6_1_TITLE,
+    .specialFallback = lvl51Fallback,   // (18/10) 4 jugadores: el auto no entra
+    .nextScene    = SCENE_6_1,   // (18/10) 4-1 -> 4-2, sin titulo
 };
 
 SceneId showScene51() {

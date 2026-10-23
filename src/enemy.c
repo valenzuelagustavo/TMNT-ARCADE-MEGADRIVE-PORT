@@ -1,4 +1,5 @@
 #include "enemy.h"
+#include "difficulty.h"  // (20/10) atacantes y esperas segun jugadores
 #include "audio.h"   // foot_soldier_explode (la llave), hit_foot_sfx, shuriken_throw_sfx
 
 // Ancho visible de la MegaDrive en píxeles. Se redefine localmente (igual
@@ -120,6 +121,15 @@ static u8 enemyAnimExplode(const Enemy* e) {
     }
 }
 // (15/10) Golpe recibido en 4 poses a mano (blanco de espada y de cuchillo).
+// (21/10) Gustavo: se veia raro. Las poses de la fila no son una secuencia
+// (encorvado, pateado hacia atras, parado con la espada adelante, encorvado
+// con la espada abajo: cada una mira para un lado distinto) sino golpes
+// distintos, como los tres del morado (ENEMY_ANIM_HIT_1..3). Ahora cada golpe
+// muestra UNA pose quieta todo el HURT, alternando como el morado: f0, f1 y f3
+// (la f2, de pie con la espada adelante, es la recuperacion: los ultimos
+// ENEMY_HURT_RECOVER_TICKS).
+#define ENEMY_HURT_RECOVER_TICKS 3
+static const u8 whiteHurtPose[3] = { 0, 1, 3 };
 #define ENEMY_HURT_TICKS       12
 #define ENEMY_HURT_POSE_TICKS   3
 static inline bool enemyHurt4(const Enemy* e) {
@@ -450,6 +460,9 @@ void resetEnemyAI(u8 numPlayers) {
     if (numPlayers > ENEMY_MAX_TARGETS) numPlayers = ENEMY_MAX_TARGETS;
     enemyNumPlayers = numPlayers;
     for (u8 i = 0; i < ENEMY_MAX_TARGETS; i++) enemyTargetCount[i] = 0;
+    // (20/10) Dificultad segun jugadores (al empezar el nivel y cuando P2 se
+    // suma en plena partida): ver difficulty.h.
+    difficultySetPlayers(numPlayers);
 }
 
 static void releaseTarget(u8 target) {
@@ -793,8 +806,8 @@ static void boomDetach(u16 i) {
     Enemy* o = boomerangs[i].owner;
     if (o && o->boomSlot == (s8)i) {
         o->boomSlot = -1;
-        if (o->attackCooldown < ENEMY_ATTACK_COOLDOWN)
-            o->attackCooldown = ENEMY_ATTACK_COOLDOWN;
+        if (o->attackCooldown < diffCooldown(ENEMY_ATTACK_COOLDOWN))
+            o->attackCooldown = (u8)diffCooldown(ENEMY_ATTACK_COOLDOWN);
     }
     boomerangs[i].owner = NULL;
 }
@@ -1327,6 +1340,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->attackHit   = 0;
     e->hitToggle   = 0;
     e->flankTimer  = 0;
+    e->circling   = 0;
+    e->circleDY   = 0;
     e->attackCooldown = (u8)(random() & 31);
     e->lastMoveDir = 0;
     e->turnTimer   = 0;
@@ -1417,7 +1432,7 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
 
     if (type == ENEMY_TYPE_FOOT_SOLDIER_YELLOW) {
         e->flankTimer     = (u8)(random() % YELLOW_RANGE_JITTER);   // su distancia
-        e->attackCooldown = (u8)(YELLOW_FIRST_COOLDOWN + (random() & 63));
+        e->attackCooldown = (u8)(diffCooldown(YELLOW_FIRST_COOLDOWN) + (random() & 63));
     }
 
     enemySetAnim(e, enemyAnimWalk(e), TRUE);
@@ -1606,7 +1621,7 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     // (16/10) El golpe del arcade a un foot soldier ("hit foot"). Suena aca
     // y no en cada nivel: cualquier cosa que le pegue (tortuga, tapa, chorro
     // del hidrante, cono, auto) dispara el mismo sonido. CH2 como los golpes.
-    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
     // (16/10) Y el sprite vibra unos frames (ver enemyShakeX).
     e->shake = ENEMY_SHAKE_TICKS;
 
@@ -1657,6 +1672,9 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     if (enemyHurt4(e)) {
         e->manualAnim = 1;
         SPR_setAutoAnimation(e->sprite, FALSE);
+        e->hurtPose = whiteHurtPose[e->hitToggle % 3];
+        if (++e->hitToggle >= 3) e->hitToggle = 0;
+        SPR_setFrame(e->sprite, e->hurtPose);
     }
     return TRUE;
 }
@@ -1878,6 +1896,8 @@ static void enemySpearToPurple(Enemy* e) {
     e->footOffset = ENEMY_FOOT_OFFSET_PURPLE;
     e->x          = (s16)(cx - ENEMY_SPRITE_W_PURPLE / 2);
     e->flankTimer = 0;
+    e->circling   = 0;
+    e->circleDY   = 0;
     e->hitToggle  = 0;
     SPR_setDefinition(e->sprite, &foot_soldier);
     SPR_setAutoAnimation(e->sprite, TRUE);
@@ -2132,14 +2152,14 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 if (flanking && onBack && !playerIsGrabbed(gp) &&
                     absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - getEnemyCenterX(e))) < ENEMY_GRAB_RANGE &&
                     absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
-                    e->attackCooldown == 0 && enemiesAttacking < ENEMY_MAX_ATTACKERS &&
+                    e->attackCooldown == 0 && enemiesAttacking < diffMaxAttackers &&
                     (random() & 3) == 0) {
                     newState = ENEMY_STATE_GRAB;
                     playerFootGrab(gp);
                     e->grabTarget = e->target;
                     e->grabbed    = gp;
                     e->grabTimer  = ENEMY_GRAB_MAX_TIME;
-                    e->attackCooldown = ENEMY_ATTACK_COOLDOWN;
+                    e->attackCooldown = (u8)diffCooldown(ENEMY_ATTACK_COOLDOWN);
                     e->flankTimer = 0;
                     if (dx != 0) e->dir = (dx > 0) ? 1 : -1;
                     enemyRestartAnim(e, ENEMY_ANIM_GRAB, FALSE);
@@ -2157,7 +2177,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 s16  screenX  = e->x - e->cameraOffsetX;
                 bool onScreen = (screenX > -(s16)e->w) && (screenX < ENEMY_SCREEN_W);
                 if (e->attackCooldown == 0 && absS16(dy) <= ENEMY_ATTACK_TOL_Y) {
-                    if (dist <= ORANGE_KICK_RANGE && enemiesAttacking < ENEMY_MAX_ATTACKERS) {
+                    if (dist <= ORANGE_KICK_RANGE && enemiesAttacking < diffMaxAttackers) {
                         // Jugador CERCANO → melee. A corta distancia alterna
                         // patada y directo (usa la anim 4, que hoy no se ve);
                         // más lejos (aún dentro del alcance del kick) va la
@@ -2200,7 +2220,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 // El salto NO cuenta contra ENEMY_MAX_ATTACKERS mientras esta
                 // en el aire seria injusto, pero si ocupa cupo: es un ataque
                 // melee que termina pegado al jugador.
-                if (e->attackCooldown == 0 && enemiesAttacking < ENEMY_MAX_ATTACKERS) {
+                if (e->attackCooldown == 0 && enemiesAttacking < diffMaxAttackers) {
                     // (15/10) Patada voladora, como el morado: a media
                     // distancia y con la lane casi exacta. Le gana a la
                     // espada 1 de cada 4 veces que podria atacar ahi.
@@ -2232,13 +2252,13 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 bool onScreen = (screenX > 16) && (screenX < ENEMY_SCREEN_W - 16);
                 if (e->attackCooldown == 0) {
                     if (cdist <= KNIFE_CLOSE && absS16(dy) <= ENEMY_ATTACK_TOL_Y &&
-                        enemiesAttacking < ENEMY_MAX_ATTACKERS) {
+                        enemiesAttacking < diffMaxAttackers) {
                         e->attackType = (random() & 1) ? ENEMY_ATTACK_FRONT
                                                        : ENEMY_ATTACK_KICK;
                         wantAttack = TRUE;
                     } else if (cdist >= MORADO_KICK_MIN && cdist <= MORADO_KICK_MAX &&
                                absS16(dy) <= MORADO_KICK_TOL_Y &&
-                               enemiesAttacking < ENEMY_MAX_ATTACKERS &&
+                               enemiesAttacking < diffMaxAttackers &&
                                (random() & MORADO_KICK_CHANCE) == 0) {
                         // (15/10) Patada voladora, igual que el morado.
                         e->attackType = ENEMY_ATTACK_FLYKICK;
@@ -2259,7 +2279,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 s16  screenX  = ecx - e->cameraOffsetX;
                 bool onScreen = (screenX > 16) && (screenX < ENEMY_SCREEN_W - 16);
                 bool meleeOk  = (e->attackCooldown == 0 &&
-                                 enemiesAttacking < ENEMY_MAX_ATTACKERS &&
+                                 enemiesAttacking < diffMaxAttackers &&
                                  absS16(dy) <= ENEMY_ATTACK_TOL_Y);
                 if (e->type == ENEMY_TYPE_FOOT_SOLDIER_GUN) {
                     if (meleeOk && cdist <= GUN_SHOOT_MIN) {
@@ -2302,7 +2322,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 bool onBack   = (((s32)(getEnemyCenterX(e) - (targetX + PLAYER_SPRITE_W / 2))) * targetDir) < 0;
                 s16  cdist    = absS16((s16)(targetX + PLAYER_SPRITE_W / 2 - getEnemyCenterX(e)));
                 bool canAtk   = (e->attackCooldown == 0 &&
-                                 enemiesAttacking < ENEMY_MAX_ATTACKERS);
+                                 enemiesAttacking < diffMaxAttackers);
                 if (canAtk && cdist <= MORADO_CLOSE_RANGE &&
                     absS16(dy) <= ENEMY_ATTACK_TOL_Y && (!flanking || onBack)) {
                     e->attackType = ((random() & 3) == 0) ? ENEMY_ATTACK_FRONT
@@ -2343,6 +2363,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             // MOVIMIENTO HORIZONTAL — según el tipo
             // -----------------------------------------------------------------
             s16 moveX = 0;
+            s16 aimDy = dy;   // (22/10) Y a perseguir (la del rodeo si rodea)
             if (e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE) {
                 // El naranja NO se aleja del jugador (ya no kitea): si el
                 // jugador está FUERA del rango del shuriken, se acerca
@@ -2449,13 +2470,36 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 s8   side     = flanking ? targetDir : ((cdx > 0) ? 1 : -1);
                 s16  goalX    = (s16)(pcx - side * MORADO_BACK_STANDOFF - e->w / 2);
                 s16  gdx      = goalX - e->x;
-                if (e->attackCooldown > 0 && cdist < ENEMY_HOLD_RANGE) {
+                // (22/10) RODEAR: del lado de adelante (eSide == side: la
+                // espalda queda del otro lado) y cerca -> no la cruza por su
+                // lane, la rodea por debajo (o por arriba si abajo no hay piso).
+                s8   eSide    = (ecx < pcx) ? -1 : 1;
+                if (e->circling) {
+                    if (!flanking || cdist > MORADO_CIRCLE_RANGE + 16 ||
+                        (eSide != side && cdist >= MORADO_CIRCLE_CLEAR))
+                        e->circling = 0;                       // ya del otro lado
+                } else if (flanking && eSide == side && cdist < MORADO_CIRCLE_RANGE &&
+                           e->attackCooldown == 0) {
+                    e->circleDY = (u8)(MORADO_CIRCLE_DY + (random() & MORADO_CIRCLE_JITTER));
+                    e->circling = (targetY + e->circleDY <= e->laneBottom) ? 1 : 2;
+                }
+                if (e->circling) {
+                    s16 cy = (e->circling == 1) ? (s16)(targetY + e->circleDY)
+                                                : (s16)(targetY - e->circleDY);
+                    if (cy < e->laneTop) cy = e->laneTop;
+                    if (cy > e->laneBottom) cy = e->laneBottom;
+                    aimDy = (s16)(cy - e->y);
+                    // primero se aparta en Y; recien ahi cruza
+                    if (absS16(aimDy) <= MORADO_CIRCLE_READY && absS16(gdx) > MORADO_GOAL_TOL)
+                        moveX = (gdx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
+                } else if (e->attackCooldown > 0 && cdist < ENEMY_HOLD_RANGE) {
                     if (cdist < ENEMY_HOLD_RANGE - 8)
                         moveX = (dx > 0) ? -ENEMY_SPEED : ENEMY_SPEED;
                 } else if (absS16(gdx) > MORADO_GOAL_TOL) {
                     moveX = (gdx > 0) ? ENEMY_SPEED : -ENEMY_SPEED;
                 }
-                if (flanking) e->flankTimer++;   // cuenta frames sin poder atacar
+                // cuenta frames sin poder atacar (no mientras rodea: tarda mas)
+                if (flanking && !e->circling) e->flankTimer++;
             }
             if (moveX != 0) {
                 e->x += moveX;
@@ -2496,22 +2540,43 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
 
             // --- Movimiento vertical ---
             s16 moveY = 0;
-            if (waitBoom)                 moveY = 0;
-            else if (dy > ENEMY_Y_ALIGN)  moveY =  ENEMY_SPEED;
-            else if (dy < -ENEMY_Y_ALIGN) moveY = -ENEMY_SPEED;
+            if (waitBoom)                    moveY = 0;
+            else if (aimDy > ENEMY_Y_ALIGN)  moveY =  ENEMY_SPEED;
+            else if (aimDy < -ENEMY_Y_ALIGN) moveY = -ENEMY_SPEED;
             if (moveY != 0) {
                 e->y = clampS16(e->y + moveY, e->laneTop, e->laneBottom);
             }
 
             // --- Animación ---
-            if (moveX == 0 && moveY == 0) {
+            if (e->circling == 1 && e->y >= targetY + MORADO_CIRCLE_READY) {
+                // (22/10) Rodeando por DEBAJO: pasa por delante de la tortuga y
+                // se lo ve de espaldas (fila 12). El frame sale de donde esta:
+                // a su derecha mira a la izquierda (0), debajo de espaldas (1),
+                // a su izquierda mira a la derecha (2). Sin espejar: los frames
+                // ya traen el lado.
+                s16 rx = (s16)(getEnemyCenterX(e) - (targetX + PLAYER_SPRITE_W / 2));
+                u8  fr = (rx > MORADO_CIRCLE_FACE) ? 0 : (rx < -MORADO_CIRCLE_FACE) ? 2 : 1;
+                if (e->anim != ENEMY_ANIM_GUARD) {
+                    enemyAutoBack(e);
+                    e->anim = ENEMY_ANIM_GUARD;
+                    SPR_setAnim(e->sprite, ENEMY_ANIM_GUARD);
+                }
+                if (!e->manualAnim) {
+                    e->manualAnim = 1;
+                    SPR_setAutoAnimation(e->sprite, FALSE);
+                }
+                SPR_setFrame(e->sprite, fr);
+                e->dir = 1;
+            } else if (moveX == 0 && moveY == 0) {
                 if (e->type == ENEMY_TYPE_FOOT_SOLDIER) {
                     // Morado: posturas de espera. Si otro soldier está atacando,
                     // se pone en GUARDIA (anim 12); si no, alterna entre el IDLE
                     // clásico (fila 0) y la nueva postura de espera (anim 13,
                     // "otra postura de espera") cada ENEMY_STANCE_SWITCH frames.
+                    // (22/10) La fila 12 es la del RODEO (de espaldas); la
+                    // espera mientras otro ataca pasa a la postura 13.
                     if (enemiesAttacking > 0) {
-                        enemySetAnim(e, ENEMY_ANIM_GUARD, TRUE);
+                        enemySetAnim(e, ENEMY_ANIM_STANCE, TRUE);
                     } else {
                         if (++e->stancePhase >= ENEMY_STANCE_SWITCH) {
                             e->stancePhase = 0;
@@ -2595,7 +2660,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                             enemyRestartAnim(e, ns->anim, FALSE);
                         } else {
                             leaveAttackState(e);
-                            e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
+                            e->attackCooldown = (u8)(diffCooldown(ENEMY_ATTACK_COOLDOWN) + (random() & 31));
                             newState = ENEMY_STATE_CHASE;
                         }
                     }
@@ -2623,7 +2688,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 if (e->jumpZ <= 0 || e->timer == 0) {
                     whiteJumpStop(e);
                     leaveAttackState(e);
-                    e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
+                    e->attackCooldown = (u8)(diffCooldown(ENEMY_ATTACK_COOLDOWN) + (random() & 31));
                     newState = ENEMY_STATE_CHASE;
                 }
             } else if (e->timer > 0) {
@@ -2675,7 +2740,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 if (e->attackType == ENEMY_ATTACK_SPEAR_THROW)
                     enemySpearToPurple(e);
                 leaveAttackState(e);
-                e->attackCooldown = (u8)(ENEMY_ATTACK_COOLDOWN + (random() & 31));
+                e->attackCooldown = (u8)(diffCooldown(ENEMY_ATTACK_COOLDOWN) + (random() & 31));
                 newState = ENEMY_STATE_CHASE;
             }
             break;
@@ -2685,9 +2750,9 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
             // Sin retroceso: el golpe NO desplaza al enemigo en X (queda clavado
             // en el lugar mientras muestra la anim de daño).
             if (e->manualAnim && enemyHurt4(e)) {
-                u16 f = (u16)(ENEMY_HURT_TICKS - e->timer) / ENEMY_HURT_POSE_TICKS;
-                if (f > 3) f = 3;
-                SPR_setFrame(e->sprite, (s16)f);
+                // (21/10) Una pose por golpe; la de pie al final.
+                u8 f = (e->timer <= ENEMY_HURT_RECOVER_TICKS) ? 2 : e->hurtPose;
+                if (e->sprite->frameInd != (s16)f) SPR_setFrame(e->sprite, f);
             }
             if (e->timer > 0) {
                 e->timer--;

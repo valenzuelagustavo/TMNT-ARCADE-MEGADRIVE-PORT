@@ -1,5 +1,6 @@
 #include <genesis.h>
 #include "scenes.h"
+#include "hiscore.h"     // (20/10) iniciales y tabla de puntajes
 #include "resources.h"
 
 int main()
@@ -80,53 +81,69 @@ int main()
         case SCENE_2_1:
             currentScene = showScene21();
             break;
-        case SCENE_3_1_TITLE:
-            currentScene = showScene31Title();
-            break;
-        case SCENE_3_1:
+        // (18/10) Recorrido del arcade + los niveles del port de NES (ver
+        // scenes.h). Entre los dos niveles de una SCENE no hay titulo.
+        case SCENE_3_1:                     // 2-2 la cloaca
             currentScene = showScene31();
             break;
-        case SCENE_4_1_TITLE:
-            currentScene = showScene41Title();
+        case SCENE_S3_TITLE:
+            currentScene = showSceneS3Title();
             break;
-        case SCENE_4_1:
+        case SCENE_SNOW:                    // 3-1 Central Park (NES; 21/10 prueba del fondo)
+            currentScene = showSceneSnow();
+            break;
+        case SCENE_4_1:                     // 3-2 el garage
             currentScene = showScene41();
             break;
-        case SCENE_5_1_TITLE:
-            currentScene = showScene51Title();
+        case SCENE_S4_TITLE:
+            currentScene = showSceneS4Title();
             break;
-        case SCENE_5_1:
+        case SCENE_5_1:                     // 4-1 la autopista
             currentScene = showScene51();
             break;
-        case SCENE_6_1_TITLE:
-            currentScene = showScene61Title();
-            break;
-        case SCENE_6_1:
+        case SCENE_6_1:                     // 4-2 el skate
             currentScene = showScene61();
             break;
-        case SCENE_7_1_TITLE:
-            currentScene = showScene71Title();
+        case SCENE_S5_TITLE:
+            currentScene = showSceneS5Title();
             break;
-        case SCENE_7_1:
+        case SCENE_7_1:                     // 5-1 la fabrica
             currentScene = showScene71();
             break;
-        case SCENE_8_1_TITLE:
-            currentScene = showScene81Title();
+        case SCENE_S6_TITLE:
+            currentScene = showSceneS6Title();
             break;
-        case SCENE_8_1:
+        case SCENE_8_1:                     // 6-1 el Technodrome
             currentScene = showScene81();
             break;
-        case SCENE_9_1_TITLE:
-            currentScene = showScene91Title();
-            break;
-        case SCENE_9_1:
+        case SCENE_9_1:                     // 6-2 Krang y Shredder
             currentScene = showScene91();
             break;
-        case SCENE_THE_END:
-            currentScene = showTheEnd();
+        // Pantallas intermedias y niveles que todavia no tienen arte: una
+        // pantalla provisoria con texto (scenes.c, showPendingScene). Cuando
+        // llegue el arte, cada una pasa a tener su propio case.
+        case SCENE_CUT_SHREDDER_APRIL:
+        case SCENE_CUT_CITY:
+        case SCENE_CUT_VAN:
+        case SCENE_CUT_SPLINTER:
+        case SCENE_DOJO:                    // 5-2 (NES)
+        case SCENE_CUT_TECHNODROME:
+            currentScene = showPendingScene(currentScene);
+            break;
+        case SCENE_EPILOGUE:
+            currentScene = showEpilogue();
+            break;
+        case SCENE_STAFF_CREDITS:
+            currentScene = showStaffCredits();
             break;
         case SCENE_GAME_OVER:
             currentScene = showGameOver();
+            break;
+        case SCENE_HISCORE_ENTRY:           // (20/10) iniciales y tabla
+            currentScene = showHiscoreEntry();
+            break;
+        case SCENE_HISCORE_BOARD:
+            currentScene = showHiscoreBoard();
             break;
         // ... agregar el resto de casos ...
         default:

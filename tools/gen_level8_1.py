@@ -104,6 +104,21 @@ for r in range(H):
             continue
         mp[r * W + c] = mp[(r + 32) * W + c + 32]
         holes += 1
+# (18/10) Dos huecos de 5x5 vecinos en la diagonal (filas 172 y 204): cada uno
+# tapaba el "periodo de al lado" del otro y el paso anterior no los tocaba
+# (en la bajada en ascensor se veian dos cuadrados negros). Si un lado de la
+# diagonal es hueco, se copia del otro, con la condicion de que DOS periodos
+# hacia ese lado tambien haya pozo (asi no se toca nada fuera del pozo).
+for r in range(H):
+    for c in range(W):
+        if mp[r * W + c] not in blank or mp[r * W + c] == 0:
+            continue
+        if not isblank(c - 32, r - 32) and not isblank(c + 64, r + 64):
+            mp[r * W + c] = mp[(r - 32) * W + c - 32]
+            holes += 1
+        elif not isblank(c + 32, r + 32) and not isblank(c - 64, r - 64):
+            mp[r * W + c] = mp[(r + 32) * W + c + 32]
+            holes += 1
 print('techno: %d huecos del pozo rellenados' % holes)
 
 # Y los bordes de esos huecos: tiles del pozo con pixeles transparentes. Pixel
@@ -143,3 +158,7 @@ with open(os.path.join(D, 'techno_tiles.bin'), 'wb') as f:
 with open(os.path.join(D, 'techno_map.bin'), 'wb') as f:
     f.write(struct.pack('>%dH' % (W * H), *mp))
 print('techno: %d celdas cambiadas, %d tiles (%d nuevos)' % (changed, len(tiles), len(tiles) - len(raw) // 32))
+
+# (18/10) La ROM usa el mapa por bloques (el plano de 411 KB pasaba los 4 MB).
+import pack_techno_map
+pack_techno_map.main()

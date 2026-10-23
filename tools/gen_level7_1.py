@@ -8,10 +8,11 @@
 #   u16 big-endian nCols + 6 bytes por columna
 #   [n, top0/8, bot0/8, top1/8, bot1/8, transicion]
 #
-# Diferencia con el sewer: aca la banda de arriba (cuando hay dos) es el techo
-# de la plataforma "NFP-1" del fondo. Caminar ahi arriba se veria como pararse
-# SOBRE la pared de la plataforma, asi que se usa solo la banda del PISO (la
-# de abajo): el tope es el de la banda con el borde inferior mas bajo.
+# La banda de arriba (cuando hay dos: columnas 61-106) es el techo de la
+# plataforma "NFP-1" del fondo. (18/10, Gustavo) Ahora se puede SUBIR: el tope
+# de esas columnas es el de la plataforma (64) y la cara (96..128) la maneja
+# el escalon de tramo de stage_level (ledgeTop/Bot/X0/X1 en level7_1.c).
+# Antes se usaba solo la banda del piso.
 #
 # Salida: src/level7_1_limits.c / .h con lvl71WalkTop[] (u8, px, por columna).
 #
@@ -37,8 +38,7 @@ def main():
         bands = [(p[1] * 8, p[2] * 8)]
         if p[0] >= 2:
             bands.append((p[3] * 8, p[4] * 8))
-        floor = max(bands, key=lambda b: b[1])
-        tops.append(floor[0])
+        tops.append(min(b[0] for b in bands))
     with open(OUT_H, "w") as f:
         f.write("// GENERADO por tools/gen_level7_1.py -- NO EDITAR A MANO\n")
         f.write("#ifndef _LEVEL7_1_LIMITS_H_\n#define _LEVEL7_1_LIMITS_H_\n")

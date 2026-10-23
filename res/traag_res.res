@@ -15,3 +15,5 @@
 SPRITE traag_boss     "sprites/traag_boss.png"     18 18 NONE 8
 SPRITE traag_missil   "sprites/traag_missil.png"    8  4 NONE 4
 SPRITE traag_explosao "sprites/traag_explosao.png"  4  4 NONE 0
+// (21/10) La explosion del misil es baxter_boom (baxter_res.res) con su
+// propia paleta en PAL2: ver traag.c.

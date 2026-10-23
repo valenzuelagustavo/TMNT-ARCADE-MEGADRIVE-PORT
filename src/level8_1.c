@@ -28,10 +28,25 @@
 //         tools/gen_level8_1.py lo borra (ver ahi).
 //
 // Musica: music_technodrome, "16 - The Technodrome (Scene 5)"; con Traag, music_boss.
+//
+// (18/10) Como en el arcade (video, seg_06):
+//   - ANIMACION DE PALETA del mapa (techPal*): los rojos y el rosa/violeta
+//     "respiran" (oscuro <-> encendido), el amarillo titila en ambar, las
+//     lucecitas cian de los paneles cambian de color y el azul late. El gris
+//     del piso y de las paredes no se toca.
+//   - OLEADAS nuevas: blancos de espada al entrar, blancos + lanzas entre las
+//     columnas, blancos del cuchillo (en el arcade son los del monociclo, que
+//     no tienen arte), morados y lanzas al final del pasillo; abajo los del
+//     fusil antes de Traag. Los proyectiles ya saben de camara vertical
+//     (stageCamY), asi que las lanzas se tiran y los fusiles disparan.
+//   - COLUMNAS con laser arriba y BOLAS en el viaje: techno_hazards.c.
+//   PAL3 es la paleta del foot soldier BLANCO (blancos, cuchillos, columnas,
+//   laser y bolas) hasta que entra Traag, que carga la suya.
 // ===========================================================================
 
 #include <genesis.h>
 #include "scenes.h"
+#include "difficulty.h"  // (20/10) foot soldiers extra por oleada
 #include "idle_missile.h"   // (14/10) modo ARCADE: el misil al que se queda quieto
 #include "level8_1.h"          // pal_techno, techno_tiles/map, techno_elevator
 #include "level1.h"            // hud_font
@@ -41,6 +56,7 @@
 #include "enemy.h"
 #include "stage_bg.h"
 #include "traag.h"
+#include "techno_hazards.h"   // (18/10) columnas con laser y bolas del ascensor
 #include "pause_menu.h"
 #include "audio.h"
 
@@ -87,15 +103,18 @@ extern u8 cantidadJugadores;
 #define L8_FLOOR_MARGIN      12          // pies a esto del borde, como minimo
 #define L8_ARM_FRAMES        36          // todos encima este tiempo -> arranca
 #define L8_RIDE_SPEED         4
+#define L8_RIDE_SLOW        160          // (18/10) px finales en los que frena
 // (18/10) Mientras baja el ascensor suena elevator_tecnodrome_sfx en LOOP por
 // CH2 (en el viaje no hay soldiers ni golpes que lo necesiten). Si algo le
 // pisa el canal (un golpe al aire, el jingle de pausa va por CH3), se vuelve
 // a disparar en el cuadro siguiente. Se corta al llegar abajo o al salir.
+// (18/10) En el canal de las VOCES (CH2) con prioridad baja: una voz lo corta
+// y el viaje lo relanza al terminar; los golpes (CH3) no lo tocan.
 #define L8_ELEV_SFX_CH     SOUND_PCM_CH2
-#define L8_ELEV_SFX_PRIO   10
+#define L8_ELEV_SFX_PRIO    6          // < 8: hasta los gritos de las tortugas lo cortan
 static void elevSfxPlay(void) {
     XGM2_playPCMEx(elevator_tecnodrome_sfx, sizeof(elevator_tecnodrome_sfx),
-                   L8_ELEV_SFX_CH, L8_ELEV_SFX_PRIO, FALSE, TRUE);
+                   L8_ELEV_SFX_CH, L8_ELEV_SFX_PRIO, TRUE, TRUE);   // (18/10) halfRate: va a 6650 Hz (audio.res)
 }
 
 // --- Abajo -------------------------------------------------------------------
@@ -104,6 +123,9 @@ static void elevSfxPlay(void) {
 #define L8_BOT_LANE_T      2696
 #define L8_BOT_LANE_B      2808
 #define L8_BOSS_FEET_X     4420
+// (18/10) Bolas en el viaje: dejan de salir cuando faltan ~360 px de bajada
+// (las que ya salieron terminan de cruzar el ascensor).
+#define L8_BALLS_STOP_Y   (L8_BOT_CAM_Y - 360)
 
 // --- Juego -------------------------------------------------------------------
 #define CAM_DEAD_ZONE_RIGHT 120
@@ -128,23 +150,42 @@ typedef enum { PH_TOP, PH_RIDE, PH_BOTTOM } TechnoPhase;
 // la lanza de aca no la tiran (pelean con la estocada). Arriba se disparan
 // por los pies del lider; la de abajo, al llegar el ascensor.
 // ---------------------------------------------------------------------------
+// (18/10) Rehechas siguiendo el arcade (ver el encabezado). Las columnas
+// estan entre x 520 y 1240 (techno_hazards.c): las oleadas 2 a 5 se pelean
+// entre los lasers.
 #define P ENEMY_TYPE_FOOT_SOLDIER
 #define S ENEMY_TYPE_FOOT_SOLDIER_SPEAR
-typedef struct { s16 trigX, lockX; u8 n; s8 side[4]; u8 type[4]; } TechnoWave;
+#define W ENEMY_TYPE_FOOT_SOLDIER_WHITE
+#define K ENEMY_TYPE_FOOT_SOLDIER_KNIFE
+#define G ENEMY_TYPE_FOOT_SOLDIER_GUN
+#define TW_MAX 6
+typedef struct { s16 trigX, lockX; u8 n; s8 side[TW_MAX]; u8 type[TW_MAX]; } TechnoWave;
 static const TechnoWave topWaves[] = {
-    {  200,    0, 2, { +1, -1 },         { P, P } },
-    {  560,  380, 3, { +1, -1, +1 },     { P, P, P } },
-    {  940,  760, 3, { -1, +1, +1 },     { P, S, S } },
-    { 1300, 1120, 4, { +1, -1, +1, -1 }, { S, P, S, S } },
+    {  200,    0, 3, { +1, -1, +1 },             { W, W, W } },
+    {  540,  360, 4, { +1, +1, -1, +1 },         { W, W, W, W } },
+    {  820,  640, 4, { -1, +1, +1, -1 },         { W, S, W, S } },
+    { 1080,  900, 4, { +1, -1, +1, +1 },         { K, P, K, P } },
+    { 1300, 1120, 5, { +1, -1, +1, -1, +1 },     { P, S, P, S, P } },
+    { 1460, 1348, 4, { +1, +1, -1, +1 },         { S, P, P, S } },
 };
 #define TOP_WAVES ((s16)(sizeof(topWaves) / sizeof(topWaves[0])))
-static const TechnoWave botWave = { 0, 0, 3, { +1, +1, -1 }, { P, P, P } };
+// Abajo: al llegar el ascensor, los del fusil (y dos del cuchillo, que en el
+// arcade son los del monociclo); con la camara al fondo, lanzas y morados.
+static const TechnoWave botWaves[] = {
+    {    0,    0, 6, { +1, +1, -1, +1, -1, +1 }, { G, G, K, G, K, G } },
+    { 4200, 4352, 4, { +1, -1, +1, +1 },         { S, P, S, P } },
+};
+#define BOT_WAVES ((s16)(sizeof(botWaves) / sizeof(botWaves[0])))
 #undef P
 #undef S
+#undef W
+#undef K
+#undef G
 
-static const SbgRaw technoMap = {
+static const SbgBlk2D technoMap = {
     (const u32*) techno_tiles,
-    (const u16*) techno_map,
+    (const u16*) techno_blocks,         // (18/10) por bloques: tools/pack_techno_map.py
+    (const u8*)  techno_bidx,
     L8_MAP_W, L8_MAP_H,
     &pal_techno,
 };
@@ -272,13 +313,75 @@ static void spawnWaveEnemy(Enemy* e, s8 side, u8 type, s16 camX, s16 laneT, s16 
     s16 span = (s16)(laneB - laneT - 16);
     s16 y = (s16)(laneT + 8 + ((span > 0) ? (s16)(random() % (u16)span) : 0));
     if (type != ENEMY_TYPE_FOOT_SOLDIER) {
-        // (06/10) El de la lanza entra caminando y aca no la tira.
-        initEnemyWalkInSpawn(e, x, y, (s8)((side < 0) ? 1 : -1), PAL2, type);
-        e->spearThrow = 0;
+        // (18/10) Los blancos (espada y cuchillo) van en PAL3. Con stageCamY
+        // los proyectiles ya se dibujan bien: la lanza se tira otra vez.
+        u8 pl = (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE ||
+                 type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? PAL3 : PAL2;
+        initEnemyWalkInSpawn(e, x, y, (s8)((side < 0) ? 1 : -1), pl, type);
     }
     else if (side < 0) initEnemySomersaultSpawn(e, x, y, 1, PAL2, type);
     else               initEnemyKickSpawn(e, x, y, -1, PAL2, type);
     setEnemyBounds(e, laneT, laneB, 0, 0, L8_W);
+}
+
+// ---------------------------------------------------------------------------
+// (18/10) ANIMACION DE PALETA del mapa (PAL0), medida en el video del arcade
+// ---------------------------------------------------------------------------
+// En el arcade, con la camara quieta, cambian solo algunos colores:
+//   - los bloques rojos del pozo y las luces rojas: rampa de brillo de 8
+//     niveles ida y vuelta, 6 frames por paso (84 frames la vuelta);
+//   - el panel azul del piso: la misma rampa en azules;
+//   - las lucecitas de los paneles de la pared: 6 colores, 5 frames cada uno.
+// En el mapa de Ray esos detalles quedaron en pocos indices: 3 y 10 (rojos),
+// 6 (rosa/violeta: triangulos del piso y bloques del pozo), 4 (amarillo: las
+// rayas de los paneles y de la rampa), 9 (cian: los displays) y 12 (azul).
+// Los grises del piso y las paredes (5, 7, 13, 14, 15) y el resto no cambian.
+#define TP_PULSE_T     6               // frames por paso de la rampa
+#define TP_LAMP_T      5               // frames por color de las lucecitas
+static u16 tpBase[16];
+static u16 tpCur[16];
+static u16 tpT;
+
+// Escala un color de la VDP (0BBB0GGG0RRR0) por num/8.
+static u16 tpScale(u16 c, u16 num) {
+    u16 r = (u16)(((c >> 1) & 7) * num / 8);
+    u16 g = (u16)(((c >> 5) & 7) * num / 8);
+    u16 b = (u16)(((c >> 9) & 7) * num / 8);
+    return (u16)((b << 9) | (g << 5) | (r << 1));
+}
+
+static const u16 tpYellow[4] = {        // ambar que titila (ida y vuelta)
+    RGB24_TO_VDPCOLOR(0xFFFF9C), RGB24_TO_VDPCOLOR(0xFFD600),
+    RGB24_TO_VDPCOLOR(0xFFAD00), RGB24_TO_VDPCOLOR(0xFFD600),
+};
+static const u16 tpLamp[6] = {          // las lucecitas de los paneles
+    RGB24_TO_VDPCOLOR(0x00FFFF), RGB24_TO_VDPCOLOR(0x00FF8C),
+    RGB24_TO_VDPCOLOR(0xFFEF94), RGB24_TO_VDPCOLOR(0xFF00A5),
+    RGB24_TO_VDPCOLOR(0xFFD600), RGB24_TO_VDPCOLOR(0x0000CE),
+};
+
+static void techPalInit(void) {
+    for (u16 i = 0; i < 16; i++) tpBase[i] = tpCur[i] = pal_techno.data[i];
+    tpT = 0;
+}
+
+static void techPalStep(void) {
+    tpT++;
+    u16 st = (u16)((tpT / TP_PULSE_T) % 14);
+    u16 lv = (st < 8) ? st : (u16)(14 - st);            // 0..7..1
+    u16 num = (u16)(3 + (5 * lv + 3) / 7);              // 3/8 .. 8/8
+    u16 nc[16];
+    for (u16 i = 0; i < 16; i++) nc[i] = tpBase[i];
+    nc[3]  = tpScale(tpBase[3], num);
+    nc[10] = tpScale(tpBase[10], num);
+    nc[6]  = tpScale(tpBase[6], num);
+    nc[12] = tpScale(tpBase[12], (u16)(11 - num));       // el azul late a contramano
+    nc[4]  = tpYellow[(tpT / TP_LAMP_T) & 3];
+    nc[9]  = tpLamp[(tpT / TP_LAMP_T) % 6];
+    bool ch = FALSE;
+    for (u16 i = 0; i < 16; i++)
+        if (nc[i] != tpCur[i]) { tpCur[i] = nc[i]; ch = TRUE; }
+    if (ch) PAL_setColors(0, tpCur, 16, DMA_QUEUE);
 }
 
 // ===========================================================================
@@ -291,9 +394,9 @@ SceneId showScene81() {
     const u16 barBlocks = (u16)((nPlSetup > 2) ? MAX_PLAYERS : 2) * HUD_VRAM_PER_PLAYER;
     const u16 elevTiles = techno_elevator.tileset->numTile;
 
-    // VRAM: HUD | ascensor | cache del mapa | sprites.
+    // VRAM: HUD | ascensor | cache del mapa | columnas/laser (18/10) | sprites.
     SPR_initEx((u16)(TILE_FONT_INDEX - (TILE_USER_INDEX + barBlocks + elevTiles
-                                        + L8_BG_SLOTS)));
+                                        + L8_BG_SLOTS + TH_VRAM_TILES)));
 
     // (10/10) Cola de DMA mas grande mientras dura el nivel: los tiles del
     // mapa que entran (sobre todo bajando en el ascensor) van por ahi, uno por
@@ -323,6 +426,9 @@ SceneId showScene81() {
     elevOc = 0x7FFF;
     sbgInitRaw2D(&technoMap, BG_B, PAL0, (u16)(elevVram + elevTiles), L8_BG_SLOTS,
                  cameraX, cameraY);
+    thInit((u16)(elevVram + elevTiles + L8_BG_SLOTS), thTechnoPillars, TH_TECHNO_PILLARS, 110);
+    techPalInit();
+    stageCamY = cameraY;
     s16 elevFine = elevUpdate((s16)(elevX - cameraX), DMA);
     applyScroll(cameraX, cameraY, elevFine, DMA);
 
@@ -357,6 +463,7 @@ SceneId showScene81() {
                       (u16)(hudVram + k * HUD_VRAM_PER_PLAYER));
 
     resetEnemyAI(cantidadJugadores);
+    shurikenInit();                    // (18/10) lanzas, balas y cuchillos
     static Enemy enemies[MAX_ENEMIES];
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state  = ENEMY_STATE_INACTIVE;
@@ -372,20 +479,24 @@ SceneId showScene81() {
 
     const TechnoWave* wave = NULL;     // oleada en curso
     s16 topIdx      = -1;              // ultima oleada de arriba disparada
+    s16 botIdx      = -1;              // (18/10) idem abajo
     bool botFired   = FALSE;
     u8  waveSpawned = 0;
+    u8  waveTot     = 0;               // (20/10) n + extra de la dificultad
     s16 camLockX    = -1;
     u8  arm         = 0;               // frames con todos encima del ascensor
     u16 spawnWait   = 0;               // (10/10) frames sin poder hacer entrar al siguiente
+    u16 rideAcc     = 0;               // (18/10) fraccion de px del viaje (Q8)
 
-    // Revelado: PAL0 el mapa, PAL1 las tortugas, PAL2 los soldiers, PAL3 en
-    // negro (la carga Traag al entrar).
+    // Revelado: PAL0 el mapa, PAL1 las tortugas, PAL2 los soldiers, PAL3 la
+    // del blanco (18/10: blancos, columnas, laser y bolas; Traag la pisa al
+    // entrar).
     u16 target[64];
     for (u16 i = 0; i < 16; i++) {
         target[i]      = pal_techno.data[i];
         target[16 + i] = leo_player.palette->data[i];
         target[32 + i] = foot_soldier.palette->data[i];
-        target[48 + i] = 0;
+        target[48 + i] = foot_soldier_white.palette->data[i];
     }
     for (u8 k = 0; k < nPl; k++) updatePlayer(pls[k]);
     drawPlayers(pls, nPl, cameraX, cameraY);
@@ -439,15 +550,16 @@ SceneId showScene81() {
                 if (nc > cameraX) cameraX = nc;
             }
             // Oleadas de arriba.
-            if ((wave == NULL || waveSpawned >= wave->n) && topIdx + 1 < TOP_WAVES &&
+            if ((wave == NULL || waveSpawned >= waveTot) && topIdx + 1 < TOP_WAVES &&
                 leadFeetX >= topWaves[topIdx + 1].trigX) {
                 topIdx++;
                 wave = &topWaves[topIdx];
                 waveSpawned = 0;
+                waveTot = (u8)(wave->n + diffWaveExtra(wave->n));
                 camLockX = wave->lockX;
                 if (camLockX < cameraX) camLockX = cameraX;
             }
-            bool wavesDone = (topIdx == TOP_WAVES - 1 && wave && waveSpawned >= wave->n &&
+            bool wavesDone = (topIdx == TOP_WAVES - 1 && wave && waveSpawned >= waveTot &&
                               alive == 0);
             // El ascensor arranca con todos los que siguen en juego encima.
             bool all = wavesDone;
@@ -479,8 +591,18 @@ SceneId showScene81() {
             }
         } else if (phase == PH_RIDE) {
             if (!XGM2_isPlayingPCM(1 << L8_ELEV_SFX_CH)) elevSfxPlay();
-            s16 s = L8_RIDE_SPEED;
-            if (cameraY + s > L8_BOT_CAM_Y) s = (s16)(L8_BOT_CAM_Y - cameraY);
+            // (18/10) Frena al llegar: en los ultimos L8_RIDE_SLOW px la
+            // velocidad baja en proporcion a lo que falta (Q8, minimo 0,5 px/f).
+            s16 left = (s16)(L8_BOT_CAM_Y - cameraY);
+            u16 vq = (u16)L8_RIDE_SPEED << 8;
+            if (left < L8_RIDE_SLOW) {
+                vq = (u16)(((u32)left << 8) * L8_RIDE_SPEED / L8_RIDE_SLOW);
+                if (vq < 128) vq = 128;
+            }
+            rideAcc = (u16)(rideAcc + vq);
+            s16 s = (s16)(rideAcc >> 8);
+            rideAcc &= 0xFF;
+            if (s > left) s = left;
             elevX += s; elevY += s;
             cameraX += s; cameraY += s;
             for (u8 k = 0; k < nPl; k++) {
@@ -491,9 +613,11 @@ SceneId showScene81() {
             if (cameraY >= L8_BOT_CAM_Y) {
                 phase = PH_BOTTOM;
                 XGM2_stopPCM(L8_ELEV_SFX_CH);
-                wave = &botWave;
+                botIdx = 0;
+                wave = &botWaves[0];
                 botFired = TRUE;
                 waveSpawned = 0;
+                waveTot = (u8)(wave->n + diffWaveExtra(wave->n));
                 camLockX = cameraX;
             }
         } else {
@@ -504,6 +628,16 @@ SceneId showScene81() {
                 if (camLockX >= 0 && nc > camLockX) nc = camLockX;
                 if (nc > L8_BOT_CAM_MAX_X) nc = L8_BOT_CAM_MAX_X;
                 if (nc > cameraX) cameraX = nc;
+            }
+            // (18/10) Oleadas de abajo despues de la de llegada.
+            if (botIdx >= 0 && (wave == NULL || waveSpawned >= waveTot) && alive == 0 &&
+                botIdx + 1 < BOT_WAVES && leadFeetX >= botWaves[botIdx + 1].trigX) {
+                botIdx++;
+                wave = &botWaves[botIdx];
+                waveSpawned = 0;
+                waveTot = (u8)(wave->n + diffWaveExtra(wave->n));
+                camLockX = wave->lockX;
+                if (camLockX < cameraX) camLockX = cameraX;
             }
             for (u8 k = 0; k < nPl; k++) {
                 setPlayerLane(pls[k], L8_BOT_LANE_T, L8_BOT_LANE_B);
@@ -545,12 +679,13 @@ SceneId showScene81() {
         if (wave && phase != PH_RIDE) {
             s16 lt = (phase == PH_TOP) ? L8_TOP_LANE_T : L8_BOT_LANE_T;
             s16 lb = (phase == PH_TOP) ? L8_TOP_LANE_B : L8_BOT_LANE_B;
-            while (waveSpawned < wave->n && alive < maxAlive) {
+            while (waveSpawned < waveTot && alive < maxAlive) {
+                u8 we = (u8)(waveSpawned % wave->n);   // los extra repiten la tabla
                 u16 i;
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
                 if (i >= MAX_ENEMIES) break;
-                if (!sprVramFits(enemySheetDef(wave->type[waveSpawned])->maxNumTile)) {
+                if (!sprVramFits(enemySheetDef(wave->type[we])->maxNumTile)) {
                     // (10/10) Red de seguridad: si el que sigue no entra en
                     // VRAM por L8_SPAWN_GIVEUP cuadros, se saltea. Sin esto la
                     // oleada nunca "terminaba", la camara quedaba trabada y el
@@ -559,13 +694,19 @@ SceneId showScene81() {
                     break;
                 }
                 spawnWait = 0;
-                spawnWaveEnemy(&enemies[i], wave->side[waveSpawned],
-                               wave->type[waveSpawned], cameraX, lt, lb);
+                // (18/10) Abajo todos entran por la DERECHA: el jugador tiene
+                // que avanzar.
+                spawnWaveEnemy(&enemies[i], (phase == PH_BOTTOM) ? 1 : wave->side[we],
+                               wave->type[we], cameraX, lt, lb);
                 waveSpawned++;
                 alive++;
             }
-            if (waveSpawned >= wave->n && alive == 0) camLockX = -1;
+            if (waveSpawned >= waveTot && alive == 0) camLockX = -1;
         }
+
+        // (18/10) La Y de camara para lo que dibuja enemy.c (soldiers y sus
+        // proyectiles) y player.c.
+        stageCamY = cameraY;
 
         // --- Foot soldiers -----------------------------------------------------
         separateEnemies(enemies, MAX_ENEMIES);
@@ -623,14 +764,38 @@ SceneId showScene81() {
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
         }
 
+        // --- (18/10) Lanzas, balas y cuchillos ----------------------------------
+        shurikenUpdate(cameraX);
+        for (u8 k = 0; k < nPl; k++)
+            if (shurikenBreakByPlayerAttack(pls[k]))
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+        {
+            s16 hitX = 0;
+            for (u8 k = 0; k < nPl; k++) {
+                if (!playerCanBeHit(pls[k])) continue;
+                if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX))
+                    continue;
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                damagePlayer(pls[k], hitX);
+            }
+        }
+
+        // --- (18/10) Columnas con laser (arriba) y bolas (viaje) ----------------
+        thPillarsUpdate(pls, nPl, cameraX, cameraY);
+        thBallsUpdate(pls, nPl, cameraX, cameraY, elevX, elevY,
+                      phase == PH_RIDE && cameraY < L8_BALLS_STOP_Y);
+
         // --- Jefe: Traag -------------------------------------------------------
-        if (!bossStarted && phase == PH_BOTTOM && botFired && waveSpawned >= botWave.n &&
+        if (!bossStarted && phase == PH_BOTTOM && botFired && botIdx == BOT_WAVES - 1 &&
+            waveSpawned >= waveTot &&
             alive == 0 && cameraX >= L8_BOT_CAM_MAX_X && leadFeetX >= L8_BOSS_FEET_X) {
             bossStarted = TRUE;
             XGM2_setLoopNumber(-1);
@@ -648,6 +813,7 @@ SceneId showScene81() {
         }
 
         // --- Fondo, ascensor y sprites -----------------------------------------
+        if (!PAL_isDoingFade()) techPalStep();     // (18/10)
         sbgUpdate2D(cameraX, cameraY);
         elevFine = elevUpdate((s16)(elevX - cameraX), DMA_QUEUE);
         applyScroll(cameraX, cameraY, elevFine, DMA_QUEUE);
@@ -669,6 +835,9 @@ SceneId showScene81() {
     }
 
     if (phase == PH_RIDE) XGM2_stopPCM(L8_ELEV_SFX_CH);   // salio en pleno viaje
+    thRelease();               // (18/10)
+    shurikenReleaseAll();
+    stageCamY = 0;
     traagRelease(&traag);
     DMA_setMaxQueueSizeToDefault();
     VDP_setTextPriority(0);
@@ -676,6 +845,6 @@ SceneId showScene81() {
     VDP_setTextPlane(BG_A);
     clearScene();          // tambien vuelve el scroll a modo plano
     if (jump != PAUSE_NO_JUMP) return jump;
-    if (win && !allOut) return SCENE_9_1_TITLE;
+    if (win && !allOut) return SCENE_9_1;   // (18/10) 6-1 -> 6-2, sin titulo
     return SCENE_GAME_OVER;
 }

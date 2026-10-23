@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # =============================================================================
-# gen_players_new.py -- hojas nuevas de Leo y Don para el port (09/10)
+# gen_players_new.py -- hojas nuevas de Leo, Don (09/10), Mike y Raph (20/10)
 # =============================================================================
 # FUENTES (rips "de catalogo", 16 colores indexados, indice 0 transparente):
 #   res/sprites/players/50886_leo.png   940x1425
@@ -118,6 +118,105 @@ DON = dict(
     ],
 )
 
+# (20/10) MIKE: rip "50887_mike.png" (820x1640) SIN rotulos, grilla pareja de
+# 10 columnas de 82 px y filas de 95 (la sombra de la fila 0 termina en y 94).
+# Animaciones identificadas a ojo contra la hoja de Leo (mismo orden del rip,
+# con menos frames): ver el doc del proyecto mike-hoja-nueva-20-10.
+#   0-3 idle | 4-7 patada | 8-14 llave (7) | 15-19 / 20-25 / 26-29 / 30-33
+#   golpes 1..4 | 34-43 salto | 44-46 / 47-53 / 54-56 golpes en el aire 1..3 |
+#   57-64 / 65-72 caminatas | 73-77 golpe 1 | 78-82 golpe 2 | 83-93 volteo de
+#   frente (11) | 94-96 golpe de atras | 97-110 cae de boca (14: Mike no trae
+#   el "Hit Behind 3" de 10 de Leo y Don; se usa este) | 111-114 agarrado.
+# Filas sueltas de abajo: electrocutado (con el esqueleto), mareado, boca de
+# tormenta, MORDIDA del Mouser (3, la tortuga sacudiendo el brazo) y QUEMADO
+# del lanzallamas (2).
+MIKE = dict(
+    src='50887_mike.png', out='mike_new_13x13.png',
+    cell_w=82, cell_h=95, base0=98, rows=12,
+    text_color=None, text_max_y=0, sign_x=None, label_band=None,
+    extra_gap=16,                  # la boca de tormenta tiene frames en 2 pedazos
+    anims=[
+        ('IDLE',           0,  4),
+        ('KICK',           4,  4),
+        ('THROW',          8,  7),
+        ('ATTACK_1',      15,  5),
+        ('ATTACK_2',      20,  6),
+        ('ATTACK_3',      26,  4),
+        ('ATTACK_4',      30,  4),
+        ('JUMP',          34, 10),
+        ('JUMP_ATTACK_1', 44,  3),
+        ('JUMP_ATTACK_2', 47,  7),
+        ('JUMP_ATTACK_3', 54,  3),
+        ('WALK_FRONT',    57,  8),
+        ('WALK_BACK',     65,  8),
+        ('HIT_1',         73,  5),
+        ('HIT_2',         78,  5),
+        ('HIT_3',         83, 11),
+        ('HIT_BEHIND_1',  94,  3),
+        ('HIT_BEHIND_3',  97, 14),
+        ('HELD',         111,  4),
+    ],
+    extras=[
+        ('EXTRA_1', 1170, 1250),   # electrocutado (3: el ultimo, el esqueleto)
+        ('EXTRA_2', 1280, 1360),   # mareado
+        ('EXTRA_3', 1368, 1464),   # boca de tormenta (con el frame vacio)
+        ('BITE',    1490, 1560),   # mordida del Mouser
+        ('BURN',    1570, 1640),   # quemado del lanzallamas
+    ],
+    # filas extra de la hoja del port (despues de las 25 de PlayerAnim):
+    tail=[('MOUSER_BITE', 'BITE'), ('BURN', 'BURN')],
+)
+
+# (20/10) RAPH: rip "50923_RAPH.png" (850x1540) CON rotulos rojos (indice 14,
+# el mismo del panuelo: solo se borran en la franja de arriba de cada fila y
+# hasta y 1050), grilla de 10 columnas de 85 px y filas de 77 (la sombra de la
+# fila 0 termina en y 90). Arriba a la izquierda trae la tira de la paleta y a
+# la derecha de la fila 12 la firma "ripped by napalm": se borran.
+# Mismo orden que Don (golpes en el aire 1, 3 y despues el especial de 7).
+RAPH = dict(
+    src='50923_RAPH.png', out='raph_new_13x13.png',
+    cell_w=85, cell_h=77, base0=94, rows=13,
+    text_color=14, text_max_y=1050, sign_x=None, label_band=(0, 20),   # 20: la 'ac' de 'Attack' (frame 25) arranca en 19
+    strip=(0, 8, 0, 130),
+    blank=[(955, 1005, 770, 850)],  # firma del ripper
+    anims=[
+        ('IDLE',           0,  3),
+        ('KICK',           3,  4),
+        ('THROW',          7,  6),
+        ('ATTACK_1',      13,  3),
+        ('ATTACK_2',      16,  6),
+        ('ATTACK_3',      22,  3),
+        ('ATTACK_4',      25,  8),
+        # 33 = parado antes de saltar (el rip trae 11; la vieja y las otras
+        # tortugas usan los 10 desde que levanta las sai): queda sin uso
+        ('JUMP',          34, 10),
+        # (20/10) Gustavo: el PRIMER "Jump Attack" del rip (44-46) es la
+        # patada voladora con direccion y de media altura -> JUMP_KICK_DIR
+        # (aca 'JUMP_ATTACK_3'); el SEGUNDO (47-49) es la de mas abajo ->
+        # JUMP_KICK ('JUMP_ATTACK_1'). Ver PLAYER_RAPH_LOW_KICK_Z en player.h.
+        ('JUMP_ATTACK_3', 44,  3),
+        ('JUMP_ATTACK_1', 47,  3),
+        ('JUMP_ATTACK_2', 50,  7),
+        ('WALK_FRONT',    57,  8),
+        ('WALK_BACK',     65,  8),
+        ('HIT_1',         73,  6),
+        ('HIT_2',         79,  4),
+        ('HIT_3',         83, 10),
+        ('HIT_BEHIND_1',  93,  3),
+        ('HIT_BEHIND_2',  96, 14),
+        ('HIT_BEHIND_3', 110, 10),
+        ('HELD',         120,  4),
+    ],
+    extras=[
+        ('EXTRA_1', 1050, 1122),   # electrocutado (3: el ultimo, el esqueleto)
+        ('EXTRA_2', 1168, 1232),   # mareado
+        ('EXTRA_3', 1258, 1340),   # boca de tormenta (con el frame vacio)
+        ('BITE',    1378, 1446),   # mordida del Mouser
+        ('BURN',    1462, 1530),   # quemado del lanzallamas
+    ],
+    tail=[('MOUSER_BITE', 'BITE'), ('BURN', 'BURN')],
+)
+
 EXTRA_GAP = 6          # columnas vacias que separan dos frames de las extras
 
 # -----------------------------------------------------------------------------
@@ -125,7 +224,8 @@ EXTRA_GAP = 6          # columnas vacias que separan dos frames de las extras
 # frames = None -> la fila entera; lista -> esos frames (None = frame vacio).
 # -----------------------------------------------------------------------------
 def port_layout(ch):
-    hit3 = dict(LEO=11, DON=10)[ch]
+    hit3 = dict(LEO=11, DON=10, MIKE=11, RAPH=10)[ch]
+    hb3 = dict(LEO=10, DON=10, MIKE=14, RAPH=10)[ch]
     up1 = HIT3_UP[ch]
     up2 = HB3_UP[ch]
     return [
@@ -146,7 +246,7 @@ def port_layout(ch):
         ('GET_UP_1',     'HIT_3',         list(range(up1, hit3))),
         ('HIT_BEHIND_1', 'HIT_BEHIND_1',  None),
         ('HIT_BEHIND_2', 'HIT_BEHIND_3',  list(range(up2))),
-        ('GET_UP_2',     'HIT_BEHIND_3',  list(range(up2, 10))),
+        ('GET_UP_2',     'HIT_BEHIND_3',  list(range(up2, hb3))),
         ('HELD',         'HELD',          None),
         ('WHIP_SHOCK',   'EXTRA_1',       None),
         ('KO',           'EXTRA_2',       None),
@@ -161,8 +261,8 @@ def port_layout(ch):
 # Primer frame de la levantada al final de HIT_3 (volteo de frente) y de
 # HIT_BEHIND_3 (cae de boca). Lo anterior termina con la tortuga en el piso.
 # HIT_BEHIND_2 del rip (14 frames: cae, rueda y se levanta) queda sin uso.
-HIT3_UP = dict(LEO=9, DON=8)
-HB3_UP = dict(LEO=9, DON=8)
+HIT3_UP = dict(LEO=9, DON=8, MIKE=8, RAPH=8)    # Mike: 83..90 en el aire y el piso, 91..93 se levanta
+HB3_UP = dict(LEO=9, DON=8, MIKE=11, RAPH=8)    # Mike: 97..107 cae y rueda, 108..110 se levanta
 
 
 def extract(cfg):
@@ -173,6 +273,8 @@ def extract(cfg):
     if cfg.get('strip'):
         y0, y1, x0, x1 = cfg['strip']
         a[y0:y1, x0:x1] = 0
+    for y0, y1, x0, x1 in cfg.get('blank', []):
+        a[y0:y1, x0:x1] = 0
     cw, chh, base0, rows = cfg['cell_w'], cfg['cell_h'], cfg['base0'], cfg['rows']
     nz = a != 0
     lab, _ = ndimage.label(nz, structure=np.ones((3, 3)))
@@ -181,6 +283,8 @@ def extract(cfg):
     spr = nz.copy()
     removed = 0
     for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        if cfg['text_color'] is None:
+            break                                    # rip sin rotulos (Mike)
         m = lab[sl] == i
         if not np.all(a[sl][m] == cfg['text_color']):
             continue
@@ -284,7 +388,7 @@ def extract(cfg):
         for c in colsx:
             if start is None:
                 start = last = c
-            elif c - last > EXTRA_GAP:
+            elif c - last > cfg.get('extra_gap', EXTRA_GAP):
                 groups.append((start, last))
                 start = last = c
             else:
@@ -468,7 +572,7 @@ OFF_H = """// GENERADO POR tools/gen_players_new.py -- NO EDITAR A MANO
 // Desplazamiento en X de cada frame de las tortugas (px, mirando a la
 // DERECHA; espejado se resta). Deja el cuerpo quieto aunque el rip haya
 // corrido el dibujo para que entre el arma. Personaje: 0=Leo 1=Mike 2=Don
-// 3=Raph (Mike y Raph, hojas viejas: todo 0).
+// 3=Raph.
 #define PDX_CHARS   4
 #define PDX_ANIMS   %(anims)d
 #define PDX_FRAMES  %(frames)d
@@ -482,19 +586,42 @@ extern const s8 playerJumpDYTab[PDX_CHARS][PDX_FRAMES];
 """
 
 
+def shift_to(fr, target_x):
+    """Corre el frame en X para que el centro de su sombra quede en target_x
+    (filas de la hoja del port que no tienen dx en player_offsets)."""
+    c = shadow_center(fr)
+    if c is None:
+        c = skin_center(fr)
+    if c is None:
+        return fr
+    d = int(round(target_x - c))
+    out = np.zeros_like(fr)
+    if d >= 0:
+        out[:, d:] = fr[:, :FRAME - d]
+    else:
+        out[:, :FRAME + d] = fr[:, -d:]
+    return out
+
+
 def main():
+    """(20/10) Las hojas de Leo y Don se ARMARON con este script pero despues
+    Gustavo les agrego filas a mano (mordida y quemado, ver
+    fix_player_sheet_rows.py): ya NO se reescriben salvo con --rebuild-leo-don.
+    Siempre se leen sus rips para los offsets (las filas 0-24 son las mismas).
+    Mike se arma entero, con sus 27 filas."""
     catalog = None
     if '--catalog' in sys.argv:
         catalog = sys.argv[sys.argv.index('--catalog') + 1]
+    rebuild_ld = '--rebuild-leo-don' in sys.argv
     pal0 = None
     offs = {}
     jdy = {}
     ref = None
-    for ch, cfg in (('LEO', LEO), ('DON', DON)):
+    for ch, cfg in (('LEO', LEO), ('DON', DON), ('MIKE', MIKE), ('RAPH', RAPH)):
         pal, cat = extract(cfg)
         if pal0 is None:
             pal0 = pal
-        assert pal == pal0, 'las dos hojas tienen que compartir la paleta'
+        assert pal == pal0, 'las hojas tienen que compartir la paleta'
         if catalog:
             names = [n for n, _, _ in cfg['anims']] + [n for n, _, _ in cfg['extras']]
             save_sheet(os.path.join(catalog, ch.lower() + '_catalog.png'), pal,
@@ -503,10 +630,15 @@ def main():
         for slot, src, sel in port_layout(ch):
             frames = cat[src] if sel is None else [cat[src][i] for i in sel]
             rows.append((slot, frames))
-        w, h = save_sheet(os.path.join(DIR, cfg['out']), pal, rows)
-        print('%s  %dx%d' % (cfg['out'], w, h))
         if ref is None:
             ref = idle_ref(rows)                  # Leo va primero
+        sheet_rows = list(rows)
+        for slot, src in cfg.get('tail', []):
+            sheet_rows.append((slot, [shift_to(fr, ref[0]) if fr is not None else None
+                                      for fr in cat[src]]))
+        if ch in ('MIKE', 'RAPH') or rebuild_ld:
+            w, h = save_sheet(os.path.join(DIR, cfg['out']), pal, sheet_rows)
+            print('%s  %dx%d' % (cfg['out'], w, h))
         offs[ch.lower()] = frame_offsets(rows, ref)
         jdy[ch.lower()] = jump_offsets(rows)[1]
         print('  JUMP dy %s' % jdy[ch.lower()])

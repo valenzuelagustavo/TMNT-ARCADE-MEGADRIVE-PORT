@@ -1,4 +1,5 @@
 #include "krang.h"
+#include "difficulty.h"  // (20/10) vida segun jugadores
 #include "audio.h"    // hit_turtles, boss_hit, electric_shock_sfx, ...
 #include "enemy.h"    // sprDefragLock (las explosiones comparten tiles)
 
@@ -296,7 +297,7 @@ void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             if (kabs((s16)(px - (fists[i].x - fists[i].dir * 8))) >= KRANG_FIST_HALF_W) continue;
             if (kabs((s16)(getPlayerY(pls[k]) - fists[i].lane)) > KRANG_FIST_DY) continue;
             fists[i].hitMask |= bit;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
             playerHitBars(pls[k], fists[i].x, KRANG_FIST_DMG);
         }
         if (fists[i].sprite) {
@@ -329,10 +330,10 @@ void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (fwd < KRANG_BEAM_HIT_MIN || fwd > KRANG_BEAM_HIT_MAX) continue;
                 if (kabs((s16)(getPlayerY(pls[k]) - beams[i].lane)) > KRANG_BOLT_DY) continue;
                 beams[i].hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 playerHitBarsKnockdown(pls[k], beams[i].x, KRANG_BOLT_DMG);
                 // (16/10) El rayo electrocuta: "turtles shock pain" (CH1, voz).
-                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH1, 12, FALSE, FALSE);
+                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
             }
         }
         for (u16 g = 0; g < KRANG_BEAM_SEGS; g++) {
@@ -383,7 +384,7 @@ void krangInit(Krang* k) {
     memset(k, 0, sizeof(Krang));
     k->state = KRANG_INACTIVE;
     k->dir = -1;
-    k->hp = KRANG_HP;
+    k->hp = diffBossHp(KRANG_HP); diffBossTrack(&k->hp);
     shotsInit();
 }
 
@@ -411,7 +412,7 @@ void krangSpawn(Krang* k, s16 x, s16 arenaL, s16 arenaR, s16 laneT, s16 laneB) {
     k->z = KRANG_DROP_Z;
     k->vz = 0;
     k->dir = -1;
-    k->hp = KRANG_HP;
+    k->hp = diffBossHp(KRANG_HP); diffBossTrack(&k->hp);
     k->armReady = 1;
     k->flash = k->invuln = 0;
     enter(k, KRANG_DROP);
@@ -431,15 +432,48 @@ static bool canBeHit(const Krang* k) {
     return k->sprite && !k->invuln && (k->state == KRANG_IDLE || k->state == KRANG_WALK);
 }
 
+// (21/10) Una patada voladora pega UNA vez por salto: el golpeado dura 30
+// ticks y la patada sigue activa todo el vuelo, asi que al terminar el
+// golpeado le volvia a pegar la misma patada (dos golpes y dos sacudones por
+// salto: la "respuesta rara"). Se marca por jugador y se limpia al aterrizar.
+static bool kickLanded[MAX_PLAYERS];
+
+static void kickTrack(Player** pls, u8 nPl) {
+    for (u8 i = 0; i < nPl && i < MAX_PLAYERS; i++)
+        if (!isPlayerJumpKicking(pls[i])) kickLanded[i] = FALSE;
+}
+
+// (21/10) Laser: la patada a la cabeza la recibe la tortuga (ver krang.h).
+static void laserCounter(Krang* k, Player** pls, u8 nPl) {
+    if (!k->sprite || k->state != KRANG_LASER || k->timer < KRANG_LASER_EYES_T) return;
+    s16 x = (s16)(k->xq >> 2);
+    s16 y = (s16)(k->yq >> 2);
+    for (u8 i = 0; i < nPl; i++) {
+        if (!isPlayerJumpKicking(pls[i]) || !playerCanBeHitAir(pls[i])) continue;
+        if (!playerAttackHitsBossBand(pls[i], x, y, KRANG_BODY_HALF_W,
+                                      (s16)(-KRANG_HEAD_TOP), (s16)(-KRANG_HEAD_BOT),
+                                      KRANG_HIT_DY, KRANG_HIT_DY)) continue;
+        XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
+        playerHitProjectile(pls[i], x, KRANG_BOLT_DMG);   // tambien en el aire
+    }
+}
+
 bool krangPlayerHits(Krang* k, Player** pls, u8 nPl, s8* killer) {
+    kickTrack(pls, nPl);
+    laserCounter(k, pls, nPl);
     if (!canBeHit(k)) return FALSE;
     s16 x = (s16)(k->xq >> 2);
     s16 y = (s16)(k->yq >> 2);
     for (u8 i = 0; i < nPl; i++) {
-        if (!playerAttackHitsBox(pls[i], x, y, KRANG_BODY_HALF_W, KRANG_BODY_H)) continue;
+        bool jk = isPlayerJumpKicking(pls[i]);
+        if (jk && i < MAX_PLAYERS && kickLanded[i]) continue;
+        if (!playerAttackHitsBoss(pls[i], x, y, KRANG_BODY_HALF_W, KRANG_BODY_H,
+                                  KRANG_HIT_DY, KRANG_HIT_DY)) continue;
+        if (jk && i < MAX_PLAYERS) kickLanded[i] = TRUE;
         s16 dmg = isPlayerSpecialAttack(pls[i]) ? KRANG_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[i]) ? KRANG_JUMPKICK_DMG : 1);
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
         k->hp -= dmg;
         k->flash = 8;
         k->invuln = 12;
@@ -498,7 +532,7 @@ static void headSpawn(Krang* k) {
         SPR_setAnimAndFrame(k->headShadow, 1, 0);
     }
     k->z = KRANG_HEAD_DZ;
-    XGM2_playPCMEx(krang_speech_vo, sizeof(krang_speech_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+    XGM2_playPCMEx(krang_speech_vo, sizeof(krang_speech_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
 }
 
 static void render(Krang* k, bool visible) {
@@ -607,7 +641,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (fwd < 0 || fwd > KRANG_KICK_REACH) continue;
                 if (kabs((s16)(getPlayerY(pls[i]) - y)) > KRANG_HIT_DY) continue;
                 k->hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 playerHitBarsKnockdown(pls[i], x, KRANG_KICK_DMG);
             }
         }
@@ -680,7 +714,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
     }
 
     // Parpadeo de vida baja (PAL2 es solo suya mientras pelea).
-    if (k->state != KRANG_DEATH && bossFlashStep(&k->flashLow, k->hp, KRANG_HP))
+    if (k->state != KRANG_DEATH && bossFlashStep(&k->flashLow, k->hp, diffBossHp(KRANG_HP)))
         PAL_setPalette(PAL2, k->flashLow.on ? krangPalBurn : krangPal, DMA);
 
     x = kclamp((s16)(k->xq >> 2), k->arenaL, k->arenaR);

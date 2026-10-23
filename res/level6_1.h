@@ -3,7 +3,10 @@
 #ifndef _RES_LEVEL6_1_H_
 #define _RES_LEVEL6_1_H_
 
-extern const Image bg_skate;
+extern const u8 skate_tiles[54464];
+extern const u8 skate_cols[29400];
+extern const u8 skate_coloff[1594];
+extern const Palette pal_skate;
 extern const Image bg_skate_far;
 extern const SpriteDefinition sk_cop_body;
 extern const SpriteDefinition sk_cop_rotor;

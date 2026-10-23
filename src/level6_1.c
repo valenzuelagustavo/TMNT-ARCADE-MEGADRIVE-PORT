@@ -33,7 +33,7 @@
 
 #include <genesis.h>
 #include "scenes.h"
-#include "level6_1.h"          // bg_skate*, sk_* (rescomp)
+#include "level6_1.h"          // skate_*, pal_skate, bg_skate_far, sk_* (rescomp)
 #include "stage_level.h"
 #include "enemy.h"             // ENEMY_TYPE_*, sprVramFits, enemySkateMode
 #include "enemies.h"           // explosion_sprite
@@ -50,7 +50,7 @@ static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 static u16 fr61;                    // frames del nivel (animaciones)
 
 static void sfxHit(void) {
-    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
 // ===========================================================================
@@ -634,8 +634,18 @@ static const StageWave waves61[] = {
 #undef CP
 #undef CV
 
+// (18/10) La ruta por diccionario de columnas (ver level6_1.res).
+static const SbgRaw skate61 = {
+    (const u32*) skate_tiles,
+    (const u16*) skate_cols,
+    797, 28,
+    &pal_skate,
+    (const u16*) skate_coloff,
+};
+
 static const StageLevel level61 = {
-    .bg           = &bg_skate,
+    .bg           = NULL,
+    .bgRaw        = &skate61,
     .fg           = NULL,
     .far          = &bg_skate_far,
     .farDiv       = 3,
@@ -662,7 +672,7 @@ static const StageLevel level61 = {
     .levelRelease = lvl61Release,
     .specialSpawn = lvl61Special,
     .specialAlive = lvl61SpecialAlive,
-    .nextScene    = SCENE_7_1_TITLE,
+    .nextScene    = SCENE_CUT_VAN,   // (18/10) fin de la SCENE 4
 };
 
 SceneId showScene61() {

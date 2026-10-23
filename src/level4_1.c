@@ -296,7 +296,7 @@ static s8 propHitBy(Player** pls, u8 nPl, s16 cx, s16 base, const PropInfo* in) 
 }
 
 static void sfxHit(void) {
-    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
 }
 
 // La explosion del barril: tortugas y soldiers a tiro, una vez cada uno.
@@ -659,7 +659,7 @@ static void pizzaUpdate41(Player** pls, u8 nPl, s16 camX) {
             pzBub = SPR_addSprite(&pizza_time_bubble, 0, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
             if (pzBub) {
                 SPR_setDepth(pzBub, SPR_MIN_DEPTH);
-                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
                 pzBubSt = 1; pzBubT = 0;
             }
         }
@@ -923,7 +923,8 @@ static void bebopHits(Player** pls, u8 nPl) {
     s16 bcx = bebopGetCenterX(&bebop);
     s16 by  = bebopGetCenterY(&bebop);
     for (u8 k = 0; k < nPl; k++) {
-        if (!playerAttackHitsBox(pls[k], bcx, by, BEBOP_BODY_HALF_W, BEBOP_BODY_H))
+        if (!playerAttackHitsBoss(pls[k], bcx, by, BEBOP_BODY_HALF_W, BEBOP_BODY_H,
+                                  BEBOP_HIT_DY_UP, BEBOP_HIT_DY_DOWN))
             continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? BEBOP_JUMPKICK_DMG : 1);
@@ -938,8 +939,8 @@ static void rockHits(Player** pls, u8 nPl) {
         s16 bcx = rocksteadyGetCenterX(&rock);
         s16 by  = rocksteadyGetCenterY(&rock);
         for (u8 k = 0; k < nPl; k++) {
-            if (!playerAttackHitsBox(pls[k], bcx, by, ROCKSTEADY_BODY_HALF_W,
-                                     ROCKSTEADY_BODY_H)) continue;
+            if (!playerAttackHitsBoss(pls[k], bcx, by, ROCKSTEADY_BODY_HALF_W,
+                                      ROCKSTEADY_BODY_H, RS_HIT_DY_UP, RS_HIT_DY_DOWN)) continue;
             rocksteadyDamage(&rock, isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG
                                   : (isPlayerJumpKicking(pls[k]) ? ROCKSTEADY_JUMPKICK_DMG : 1));
             XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
@@ -1058,7 +1059,7 @@ static const StageLevel level41 = {
     .levelInit    = lvl41Init,
     .levelUpdate  = lvl41Update,
     .levelRelease = lvl41Release,
-    .nextScene    = SCENE_5_1_TITLE,
+    .nextScene    = SCENE_S4_TITLE,   // (18/10) el garage es el 3-2
 };
 
 SceneId showScene41() {

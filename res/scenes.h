@@ -25,23 +25,41 @@ typedef enum {
     SCENE_1_2,          // Nivel 1-2: pasillo en llamas, sala cerrada (Rocksteady)
     SCENE_ENDING,       // Cutscene: Shredder rapta a April y sale por la ventana
     SCENE_2_1_TITLE,    // "SCENE 2 / C'MON, AFTER THAT SHREDDER CREEP!!"
+    // (18/10) ORDEN DEL ARCADE + los dos niveles del port de NES. Los IDs de
+    // los niveles quedan con su numero INTERNO de siempre (el modulo levelN_1.c
+    // que los dibuja); lo que cambio es el recorrido y los titulos:
+    //   SCENE 2:  2-1 = SCENE_2_1 (la calle)      2-2 = SCENE_3_1 (la cloaca)
+    //   SCENE 3:  3-1 = SCENE_SNOW (NES, falta)   3-2 = SCENE_4_1 (el garage)
+    //   SCENE 4:  4-1 = SCENE_5_1 (la autopista)  4-2 = SCENE_6_1 (el skate)
+    //   SCENE 5:  5-1 = SCENE_7_1 (la fabrica)    5-2 = SCENE_DOJO (NES, falta)
+    //   SCENE 6:  6-1 = SCENE_8_1 (Technodrome)   6-2 = SCENE_9_1 (Krang y Shredder)
+    // Entre los dos niveles de una SCENE no hay titulo. Los SCENE_CUT_* son
+    // las pantallas intermedias; mientras no llegue su arte son una pantalla
+    // provisoria con texto (showPendingScreen, scenes.c).
     SCENE_2_1,          // Nivel 2-1: la calle (recorrido en L)
-    SCENE_3_1_TITLE,    // (26/09) "SCENE 3"
-    SCENE_3_1,          // Nivel 3-1: la cloaca (sewer), arte del proyecto de Ray
-    SCENE_4_1_TITLE,    // (26/09) "SCENE 4"
-    SCENE_4_1,          // Nivel 4-1: el estacionamiento (garage), jefe Bebop
-    SCENE_5_1_TITLE,    // (26/09) "SCENE 5"
-    SCENE_5_1,          // Nivel 5-1: la autopista (freeway), skyline con parallax
-    SCENE_6_1_TITLE,    // (26/09) "SCENE 6"
-    SCENE_6_1,          // Nivel 6-1: la segunda autopista (skate, por ahora a pie)
-    SCENE_7_1_TITLE,    // (26/09) "SCENE 7"
-    SCENE_7_1,          // Nivel 7-1: la fabrica, jefe Granitor
-    SCENE_8_1_TITLE,    // (27/09) "SCENE 8"
-    SCENE_8_1,          // Nivel 8-1: el Technodrome (ascensor en diagonal), jefe Traag
-    SCENE_9_1_TITLE,    // (27/09) "SCENE 9"
-    SCENE_9_1,          // Nivel 9-1: la sala del portal, pelea final con Shredder
-    SCENE_THE_END,      // (27/09) Pantalla final -> creditos del equipo (SCENE_SGDK)
-    SCENE_GAME_OVER
+    SCENE_3_1,          // Nivel 2-2: la cloaca (sewer)
+    SCENE_CUT_SHREDDER_APRIL, // Shredder con April raptada y un enemigo al costado
+    SCENE_S3_TITLE,     // "SCENE 3 / LET'S MELT SNOW AND REBUILD N.Y. CITY"
+    SCENE_SNOW,         // Nivel 3-1: Snow in N.Y. (del port de NES; provisorio)
+    SCENE_CUT_CITY,     // La ciudad vuelve a la normalidad
+    SCENE_4_1,          // Nivel 3-2: el estacionamiento (garage), jefe Bebop
+    SCENE_S4_TITLE,     // "SCENE 4 / LET'S GET TO THAT SECRET FACTORY!!"
+    SCENE_5_1,          // Nivel 4-1: la autopista (freeway)
+    SCENE_6_1,          // Nivel 4-2: el skate
+    SCENE_CUT_VAN,      // Descarrila la camioneta de las tortugas
+    SCENE_S5_TITLE,     // "SCENE 5 / C'MON, LET'S BUST THIS JOINT!!"
+    SCENE_7_1,          // Nivel 5-1: la fabrica, jefe Granitor
+    SCENE_CUT_SPLINTER, // Splinter en primer plano hablando
+    SCENE_DOJO,         // Nivel 5-2: el dojo (del port de NES; provisorio)
+    SCENE_CUT_TECHNODROME, // El Technodrome y las tortugas saltando hacia el
+    SCENE_S6_TITLE,     // "SCENE 6 / WE GOTTA FIND OUT THE TECHNODROME!!"
+    SCENE_8_1,          // Nivel 6-1: el Technodrome (ascensor), jefe Traag
+    SCENE_9_1,          // Nivel 6-2: la sala del portal, Krang y Shredder
+    SCENE_EPILOGUE,     // (18/10) Texto del epilogo (ending.c)
+    SCENE_STAFF_CREDITS,// (18/10) Creditos con los cuadros de las tortugas (ending.c)
+    SCENE_GAME_OVER,
+    SCENE_HISCORE_ENTRY,// (20/10) carga de iniciales (hiscore.c)
+    SCENE_HISCORE_BOARD // (20/10) "BEST 10 PLAYERS"
 } SceneId;
 
 // Prototipos de las funciones de cada escena
@@ -62,21 +80,23 @@ SceneId showScene12();
 SceneId showEnding();
 SceneId showScene21Title();
 SceneId showScene21();
-SceneId showScene31Title();
 SceneId showScene31();
-SceneId showScene41Title();
 SceneId showScene41();
-SceneId showScene51Title();
 SceneId showScene51();
-SceneId showScene61Title();
 SceneId showScene61();
-SceneId showScene71Title();
 SceneId showScene71();
-SceneId showScene81Title();
 SceneId showScene81();
-SceneId showScene91Title();
 SceneId showScene91();
-SceneId showTheEnd();
+SceneId showSceneSnow();   // (21/10) 3-1 Central Park con nieve (level_snow.c)
+// (18/10) Recorrido nuevo: titulos de SCENE 3..6 y pantallas intermedias /
+// niveles que todavia no existen (scenes.c), epilogo y creditos (ending.c).
+SceneId showSceneS3Title();
+SceneId showSceneS4Title();
+SceneId showSceneS5Title();
+SceneId showSceneS6Title();
+SceneId showPendingScene(SceneId id);
+SceneId showEpilogue();
+SceneId showStaffCredits();
 SceneId showGameOver();
 
 // Arranca una pista con el volumen dado (XGM2 permite regular volumen en vivo).

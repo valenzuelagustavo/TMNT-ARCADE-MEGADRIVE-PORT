@@ -5,5 +5,6 @@
 
 extern const SpriteDefinition granitor_boss;
 extern const SpriteDefinition granitor_flame;
+extern const SpriteDefinition granitor_boom;
 
 #endif // _RES_GRANITOR_RES_H_

@@ -41,6 +41,8 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage
 
+import boss_shadow   # (22/10) sombra a los pies
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPR = os.path.join(ROOT, "res", "sprites")
 
@@ -148,7 +150,7 @@ def main():
     im, a = load_p(SRC)
     _, ref = load_p(REF)
     rip = Rip(a)
-    save(rebuild(rip, ref, CELL, "rocksteady"), DST, im)
+    save(boss_shadow.add(rebuild(rip, ref, CELL, "rocksteady"), CELL, CELL), DST, im)   # (22/10) sombra
     # Las balas sueltas estan a la derecha de la fila del disparo; se buscan
     # solo ahi (el disparo horizontal tambien aparece pegado al arma).
     _, refb = load_p(REF_BUL)

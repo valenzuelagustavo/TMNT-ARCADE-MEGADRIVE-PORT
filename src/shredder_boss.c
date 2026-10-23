@@ -1,4 +1,5 @@
 #include "shredder_boss.h"
+#include "difficulty.h"  // (20/10) vida segun jugadores
 #include "audio.h"    // boss_hit, hit_turtles, shredder_laugh_sfx, shredder_death_vo, ...
 
 // ===========================================================================
@@ -21,13 +22,31 @@ static s16 sToward(s16 v, s16 to, s16 step) {
 }
 
 // La mas cercana, prefiriendo las que estan en juego (no KO) (13/10).
+static s16 playerDist(Player* p, s16 x) {
+    s16 d = sabs((s16)(getPlayerWorldX(p) + PLAYER_SPRITE_W / 2 - x));
+    if (p->state == STATE_KO) d = (s16)(d + 1000);
+    return d;
+}
+
 static Player* nearestPlayer(Player** pls, u8 nPl, s16 x) {
     Player* best = pls[0];
     s16 bestD = 0x7FFF;
     for (u8 k = 0; k < nPl; k++) {
         if (isPlayerGameOver(pls[k])) continue;
-        s16 d = sabs((s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2 - x));
-        if (pls[k]->state == STATE_KO) d = (s16)(d + 1000);
+        s16 d = playerDist(pls[k], x);
+        if (d < bestD) { bestD = d; best = pls[k]; }
+    }
+    return best;
+}
+
+// (21/10) La segunda mas cercana (si queda una sola en juego, esa).
+static Player* secondPlayer(Player** pls, u8 nPl, s16 x) {
+    Player* first = nearestPlayer(pls, nPl, x);
+    Player* best = first;
+    s16 bestD = 0x7FFF;
+    for (u8 k = 0; k < nPl; k++) {
+        if (pls[k] == first || isPlayerGameOver(pls[k])) continue;
+        s16 d = playerDist(pls[k], x);
         if (d < bestD) { bestD = d; best = pls[k]; }
     }
     return best;
@@ -131,7 +150,8 @@ static void hideExtras(ShredderBoss* s) {
 static void appear(ShredderBoss* s, s16 x, s16 y) {
     s->xq = (s16)(x * 4);
     s->yq = (s16)(y * 4);
-    s->hp = s->clone ? SHRED_CLONE_HP : SHRED_HP;
+    s->hp = diffBossHp(s->clone ? SHRED_CLONE_HP : SHRED_HP);
+    diffBossTrack(&s->hp);
     s->bare = FALSE;
     s->hits = 0;
     s->rayReady = 0;
@@ -158,7 +178,7 @@ void shredderSpawn(ShredderBoss* s, s16 x, s16 y, s16 arenaL, s16 arenaR, s16 la
     appear(s, sclamp(x, arenaL, arenaR), sclamp(y, laneT, laneB));
     // La risa del verdadero la toca level9_1 (bossVoStart, antes del tema).
     if (clone)
-        XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH1, 10, FALSE, FALSE);
+        XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH2, 10, FALSE, FALSE);
 }
 
 // (13/10) El verdadero esta en algo que se puede cortar para separarse.
@@ -181,16 +201,24 @@ bool shredderSpawnSplit(ShredderBoss* c, ShredderBoss* o,
     appear(c, x, y);                 // vida, casco, sprite (en el mismo lugar)
     c->dir = o->dir;
     // El verdadero se corre a la derecha y la copia a la izquierda.
-    s16 oTo = sclamp((s16)(x + SHRED_SPLIT_ORIG_DX), arenaL, arenaR);
-    s16 cTo = (s16)(oTo - SHRED_CLONE_DX);
-    if (cTo < arenaL) { cTo = arenaL; oTo = sclamp((s16)(cTo + SHRED_CLONE_DX), arenaL, arenaR); }
+    s16 oTo, cTo;
+    if (c->second) {
+        // (21/10) La 2da copia (4 jugadores) sale hacia la derecha.
+        oTo = sclamp((s16)(x - SHRED_SPLIT_ORIG_DX), arenaL, arenaR);
+        cTo = (s16)(oTo + SHRED_CLONE_DX);
+        if (cTo > arenaR) { cTo = arenaR; oTo = sclamp((s16)(cTo - SHRED_CLONE_DX), arenaL, arenaR); }
+    } else {
+        oTo = sclamp((s16)(x + SHRED_SPLIT_ORIG_DX), arenaL, arenaR);
+        cTo = (s16)(oTo - SHRED_CLONE_DX);
+        if (cTo < arenaL) { cTo = arenaL; oTo = sclamp((s16)(cTo + SHRED_CLONE_DX), arenaL, arenaR); }
+    }
     o->splitTo = oTo;
     c->splitTo = cTo;
     o->accX = c->accX = 0;
     enter(o, SHRED_SPLIT);
     enter(c, SHRED_SPLIT);
     if (c->sprite) setFrame(c, SHRED_ANIM_IDLE, 0);
-    XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH1, 10, FALSE, FALSE);
+    XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH2, 10, FALSE, FALSE);
     return TRUE;
 }
 
@@ -222,7 +250,7 @@ static void startDeath(ShredderBoss* s) {
     enter(s, SHRED_DEATH);
     if (!s->clone) {
         XGM2_stop();
-        XGM2_playPCMEx(shredder_death_vo, sizeof(shredder_death_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+        XGM2_playPCMEx(shredder_death_vo, sizeof(shredder_death_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
     }
 }
 
@@ -233,15 +261,16 @@ bool shredderPlayerHits(ShredderBoss* s, Player** pls, u8 nPl, s8* killer) {
     for (u8 k = 0; k < nPl; k++) {
         // Solo de frente: la tortuga lo tiene que estar mirando.
         if (getPlayerDir(pls[k]) != -s->dir) continue;
-        if (!playerAttackHitsBox(pls[k], x, y, SHRED_BODY_HALF_W, SHRED_BODY_H)) continue;
+        if (!playerAttackHitsBoss(pls[k], x, y, SHRED_BODY_HALF_W, SHRED_BODY_H,
+                                  SHRED_HIT_DY, SHRED_HIT_DY)) continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? SHRED_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? SHRED_JUMPKICK_DMG : 1);
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
         s->hp -= dmg;
         s->invuln = SHRED_INVULN;
         hitFlashStart();                 // (13/10) flash blanco cortito
         u8 hurtAnim = SHRED_ANIM_HURT;
-        if (s->clone && !s->bare && s->hp < SHRED_HELMET_HP) {
+        if (s->clone && !s->bare && s->hp < diffBossHp(SHRED_HELMET_HP)) {
             helmetOff(s, x, y);
             hurtAnim = 0xFF;                 // este golpe: el de casco
         }
@@ -351,10 +380,10 @@ static void beamUpdate(ShredderBoss* s, Player** pls, u8 nPl) {
         if (fwd < -8 || fwd > (s16)beamReach[f]) continue;
         if (sabs((s16)(getPlayerY(pls[k]) - s->beamY)) > SHRED_BEAM_DY) continue;
         s->hitMask |= bit;
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
         playerHitBarsKnockdown(pls[k], s->beamX, PLAYER_MAX_HEALTH);
         // (16/10) El rayo electrocuta: "turtles shock pain" (CH1, voz).
-        XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH1, 12, FALSE, FALSE);
+        XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
     }
     s16 sx = (s16)(s->beamX - s->camX);
     s16 sy = (s16)(s->beamY - SHRED_TIP_DZ - 76 - s->camY);
@@ -425,7 +454,7 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
             } else {
                 appear(s, (s16)(s->xq >> 2), (s16)((s->yq >> 2) + 25));
                 s->yq = (s16)(sclamp((s16)(s->yq >> 2), s->laneT, s->laneB) * 4);
-                XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH1, 10, FALSE, FALSE);
+                XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx), SOUND_PCM_CH2, 10, FALSE, FALSE);
             }
         }
         return;
@@ -434,7 +463,7 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
 
     s16 x = (s16)(s->xq >> 2);
     s16 y = (s16)(s->yq >> 2);
-    Player* tgt = nearestPlayer(pls, nPl, x);
+    Player* tgt = s->second ? secondPlayer(pls, nPl, x) : nearestPlayer(pls, nPl, x);
     s16 px = (s16)(getPlayerWorldX(tgt) + PLAYER_SPRITE_W / 2);
     s16 py = getPlayerY(tgt);
     s16 dX = (s16)(px - x);
@@ -497,7 +526,7 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
 
     case SHRED_WALK: {
         faceTarget(s, x, px);
-        s16 spot = (s16)(px + (s->clone ? -SHRED_SIDE_DX : SHRED_SIDE_DX));
+        s16 spot = (s16)(px + ((s->clone && !s->second) ? -SHRED_SIDE_DX : SHRED_SIDE_DX));
         s16 sx = sStep(&s->accX, SHRED_WALK_Q);
         s16 sy = sStep(&s->accY, SHRED_WALK_Q);
         if (x < spot - 2)      s->xq += sx * 4;
@@ -541,7 +570,7 @@ void shredderUpdate(ShredderBoss* s, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (fwd < -4 || fwd > atkReach[s->atk]) continue;
                 if (sabs((s16)(getPlayerY(pls[k]) - y)) > SHRED_HIT_DY) continue;
                 s->hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
                 if (atkKnock[s->atk]) playerHitBarsKnockdown(pls[k], x, SHRED_ATK_DMG);
                 else playerHitBars(pls[k], x, SHRED_ATK_DMG);
             }

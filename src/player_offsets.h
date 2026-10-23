@@ -7,7 +7,7 @@
 // Desplazamiento en X de cada frame de las tortugas (px, mirando a la
 // DERECHA; espejado se resta). Deja el cuerpo quieto aunque el rip haya
 // corrido el dibujo para que entre el arma. Personaje: 0=Leo 1=Mike 2=Don
-// 3=Raph (Mike y Raph, hojas viejas: todo 0).
+// 3=Raph.
 #define PDX_CHARS   4
 #define PDX_ANIMS   25
 #define PDX_FRAMES  12

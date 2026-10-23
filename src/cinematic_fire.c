@@ -346,7 +346,7 @@ static const s16 passDrift[4] = { 0, 20, -16, 10 };
 // Frames concretos de las hojas del juego (verificado: las cuatro sheets
 // tienen las 21 filas alineadas y la misma cantidad de frames en estas).
 #define C_JUMP_LAND_FRAME    9   // Ultimo frame de ANIM_JUMP  (10 frames)
-#define C_DOWN_FRAME        11   // Ultimo de ANIM_HIT_BEHIND_2 (12) = tirada
+#define C_DOWN_FRAME        11   // Ultimo de ANIM_HIT_BEHIND_2 = tirada (roofSetAF lo recorta: Mike nuevo tiene 11 -> frame 10)
 #define C_WALK_ANIM  ANIM_WALK_FRONT   // Caminata normal, de perfil
 #define C_WALK_FRAMES        8   // Frames de C_WALK_ANIM
 #define C_GETUP_FRAMES       2   // Frames de ANIM_GET_UP_2
@@ -715,7 +715,7 @@ static bool roofSceneA(void) {
             // PCM0..PCM2 = SOUND_PCM_CH1..CH3 -- SOUND_PCM_CH4 esta declarado
             // en sound.h pero el Z80 no lo atiende, y usarlo corrompe el
             // comando del driver -- bug encontrado 29/08, ver DEVLOG).
-            XGM2_playPCMEx(fire_vo, sizeof(fire_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+            XGM2_playPCMEx(fire_vo, sizeof(fire_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
             // Splinter pasa a la 2da pose (baston en alto) justo cuando
             // aparece este globo, y se queda ahi el resto de la escena.
             SPR_setAnimAndFrame(splinterSpr, 0, SPL_FRAME_ALERT);
@@ -725,7 +725,7 @@ static bool roofSceneA(void) {
             SPR_setAnimAndFrame(baloonSpr, 0, 1);       // "Hang on, April"
             SPR_setVisibility(baloonSpr, VISIBLE);
             // Voice over "Hang on, April" en sincro con el globo (CH2, ver nota arriba).
-            XGM2_playPCMEx(hang_on_april_vo, sizeof(hang_on_april_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hang_on_april_vo, sizeof(hang_on_april_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
         } else if (f == T_MUSIC_IN) {
             // Tema de la intro arcade ("01 - Opening Demo"), que hasta ahora
             // solo sonaba en SCENE_INTRO_ARCADE. Entra sin pisar la voz: el
@@ -868,6 +868,19 @@ static void roofPlaceFeet(Sprite *s, s16 fx, s16 fy) {
     SPR_setDepth(s, (s16)(ROOF_SCREEN_H - fy));
 }
 
+// (20/10) Setea anim+frame con CLAMP al largo real de la anim de ESA hoja.
+// La hoja nueva de Mike tiene 11 frames en ANIM_HIT_BEHIND_2 (la vieja 12):
+// pedir el frame 11 leia animation->frames[11] fuera del array, SPR_update
+// usaba basura como puntero y en consola real (68000) saltaba ADDRESS ERROR
+// (los emuladores no emulan esa excepcion y seguian de largo).
+static void roofSetAF(Sprite* s, u16 anim, u16 fr) {
+    const SpriteDefinition* d = s->definition;
+    if (anim >= d->numAnimation) anim = 0;
+    u16 n = d->animations[anim]->numFrame;
+    if (fr >= n) fr = n - 1;
+    SPR_setAnimAndFrame(s, (s16)anim, (s16)fr);
+}
+
 static bool roofSceneC(void) {
     SPR_initEx(ROOF_SPR_TILES_C);
     u16 attr = roofBgLoad(&roof_bg_c);
@@ -935,17 +948,17 @@ static bool roofSceneC(void) {
                 s16 fx = lerpS(C_FALL_FROM_X, C_LAND_X, e, T_C_FALL);
                 s16 fy = (s16)((lerpS(C_FALL_FROM_Y, C_LAND_Y, e, T_C_FALL)
                               + accelS(C_FALL_FROM_Y, C_LAND_Y, e, T_C_FALL)) / 2);
-                SPR_setAnimAndFrame(roofSpr[i], ANIM_JUMP, C_JUMP_LAND_FRAME);
+                roofSetAF(roofSpr[i], ANIM_JUMP, C_JUMP_LAND_FRAME);
                 roofPlaceFeet(roofSpr[i], fx, fy);
             } else if (e < endDown) {
                 // --- Mike: cayo encima de Raph y quedo tirado ---
-                SPR_setAnimAndFrame(roofSpr[i], ANIM_HIT_BEHIND_2, C_DOWN_FRAME);
+                roofSetAF(roofSpr[i], ANIM_HIT_BEHIND_2, C_DOWN_FRAME);
                 roofPlaceFeet(roofSpr[i], C_LAND_X, C_LAND_Y);
             } else if (e < endGetUp) {
                 // --- ...y se levanta ---
                 u16 fr = (u16)((e - endDown) / C_GETUP_ANIM_PERIOD);
                 if (fr >= C_GETUP_FRAMES) fr = C_GETUP_FRAMES - 1;
-                SPR_setAnimAndFrame(roofSpr[i], ANIM_GET_UP_2, fr);
+                roofSetAF(roofSpr[i], ANIM_GET_UP_2, fr);
                 roofPlaceFeet(roofSpr[i], C_LAND_X, C_LAND_Y);
             } else {
                 // --- "Toca el piso": recien ACA arranca a caminar ---
@@ -958,7 +971,7 @@ static bool roofSceneC(void) {
                 s16 fx = lerpS(C_LAND_X, C_DOOR_X, lt, T_C_WALK);
                 s16 fy = lerpS(C_LAND_Y, C_DOOR_Y, lt, T_C_WALK);
                 u16 fr = (u16)((lt / C_WALK_ANIM_PERIOD) % C_WALK_FRAMES);
-                SPR_setAnimAndFrame(roofSpr[i], C_WALK_ANIM, fr);
+                roofSetAF(roofSpr[i], C_WALK_ANIM, fr);
                 roofPlaceFeet(roofSpr[i], fx, fy);
             }
         }

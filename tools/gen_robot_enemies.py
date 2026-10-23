@@ -210,6 +210,23 @@ def mouser_piece(a, top, rc):
     return cell[y0:y1 + 1, x0:x1 + 1]
 
 
+def fix_shadows(out, cell=40, red=10, gray=14, top=30):
+    """(19/10) La hoja dibuja la SOMBRA de los Mousers con el indice 10, que en
+    la paleta del blanco es ROJO (feedback: "Robot mousers have red shadow").
+    En cada celda, las manchas de ese indice que arrancan de la fila 'top'
+    para abajo son la sombra: pasan al gris oscuro 14 (el de las sombras de
+    los foot blancos). Los rojos del cuerpo (ojos, boca) quedan."""
+    from scipy import ndimage
+    for cy in range(0, out.shape[0], cell):
+        for cx in range(0, out.shape[1], cell):
+            c = out[cy:cy + cell, cx:cx + cell]
+            lab, n = ndimage.label(c == red, structure=np.ones((3, 3)))
+            for i in range(1, n + 1):
+                m = lab == i
+                if np.nonzero(m)[0].min() >= top:
+                    c[m] = gray
+
+
 def main():
     src = Image.open(SRC)
     a = np.array(src)
@@ -255,6 +272,7 @@ def main():
                 dy = max(0, min(40 - h, dy))
                 dst = out[r * 40 + dy:r * 40 + dy + h, c * 40 + dx:c * 40 + dx + w]
                 np.copyto(dst, p, where=p != 0)
+        fix_shadows(out)
         if color == 'red':
             save(to_baxter[out], baxter, name)
         else:

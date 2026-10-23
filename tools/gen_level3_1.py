@@ -27,6 +27,12 @@ OUT_C = os.path.join(ROOT, "src", "level3_1_limits.c")
 OUT_H = os.path.join(ROOT, "src", "level3_1_limits.h")
 
 
+# (18/10) La colision del companero pone el tope de la vereda JUSTO en la
+# base de la pared: parados ahi, las tortugas y las ratas parecian pisar la
+# pared. Todo el tope se baja estos px (a la vereda de verdad).
+SIDEWALK_DY = 8
+
+
 def main():
     d = open(COL, "rb").read()
     n = (d[0] << 8) | d[1]
@@ -38,7 +44,7 @@ def main():
         bands = [(p[1] * 8, p[2] * 8)]
         if p[0] >= 2:
             bands.append((p[3] * 8, p[4] * 8))
-        tops.append(min(b[0] for b in bands))
+        tops.append(min(b[0] for b in bands) + SIDEWALK_DY)
     with open(OUT_H, "w") as f:
         f.write("// GENERADO por tools/gen_level3_1.py -- NO EDITAR A MANO\n")
         f.write("#ifndef _LEVEL3_1_LIMITS_H_\n#define _LEVEL3_1_LIMITS_H_\n")

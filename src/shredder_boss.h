@@ -79,6 +79,11 @@
 #define SHRED_WALK_Q       288     // 1,125 px/f
 #define SHRED_WALK_FRAME     6
 #define SHRED_SIDE_DX       50     // se para a esta distancia de la tortuga
+// (21/10) Modo 4 jugadores: el verdadero saca una SEGUNDA copia (3 Shredders a
+// la vez). La primera sale al empezar, la segunda cuando la primera termino de
+// separarse. La 2da copia va por la segunda tortuga mas cercana y se para a su
+// derecha (la primera, por la mas cercana y a la izquierda).
+#define SHRED_CLONES_4P      2
 #define SHRED_TURN_DZ       15
 #define SHRED_ALIGN_DY       3
 #define SHRED_NEAR_DX       57
@@ -153,6 +158,8 @@ struct ShredderBoss {
     u16        backTimer;     // la copia: cuenta para volver
     s16        arenaL, arenaR, laneT, laneB;
     ShredderBoss* twin;       // (13/10) el otro (la copia sale de el)
+    u8         second;        // (21/10) 2da copia (modo 4 jugadores): va por
+                              // la 2da tortuga mas cercana, a su derecha
     s16        splitTo;       // x a la que se corre al separarse
 };
 

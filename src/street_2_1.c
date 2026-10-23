@@ -441,7 +441,7 @@ static void pizzaBubUpdate(s16 camX, s16 camY) {
         pizzaBub = SPR_addSprite(&pizza_time_bubble, 0, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
         if (!pizzaBub) return;
         SPR_setDepth(pizzaBub, SPR_MIN_DEPTH);
-        XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH1, 15, FALSE, FALSE);
+        XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
         pizzaBubSt = 1;
         pizzaBubT  = 0;
     }
@@ -592,7 +592,7 @@ bool streetPlayerHits(Player** pls, u8 nPl) {
             if (girlSpr) SPR_setFrame(girlSpr, 1);
             // CH3: en CH2 van los golpes con prioridad 15 y lo cortarian.
             XGM2_playPCMEx(scream_april, sizeof(scream_april),
-                           SOUND_PCM_CH1, 15, FALSE, FALSE);
+                           SOUND_PCM_CH2, 15, FALSE, FALSE);
         }
     }
     return opened;

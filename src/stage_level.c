@@ -12,6 +12,7 @@
 #include "enemies.h"           // foot_soldier (paleta)
 #include "hud.h"
 #include "enemy.h"
+#include "difficulty.h"      // (20/10) foot soldiers extra por oleada
 #include "stage_bg.h"
 #include "pause_menu.h"
 #include "audio.h"
@@ -34,6 +35,32 @@ extern u8 cantidadJugadores;
 #define STAGE_MAX_ALIVE_1P    3     // presupuesto de VRAM de sprites (como el 2-1)
 #define STAGE_MAX_ALIVE_2P    2
 #define STAGE_START_X        40
+
+// (20/10) Oleadas con foot soldiers EXTRA (difficulty.h): despues de las
+// entradas de la tabla se repiten sus SOLDIERS (los actores especiales del
+// nivel no) desde el primero.
+__attribute__((noinline)) static u8 waveSoldiers(const StageWave* w) {
+    u8 c = 0;
+    for (u8 k = 0; k < w->n; k++) if (w->type[k] < STAGE_SPECIAL) c++;
+    return c;
+}
+__attribute__((noinline)) static u8 waveEntry(const StageWave* w, u8 idx) {
+    if (idx < w->n) return idx;
+    u8 ns = waveSoldiers(w);
+    if (!ns) return 0;
+    u8 want = (u8)((idx - w->n) % ns);
+    for (u8 k = 0; k < w->n; k++) {
+        if (w->type[k] >= STAGE_SPECIAL) continue;
+        if (want-- == 0) return k;
+    }
+    return 0;
+}
+// (18/10) Entrada cayendo despues de la intro (ver introStep): desde esta
+// altura, escalonados, y derivando 1 px por frame a la derecha estos frames.
+#define STAGE_DROP_Z        190
+#define STAGE_DROP_STAGGER   36
+#define STAGE_DROP_BACK      40     // arrancan esto mas a la izquierda...
+#define STAGE_DROP_TICKS     40     // ...y derivan 1 px/f a la derecha
 #define STAGE_CLEAR_SECS      5
 #define VOL_MUSIC_CLEAR      80
 
@@ -69,16 +96,20 @@ static s16 camYTarget(Player** pls, u8 nPl) {
 }
 
 // Scroll vertical de los dos planos: la fila de la imagen que queda arriba.
+// (21/10) Corrimiento extra de BG_A (ver stage_level.h).
+s16 stageAOffX, stageAOffY;
+
 static void camYApply(bool now) {
     s16 vs = (s16)(stageCamY - cur->camYMin);
+    s16 vsA = cur->far ? vs : (s16)((vs - stageAOffY) & 0xFF);   // (21/10) plano de 256 px
     if (now) {
-        VDP_setVerticalScroll(BG_A, vs);
+        VDP_setVerticalScroll(BG_A, vsA);
         VDP_setVerticalScroll(BG_B, vs);
     } else {
-        VDP_setVerticalScrollVSync(BG_A, vs);
+        VDP_setVerticalScrollVSync(BG_A, vsA);
         VDP_setVerticalScrollVSync(BG_B, vs);
     }
-    pauseSetVScroll(vs);
+    pauseSetVScroll(vsA);
 }
 
 // ---------------------------------------------------------------------------
@@ -89,6 +120,13 @@ static void camYApply(bool now) {
 static Enemy* stageEnemyList;
 Enemy* stageEnemies(void) { return stageEnemyList; }
 static u16 stageMaxAliveV = 3;      // (12/10) el tope de vivos en curso
+
+// (21/10) Tope de vivos del nivel en curso (ver maxAlive1P/2P en stage_level.h).
+static u16 aliveCap(bool dos) {
+    u16 v = dos ? (cur->maxAlive2P ? cur->maxAlive2P : STAGE_MAX_ALIVE_2P)
+                : (cur->maxAlive1P ? cur->maxAlive1P : STAGE_MAX_ALIVE_1P);
+    return (v > MAX_ENEMIES) ? MAX_ENEMIES : v;
+}
 static s16 stageCamXv;              // (12/10) la camara en curso (para los actores)
 static s16 stageSpawnY;             // (12/10) y de STAGE_JUMP_IN / STAGE_IN_PLACE
 static s16 stageProg;               // (12/10) avance del fondo (autoScrollQ), tope 32000
@@ -147,28 +185,52 @@ static inline bool ledgeOn(void) {
 static inline bool inLedge(s16 y) {
     return (y > cur->ledgeTop && y < cur->ledgeBot);
 }
+// (18/10) Pies dentro del tramo del escalon (ver ledgeX0/X1).
+static inline bool ledgeAtX(s16 fx) {
+    if (cur->ledgeX1 <= cur->ledgeX0) return TRUE;
+    return (fx >= cur->ledgeX0 && fx < cur->ledgeX1);
+}
+// (18/10) Arriba de una plataforma de tramo: lo que se pasa de los costados en
+// diagonal (a esta profundidad). 0 = adentro; <0 se paso a la izquierda.
+static s16 ledgeTopOut(s16 fx, s16 y) {
+    if (cur->ledgeX1 <= cur->ledgeX0 || y > cur->ledgeTop || !ledgeAtX(fx)) return 0;
+    s16 d  = (s16)(cur->ledgeTop - y);
+    s16 xl = (s16)(cur->ledgeX0 + cur->ledgeInset - d);
+    s16 xr = (s16)(cur->ledgeX1 - cur->ledgeInset + d);
+    if (fx < xl) return (s16)(fx - xl);
+    if (fx >= xr) return (s16)(fx - xr + 1);
+    return 0;
+}
+
 // Una Y de pies valida en el suelo: la de la banda va al piso mas cercano.
 static s16 ledgeSnap(s16 y) {
     if (!ledgeOn() || !inLedge(y)) return y;
     return (y - cur->ledgeTop <= cur->ledgeBot - y) ? cur->ledgeTop : cur->ledgeBot;
 }
 
-static void ledgePlayer(Player* p, s16 prevY, bool* wasAir) {
+static void ledgePlayer(Player* p, s16 prevX, s16 prevY, bool* wasAir) {
     if (!ledgeOn()) return;
     const s16 lt = cur->ledgeTop, lb = cur->ledgeBot;
+    // (18/10) Fuera del tramo del escalon (plataforma de la fabrica) la banda
+    // es piso comun: solo cuenta con los pies dentro de [ledgeX0, ledgeX1).
+    bool at = ledgeAtX((s16)(p->x + FOOT_DX));
     if (!isPlayerJumping(p)) {
         if (*wasAir) {                              // aterrizo este frame
-            if (inLedge(p->y)) {
+            if (at && inLedge(p->y)) {
                 if (p->y <= lt + LEDGE_SNAP) p->y = lt;
                 else playerFallTo(p, lb);
             }
-        } else if (prevY <= lt && p->y > lt) {      // se paso del borde
+        } else if (at && prevY <= lt && p->y > lt) {    // se paso del borde
             playerFallTo(p, lb);
-        } else if (prevY >= lb && p->y < lb) {      // contra el escalon
+        } else if (at && prevY >= lb && p->y < lb) {    // contra el escalon
             p->y = lb;
-        } else if (inLedge(p->y)) {                 // red de seguridad
-            p->y = ledgeSnap(p->y);
+        } else if (at && inLedge(p->y)) {
+            if (!ledgeAtX((s16)(prevX + FOOT_DX))) p->x = prevX;   // (18/10) contra el costado
+            else p->y = ledgeSnap(p->y);                        // red de seguridad
         }
+        // (18/10) Arriba, los costados en diagonal son pared.
+        s16 out = ledgeTopOut((s16)(p->x + FOOT_DX), p->y);
+        if (out) p->x = (s16)(p->x - out);
     }
     *wasAir = isPlayerJumping(p);
 }
@@ -177,7 +239,8 @@ static s16 eStepZ[MAX_ENEMIES];
 
 static void ledgeEnemy(Enemy* e, u16 i, s16 prevY) {
     if (!ledgeOn()) return;
-    if (inLedge(e->y)) {
+    s16 fx = getEnemyCenterX(e);
+    if (ledgeAtX(fx) && inLedge(e->y)) {
         s16 to;
         if (prevY <= cur->ledgeTop)      to = cur->ledgeBot;   // baja
         else if (prevY >= cur->ledgeBot) to = cur->ledgeTop;   // sube
@@ -186,6 +249,8 @@ static void ledgeEnemy(Enemy* e, u16 i, s16 prevY) {
         eStepZ[i] = (s16)(eStepZ[i] + (to - e->y));
         e->y = to;
     }
+    s16 out = ledgeTopOut(fx, e->y);                // (18/10) costados de arriba
+    if (out) e->x = (s16)(e->x - out);
     if (eStepZ[i] > 0) eStepZ[i] = (eStepZ[i] > LEDGE_Z_DOWN) ? eStepZ[i] - LEDGE_Z_DOWN : 0;
     else if (eStepZ[i] < 0) eStepZ[i] = (eStepZ[i] < -LEDGE_Z_UP) ? eStepZ[i] + LEDGE_Z_UP : 0;
 }
@@ -194,17 +259,47 @@ static void ledgeEnemy(Enemy* e, u16 i, s16 prevY) {
 // Primer plano (BG_A, prioridad alta, sin las filas del HUD)
 // ---------------------------------------------------------------------------
 static u16 fgVram;
+// (18/10) MODO LIVIANO con 3-4 jugadores: sin primer plano (los caños de la
+// cloaca, las columnas de la fabrica), sin sus tramos en la franja del HUD
+// (fgTop) y sin capa lejana (el skyline de la autopista y del skate). Toda
+// esa VRAM pasa a los sprites: con cuatro tortugas en pantalla no alcanzaba
+// para los enemigos y actores (el auto de la autopista no entraba nunca).
+static bool stageLite;
 static s16 fgColRight, fgColLeft;
 static u16 fgBuf[32];
 
+// (18/10) Overlay (ver ovW en stage_level.h): tiles propios en ovVram.
+static u16 ovVram;
+
+static u16 extraVram;
+u16 stageExtraVram(void) { return extraVram; }
+
+// (18/10) Temblor: +-STAGE_SHAKE_AMP px alternando cada 2 cuadros.
+#define STAGE_SHAKE_AMP 3
+static u8 shakeT;
+void stageShake(u8 frames) { if (frames > shakeT) shakeT = frames; }
+static s16 shakeX(void) {
+    if (!shakeT) return 0;
+    return ((shakeT >> 1) & 1) ? STAGE_SHAKE_AMP : -STAGE_SHAKE_AMP;
+}
+
+void stageOverlayFrame(const u32* tiles) {
+    if (cur && cur->ovW) VDP_loadTileData(tiles, ovVram, (u16)(cur->ovW * cur->ovH), DMA_QUEUE);
+}
+
 static void fgDrawCol(s16 col) {
-    const TileMap* tm = cur->fg->tilemap;
+    // (18/10) Sin primer plano (o en modo liviano) solo se dibuja el overlay.
+    const TileMap* tm = (cur->fg && !stageLite) ? cur->fg->tilemap : NULL;
     // Con camara vertical el HUD va en WINDOW: se dibujan TODAS las filas.
     const u16 r0 = camYOn() ? 0 : STAGE_HUD_ROWS;
     const u16 r1 = camYOn() ? 32 : STAGE_ROWS;
+    const bool ov = cur->ovW && col >= cur->ovCol && col < (s16)(cur->ovCol + cur->ovW);
     for (u16 r = r0; r < r1; r++) {
         u16 v = 0;
-        if (col >= 0 && col < (s16)tm->w && r < tm->h) {
+        if (ov && r >= cur->ovRow && r < (u16)(cur->ovRow + cur->ovH)) {
+            v = (u16)(TILE_ATTR(PAL1, FALSE, FALSE, FALSE)
+                      | (ovVram + (r - cur->ovRow) * cur->ovW + (u16)(col - cur->ovCol)));
+        } else if (tm && col >= 0 && col < (s16)tm->w && r < tm->h) {
             u16 e   = tm->tilemap[(u32)r * tm->w + (u16)col];
             u16 idx = e & TILE_INDEX_MASK;
             if (idx)   // tile 0 = vacio (rescomp lo deja primero)
@@ -217,13 +312,27 @@ static void fgDrawCol(s16 col) {
 }
 
 static void fgUpdate(s16 camX) {
-    if (!cur->fg) return;
+    if ((!cur->fg || stageLite) && !cur->ovW) return;
     s16 wantL = (s16)(camX >> 3);
     s16 wantR = (s16)(wantL + SBG_WIN_COLS - 1);
     while (fgColRight < wantR) fgDrawCol(++fgColRight);
     while (fgColLeft > wantL)  fgDrawCol(--fgColLeft);
     if (fgColLeft < wantL) fgColLeft = wantL;
     if (fgColRight > wantR) fgColRight = wantR;
+}
+
+// (21/10) Relleno de BG_A (aPat): el plano entero, una sola vez.
+static void aPatFill(void) {
+    const u16 attr = TILE_ATTR(PAL0, cur->aPatHigh, FALSE, FALSE);
+    for (u16 r = 0; r < 32; r++) {
+        u16 row[64];
+        const u8* pr = cur->aPat + (u32)(r % cur->aPatH) * cur->aPatW;
+        for (u16 c = 0; c < 64; c++) {
+            u8 k = pr[c % cur->aPatW];
+            row[c] = k ? (u16)(attr | (extraVram + k - 1)) : 0;
+        }
+        VDP_setTileMapDataRect(BG_A, row, 0, r, 64, 1, 64, CPU);
+    }
 }
 
 // Tramos del primer plano en la franja del HUD (filas 0-3), como sprites de
@@ -244,7 +353,7 @@ static u16 fgTopSharedTiles(const StageLevel* L) {
 
 static void fgTopInit(u16 sharedVram) {
     for (u16 i = 0; i < STAGE_FGTOP_MAX; i++) fgTopSpr[i] = NULL;
-    if (!cur->fgTop) return;
+    if (!cur->fgTop || stageLite) return;
     const u16 tpf = fgTopTilesPerFrame();
     if (cur->fgTopF) {
         // Cada frame DISTINTO se carga una sola vez; los sprites apuntan ahi.
@@ -310,6 +419,132 @@ static void farDraw(u16 vram) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// (22/10) Bandas de parallax en BG_B (ver StageBands en stage_level.h)
+// ---------------------------------------------------------------------------
+static u16 bandVram;
+static s16 bandL[STAGE_MAX_BANDS], bandR[STAGE_MAX_BANDS];
+static s16 bandRowScr[STAGE_ROWS];      // scroll de BG_B por fila (sin el temblor)
+static u16 bandBuf[32];
+
+// (22/10) Cache de tiles de las bandas (StageBands.slots > 0).
+#define BAND_NONE          0xFFFF
+#define BAND_MAX_TILES     512
+#define BAND_MAX_SLOTS     320
+#define BAND_QUEUE_NEED     24          // lugar en la cola de DMA para una columna
+static u16  bandTileSlot[BAND_MAX_TILES];
+static u16  bandSlotRef[BAND_MAX_SLOTS];
+static u16  bandFree[BAND_MAX_SLOTS];
+static u16  bandFreeTop;
+static bool bandCache;
+static bool bandNow;                    // arranque: todo inmediato (pantalla en negro)
+
+static u16 bandAcquire(u16 idx) {
+    if (idx >= BAND_MAX_TILES) return BAND_NONE;
+    u16 s = bandTileSlot[idx];
+    if (s != BAND_NONE) { bandSlotRef[s]++; return s; }
+    if (!bandFreeTop) return BAND_NONE;             // sin lugar: celda vacia
+    s = bandFree[--bandFreeTop];
+    bandTileSlot[idx] = s;
+    bandSlotRef[s] = 1;
+    VDP_loadTileData(cur->bands->tiles + (u32)idx * 8, (u16)(bandVram + s), 1,
+                     bandNow ? DMA : DMA_QUEUE);
+    return s;
+}
+
+static void bandRelease(u16 idx) {
+    if (idx >= BAND_MAX_TILES) return;
+    u16 s = bandTileSlot[idx];
+    if (s == BAND_NONE) return;
+    if (--bandSlotRef[s] == 0) {
+        bandTileSlot[idx] = BAND_NONE;
+        bandFree[bandFreeTop++] = s;
+    }
+}
+
+static s16 bandX(const StageBand* b, s16 camX) {
+    return (s16)(((s32)camX * b->num) / b->den);
+}
+
+static void bandDrawCol(const StageBand* b, s16 col) {
+    u16 c = (u16)((col < 0) ? 0 : col) % b->w;
+    const u16* m = b->map + c;
+    for (u16 r = 0; r < b->rows; r++) {
+        u16 e   = *m;
+        u16 idx = (u16)(e & SBG_RAW_INDEX_MASK);
+        u16 v   = 0;
+        if (idx) {
+            u16 t = bandCache ? bandAcquire(idx) : idx;
+            if (t != BAND_NONE)
+                v = (u16)(((e >> SBG_RAW_FLIP_SHIFT) & (TILE_ATTR_VFLIP_MASK | TILE_ATTR_HFLIP_MASK))
+                          | TILE_ATTR(PAL0, FALSE, FALSE, FALSE) | (bandVram + t));
+        }
+        bandBuf[r] = v;
+        m += b->w;
+    }
+    VDP_setTileMapDataRect(BG_B, bandBuf, (u16)(col & 63), b->row0, 1, b->rows, 1,
+                           bandNow ? CPU : DMA_QUEUE_COPY);
+}
+
+// Suelta los tiles de una columna que salio (solo con cache).
+static void bandDropCol(const StageBand* b, s16 col) {
+    if (!bandCache) return;
+    u16 c = (u16)((col < 0) ? 0 : col) % b->w;
+    const u16* m = b->map + c;
+    for (u16 r = 0; r < b->rows; r++) {
+        u16 idx = (u16)(*m & SBG_RAW_INDEX_MASK);
+        if (idx) bandRelease(idx);
+        m += b->w;
+    }
+}
+
+static bool bandQueueOk(void) {
+    return bandNow || (DMA_getQueueSize() + BAND_QUEUE_NEED < DMA_getMaxQueueSize());
+}
+
+// Trae las columnas que entraron en cada banda (y suelta las que salieron) y
+// arma el scroll por fila. Si la cola de DMA esta llena, la columna nueva
+// espera al cuadro siguiente (entra por el borde, fuera de pantalla).
+static void bandsUpdate(s16 camX) {
+    const StageBands* bs = cur->bands;
+    for (u16 r = 0; r < STAGE_ROWS; r++) bandRowScr[r] = 0;
+    for (u16 k = 0; k < bs->n && k < STAGE_MAX_BANDS; k++) {
+        const StageBand* b = &bs->band[k];
+        s16 x = bandX(b, camX);
+        s16 wantL = (s16)(x >> 3);
+        s16 wantR = (s16)(wantL + SBG_WIN_COLS - 1);
+        // primero se sueltan las que salieron (liberan lugar en el cache)
+        while (bandL[k] < wantL && bandL[k] <= bandR[k]) bandDropCol(b, bandL[k]++);
+        while (bandR[k] > wantR && bandR[k] >= bandL[k]) bandDropCol(b, bandR[k]--);
+        if (bandL[k] > bandR[k]) { bandL[k] = wantL; bandR[k] = (s16)(wantL - 1); }
+        while (bandR[k] < wantR && bandQueueOk()) bandDrawCol(b, ++bandR[k]);
+        while (bandL[k] > wantL && bandQueueOk()) bandDrawCol(b, --bandL[k]);
+        for (u16 r = b->row0; r < b->row0 + b->rows && r < STAGE_ROWS; r++)
+            bandRowScr[r] = (s16)-x;
+    }
+}
+
+static void bandsInit(s16 camX) {
+    const StageBands* bs = cur->bands;
+    bandCache = (bs->slots != 0);
+    bandNow   = TRUE;
+    if (bandCache) {
+        u16 n = (bs->slots > BAND_MAX_SLOTS) ? BAND_MAX_SLOTS : bs->slots;
+        for (u16 i = 0; i < BAND_MAX_TILES; i++) bandTileSlot[i] = BAND_NONE;
+        for (u16 i = 0; i < n; i++) { bandFree[i] = (u16)(n - 1 - i); bandSlotRef[i] = 0; }
+        bandFreeTop = n;
+    } else {
+        VDP_loadTileData(bs->tiles, bandVram, bs->nTiles, DMA);
+    }
+    for (u16 k = 0; k < STAGE_MAX_BANDS; k++) {
+        s16 l = (k < bs->n) ? (s16)(bandX(&bs->band[k], camX) >> 3) : 0;
+        bandL[k] = l;
+        bandR[k] = (s16)(l - 1);
+    }
+    bandsUpdate(camX);
+    bandNow = FALSE;
+}
+
 // Scroll por fila de tile. static: van por DMA_QUEUE.
 static s16 scrA[STAGE_ROWS], scrB[STAGE_ROWS];
 
@@ -320,13 +555,21 @@ static void applyScroll(s16 camX, TransferMethod tm) {
         farX = cur->autoScrollQ ? (s16)-(s16)((u16)camX / dv)     // (12/10) scroll u16
                                 : (s16)-(camX / (s16)dv);
     }
+    s16 sh = shakeX();
+    if (shakeT) shakeT--;
     for (u16 r = 0; r < STAGE_ROWS; r++) {
-        if (cur->far) {
-            scrA[r] = (s16)-camX;
-            scrB[r] = (r < STAGE_HUD_ROWS) ? 0 : farX;
+        s16 rs = (r < STAGE_HUD_ROWS) ? 0 : sh;     // el HUD no tiembla
+        if (cur->bands) {
+            // (22/10) Parallax: el frente con la camara, BG_B por banda. El HUD
+            // va en WINDOW (tapa las filas 0-3 de BG_A).
+            scrA[r] = (s16)(-camX + rs);
+            scrB[r] = (s16)(bandRowScr[r] + rs);
+        } else if (cur->far) {
+            scrA[r] = (s16)(-camX + rs);
+            scrB[r] = (r < STAGE_HUD_ROWS) ? 0 : (s16)(farX + rs);
         } else {
-            scrB[r] = (s16)-camX;
-            scrA[r] = (r < STAGE_HUD_ROWS && !camYOn()) ? 0 : (s16)-camX;
+            scrB[r] = (s16)(-camX + rs);
+            scrA[r] = (r < STAGE_HUD_ROWS && !camYOn()) ? 0 : (s16)(-camX + rs + stageAOffX);
         }
     }
     VDP_setHorizontalScrollTile(BG_A, 0, scrA, STAGE_ROWS, tm);
@@ -498,18 +741,28 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     const u8  nPlSetup  = numJugadores();
     const u16 barBlocks = (u16)((nPlSetup > 2) ? MAX_PLAYERS : 2) * HUD_VRAM_PER_PLAYER;
+    stageLite = (nPlSetup > 2);         // (18/10) ver stageLite
     // En la variante con capa lejana, su tileset ocupa el lugar del primer plano.
-    const Image* extra  = L->far ? L->far : L->fg;
+    // (18/10) En modo liviano no se carga ninguno de los dos.
+    const Image* extra  = stageLite ? NULL : (L->far ? L->far : L->fg);
     const u16 fgTiles   = extra ? extra->tileset->numTile : 0;
-    const u16 topTiles  = fgTopSharedTiles(L);
+    const u16 topTiles  = stageLite ? 0 : fgTopSharedTiles(L);
     const bool camV = (L->camYMin < 0 || L->camYMax > 0);
-    const VDPPlane hudPl = L->far ? BG_B : (camV ? WINDOW : BG_A);
+    const VDPPlane hudPl = L->far ? BG_B : ((camV || L->bands) ? WINDOW : BG_A);
+    // (22/10) parallax: VRAM de las bandas (enteras o el cache)
+    const u16 bandTiles = !L->bands ? 0
+                        : (L->bands->slots ? L->bands->slots : L->bands->nTiles);
+    const VDPPlane bgPl  = (L->far || L->bands) ? BG_A : BG_B;
     const s16 camMaxX   = (s16)(L->levelW - SCREEN_W);
 
-    // VRAM: HUD | primer plano | cache del fondo | sprites.
+    // VRAM: HUD | primer plano | bandas | cache del fondo | overlay | sprites.
+    const u16 ovTiles   = (u16)(L->ovW * L->ovH);   // (18/10) overlay
     SPR_initEx((u16)(TILE_FONT_INDEX - (TILE_USER_INDEX + barBlocks + fgTiles
-                                        + topTiles + L->bgSlots)));
+                                        + bandTiles + topTiles + L->bgSlots
+                                        + ovTiles + L->extraTiles)));
+    shakeT = 0;
     stageCamY = 0;
+    stageAOffX = 0; stageAOffY = 0;    // (21/10)
 
     VDP_setScreenWidth320();
     VDP_setPlaneSize(64, 32, TRUE);
@@ -518,7 +771,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     VDP_setVerticalScroll(BG_B, 0);
     VDP_clearPlane(BG_A, TRUE);
     VDP_clearPlane(BG_B, TRUE);
-    if (camV) {
+    if (camV || L->bands) {
         // HUD en WINDOW: las 4 filas de arriba, fijas, tapando a BG_A.
         VDP_clearPlane(WINDOW, TRUE);
         VDP_setWindowHPos(FALSE, 0);
@@ -532,8 +785,11 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     u16 hudVram = TILE_USER_INDEX;
     fgVram = (u16)(TILE_USER_INDEX + barBlocks);
+    bandVram = (u16)(fgVram + fgTiles);        // (22/10)
+    ovVram = (u16)(fgVram + fgTiles + bandTiles + topTiles + L->bgSlots);
+    extraVram = (u16)(ovVram + ovTiles);       // (18/10)
     if (extra) VDP_loadTileSet(extra->tileset, fgVram, DMA);
-    if (L->far) farDraw(fgVram);
+    if (L->far && !stageLite) farDraw(fgVram);
     // (12/10) Fondo que corre solo: la imagen se repite en X.
     stageProg = 0; stageProgAcc = 0; stageScroll = 0; stageVisAcc = 0;
     sbgSetWrap(L->autoScrollQ != 0);
@@ -541,19 +797,21 @@ SceneId stageLevelRun(const StageLevel* L) {
     enemySkateMode  = (bool)(L->skateLift != 0);
     sbgSetRegions(L->bgRegions, L->nBgRegions);   // (01/10) NULL/0 casi siempre
     if (L->bgRaw)
-        sbgInitRaw(L->bgRaw, L->far ? BG_A : BG_B, PAL0,
-                   (u16)(fgVram + fgTiles + topTiles), L->bgSlots, cameraX);
+        sbgInitRaw(L->bgRaw, bgPl, PAL0,
+                   (u16)(fgVram + fgTiles + bandTiles + topTiles), L->bgSlots, cameraX);
     else
-        sbgInit(L->bg, L->far ? BG_A : BG_B, PAL0,
-                (u16)(fgVram + fgTiles + topTiles), L->bgSlots, cameraX);
+        sbgInit(L->bg, bgPl, PAL0,
+                (u16)(fgVram + fgTiles + bandTiles + topTiles), L->bgSlots, cameraX);
     fgColLeft  = 0;
     fgColRight = -1;
     fgUpdate(cameraX);
+    if (L->bands) bandsInit(cameraX);          // (22/10) parallax
+    if (L->aPat && !L->fg && !L->ovW && !L->far && !L->bands) aPatFill();   // (21/10) la nieve
     applyScroll(cameraX, DMA);
 
     hudSetPlane(hudPl);
     hudInit();
-    fgTopInit((u16)(fgVram + fgTiles));
+    fgTopInit((u16)(fgVram + fgTiles + bandTiles));
 
     Player p1, p2, p3, p4;
     Player* pls[MAX_PLAYERS] = { &p1, &p2, &p3, &p4 };
@@ -597,7 +855,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         eStepZ[i] = 0;
     }
     bool plWasAir[MAX_PLAYERS] = { FALSE, FALSE, FALSE, FALSE };
-    u16 maxAlive = dosJugadores ? STAGE_MAX_ALIVE_2P : STAGE_MAX_ALIVE_1P;
+    u16 maxAlive = aliveCap(dosJugadores);
     stageMaxAliveV = maxAlive;
 
     if (L->bossInit) L->bossInit();
@@ -607,6 +865,7 @@ SceneId stageLevelRun(const StageLevel* L) {
 
     s16 waveIdx     = -1;       // ultima oleada disparada
     u8  waveSpawned = 0;
+    u8  waveTot     = 0;        // (20/10) entradas + extra de la dificultad
     u16 vramWait    = 0;        // frames sin VRAM para el siguiente de la oleada
     s16 camLockX    = -1;       // -1 = camara libre
 
@@ -630,6 +889,12 @@ SceneId stageLevelRun(const StageLevel* L) {
                                 pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - stageCamY);
         fgTopUpdate(cameraX);
     }
+    // (18/10) Intro: las tortugas no estan hasta que termina.
+    if (L->introStep) {
+        for (u8 k = 0; k < nPl; k++)
+            if (pls[k]->sprite) SPR_setVisibility(pls[k]->sprite, HIDDEN);
+        if (L->introBegin) L->introBegin(target);
+    }
     SPR_update();
 
     XGM2_setLoopNumber(-1);
@@ -639,6 +904,22 @@ SceneId stageLevelRun(const StageLevel* L) {
     PAL_setColors(0, black, 64, DMA);
     PAL_fadeInAll(target, 20, FALSE);
     while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    // (18/10) Intro y entrada cayendo de un salto desde la izquierda.
+    u16 dropTicks = 0;
+    if (L->introStep) {
+        while (L->introStep(cameraX)) {
+            SPR_update();
+            SYS_doVBlankProcess();
+        }
+        for (u8 k = 0; k < nPl; k++) {
+            pls[k]->x = (s16)(pls[k]->x - STAGE_DROP_BACK);
+            if (pls[k]->sprite) SPR_setVisibility(pls[k]->sprite, VISIBLE);
+            playerDropIn(pls[k], (s16)(STAGE_DROP_Z + k * STAGE_DROP_STAGGER));
+            updatePlayer(pls[k]);
+        }
+        dropTicks = STAGE_DROP_TICKS;
+    }
 
     bool running = TRUE;
     bool allOut  = FALSE;
@@ -657,7 +938,13 @@ SceneId stageLevelRun(const StageLevel* L) {
             s16 prevX = pls[k]->x, prevY = pls[k]->y;
             updatePlayer(pls[k]);
             clampWalk(&pls[k]->x, &pls[k]->y, prevX, prevY, FOOT_DX);
-            ledgePlayer(pls[k], prevY, &plWasAir[k]);
+            ledgePlayer(pls[k], prevX, prevY, &plWasAir[k]);
+        }
+        // (18/10) Deriva de la entrada cayendo (despues de la intro).
+        if (dropTicks > 0) {
+            dropTicks--;
+            for (u8 k = 0; k < nPl; k++)
+                if (isPlayerJumping(pls[k])) pls[k]->x = (s16)(pls[k]->x + 1);
         }
         // (14/10) Modo ARCADE: quieto 7 s con la camara parada -> misil. En la
         // patineta no (la camara no se mueve nunca: corre el fondo).
@@ -715,7 +1002,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                               (u16)(hudVram + HUD_VRAM_PER_PLAYER));
                 nPl          = 2;
                 dosJugadores = TRUE;
-                maxAlive     = STAGE_MAX_ALIVE_2P;
+                maxAlive     = aliveCap(TRUE);
                 stageMaxAliveV = maxAlive;
                 resetEnemyAI(2);
             }
@@ -745,17 +1032,19 @@ SceneId stageLevelRun(const StageLevel* L) {
             stageScroll = (u16)(stageScroll + (v >> 8));
             leadFeetX = stageProg;
         }
-        if ((waveIdx < 0 || waveSpawned >= L->waves[waveIdx].n) &&
+        if ((waveIdx < 0 || waveSpawned >= waveTot) &&
             waveIdx + 1 < (s16)L->nWaves &&
             leadFeetX >= L->waves[waveIdx + 1].trigX) {
             waveIdx++;
             waveSpawned = 0;
+            waveTot = (u8)(L->waves[waveIdx].n + diffWaveExtra(waveSoldiers(&L->waves[waveIdx])));
             camLockX = L->waves[waveIdx].lockX;
             if (camLockX < cameraX) camLockX = cameraX;
         }
         if (waveIdx >= 0) {
             const StageWave* w = &L->waves[waveIdx];
-            while (waveSpawned < w->n && alive < maxAlive) {
+            while (waveSpawned < waveTot && alive < maxAlive) {
+                u8 we = waveEntry(w, waveSpawned);
                 u16 i;
                 for (i = 0; i < MAX_ENEMIES; i++)
                     if (enemies[i].state == ENEMY_STATE_INACTIVE) break;
@@ -769,12 +1058,23 @@ SceneId stageLevelRun(const StageLevel* L) {
                 // (lo que tardan en irse misiles y explosiones), sale un morado
                 // (la hoja mas chica); si tampoco entra, a los 2,5 s se lo
                 // saltea. La oleada nunca se traba.
-                u8 ty = w->type[waveSpawned];
+                u8 ty = w->type[we];
                 if (ty >= STAGE_SPECIAL) {
                     // (12/10) Actor del nivel: no ocupa lugar de soldier.
                     if (L->specialSpawn &&
-                        !L->specialSpawn(ty, w->side[waveSpawned], w->x[waveSpawned], cameraX))
-                        break;                     // todavia no: se reintenta
+                        !L->specialSpawn(ty, w->side[we], w->x[we], cameraX)) {
+                        // Todavia no: se reintenta. (18/10) Pero si no hay
+                        // nadie vivo y no arranca nunca (sin VRAM con 4
+                        // jugadores), la camara quedaba clavada para siempre
+                        // sin enemigos: a los STAGE_VRAM_SKIP frames se lo
+                        // saltea (con su reemplazo, si el nivel tiene uno).
+                        if (alive > 0) { vramWait = 0; break; }
+                        if (++vramWait < STAGE_VRAM_SKIP) break;
+                        vramWait = 0;
+                        if (L->specialFallback)
+                            L->specialFallback(ty, w->side[we], w->x[we], cameraX);
+                    }
+                    vramWait = 0;
                     waveSpawned++;
                     continue;
                 }
@@ -792,7 +1092,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 }
                 vramWait = 0;
                 eStepZ[i] = 0;
-                spawnWaveEnemy(&enemies[i], ty, w->side[waveSpawned], cameraX, w->x[waveSpawned]);
+                spawnWaveEnemy(&enemies[i], ty, w->side[we], cameraX, w->x[we]);
                 // (13/10) Si SGDK no le dio el sprite (VRAM fragmentada, o la
                 // tomo otra cosa en el medio), no cuenta: se reintenta. Un
                 // soldier sin sprite no se actualiza nunca (updateEnemyN sale
@@ -804,7 +1104,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 waveSpawned++;
                 alive++;
             }
-            if (waveSpawned >= w->n && alive == 0) camLockX = -1;   // limpia
+            if (waveSpawned >= waveTot && alive == 0) camLockX = -1;   // limpia
         }
 
         splashUpdate(cameraX);
@@ -861,7 +1161,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -872,7 +1172,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         for (u8 k = 0; k < nPl; k++)
             if (shurikenBreakByPlayerAttack(pls[k]))
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
         {
             s16 hitX = 0;
             for (u8 k = 0; k < nPl; k++) {
@@ -880,7 +1180,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX))
                     continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH2, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
                 damagePlayer(pls[k], hitX);
             }
         }
@@ -888,7 +1188,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         // Boomerangs del amarillo (29/09).
         if (boomerangStep(pls, nPl, cameraX, stageCamY))
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
 
         // --- Lo propio del nivel (29/09: los misiles del agua del sewer) -----
         if (L->levelUpdate) L->levelUpdate(pls, nPl, cameraX);
@@ -896,7 +1196,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         // --- Jefe ------------------------------------------------------------
         bool wavesDone = (L->nWaves == 0) ||
                          (waveIdx == (s16)L->nWaves - 1 &&
-                          waveSpawned >= L->waves[waveIdx].n && alive == 0);
+                          waveSpawned >= waveTot && alive == 0);
         if (!bossStarted && wavesDone && cameraX >= camMaxX &&
             leadFeetX >= L->bossFeetX) {
             bossStarted = TRUE;
@@ -926,6 +1226,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             sbgUpdate(bgX);
             fgUpdate(cameraX);
             fgTopUpdate(cameraX);
+            if (L->bands) bandsUpdate(bgX);    // (22/10) parallax
             applyScroll(bgX, DMA_QUEUE);
         }
 
@@ -957,6 +1258,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     VDP_setTextPlane(BG_A);
     clearScene();          // tambien vuelve el scroll a modo plano y el HUD a BG_A
     stageCamY = 0;
+    stageAOffX = 0; stageAOffY = 0;    // (21/10)
     pauseSetVScroll(0);
     cur = NULL;
     if (jump != PAUSE_NO_JUMP) return jump;

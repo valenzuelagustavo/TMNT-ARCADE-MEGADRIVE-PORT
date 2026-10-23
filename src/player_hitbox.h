@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------------------
 #define PHB_CHARS   4
 #define PHB_SLOTS   8      // animaciones que pueden golpear
-#define PHB_FRAMES  12
+#define PHB_FRAMES  11
 #define PHB_BANDS   13
 #define PHB_BAND    8      // px de alto de cada franja
 #define PHB_ANIMS   25     // filas de PlayerAnim

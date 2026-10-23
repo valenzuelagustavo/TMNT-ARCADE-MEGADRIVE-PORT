@@ -32,6 +32,11 @@
 //   Fila 21 -> ANIM_MANHOLE (boca de tormenta)
 //   Fila 22 -> ANIM_ATTACK_4      (solo hojas nuevas)
 //   Fila 23 -> ANIM_JUMP_KICK_DIR (solo hojas nuevas)
+//   Fila 24 -> ANIM_THROW         (solo hojas nuevas)
+//   Fila 25 -> ANIM_MOUSER_BITE   (18/10, agregada a mano: Leo y Don)
+//   Fila 26 -> ANIM_BURN          (18/10, agregada a mano: Leo y Don; el lanzallamas de Granitor)
+//   Las filas a mano se encuadran con tools/fix_player_sheet_rows.py (grilla de
+//   104, pies en la fila 95; los originales quedan en sprites/players/orig/).
 //
 // (09/10) Leo y Don usan las hojas NUEVAS (sprites/players/*_new_13x13.png,
 // tools/gen_players_new.py desde los rips 50886_leo.png / 50888_don.png). Su
@@ -39,10 +44,12 @@
 // niveles la toman de leo_player). Mike y Raph siguen con las hojas viejas.
 // =============================================================================
 
-SPRITE leo_player  "/sprites/players/leo_new_13x13.png"  13 13 FAST 6
-SPRITE mike_player "/sprites/mike_anim_13x13.png" 13 13 FAST 6
-SPRITE raph_player "/sprites/raph_anim_13x13.png" 13 13 FAST 6
-SPRITE don_player  "/sprites/players/don_new_13x13.png"  13 13 FAST 6
+SPRITE leo_player  "/sprites/players/leo_new_13x13.png"  13 13 FAST 10
+// (20/10) Mike con la hoja nueva (tools/gen_players_new.py, rip 50887_mike.png)
+SPRITE mike_player "/sprites/players/mike_new_13x13.png" 13 13 FAST 10
+// (20/10) Raph con la hoja nueva (tools/gen_players_new.py, rip 50923_RAPH.png)
+SPRITE raph_player "/sprites/players/raph_new_13x13.png" 13 13 FAST 10
+SPRITE don_player  "/sprites/players/don_new_13x13.png"  13 13 FAST 10
 
 // (18/10) Cartel "HIT BUTTONS" arriba de la tortuga cuando un foot soldier la
 // agarra por la espalda (player.c, hitButtonsUpdate). 2 frames de 80x32 que

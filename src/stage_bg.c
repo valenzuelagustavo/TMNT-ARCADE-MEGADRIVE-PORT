@@ -4,7 +4,10 @@
 // STAGE_BG — ver stage_bg.h
 // ===========================================================================
 
-#define SBG_MAX_TILES   3072          // tope del tileset de ROM (formato ancho: 12 bits)
+// (21/10) Central Park llego a pedir 4717 (+3.3 KB de RAM aca); con el fondo
+// simplificado (tools/snow_simplify.py) son 1622 y se volvio a 3072. El
+// generador de cada nivel controla que su fondo entre.
+#define SBG_MAX_TILES   3072          // tope del tileset de ROM (el indice admite 13 bits)
 // (28/09) 768 -> 832: la cloaca nueva pide 800 (peor caso 796). Con 768 el
 // cache se llenaba y las celdas sin lugar salian NEGRAS (slotAcquire), que
 // eran los bloques negros del sewer. OJO: bgSlots de un nivel por encima de
@@ -19,6 +22,7 @@ static bool         sbgWide;          // mapa en formato ancho (ver SbgRaw)
 static bool         sbgWrapOn;        // (12/10) la imagen se repite en X (patinetas)
 static const u16*   sbgMap;
 static u16          sbgMapW, sbgMapH;
+static const u16*   sbgColOff;        // (18/10) diccionario de columnas (ver SbgRaw)
 static VDPPlane     sbgPlane;
 static u16          sbgPal;
 static u16          sbgVram;
@@ -70,6 +74,7 @@ static u16 cellEntry(u16 col, u16 row) {
             continue;
         return g->var[(u32)(v - 1) * g->w * g->h + (u32)(row - g->r0) * g->w + (col - g->c0)];
     }
+    if (sbgColOff) return sbgMap[sbgColOff[col] + row];
     return sbgMap[(u32)row * sbgMapW + col];
 }
 
@@ -174,8 +179,9 @@ static void colLoad(s16 col) {
     } else if (sbgNRegs == 0) {
         // Bucle caliente: indices como desplazamientos s16 en bytes para que
         // el 68000 use el modo (An,Dn.w) sin extender a 32 bits en cada celda.
-        const u16* m     = sbgMap + (u16)ic;
-        const s16  stepB = (s16)(sbgMapW << 1);
+        // (18/10) Con diccionario de columnas la columna esta seguida (paso 2).
+        const u16* m     = sbgColOff ? sbgMap + sbgColOff[ic] : sbgMap + (u16)ic;
+        const s16  stepB = sbgColOff ? 2 : (s16)(sbgMapW << 1);
         const u16  imask = sbgWide ? SBG_RAW_INDEX_MASK : TILE_INDEX_MASK;
         const u16  fsh   = sbgWide ? SBG_RAW_FLIP_SHIFT : 0;
         const u16  base  = (u16)(TILE_ATTR(sbgPal, FALSE, FALSE, FALSE) + sbgVram);
@@ -222,8 +228,8 @@ static void colUnload(s16 col) {
         return;
     }
     // (14/10) slotRelease en linea, con desplazamientos s16 (ver colLoad).
-    const u16* m     = sbgMap + (u16)ic;
-    const s16  stepB = (s16)(sbgMapW << 1);
+    const u16* m     = sbgColOff ? sbgMap + sbgColOff[ic] : sbgMap + (u16)ic;
+    const s16  stepB = sbgColOff ? 2 : (s16)(sbgMapW << 1);
     const u16  imask = sbgWide ? SBG_RAW_INDEX_MASK : TILE_INDEX_MASK;
     u8* const  tsB   = (u8*)tileSlot;
     u8* const  refB  = (u8*)slotRef;
@@ -275,6 +281,7 @@ void sbgInit(const Image* img, VDPPlane plane, u16 pal, u16 vramBase,
              u16 slots, s16 camX) {
     sbgTiles = img->tileset->tiles;
     sbgWide  = FALSE;
+    sbgColOff = NULL;
     sbgMap   = img->tilemap->tilemap;
     sbgMapW  = img->tilemap->w;
     sbgMapH  = img->tilemap->h;
@@ -285,6 +292,7 @@ void sbgInitRaw(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
                 u16 slots, s16 camX) {
     sbgTiles = raw->tiles;
     sbgWide  = TRUE;
+    sbgColOff = raw->colOff;
     sbgMap   = raw->map;
     sbgMapW  = raw->w;
     sbgMapH  = raw->h;
@@ -314,6 +322,16 @@ void sbgUpdate(s16 camX) {
     // 65536 px = 8192 columnas, multiplo de las 64 del plano).
     s16 wantL = sbgWrapOn ? (s16)((u16)camX >> 3) : (s16)(camX >> 3);
     s16 wantR = (s16)(wantL + SBG_WIN_COLS - 1);
+    // (19/10) Feedback: "strange scrolling issue on left side of the screen
+    // during the skating part". Los tiles nuevos se escriben YA (por CPU, ver
+    // slotAcquire) pero el scroll y el plano recien en el vblank: a 7 px/f casi
+    // cada cuadro sale una columna por la izquierda, sus slots se reusaban al
+    // toque y, el resto de ese cuadro (todavia con el scroll viejo), los
+    // primeros px de la izquierda mostraban tiles pisados (una raya de cielo).
+    // Con la imagen repetida (patinetas) se deja UNA columna mas a la
+    // izquierda: lo que sigue en pantalla no se suelta hasta el cuadro
+    // siguiente. Peor caso del cache: 415 -> 417 (bgSlots 448).
+    if (sbgWrapOn) wantL--;
     // Primero soltar lo que salio (asi el pico nunca pasa de SBG_WIN_COLS
     // columnas), despues traer lo que entro.
     while (colLeft < wantL)  colUnload(colLeft++);
@@ -370,15 +388,31 @@ static inline bool colsIn(s16* c0, s16* c1) {
 
 static u16 lineBuf[64];
 
+// (18/10) Mapa 2D por bloques de 8x8 (ver SbgBlk2D). Una celda se busca con
+// una tabla de offsets por fila de bloques (sin multiplicar); dentro de un
+// bloque las tiras avanzan con el puntero (+8 por fila, +1 por columna).
+static const u16* sbgBlk;
+static const u8*  sbgBIdx;
+static u16        sbgBRowOff[64];
+
+static inline const u16* blkCell(u16 col, u16 row) {
+    u16 b = sbgBIdx[sbgBRowOff[row >> 3] + (col >> 3)];
+    return sbgBlk + (u16)(b << 6) + (u16)((row & 7) << 3) + (col & 7);
+}
+
 static void colLoad2(s16 col) {
     u16 n = 0;
     s16 r0 = 0, r1 = -1;
     bool inX = (col >= 0 && col < (s16)sbgMapW);
     const u16* m = NULL;
-    if (inX && rowsIn(&r0, &r1)) m = sbgMap + (u32)(u16)r0 * sbgMapW + (u16)col;
+    if (inX && rowsIn(&r0, &r1)) m = blkCell((u16)col, (u16)r0);
     for (s16 r = rowTop; r <= rowBot; r++) {
         u16 v = 0;
-        if (m && r >= r0 && r <= r1) { v = attrOf(*m); m += sbgMapW; }
+        if (m && r >= r0 && r <= r1) {
+            v = attrOf(*m);
+            if ((r & 7) != 7) m += 8;
+            else if (r < r1) m = blkCell((u16)col, (u16)(r + 1));
+        }
         lineBuf[n++] = v;
     }
     u16 y0 = (u16)(rowTop & 31);
@@ -392,8 +426,12 @@ static void colLoad2(s16 col) {
 static void colUnload2(s16 col) {
     s16 r0, r1;
     if (col < 0 || col >= (s16)sbgMapW || !rowsIn(&r0, &r1)) return;
-    const u16* m = sbgMap + (u32)(u16)r0 * sbgMapW + (u16)col;
-    for (s16 r = r0; r <= r1; r++) { dropOf(*m); m += sbgMapW; }
+    const u16* m = blkCell((u16)col, (u16)r0);
+    for (s16 r = r0; r <= r1; r++) {
+        dropOf(*m);
+        if ((r & 7) != 7) m += 8;
+        else if (r < r1) m = blkCell((u16)col, (u16)(r + 1));
+    }
 }
 
 static void rowLoad2(s16 row) {
@@ -401,10 +439,14 @@ static void rowLoad2(s16 row) {
     s16 c0 = 0, c1 = -1;
     bool inY = (row >= 0 && row < (s16)sbgMapH);
     const u16* m = NULL;
-    if (inY && colsIn(&c0, &c1)) m = sbgMap + (u32)(u16)row * sbgMapW + (u16)c0;
+    if (inY && colsIn(&c0, &c1)) m = blkCell((u16)c0, (u16)row);
     for (s16 c = colLeft; c <= colRight; c++) {
         u16 v = 0;
-        if (m && c >= c0 && c <= c1) v = attrOf(*m++);
+        if (m && c >= c0 && c <= c1) {
+            v = attrOf(*m);
+            if ((c & 7) != 7) m++;
+            else if (c < c1) m = blkCell((u16)(c + 1), (u16)row);
+        }
         lineBuf[n++] = v;
     }
     u16 x0 = (u16)(colLeft & 63);
@@ -418,17 +460,28 @@ static void rowLoad2(s16 row) {
 static void rowUnload2(s16 row) {
     s16 c0, c1;
     if (row < 0 || row >= (s16)sbgMapH || !colsIn(&c0, &c1)) return;
-    const u16* m = sbgMap + (u32)(u16)row * sbgMapW + (u16)c0;
-    for (s16 c = c0; c <= c1; c++) dropOf(*m++);
+    const u16* m = blkCell((u16)c0, (u16)row);
+    for (s16 c = c0; c <= c1; c++) {
+        dropOf(*m);
+        if ((c & 7) != 7) m++;
+        else if (c < c1) m = blkCell((u16)(c + 1), (u16)row);
+    }
 }
 
-void sbgInitRaw2D(const SbgRaw* raw, VDPPlane plane, u16 pal, u16 vramBase,
+void sbgInitRaw2D(const SbgBlk2D* map, VDPPlane plane, u16 pal, u16 vramBase,
                   u16 slots, s16 camX, s16 camY) {
-    sbgTiles = raw->tiles;
+    sbgTiles = map->tiles;
     sbgWide  = TRUE;
-    sbgMap   = raw->map;
-    sbgMapW  = raw->w;
-    sbgMapH  = raw->h;
+    sbgColOff = NULL;
+    sbgMap   = NULL;
+    sbgMapW  = map->w;
+    sbgMapH  = map->h;
+    sbgBlk   = map->blocks;
+    sbgBIdx  = map->bidx;
+    {
+        u16 bw = (u16)(map->w >> 3), off = 0;
+        for (u16 i = 0; i < 64; i++) { sbgBRowOff[i] = off; off = (u16)(off + bw); }
+    }
     sbgPlane = plane;
     sbgPal   = pal;
     sbgVram  = vramBase;

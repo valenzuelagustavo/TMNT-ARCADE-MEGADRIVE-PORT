@@ -15,5 +15,6 @@ extern const TileSet option_font;
 extern const SpriteDefinition option_arrow;
 extern const SpriteDefinition sansenpai_logo;
 extern const SpriteDefinition skeleton_music;
+extern const SpriteDefinition hs_portraits;
 
 #endif // _RES_MENUS_H_

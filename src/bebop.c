@@ -1,4 +1,5 @@
 #include "bebop.h"
+#include "difficulty.h"  // (20/10) vida segun jugadores
 #include "level2_1_limits.h"   // lvl21WalkTop/Bot: la calle real del tramo final
 #include "audio.h"             // boss_scream_bebop_vo
 
@@ -137,7 +138,7 @@ static void bebopFlashOff(Bebop* b) {
 
 static void bebopFlashUpdate(Bebop* b) {
     if (b->hp <= 0) { bebopFlashOff(b); return; }
-    u8 interval = (b->hp <= BEBOP_FLASH_HP) ? BEBOP_FLASH_TICKS : 0;
+    u8 interval = (b->hp <= diffBossHp(BEBOP_FLASH_HP)) ? BEBOP_FLASH_TICKS : 0;
     if (interval == 0) { bebopFlashOff(b); return; }
     if (b->flashTick > 0) b->flashTick--;
     if (b->flashTick == 0) {
@@ -267,7 +268,8 @@ void bebopInit(Bebop* b) {
     b->sprite = NULL;
     b->state  = BEBOP_INACTIVE;
     b->dir = -1;
-    b->hp = BEBOP_HP;
+    b->hp = diffBossHp(BEBOP_HP);
+    diffBossTrack(&b->hp);
     b->anim = 0xFF;
     b->arena = &arena21;
     b->slideDir = 1;
@@ -276,7 +278,8 @@ void bebopInit(Bebop* b) {
 
 void bebopSpawnArena(Bebop* b, const BebopArena* arena) {
     b->arena     = arena ? arena : &arena21;
-    b->hp        = BEBOP_HP;
+    b->hp        = diffBossHp(BEBOP_HP);
+    diffBossTrack(&b->hp);
     b->dir       = -1;          // mira a la izquierda: los jugadores vienen de ahi
     b->frameTick = 0;
     b->chargeHit = 0;
@@ -472,7 +475,7 @@ bool bebopDamageEx(Bebop* b, s16 dmg, bool special) {
         bebopFlashOff(b);
         bebopManual(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_HIT);
         XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
-                       SOUND_PCM_CH1, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, FALSE, FALSE);
         return TRUE;
     }
 
