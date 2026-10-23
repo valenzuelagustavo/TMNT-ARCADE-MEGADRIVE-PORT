@@ -821,13 +821,39 @@ void updatePlayer(Player* p) {
                 walkAnim(p, (moveY < 0) ? ANIM_WALK_BACK : ANIM_WALK_FRONT);
             } else {
                 p->state = STATE_IDLE;
-                // La caminata arcade va con los frames a mano
-                if (!SPR_getAutoAnimation(p->sprite)) {
+                // La caminata arcade va con los frames a mano. (22/10) Con la
+                // hoja nueva la pose quieta tambien (ver abajo).
+                if (!playerHasNewSheet(p) && !SPR_getAutoAnimation(p->sprite)) {
                     SPR_setAutoAnimation(p->sprite, TRUE);
                     SPR_setAnimationLoop(p->sprite, TRUE);
                     SPR_setAnim(p->sprite, ANIM_IDLE);
                 }
-                if (p->numAnims > ANIM_IDLE2) {
+                if (playerHasNewSheet(p)) {
+                    // (22/10) Hoja nueva: la fila IDLE ya ES la animacion de
+                    // espera (IDLE2 es igual cuadro por cuadro) y en loop la
+                    // tortuga la hacia todo el tiempo. Ahora queda CLAVADA en
+                    // la primera pose; tras PLAYER_IDLE_ANIM_DELAY cuadros
+                    // quieta reproduce la animacion UNA vez y vuelve a la pose
+                    // fija (y asi, cada PLAYER_IDLE_ANIM_DELAY).
+                    if (p->idleTwice) {
+                        if (SPR_isAnimationDone(p->sprite)) {
+                            p->idleTwice = 0;
+                            p->idleTimer = 0;
+                            SPR_setAutoAnimation(p->sprite, FALSE);
+                            SPR_setAnimAndFrame(p->sprite, ANIM_IDLE, 0);
+                        }
+                    } else if (++p->idleTimer >= PLAYER_IDLE_ANIM_DELAY) {
+                        p->idleTimer = 0;
+                        p->idleTwice = 1;
+                        SPR_setAutoAnimation(p->sprite, TRUE);
+                        SPR_setAnimationLoop(p->sprite, FALSE);
+                        SPR_setAnimAndFrame(p->sprite, ANIM_IDLE2, 0);
+                    } else if (p->sprite->animInd != ANIM_IDLE || p->sprite->frameInd != 0 ||
+                               SPR_getAutoAnimation(p->sprite)) {
+                        SPR_setAutoAnimation(p->sprite, FALSE);
+                        SPR_setAnimAndFrame(p->sprite, ANIM_IDLE, 0);
+                    }
+                } else if (p->numAnims > ANIM_IDLE2) {
                     // Pose de espera nueva: tras PLAYER_IDLE_ANIM_DELAY frames
                     // quieto se reproduce ANIM_IDLE2 UNA vez (sin loop) y se
                     // vuelve a ANIM_IDLE. En las sheets viejas (Raph/Don) el
@@ -1099,10 +1125,13 @@ void updatePlayer(Player* p) {
                     playAttackGrunt(p);         // golpe normal: el grunido, no el "Attack!!"
                 } else if (playerHasNewSheet(p)) {
                     // (09/10) Hoja nueva: cada golpe en el aire es su propia
-                    // anim (sin direccion / con direccion) y corre sola una
-                    // vez, quedando en el ultimo frame hasta aterrizar.
-                    SPR_setAutoAnimation(p->sprite, TRUE);
+                    // anim (sin direccion / con direccion), quedando en el
+                    // ultimo frame hasta aterrizar. (22/10) Frames A MANO con
+                    // PLAYER_AIRKICK_F0/F1_TICKS (ver el paso de mas abajo);
+                    // airTimer cuenta los ticks.
+                    SPR_setAutoAnimation(p->sprite, FALSE);
                     SPR_setAnimationLoop(p->sprite, FALSE);
+                    p->airTimer = 0;
                     // (20/10) Raph: la patada voladora con direccion
                     // (JUMP_KICK_DIR) es tambien la de media altura; su
                     // JUMP_KICK queda para lo mas bajo del salto.
@@ -1144,6 +1173,20 @@ void updatePlayer(Player* p) {
                     SPR_setFrame(p->sprite,
                         nk - (p->isJumpKicking == JUMPKICK_STRONG ? 1 : 2));
                 }
+            } else if (p->isJumpKicking && playerHasNewSheet(p) &&
+                       (p->sprite->animInd == ANIM_JUMP_KICK ||
+                        p->sprite->animInd == ANIM_JUMP_KICK_DIR)) {
+                // (22/10) Patada voladora de la hoja nueva, a mano: arranque,
+                // poses intermedias cortas y la ultima (la patada estirada)
+                // clavada hasta aterrizar.
+                if (p->airTimer < 255) p->airTimer++;
+                u16 nk = p->sprite->animation->numFrame;
+                u16 t  = p->airTimer;
+                u16 f  = (t < PLAYER_AIRKICK_F0_TICKS) ? 0
+                       : (u16)(1 + (t - PLAYER_AIRKICK_F0_TICKS) / PLAYER_AIRKICK_F1_TICKS);
+                if (nk == 0) nk = 1;
+                if (f > nk - 1) f = (u16)(nk - 1);
+                if (p->sprite->frameInd != (s16)f) SPR_setFrame(p->sprite, f);
             }
 
             // --- Fases de la animación del salto (solo si NO está pateando) ---

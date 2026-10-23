@@ -29,11 +29,9 @@
 #define LVLSNOW_SIGN_W     56
 #define LVLSNOW_SIGN_H     96
 #define LVLSNOW_SIGN_POLE  24   // poste (borde izq.) dentro de la celda
-#define LVLSNOW_N_SIGNS    3
+#define LVLSNOW_N_SIGNS    1
 static const s16 lvlSnowSigns[LVLSNOW_N_SIGNS][2] = {
-    { 1200, 164 },
-    { 1888, 164 },
-    { 2640, 164 },
+    { 210, 200 },
 };
 
 // Tractor (sprite snow_trator, PAL3): celda y rueda de adelante.

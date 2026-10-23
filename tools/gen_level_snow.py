@@ -113,9 +113,9 @@ SIGN_CELL = (56, 96)
 SIGN_POLE_X = 24
 # Carteles: x del borde izquierdo de la celda, y de la base (el pie del poste).
 # Entre canteros y bancos, con lugar para pasar por delante y por detras.
-# (22/10) El primero se corrio de 1064 a 1200: fuera de la pantalla del
-# tractor 1 (camara en 850), que necesita toda la VRAM de sprites libre.
-SIGNS = [(1200, 164), (1888, 164), (2640, 164)]
+# (22/10) UNO SOLO en todo el nivel, al principio y mas abajo en la pantalla
+# (base 200, la mitad de adelante de la franja caminable).
+SIGNS = [(210, 200)]
 
 # (22/10) CARTELES DE PIZZA HUT (misma paleta): se PINTAN en el frente,
 # parados contra el alambrado (las patas en y PIZZA_BASE, detras de la franja

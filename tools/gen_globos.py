@@ -32,6 +32,7 @@ GLOBOS = [
     ("youre_dead", 80, 88, 64, 32),       # Bebop al llegar (2-1)
     ("any_prettier", 224, 208, 96, 32),   # la tortuga le contesta
     ("watch_mouth", 328, 208, 96, 32),    # Bebop cierra
+    ("im_invincible", 224, 88, 64, 32),   # (23/10) Krang (9-1): al caer y al escaparse la cabeza
 ]
 
 COLMAP = {

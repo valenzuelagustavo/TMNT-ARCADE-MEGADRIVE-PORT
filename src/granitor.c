@@ -406,8 +406,9 @@ bool granitorPlayerHits(Granitor* g, Player** pls, u8 nPl, s8* killer) {
                                       GRAN_HIT_DY_UP, GRAN_HIT_DY_DOWN)) continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? GRAN_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? GRAN_JUMPKICK_DMG : 1);
-        // (16/10) Rock soldier: el "hit foot (hit rock soldier)" del arcade.
-        XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        // (22/10) Gustavo: el mismo sonido que los robots del latigo (Roadkill
+        // Rodney, robot.c) cuando les pegas. Antes: hit_foot_sfx (rock soldier).
+        XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
         g->hp -= dmg;
         g->flash = 8;
         g->invuln = GRAN_HURT_TICKS;

@@ -17,7 +17,7 @@
 //
 // CUALQUIER boton (de cualquiera de los dos joysticks) corta y devuelve a la
 // seleccion de jugadores. Si no se toca nada, al terminar el texto se queda un
-// rato en pantalla y vuelve igual: la proxima vez que se agoten los 30 segundos
+// rato en pantalla, sigue la TABLA DE PUNTAJES (22/10) y despues vuelve: la proxima vez que se agoten los 30 segundos
 // sale otra tortuga (nunca la misma dos veces seguidas).
 //
 // Los TEXTOS son texto de verdad dibujado con la fuente arcade del proyecto
@@ -30,6 +30,7 @@
 #include "profiles.h"   // profile_leo, profile_mike, profile_don, profile_raph
 #include "level1.h"     // title_font, title_font_pal (la fuente arcade)
 #include "audio.h"      // music_profiles ("02 - Character Profiles.vgm")
+#include "hiscore.h"    // (22/10) hiscoreBoardAttract: despues de los perfiles, la tabla
 
 // ---------------------------------------------------------------------------
 // Volumen y tiempos
@@ -233,5 +234,12 @@ SceneId showProfiles(void) {
     SPR_initEx(752);
 
     clearScene();                        // Corta la musica y limpia planos
+    // (22/10) Si nadie toco nada, sigue la tabla de puntajes y DESPUES vuelve
+    // a la seleccion de jugadores (ver hiscoreBoardAttract). Con un boton,
+    // directo al menu como antes.
+    if (!quit) {
+        hiscoreBoardAttract = TRUE;
+        return SCENE_HISCORE_BOARD;
+    }
     return SCENE_PLAYER_SELECT;
 }

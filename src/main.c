@@ -124,11 +124,13 @@ int main()
         // llegue el arte, cada una pasa a tener su propio case.
         case SCENE_CUT_SHREDDER_APRIL:
         case SCENE_CUT_CITY:
-        case SCENE_CUT_VAN:
         case SCENE_CUT_SPLINTER:
         case SCENE_DOJO:                    // 5-2 (NES)
         case SCENE_CUT_TECHNODROME:
             currentScene = showPendingScene(currentScene);
+            break;
+        case SCENE_CUT_VAN:                 // (23/10) ya tiene su imagen
+            currentScene = showCutVan();
             break;
         case SCENE_EPILOGUE:
             currentScene = showEpilogue();

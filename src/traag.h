@@ -20,7 +20,8 @@
 //   BOMBA         la tira con el brazo en arco hacia adelante; revienta al
 //                 tocar el piso y voltea al que este cerca. Despues RECARGA.
 //   Solo recibe dano quieto o caminando. Sin caida ni contraataque.
-//   MUERTE (parpadea, se quiebra, queda un montoncito).
+//   MUERTE (parpadea, se quiebra, queda un montoncito), con EXPLOSIONES en
+//   cadena sobre el cuerpo como Granitor (22/10).
 // ===========================================================================
 
 #define TRAAG_ANIM_IDLE1    0
@@ -99,6 +100,12 @@
 #define TRAAG_DEATH_BLINK     4
 #define TRAAG_DEATH_BREAK_T  30
 #define TRAAG_DEATH_PILE_T   70
+// (22/10) Explosiones de la muerte (como Granitor): TRAAG_DBOOMS en cadena,
+// una cada TRAAG_DBOOM_GAP cuadros, centradas TRAAG_DBOOM_DZ px sobre los
+// pies (el pecho) con un corrimiento cada una. Sin dano.
+#define TRAAG_DBOOMS          5
+#define TRAAG_DBOOM_GAP      20
+#define TRAAG_DBOOM_DZ       64
 
 typedef enum {
     TRAAG_INACTIVE, TRAAG_ENTER, TRAAG_IDLE, TRAAG_WALK,

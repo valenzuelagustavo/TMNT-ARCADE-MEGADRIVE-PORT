@@ -427,6 +427,10 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                 // la tortuga.
                 r->victim = NULL;
                 ratFling(r, (s8)-r->dir);
+                // (23/10) Sacarsela de encima tambien es pegarle: el mismo
+                // golpe de los robots del latigo y los helicopteros.
+                XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx),
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
                 break;
             }
             r->x = (s16)(getPlayerHurtCX(p) - r->dir * RAT_LATCH_DX);
@@ -493,7 +497,8 @@ void baxterRatPlayerHits(Player** pls, u8 nPl) {
         for (u8 k = 0; k < nPl; k++) {
             if (!playerAttackHitsBox(pls[k], r->x, r->y, RAT_HALF_W, RAT_BODY_H))
                 continue;
-            // (16/10) Golpe a un Mouser: el sonido propio del arcade.
+            // (16/10) Golpe a un Mouser: el sonido propio del arcade (el
+            // mismo de los robots del latigo y los helicopteros).
             XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx),
                            SOUND_PCM_CH3, 15, FALSE, FALSE);
             s16 px = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
@@ -694,8 +699,8 @@ bool baxterPlayerHits(Baxter* b, Player** pls, u8 nPl, s8* killer) {
         if (!playerAttackHitsFlying(pls[k], b->x, b->y, (s16)(b->y + BAXTER_BODY_H),
                                     BAXTER_HALF_W))
             continue;
-        // Cualquier golpe saca uno.
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        // Cualquier golpe saca uno. (23/10) Con su sonido propio (baxter_hit).
+        XGM2_playPCMEx(baxter_hit_sfx, sizeof(baxter_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
         b->hp -= 1;
         b->hurtFlash = BAXTER_INVULN;
         b->invuln    = BAXTER_INVULN;

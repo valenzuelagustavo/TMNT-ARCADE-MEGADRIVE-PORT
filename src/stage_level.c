@@ -1104,7 +1104,11 @@ SceneId stageLevelRun(const StageLevel* L) {
                 waveSpawned++;
                 alive++;
             }
-            if (waveSpawned >= waveTot && alive == 0) camLockX = -1;   // limpia
+            // (22/10) 'alive' se conto al principio del cuadro: un actor que
+            // arranco recien (el tractor del 3-1) todavia no estaba y la camara
+            // se soltaba en el acto. Se vuelve a preguntar por los actores.
+            if (waveSpawned >= waveTot && alive == 0 &&
+                !(L->specialAlive && L->specialAlive())) camLockX = -1;   // limpia
         }
 
         splashUpdate(cameraX);

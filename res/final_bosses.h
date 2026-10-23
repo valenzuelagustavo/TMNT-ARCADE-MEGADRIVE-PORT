@@ -15,5 +15,6 @@ extern const SpriteDefinition shredder_beam_a;
 extern const SpriteDefinition shredder_beam_b;
 extern const SpriteDefinition shredder_fx;
 extern const SpriteDefinition shredder_helmet;
+extern const SpriteDefinition krang_inv_bubble;
 
 #endif // _RES_FINAL_BOSSES_H_

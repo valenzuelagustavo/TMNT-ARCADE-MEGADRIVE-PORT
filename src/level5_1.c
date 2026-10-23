@@ -22,7 +22,7 @@
 //     izquierda a derecha y los soldiers SALTAN de el mientras pasa; si el
 //     auto se va y quedan, entran caminando por la izquierda. Atropella.
 //   - MOTOS (2 o 3, una por carril): cruzan de izquierda a derecha y voltean
-//     a la tortuga que pisan. Un golpe las hace explotar.
+//     a la tortuga que pisan. Un golpe voltea al soldier (23/10).
 //   - El del MISIL / la GOMA: un morado que entra por la derecha con el
 //     misil (o la goma) arriba de la cabeza, se alinea, lo tira y pasa a ser
 //     un morado comun. (13/10) La bomba cae en arco y explota en el piso (la
@@ -30,6 +30,9 @@
 //   - SP_WAIT: espera que no quede nadie (los blancos y el auto/motos se
 //     pisarian PAL3: SIEMPRE un SP_WAIT entre unos y otros).
 //   - La PIZZA tirada en la ruta (cuadro 6560 del tramo) con su globo.
+//   - (23/10) La BARRICADA del final: vallas con pinchos que cierran la ruta
+//     (pared) y detras pilas de gomas de las que salen los de la goma.
+//   - (23/10) Al de la MOTO un golpe lo voltea: muere y la moto sigue sola.
 // El nivel termina con las oleadas limpias al llegar al final (sin jefe) y
 // sigue la Scene 6 (la parte de las patinetas).
 // Musica (01/10): "13 - Highway Blockade (Scene 3-1)" (music_freeway).
@@ -221,15 +224,85 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
 #define BIKE_BARS       2
 #define BIKE_HALF_W    40      // la parte que se le puede pegar
 #define BIKE_BODY_H    50
-static struct { u8 on; s16 x, y; u8 acc; Sprite* s; u8 hitMask; } bike[BIKE_MAX];
+// (23/10) Gustavo: un golpe ya NO la hace explotar. El foot soldier MUERE
+// (la muerte del morado: sale volando, cae y explota, foot_soldier anim
+// ENEMY_ANIM_EXPLODE, PAL2) y la moto sigue SOLA (fw_moto_alone, PAL3, tiles
+// propios: a.s) hasta salir de la pantalla. Sola sigue atropellando. Si no hay
+// VRAM para la moto sola, desaparece (como antes, pero sin explosion).
+static struct {
+    u8 on; s16 x, y; u8 acc; Sprite* s; u8 hitMask;
+    u8 alone; Sprite* a;          // (23/10) sin el soldier
+} bike[BIKE_MAX];
 static u8 bikesOn;
+
+// --- (23/10) El soldier que se cae de la moto ---------------------------------
+#define RIDER_DX        42      // centro del soldier en la moto (px desde su borde izq)
+#define RIDER_FALL_T    48      // los 6 frames x 8 de la muerte del morado
+#define RIDER_PUSH_T    16      // los primeros cuadros vuela hacia atras...
+#define RIDER_PUSH_Q   384      // ... a 1,5 px/f (Q8)
+static struct { Sprite* s; s16 x, y; u16 t; s8 dir; u8 acc; } rider[BIKE_MAX];
+
+static void riderFall(s16 cx, s16 feet, s8 dir) {
+    for (u16 i = 0; i < BIKE_MAX; i++) {
+        if (rider[i].s) continue;
+        if (!sprVramFits(foot_soldier.maxNumTile)) return;
+        rider[i].s = SPR_addSprite(&foot_soldier, -128, -128, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        if (!rider[i].s) return;
+        SPR_setAnim(rider[i].s, ENEMY_ANIM_EXPLODE);
+        SPR_setAnimationLoop(rider[i].s, FALSE);
+        rider[i].x = (s16)(cx - ENEMY_SPRITE_W_PURPLE / 2);
+        rider[i].y = feet;
+        rider[i].t = 0;
+        rider[i].dir = dir;
+        rider[i].acc = 0;
+        SPR_setDepth(rider[i].s, (s16)(-feet - 1));
+        return;
+    }
+}
+
+static void riderUpdate(s16 camX) {
+    for (u16 i = 0; i < BIKE_MAX; i++) {
+        if (!rider[i].s) continue;
+        if (++rider[i].t >= RIDER_FALL_T) { SPR_releaseSprite(rider[i].s); rider[i].s = NULL; continue; }
+        if (rider[i].t <= RIDER_PUSH_T) {
+            u16 q = (u16)(rider[i].acc + RIDER_PUSH_Q);
+            rider[i].acc = (u8)(q & 0xFF);
+            rider[i].x = (s16)(rider[i].x + rider[i].dir * (s16)(q >> 8));
+        }
+        SPR_setPosition(rider[i].s, (s16)(rider[i].x - camX),
+                        (s16)(rider[i].y - ENEMY_FOOT_OFFSET_PURPLE - stageCamY));
+    }
+}
+
+static void riderReleaseAll(void) {
+    for (u16 i = 0; i < BIKE_MAX; i++)
+        if (rider[i].s) { SPR_releaseSprite(rider[i].s); rider[i].s = NULL; }
+}
 
 static void bikesRelease(void) {
     for (s16 i = BIKE_MAX - 1; i >= 0; i--) {
+        if (bike[i].a) { SPR_releaseSprite(bike[i].a); bike[i].a = NULL; }
         if (bike[i].s) { SPR_releaseSprite(bike[i].s); bike[i].s = NULL; }
         bike[i].on = 0;
+        bike[i].alone = 0;
     }
     bikesOn = 0;
+}
+
+// (23/10) Le pegaron al de la moto: la moto sigue sola. FALSE = no hay VRAM
+// para la moto sola (desaparece).
+static bool bikeGoAlone(u16 i) {
+    if (!sprVramFits(fw_moto_alone.maxNumTile)) return FALSE;
+    Sprite* a = SPR_addSprite(&fw_moto_alone, -128, -128, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+    if (!a) return FALSE;
+    SPR_setAutoAnimation(a, FALSE);
+    SPR_setDepth(a, (s16)-bike[i].y);
+    bike[i].a = a;
+    bike[i].alone = 1;
+    // La primera tiene los tiles de las otras: se esconde, no se suelta.
+    if (i == 0) SPR_setVisibility(bike[i].s, HIDDEN);
+    else if (bike[i].s) { SPR_releaseSprite(bike[i].s); bike[i].s = NULL; }
+    return TRUE;
 }
 
 static bool bikesStart(u8 n, s16 camX) {
@@ -253,6 +326,7 @@ static bool bikesStart(u8 n, s16 camX) {
         }
         SPR_setAutoAnimation(bike[i].s, FALSE);
         bike[i].on = 1; bike[i].y = y; bike[i].acc = 0; bike[i].hitMask = 0;
+        bike[i].alone = 0; bike[i].a = NULL;
         bike[i].x = (s16)(camX - BIKE_W - lag[i]);
         SPR_setDepth(bike[i].s, (s16)-y);
     }
@@ -283,14 +357,14 @@ static void bikesUpdate(Player** pls, u8 nPl, s16 camX) {
         bike[i].acc = (u8)(t & 0xFF);
         bike[i].x = (s16)(bike[i].x + (s16)(t >> 8));
         s16 cx = (s16)(bike[i].x + BIKE_W / 2);
-        // Un golpe la hace explotar.
+        // (23/10) Un golpe voltea al soldier: muere y la moto sigue sola.
         bool dead = FALSE;
-        for (u8 k = 0; k < nPl; k++) {
+        for (u8 k = 0; k < nPl && !bike[i].alone; k++) {
             if (!playerAttackHitsBox(pls[k], cx, bike[i].y, BIKE_HALF_W, BIKE_BODY_H)) continue;
             sfxHitFoot();
-            boomAt(cx, bike[i].y);
+            riderFall((s16)(bike[i].x + RIDER_DX), bike[i].y, -1);
             addPlayerScore(pls[k], 1);
-            dead = TRUE;
+            if (!bikeGoAlone(i)) dead = TRUE;
             break;
         }
         if (!dead) {
@@ -306,16 +380,96 @@ static void bikesUpdate(Player** pls, u8 nPl, s16 camX) {
         }
         if (dead || bike[i].x > camX + SCREEN_W + 8) {
             bike[i].on = 0;
+            if (bike[i].a) { SPR_releaseSprite(bike[i].a); bike[i].a = NULL; }
             // La primera tiene los tiles de todas: se esconde, no se suelta.
             if (i == 0) SPR_setVisibility(bike[i].s, HIDDEN);
             else if (bike[i].s) { SPR_releaseSprite(bike[i].s); bike[i].s = NULL; }
             continue;
         }
         any = TRUE;
-        if (bike[i].s)
-            SPR_setPosition(bike[i].s, (s16)(bike[i].x - camX), (s16)(bike[i].y - BIKE_H - stageCamY));
+        Sprite* bs = bike[i].alone ? bike[i].a : bike[i].s;
+        if (bs)
+            SPR_setPosition(bs, (s16)(bike[i].x - camX), (s16)(bike[i].y - BIKE_H - stageCamY));
     }
     if (!any) bikesRelease();
+}
+
+// ---------------------------------------------------------------------------
+// (23/10) La BARRICADA del final: dos vallas con pinchos (fw_valla, PAL0, la
+// paleta de la ruta) y detras dos pilas de gomas (fw_tire_pile, PAL2). Las
+// vallas CIERRAN la ruta: desde END_WALL_X la franja caminable es pared
+// (lvl51WalkTop), asi nadie pasa al otro lado. De cada pila sale uno de los de
+// la GOMA (la oleada O): agarra una y la pila pasa de tres gomas a dos.
+// Aparecen cuando la camara se acerca al final y quedan hasta que termina el
+// nivel. La segunda valla apunta a los tiles de la primera (100 tiles); si
+// SPR_defragVRAM la muda, la sigue.
+// ---------------------------------------------------------------------------
+#define END_WALL_X     1976     // pies: de aca a la derecha es pared
+#define END_SHOW_CAM   (END_WALL_X - SCREEN_W - 24)
+#define VALLA_N           2
+#define VALLA_W          96
+#define VALLA_H         104
+#define VALLA_BASE_DY     6     // la base de las patas, un poco arriba del borde
+#define PILE_N            2
+#define PILE_W           56
+#define PILE_H           80
+static const s16 vallaX[VALLA_N] = { 1992, 1976 };    // borde izquierdo (mundo)
+static const s16 vallaB[VALLA_N] = {  164,  216 };    // borde de abajo (mundo)
+static const s16 pileX[PILE_N]   = { 2044, 2040 };    // detras de cada valla
+static const s16 pileFeet[PILE_N] = { 150,  202 };
+static Sprite* valla[VALLA_N];
+static Sprite* pile[PILE_N];
+static u8      pileUsed[PILE_N];
+
+static u8 lvl51WalkTop[LVL51_W / 8];
+
+static void endRelease(void) {
+    for (s16 k = VALLA_N - 1; k >= 0; k--)
+        if (valla[k]) { SPR_releaseSprite(valla[k]); valla[k] = NULL; }
+    for (u16 j = 0; j < PILE_N; j++)
+        if (pile[j]) { SPR_releaseSprite(pile[j]); pile[j] = NULL; }
+}
+
+static void endUpdate(s16 camX) {
+    if (camX < END_SHOW_CAM) return;
+    if (!valla[0] && sprVramFits(fw_valla.maxNumTile)) {
+        valla[0] = SPR_addSprite(&fw_valla, -128, -128, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        if (valla[0]) SPR_setAutoAnimation(valla[0], FALSE);
+    }
+    if (valla[0]) {
+        u16 idx = valla[0]->attribut & TILE_INDEX_MASK;
+        if (!valla[1]) {
+            valla[1] = SPR_addSpriteEx(&fw_valla, -128, -128,
+                                       TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, idx),
+                                       SPR_FLAG_AUTO_VISIBILITY);
+            if (valla[1]) SPR_setAutoAnimation(valla[1], FALSE);
+        } else if ((valla[1]->attribut & TILE_INDEX_MASK) != idx) {
+            SPR_setVRAMTileIndex(valla[1], idx);
+        }
+    }
+    for (u16 j = 0; j < PILE_N; j++) {
+        if (!pile[j]) {
+            if (!sprVramFits(fw_tire_pile.maxNumTile)) continue;
+            pile[j] = SPR_addSprite(&fw_tire_pile, -128, -128, TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+            if (!pile[j]) continue;
+            SPR_setAutoAnimation(pile[j], FALSE);
+        }
+        SPR_setFrame(pile[j], pileUsed[j] ? 1 : 0);
+        SPR_setPosition(pile[j], (s16)(pileX[j] - camX), (s16)(pileFeet[j] - PILE_H - stageCamY));
+        SPR_setDepth(pile[j], (s16)-pileFeet[j]);
+    }
+    for (u16 k = 0; k < VALLA_N; k++) {
+        if (!valla[k]) continue;
+        SPR_setPosition(valla[k], (s16)(vallaX[k] - camX), (s16)(vallaB[k] - VALLA_H - stageCamY));
+        SPR_setDepth(valla[k], (s16)-(vallaB[k] - VALLA_BASE_DY));
+    }
+}
+
+// La pila de la que sale el proximo de la goma (-1 = ya salieron de todas).
+static s16 pileTake(void) {
+    for (u16 j = 0; j < PILE_N; j++)
+        if (!pileUsed[j]) { pileUsed[j] = 1; return (s16)j; }
+    return -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -542,6 +696,17 @@ static bool thrStart(u8 kind, s8 side, s16 camX) {
         thr[i].x = (side < 0) ? (s16)(camX - 24) : (s16)(camX + SCREEN_W + 24);
         thr[i].y = (s16)(LVL51_WALK_Y_MIN + 20 +
                          (s16)(random() % (LVL51_WALK_Y_MAX - LVL51_WALK_Y_MIN - 30)));
+        // (23/10) Los de la GOMA del final salen de atras de una pila de gomas
+        // (y se llevan una): arrancan escondidos detras de la pila, hacia la
+        // izquierda.
+        if (kind && camX >= END_SHOW_CAM) {
+            s16 j = pileTake();
+            if (j >= 0) {
+                thr[i].x = (s16)(pileX[j] + PILE_W / 2);
+                thr[i].y = (s16)(pileFeet[j] - 2);
+                thr[i].dir = -1;
+            }
+        }
         thr[i].accX = thr[i].accY = 0; thr[i].hp = THR_HP; thr[i].cd = 0;
         return TRUE;
     }
@@ -613,6 +778,14 @@ static void thrUpdate(Player** pls, u8 nPl, s16 camX) {
                 shotFire(thr[i].kind, (s16)(thr[i].x + thr[i].dir * 24), thr[i].y, thr[i].dir,
                          a16((s16)(thr[i].aimX - thr[i].x - thr[i].dir * 24)));
             if (thr[i].t >= THR_THROW_T) thr[i].st = THR_DONE;
+        } else if (thr[i].x > END_WALL_X - 16) {
+            // (23/10) THR_DONE detras de la barricada: primero sale caminando
+            // del otro lado de la pared (un morado ahi quedaria trabado).
+            thr[i].dir = -1;
+            u16 t = (u16)(thr[i].accX + THR_WALK_Q);
+            thr[i].accX = (u8)(t & 0xFF);
+            thr[i].x = (s16)(thr[i].x - (s16)(t >> 8));
+            SPR_setAnimAndFrame(thr[i].s, THR_ANIM_EMPTY, (thr[i].t >> 3) & 1);
         } else {   // THR_DONE: pasa a ser un morado comun apenas haya lugar
             SPR_setAnimAndFrame(thr[i].s, THR_ANIM_EMPTY, 0);
             if (stageSpawnEnemyAt(ENEMY_TYPE_FOOT_SOLDIER, STAGE_IN_PLACE, thr[i].x, thr[i].y)) {
@@ -718,6 +891,9 @@ static void lvl51Init(void) {
     for (u16 i = 0; i < BOOM_MAX; i++) boom[i].s = NULL;
     for (u16 q = 0; q < 4; q++) bigBoom.s[q] = NULL;
     pzSt = PZ_WAIT; pzT = 0; pzSpr = NULL; pzBubSt = 0; pzBubT = 0; pzBub = NULL;
+    for (u16 i = 0; i < BIKE_MAX; i++) { rider[i].s = NULL; bike[i].a = NULL; bike[i].alone = 0; }
+    for (u16 k = 0; k < VALLA_N; k++) valla[k] = NULL;
+    for (u16 j = 0; j < PILE_N; j++) { pile[j] = NULL; pileUsed[j] = 0; }
 }
 
 static void lvl51Release(void) {
@@ -730,11 +906,15 @@ static void lvl51Release(void) {
         if (boom[i].s) { SPR_releaseSprite(boom[i].s); boom[i].s = NULL; }
     bigBoomRelease();
     pizzaRelease();
+    riderReleaseAll();       // (23/10)
+    endRelease();
 }
 
 static void lvl51Update(Player** pls, u8 nPl, s16 camX) {
     carUpdate(pls, nPl, camX);
     bikesUpdate(pls, nPl, camX);
+    riderUpdate(camX);       // (23/10) el que se cae de la moto
+    endUpdate(camX);         // (23/10) la barricada
     thrUpdate(pls, nPl, camX);
     shotUpdate(pls, nPl, camX);
     boomUpdate(camX);
@@ -831,10 +1011,12 @@ static const StageWave waves51[] = {
     { 1522, 1342, 7, { W, H, P, W, W, H, W },        { +1, +1, -1, -1, +1, +1, -1 }, { 0 } },
     // M (1688): el auto AZUL (3 del martillo)
     { 1643, 1463, 2, { WT, CB },                     { 0 }, { 0 } },
-    // N (1968): la barricada, todos blancos
-    { 1886, 1706, 8, { W, W, W, W, W, W, W, W },     { -1, -1, +1, -1, +1, -1, +1, -1 }, { 0 } },
-    // O (2058): los de las gomas
-    { 1964, 1784, 4, { TR, TR, P, P },               { +1, +1, +1, -1 }, { 0 } },
+    // N (1968): la barricada, todos blancos. (23/10) Todos por la IZQUIERDA:
+    // a la derecha estan las vallas (pared desde END_WALL_X).
+    { 1886, 1706, 8, { W, W, W, W, W, W, W, W },     { -1, -1, -1, -1, -1, -1, -1, -1 }, { 0 } },
+    // O (2058): los de las gomas. (23/10) Salen de las pilas de gomas de atras
+    // de las vallas (thrStart); los morados, por la izquierda.
+    { 1940, 1784, 4, { TR, TR, P, P },               { +1, +1, -1, -1 }, { 0 } },
 };
 #undef P
 #undef W
@@ -861,13 +1043,13 @@ static const StageLevel level51 = {
     .backdrop     = 4,              // PAL0[4]: el celeste del cielo
     .bgSlots      = 736,            // >= 715, el peor caso medido
     .levelW       = LVL51_W,
-    .walkTop      = NULL,
-    .walkCols     = 0,
+    .walkTop      = lvl51WalkTop,   // (23/10) la barricada del final es pared
+    .walkCols     = LVL51_W / 8,
     .walkYMin     = LVL51_WALK_Y_MIN,   // borde de abajo del guardarrail
     .walkYMax     = LVL51_WALK_Y_MAX,
     .waves        = waves51,
     .nWaves       = sizeof(waves51) / sizeof(waves51[0]),
-    .bossFeetX    = 2000,
+    .bossFeetX    = END_WALL_X - 80,   // (23/10) antes de las vallas (2000 ya es pared)
     .music        = music_freeway,
     .musicVol     = 80,
     .levelInit    = lvl51Init,
@@ -880,5 +1062,9 @@ static const StageLevel level51 = {
 };
 
 SceneId showScene51() {
+    // (23/10) Franja caminable: toda la ruta desde el guardarrail, salvo la
+    // barricada del final (pared: ningun pie llega a esa y).
+    for (u16 c = 0; c < LVL51_W / 8; c++)
+        lvl51WalkTop[c] = (u8)((c >= END_WALL_X / 8) ? 255 : LVL51_WALK_Y_MIN);
     return stageLevelRun(&level51);
 }

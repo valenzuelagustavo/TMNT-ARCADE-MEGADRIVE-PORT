@@ -2,7 +2,7 @@
 #define _KRANG_H_
 
 #include <genesis.h>
-#include "final_bosses.h"   // krang_boss, krang_fist, krang_head, krang_eyebeam, krang_zap, krang_boom
+#include "final_bosses.h"   // krang_boss, krang_fist, krang_head, krang_eyebeam, krang_zap, krang_boom, krang_inv_bubble
 #include "player.h"
 #include "boss_flash.h"
 
@@ -49,6 +49,7 @@
 
 #define KRANG_FRAME_W     144
 #define KRANG_FOOT_OFFSET 144
+#define KRANG_MOUTH_DY    112   // (23/10) donde va la punta del globo, sobre los pies
 // (21/10) 20 -> 26: con 20 la patada voladora le tocaba el brazo/costado y no
 // pasaba nada (el torso del arte, sin los brazos, mide ~52 px).
 #define KRANG_BODY_HALF_W  26
@@ -168,6 +169,10 @@ bool krangPlayerHits(Krang* k, Player** pls, u8 nPl, s8* killer);
 bool krangIsDying(const Krang* k);   // muriendo o ya cabeza
 bool krangIsGone(const Krang* k);    // la cabeza ya se fue
 void krangRelease(Krang* k);
+// (23/10) TRUE una sola vez, en el cuadro en que Krang toca el piso al
+// entrar: ahi level9_1 arranca el "I'm invincible!" (bossVoStart) y despues
+// el tema. El globo lo pone krang.c.
+bool krangJustLanded(void);
 
 // Puno, laser de los ojos y explosiones (estado de modulo; krangInit los
 // limpia). krangShotsUpdate tambien avanza las explosiones.

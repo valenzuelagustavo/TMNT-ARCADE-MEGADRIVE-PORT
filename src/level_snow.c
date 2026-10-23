@@ -266,7 +266,7 @@ static void snowDestroy(void) {
 // de los 80). Si no entra (2 jugadores: las tortugas y sus HUD se comen la
 // VRAM), stage_level lo saltea a los 2,5 s y la camara sigue.
 // ---------------------------------------------------------------------------
-#define TRAC_BASE       184    // carril (y de mundo de las ruedas)
+#define TRAC_BASE       200    // carril (y de mundo de las ruedas); (22/10) 184 -> 200, dos tiles mas abajo
 #define TRAC_DEPTH       14    // pies a esto del carril: lo agarra
 #define TRAC_SPEED_Q4    48    // 3 px por cuadro
 #define TRAC_ANIM         6    // cuadros de juego por cuadro de la animacion
@@ -274,6 +274,21 @@ static void snowDestroy(void) {
 #define TRAC_HIT_X0      10    // la parte que atropella, dentro de los 256 px
 #define TRAC_HIT_X1     250
 #define TRAC_HALF       (LVLSNOW_TRAC_W / 2)
+// (22/10) Mientras pasa suena el loop del ascensor del Technodrome (por ahora),
+// como alla: CH2 (el de las voces) con prioridad baja; si una voz lo corta se
+// relanza en el cuadro siguiente. Se corta cuando sale.
+#define TRAC_SFX_CH     SOUND_PCM_CH2
+#define TRAC_SFX_PRIO   6
+// (22/10) Visibilidad A MANO de cada mitad: solo dentro de la pantalla y desde
+// el segundo cuadro (el primero se suben sus tiles). La X de los sprites de la
+// VDP es de 9 bits: la mitad derecha recien creada (x de pantalla ~456) daba
+// la vuelta y asomaba un instante por la IZQUIERDA.
+#define TRAC_SHOW_AGE   2
+
+static void tracSfx(void) {
+    XGM2_playPCMEx(elevator_tecnodrome_sfx, sizeof(elevator_tecnodrome_sfx),
+                   TRAC_SFX_CH, TRAC_SFX_PRIO, TRUE, TRUE);
+}
 
 static struct {
     bool    on;
@@ -281,11 +296,13 @@ static struct {
     s32     xq;         // Q4, borde izquierdo de la celda (mundo)
     u16     t;
     u8      hitMask;
+    bool    vis[2];
 } trac;
 
 static void tracRelease(void) {
     for (u16 k = 0; k < 2; k++)
         if (trac.s[k]) { SPR_releaseSprite(trac.s[k]); trac.s[k] = NULL; }
+    if (trac.on) XGM2_stopPCM(TRAC_SFX_CH);
     trac.on = FALSE;
 }
 
@@ -303,11 +320,14 @@ static bool tracStart(s16 camX) {
     for (u16 k = 0; k < 2; k++) {
         SPR_setAutoAnimation(trac.s[k], FALSE);
         SPR_setDepth(trac.s[k], -TRAC_BASE);
+        SPR_setVisibility(trac.s[k], HIDDEN);
+        trac.vis[k] = FALSE;
     }
     trac.on = TRUE;
     trac.xq = (s32)(camX + SCREEN_W + 8) << 4;
     trac.t = 0;
     trac.hitMask = 0;
+    tracSfx();
     return TRUE;
 }
 
@@ -321,11 +341,17 @@ static void tracUpdate(Player** pls, u8 nPl, s16 camX) {
         snowCreate();
         return;
     }
+    if (!XGM2_isPlayingPCM(1 << TRAC_SFX_CH)) tracSfx();   // una voz lo corto
     s16 fr = (s16)((trac.t / TRAC_ANIM) & 1);
     for (u16 k = 0; k < 2; k++) {
+        s16 sx = (s16)(x + k * TRAC_HALF - camX);
+        bool v = (trac.t >= TRAC_SHOW_AGE) && (sx < SCREEN_W) && (sx + TRAC_HALF > 0);
+        if (v != trac.vis[k]) {
+            trac.vis[k] = v;
+            SPR_setVisibility(trac.s[k], v ? VISIBLE : HIDDEN);
+        }
         SPR_setFrame(trac.s[k], fr);
-        SPR_setPosition(trac.s[k], (s16)(x + k * TRAC_HALF - camX),
-                        (s16)(TRAC_BASE - LVLSNOW_TRAC_H));
+        if (v) SPR_setPosition(trac.s[k], sx, (s16)(TRAC_BASE - LVLSNOW_TRAC_H));
     }
     for (u8 k = 0; k < nPl; k++) {
         if (trac.hitMask & (1 << k)) continue;

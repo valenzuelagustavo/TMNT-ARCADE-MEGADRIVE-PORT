@@ -298,9 +298,12 @@ SceneId showScene91() {
             krangSpawn(&krang, L9_BOSS_X, arenaL, arenaR, L9_KRANG_LANE_T, L9_LANE_B);
             laneTop = L9_KRANG_LANE_T;
             for (u8 k = 0; k < nPl; k++) setPlayerLane(pls[k], laneTop, L9_LANE_B);
-            XGM2_setLoopNumber(-1);
-            playMusicVol(music_vs_krang, VOL_MUSIC);   // (17/10) tema propio
+            // (23/10) El tema ya no arranca aca: cuando Krang toca el piso
+            // dice "I'm invincible!" (con su globo) y despues entra el tema.
         }
+        if (phase == 1 && krangJustLanded())
+            bossVoStart(krang_speech_vo, sizeof(krang_speech_vo),
+                        music_vs_krang, VOL_MUSIC);   // (17/10) tema propio
         if (phase == 1) {
             // Primero los golpes de las tortugas y despues la IA (asi el golpe
             // entra en el mismo frame en que el jefe decidiria atacar).

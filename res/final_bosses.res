@@ -34,3 +34,7 @@ SPRITE shredder_beam_a "sprites/shredder_beam_a_gen.png" 17 19 FAST 0
 SPRITE shredder_beam_b "sprites/shredder_beam_b_gen.png" 17 19 FAST 0
 SPRITE shredder_fx     "sprites/shredder_fx_gen.png"      4  4 NONE 0
 SPRITE shredder_helmet "sprites/shredder_helmet_gen.png"  2  2 NONE 0
+// (23/10) El globo "I'm invincible!" de Krang (el 16 de la hoja de globos del
+// arcade, tools/gen_globos.py): 64x32, con la paleta de las tortugas (PAL1).
+// Sale cuando Krang cae a la sala y cuando se escapa la cabeza (krang.c).
+SPRITE krang_inv_bubble "sprites/im_invincible_baloon.png" 8 4 NONE 0

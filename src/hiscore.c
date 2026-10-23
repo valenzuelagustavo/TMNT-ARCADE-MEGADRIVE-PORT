@@ -375,7 +375,15 @@ static void hsBoardRow(u8 i, bool show) {
     hsText(30, y, "PTS", c);
 }
 
+bool hiscoreBoardAttract = FALSE;
+
+// (22/10) Botones que cortan la tabla en modo atracto (como los perfiles).
+#define HS_ATTRACT_BUTTONS (BUTTON_START | BUTTON_A | BUTTON_B | BUTTON_C | \
+                            BUTTON_X | BUTTON_Y | BUTTON_Z | BUTTON_MODE)
+
 SceneId showHiscoreBoard(void) {
+    bool attract = hiscoreBoardAttract;   // (22/10) viene de los perfiles
+    hiscoreBoardAttract = FALSE;
     hiscoreLoad();
     hsSceneBegin();
     hsLoadGfx(hsGradBoardTiles);
@@ -406,7 +414,12 @@ SceneId showHiscoreBoard(void) {
         timer--;
         t++;
         u16 v = JOY_readJoypad(JOY_1);
-        if ((v & ~prev & BUTTON_START) && prev != 0xFFFF) break;
+        u16 cut = BUTTON_START;
+        if (attract) {                    // (22/10) cualquier boton, los dos joysticks
+            v |= JOY_readJoypad(JOY_2);
+            cut = HS_ATTRACT_BUTTONS;
+        }
+        if ((v & ~prev & cut) && prev != 0xFFFF) break;
         prev = v;
 
         for (u8 j = 0; j < 3; j++) {
@@ -431,5 +444,11 @@ SceneId showHiscoreBoard(void) {
     for (u8 k = 0; k < MAX_PLAYERS; k++) hsNew[k] = -1;
     XGM2_stop();
     hsSceneEnd();
+    if (attract) {
+        // Que el mismo pulso no confirme una opcion del menu al que volvemos.
+        while ((JOY_readJoypad(JOY_1) | JOY_readJoypad(JOY_2)) & HS_ATTRACT_BUTTONS)
+            SYS_doVBlankProcess();
+        return SCENE_PLAYER_SELECT;
+    }
     return SCENE_SEGA;
 }

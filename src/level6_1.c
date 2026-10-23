@@ -18,7 +18,8 @@
 //     revolotean adelante de la tortuga con su sombra en la ruta y disparan.
 //     Los rosas tiran balas que bajan en diagonal y dejan una llamita en el
 //     piso; los violetas (la misma hoja con la paleta cambiada) sueltan
-//     bombas que explotan. Solo se les pega SALTANDO.
+//     bombas que explotan. Solo se les pega SALTANDO. (23/10) Los violetas
+//     cruzan de derecha a izquierda bombardeando y se van por la izquierda.
 //   - Oleadas por tiempo (avance del fondo): helicopteros rosas, blancos en
 //     patineta, helicopteros rosas, los del martillo, violetas + martillos...
 //
@@ -188,6 +189,15 @@ static void boardsUpdate(Player** pls, u8 nPl) {
 #define COP_ROTOR_T      2      // frames por posicion del rotor
 #define COP_CYCLE      240      // cada 4 s...
 #define COP_DIVE        90      // ...1,5 s encima de la tortuga
+// (23/10) Los violetas (bombarderos) cruzan de derecha a izquierda: a esta
+// velocidad (1,25 px/f, ~7 s la pantalla), una bomba cada COP_BOMB_MIN..+RND
+// cuadros (antes 120..180), y se sueltan al pasar COP_BOMBER_OUT_X (el cuadro
+// espejado termina en x + 64: ya no se ve).
+#define COP_BOMBER_Q      320
+#define COP_BOMB_MIN       40
+#define COP_BOMB_RND       30
+#define COP_BOMBER_OUT_X  (-72)
+#define COP_BOMB_FIRST     30     // la primera, apenas entra en pantalla
 enum { COP_OFF = 0, COP_FLY, COP_DEAD };
 enum { CS_BODY = 0, CS_ROTOR, CS_N };
 static struct {
@@ -278,6 +288,7 @@ static bool copStart(bool purple) {
     cop[i].lane = (s16)(LVL61_WALK_Y_MIN + 10 + (s16)(random() % 40));
     cop[i].dir = -1; cop[i].hp = purple ? COP_HP_PURPLE : COP_HP_PINK; cop[i].cd = 0;
     cop[i].slot = (u8)i; cop[i].fire = (u16)(COP_FIRE_MIN + (random() % COP_FIRE_RND));
+    if (purple) cop[i].fire = (u16)(COP_BOMB_FIRST + (random() % COP_BOMB_RND));
     cop[i].t = 0; cop[i].accX = cop[i].accY = 0; cop[i].shots = 0;
     copLastSpawn = fr61;
     return TRUE;
@@ -455,7 +466,8 @@ static void copUpdate(Player** pls, u8 nPl) {
             if (!isPlayerJumpKicking(p) && !playerAttackHitsBox(p, cop[i].x, cop[i].lane, COP_HIT_DX, 0))
                 continue;
             if (a16((s16)(getPlayerHurtCX(p) - cop[i].x)) > COP_HIT_DX + 20) continue;
-            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            // (23/10) El mismo sonido que los robots del latigo al pegarles.
+            XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
             cop[i].cd = COP_HIT_CD;
             if (--cop[i].hp == 0) {
                 boomAt(cop[i].x, (s16)(cop[i].lane - cop[i].alt + 40));
@@ -465,8 +477,34 @@ static void copUpdate(Player** pls, u8 nPl) {
             break;
         }
         if (cop[i].st == COP_DEAD) continue;
+        // (23/10) Los VIOLETAS (bombarderos) no revolotean: cruzan la pantalla
+        // de derecha a izquierda soltando bombas. En Y siguen a la tortuga,
+        // en X nunca vuelven a la derecha. Al salir por la izquierda se van
+        // (no hace falta matarlos: estan para molestar).
+        if (copPurple) {
+            u16 t = (u16)(cop[i].accX + COP_BOMBER_Q);
+            cop[i].accX = (u8)(t & 0xFF);
+            cop[i].x = (s16)(cop[i].x - (s16)(t >> 8));
+            cop[i].dir = -1;
+            if (cop[i].x < COP_BOMBER_OUT_X) { copRelease(i); continue; }
+            if (tg) {
+                s16 ty = (s16)(getPlayerY(tg) + cop[i].slot * 10);
+                if (ty < LVL61_WALK_Y_MIN) ty = LVL61_WALK_Y_MIN;
+                if (ty > LVL61_WALK_Y_MAX) ty = LVL61_WALK_Y_MAX;
+                t = (u16)(cop[i].accY + COP_LANE_Q);
+                cop[i].accY = (u8)(t & 0xFF);
+                s16 v = (s16)(t >> 8);
+                if (cop[i].lane < ty) cop[i].lane = (s16)(cop[i].lane + v);
+                else if (cop[i].lane > ty) cop[i].lane = (s16)(cop[i].lane - v);
+            }
+            if (cop[i].fire) cop[i].fire--;
+            else if (cop[i].x > 8 && cop[i].x < SCREEN_W - 8) {
+                shotFire(cop[i].x, cop[i].lane, (s16)(cop[i].alt + 20), cop[i].dir, TRUE);
+                cop[i].fire = (u16)(COP_BOMB_MIN + (random() % COP_BOMB_RND));
+            }
+        }
         // Revolotea adelante de la tortuga, cada uno en su lugar.
-        if (tg) {
+        else if (tg) {
             s16 px = getPlayerHurtCX(tg), py = getPlayerY(tg);
             // Uno de cada lado (como el arcade) y cada tanto pasan rasantes
             // sobre la tortuga: ahi es cuando se los puede patear.

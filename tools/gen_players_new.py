@@ -447,6 +447,7 @@ def save_sheet(path, pal, rows):
 # (gen_player_hitbox.py lee offsets.json).
 SKIN = [2, 5, 8]
 AIR_SLOTS = ('JUMP', 'JUMP_KICK', 'JUMP_KICK_DIR', 'SPECIAL')
+WALK_SLOTS = ('WALK_FRONT', 'WALK_BACK')     # (22/10) dx fijo por fila (ver frame_offsets)
 NO_SHIFT = ('MANHOLE',)          # cada frame va donde esta el agujero
 # (09/10) SALTO medido en el video del arcade (gameplayARCADE/tmnt.avi, el
 # salto en el lugar de los frames 2044..2107): por cada pose de la anim JUMP,
@@ -530,6 +531,20 @@ def frame_offsets(rows, ref):
             # relativo a la tortuga misma, mas el corrimiento de su idle
             jdx, _ = jump_offsets(rows)
             dxs = [d + out[0][0] for d in jdx]
+        elif slot in WALK_SLOTS:
+            # (22/10) CAMINATA: un solo dx para toda la fila. Con el ancla de
+            # la SOMBRA cuadro por cuadro el cuerpo saltaba 7-8 px entre poses
+            # (los pies tapan los extremos de la sombra: su ancho visible va de
+            # 17 a 28 px). El dibujo ya trae el cuerpo centrado; se lo corre
+            # entero para que la piel quede donde esta en el idle (sin salto al
+            # arrancar / frenar).
+            idle_fr = rows[0][1][0]
+            gi = skin_center(idle_fr)
+            gs = [skin_center(fr) for fr in frames if fr is not None and fr.any()]
+            gs = [v for v in gs if v is not None]
+            if gi is not None and gs:
+                c = int(round(gi + out[0][0] - sum(gs) / len(gs)))
+                dxs = [c if (fr is not None and fr.any()) else 0 for fr in frames]
         out.append(dxs)
     return out
 

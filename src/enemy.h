@@ -433,7 +433,9 @@
 #define GUN_ANIM_SHOOT           3    // 6f: apunta, fogonazos, apunta
 #define GUN_ANIM_BUTT            4    // 5f: culatazo (pega en el 4to)
 #define GUN_ANIM_HIT             5    // 1f
-#define GUN_ANIM_EXPLODE         6    // 3f: golpeado y cae
+#define GUN_ANIM_EXPLODE         6    // 5f: (22/10) la muerte del naranja de los
+                                      // shurikens: vuela, cae, se prende, explota
+                                      // (tools/gun_orange_death.py)
 #define GUN_ANIM_TAUNT           7    // 6f: para el fusil
 
 #define HAMMER_ANIM_IDLE         0
@@ -470,6 +472,12 @@
 // Muerte: la caida de la hoja y despues parpadea hasta desaparecer.
 #define FW_EXPLODE_TIME         48
 #define FW_BLINK_TIME           24
+// (22/10) El del FUSIL muere con la muerte del naranja (vuela, cae y EXPLOTA):
+// 5 frames x FW_TICKS, sin parpadeo (la explosion lo termina). El cuerpo
+// tirado baja mas que los pies y en la celda de 72 px va GUN_DEATH_DROP px mas
+// arriba: mientras muere, el sprite se dibuja esos px mas abajo.
+#define GUN_EXPLODE_TIME        30
+#define GUN_DEATH_DROP           8
 
 // Distancias de decision (centro a centro, px)
 #define GUN_SHOOT_RANGE        100    // rafaga a esto o menos ...
@@ -500,6 +508,10 @@
 #define HAMMER_HIT_START         7
 #define HAMMER_HIT_END          18
 #define HAMMER_REACH            60
+// (22/10) Cuando el martillo golpea el piso (arranca el 4to frame, timer ==
+// HAMMER_HIT_END) vibra el sprite del soldier (e->shake, ver enemyShakeX):
+// ENEMY_SHAKE_AMP px y los ultimos ENEMY_SHAKE_SOFT_TICKS a 1 px.
+#define HAMMER_SHAKE_FRAMES     10
 #define SPEAR_THRUST_TIME       30    // 5f, pega en el 3ro y 4to (12..23)
 #define SPEAR_HIT_START          7
 #define SPEAR_HIT_END           18

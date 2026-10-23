@@ -187,11 +187,19 @@ static u16 enemyExplodeTime(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_WHITE:
         case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return WHITE_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_EXPLODE_TIME;
-        case ENEMY_TYPE_FOOT_SOLDIER_GUN:
+        case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_EXPLODE_TIME;   // (22/10)
         case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
         case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return FW_EXPLODE_TIME;
         default:                             return ENEMY_EXPLODE_TIME;
     }
+}
+
+// (22/10) El del fusil muere con la hoja del naranja: el cuerpo tirado va
+// GUN_DEATH_DROP px mas arriba en la celda, asi que se baja el sprite (los
+// pies "dentro del frame" quedan mas arriba). Lo resetea el spawn.
+static void enemyDeathPose(Enemy* e) {
+    if (e->type == ENEMY_TYPE_FOOT_SOLDIER_GUN)
+        e->footOffset = ENEMY_SPRITE_H_GUN - GUN_DEATH_DROP;
 }
 
 // Devuelve el rango del hitbox del ataque actual según el tipo.
@@ -1658,6 +1666,7 @@ bool damageEnemy(Enemy* e, s16 dmg) {
         e->deathTick = 0;
         e->timer = enemyExplodeTime(e);
         enemyRestartAnim(e, enemyAnimExplode(e), FALSE);
+        enemyDeathPose(e);
         return TRUE;
     }
 
@@ -1792,6 +1801,7 @@ static void thrownStep(Enemy* e) {
             e->dir     = e->throwDir;
             e->anim    = enemyAnimExplode(e);
             SPR_setAnimAndFrame(e->sprite, e->anim, 0);
+            enemyDeathPose(e);
             if (p) addPlayerScore(p, 1);
         }
     }
@@ -1969,7 +1979,8 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         }
         // (06/10) Los de arma no tienen explosion en la hoja: quedan tirados y
         // parpadean hasta desaparecer.
-        if (enemyHasWeapon(e->type))
+        // (22/10) El del fusil no: termina con la explosion del naranja.
+        if (enemyHasWeapon(e->type) && e->type != ENEMY_TYPE_FOOT_SOLDIER_GUN)
             SPR_setVisibility(e->sprite, (e->timer < FW_BLINK_TIME && (e->timer & 2))
                                          ? HIDDEN : VISIBLE);
         SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e), e->y - e->footOffset - e->jumpZ - stageCamY);
@@ -2608,6 +2619,13 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 const ComboStep* step  = &steps[e->comboStep];
                 if (e->timer > 0) {
                     e->timer--;
+                    // (22/10) El martillo pega contra el piso: el SPRITE del
+                    // soldier vibra (el mismo temblor del golpe recibido,
+                    // enemyShakeX; solo visual).
+                    if (step->anim == HAMMER_ANIM_SWING &&
+                        e->type == ENEMY_TYPE_FOOT_SOLDIER_HAMMER &&
+                        e->timer == HAMMER_HIT_END)
+                        e->shake = HAMMER_SHAKE_FRAMES;
                     // Patada con salto: desplazamiento en X durante el lunge
                     if (step->lunge > 0 && e->timer > (step->time - step->lunge)) {
                         e->x += e->dir * ENEMY_KICK_SPEED;

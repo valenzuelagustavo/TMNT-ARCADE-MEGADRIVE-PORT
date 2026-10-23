@@ -12,7 +12,12 @@
 // "intro_tmnt/Arcade - ... -TELA START _GENESIS_FINAL.png" (14/10, con
 // "GENESIS" debajo del logo; paleta nueva) SIN el menu ni el
 // cursor (van aparte, abajo). La arma tools/gen_title_screens.py. Reemplaza a title_scene/logo_tmnt.png.
-IMAGE title_menu_bg "images/intro_tmnt/genesis/title_menu_bg.png" BEST ALL
+// (22/10) NONE, no BEST (como char_select_bg): comprimido, VDP_loadTileSet
+// pide 373 tiles (~12 KB) al heap para descomprimir. Despues de una partida
+// entera el heap queda fragmentado, no hay un bloque tan grande, la carga
+// fallaba sin avisar y el menu salia SIN EL LOGO (el mapa se dibujaba con
+// tiles vacios). Sin comprimir se copia directo de la ROM (~12 KB de ROM).
+IMAGE title_menu_bg "images/intro_tmnt/genesis/title_menu_bg.png" NONE ALL
 // El menu, tal cual el arte (letras del arcade, renglones cada 17 px): el
 // de 3 opciones y el del secreto de 4 jugadores (suma "4 TURTLES").
 IMAGE title_menu3 "images/intro_tmnt/genesis/title_menu3.png" NONE ALL

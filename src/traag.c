@@ -64,6 +64,7 @@ static struct {
     Sprite* part[BOOM_PARTS];
     u8      anim[BOOM_PARTS];
     s16     x, lane;
+    s16     dz;            // (22/10) cuanto mas arriba del piso (las de la muerte)
     u8      frame, tick, t;
     u8      hitMask;       // jugadores ya alcanzados
 } booms[MAX_TRAAG_EXPLOSIONS];
@@ -142,7 +143,7 @@ static void boomCreate(u16 i) {
     for (u16 q = 0; q < BOOM_PARTS; q++) an[q] = 0;
 }
 
-static void boomAt(s16 x, s16 lane) {
+static void boomAtEx(s16 x, s16 lane, s16 dz, bool harmless) {
     u16 i;
     for (i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) if (!booms[i].active) break;
     if (i >= MAX_TRAAG_EXPLOSIONS) {
@@ -156,10 +157,43 @@ static void boomAt(s16 x, s16 lane) {
     booms[i].frame   = 0;
     booms[i].tick    = 0;
     booms[i].t       = 0;
-    booms[i].hitMask = 0;
+    booms[i].dz      = dz;
+    booms[i].hitMask = harmless ? 0xFF : 0;    // 0xFF: no alcanza a nadie
     boomCreate(i);
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
                    SOUND_PCM_CH3, 13, FALSE, FALSE);
+}
+
+static void boomAt(s16 x, s16 lane) { boomAtEx(x, lane, 0, FALSE); }
+
+// (22/10) EXPLOSIONES de la muerte de Traag, como las de Granitor: en cadena
+// sobre el cuerpo, una cada TRAAG_DBOOM_GAP cuadros, con las explosiones del
+// misil (baxter_boom, PAL2) pero sin dano. Con 2 lugares y 40 cuadros cada
+// una, el GAP de 20 deja que la siguiente entre justo cuando se va la vieja.
+static const s8 tDeathOff[TRAAG_DBOOMS][2] = {
+    { 0, 0 }, { -28, -26 }, { 26, 18 }, { 8, -46 }, { -18, 22 }
+};
+static u8  tDeathN;        // cuantas faltan
+static u16 tDeathWait;
+static s16 tDeathX, tDeathY;
+
+static void traagDeathBoomsStart(s16 x, s16 y) {
+    tDeathN = TRAAG_DBOOMS;
+    tDeathWait = 0;
+    tDeathX = x;
+    tDeathY = y;
+}
+
+static void traagDeathBoomsStep(void) {
+    if (!tDeathN) return;
+    if (tDeathWait) { tDeathWait--; return; }
+    u8 k = (u8)(TRAAG_DBOOMS - tDeathN);
+    // Centro de la explosion: TRAAG_DBOOM_DZ sobre los pies, mas el corrimiento
+    // (y negativo = mas arriba; boomAtEx ya la centra 40 px sobre el piso).
+    boomAtEx((s16)(tDeathX + tDeathOff[k][0]), tDeathY,
+             (s16)(TRAAG_DBOOM_DZ - 40 - tDeathOff[k][1]), TRUE);
+    tDeathN--;
+    tDeathWait = TRAAG_DBOOM_GAP;
 }
 
 static void bombHide(u16 i) {
@@ -234,7 +268,7 @@ void traagMissileUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
         }
         // Centro del lienzo de 128x128 a media altura sobre el piso.
         s16 bx = (s16)(booms[i].x - camX - TRAAG_BOOM_HALF);
-        s16 by = (s16)(booms[i].lane - 40 - camY - TRAAG_BOOM_HALF);
+        s16 by = (s16)(booms[i].lane - 40 - booms[i].dz - camY - TRAAG_BOOM_HALF);
         for (u16 q = 0; q < BOOM_PARTS; q++) {
             if (!booms[i].part[q]) continue;
             SPR_setPosition(booms[i].part[q], (s16)(bx + (q & 1) * TRAAG_BOOM_HALF),
@@ -267,6 +301,7 @@ void traagInit(Traag* g) {
     g->laneTop = 142; g->laneBot = 196;
     g->topAt = NULL;
     missileInitAll();
+    tDeathN = 0;
 }
 
 void traagSpawn(Traag* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot,
@@ -352,6 +387,11 @@ static void traagKill(Traag* g) {
     PAL_setPalette(PAL3, traagPal, DMA);
     traagManual(g, TRAAG_ANIM_DAMAGE, TRAAG_DMG_FLASH);
     XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    // (22/10) Explosiones en cadena sobre el cuerpo (como Granitor). Los
+    // misiles que quedaban en el aire se van: la cadena usa sus lugares.
+    for (u16 i = 0; i < MAX_TRAAG_MISSILES; i++) bombHide(i);
+    for (u16 i = 0; i < MAX_TRAAG_EXPLOSIONS; i++) boomRelease(i);
+    traagDeathBoomsStart((s16)(g->xq >> 2), (s16)(g->yq >> 2));
 }
 
 bool traagPlayerHits(Traag* g, Player** pls, u8 nPl, s8* killer) {
@@ -363,8 +403,9 @@ bool traagPlayerHits(Traag* g, Player** pls, u8 nPl, s8* killer) {
                                   TRAAG_HIT_DY_UP, TRAAG_HIT_DY_DOWN)) continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? TRAAG_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? TRAAG_JUMPKICK_DMG : 1);
-        // (16/10) Rock soldier: el "hit foot (hit rock soldier)" del arcade.
-        XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        // (22/10) Gustavo: el mismo sonido que los robots del latigo (Roadkill
+        // Rodney, robot.c) cuando les pegas. Antes: hit_foot_sfx (rock soldier).
+        XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
         g->hp -= dmg;
         g->flash = 8;
         g->invuln = TRAAG_HURT_TICKS;
@@ -514,6 +555,7 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
 
     case TRAAG_DEATH:
         g->flash = 0;
+        traagDeathBoomsStep();                   // (22/10)
         if (g->dPhase == 0) {
             if (g->timer > 8) {
                 g->timer = 0;

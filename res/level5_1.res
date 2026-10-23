@@ -42,3 +42,16 @@ SPRITE  fw_tire    "images/lvl_5_freeway/fw_tire.png"     8 7   NONE 0
 // los de la derecha espejados
 SPRITE  fw_bomb_boom "images/lvl_5_freeway/fw_bomb_boom.png" 8 8 NONE 0
 SPRITE  fw_pizza   "images/lvl_5_freeway/fw_pizza.png"    5 6   NONE 0
+// (23/10) Arte nuevo del artista:
+//   fw_moto_alone  la moto SIN el foot soldier (120x64, misma paleta que
+//                  fw_moto: PAL3). Cuando le pegan al de la moto, el soldier
+//                  muere (la muerte del morado) y la moto sigue sola.
+//   fw_valla       la valla con pinchos de la BARRICADA del final (vallas.png
+//                  pasada a la paleta de la ruta por tools/gen_freeway_end.py:
+//                  PAL0). 96x104.
+//   fw_tire_pile   las gomas apiladas detras de las vallas (pile_tire.png,
+//                  2 frames de 56x80: 0 tres gomas, 1 dos). Ya viene en el
+//                  orden de indices de los foot soldiers: PAL2.
+SPRITE  fw_moto_alone "images/lvl_5_freeway/fw_moto_alone-sheet.png" 15 8 NONE 0
+SPRITE  fw_valla      "images/lvl_5_freeway/fw_valla_md.png"         12 13 NONE 0
+SPRITE  fw_tire_pile  "images/lvl_5_freeway/pile_tire.png"           7 10 NONE 0

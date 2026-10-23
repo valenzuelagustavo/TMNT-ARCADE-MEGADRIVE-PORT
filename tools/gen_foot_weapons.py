@@ -216,6 +216,10 @@ def main():
     lanza = spr[20][0]
     fx_sheet('foot_spear_fx.png', [[lanza[:, :]]], 96, 8)
 
+    # (22/10) El del fusil muere con la muerte del naranja (fila 6).
+    import gun_orange_death
+    gun_orange_death.apply()
+
 
 if __name__ == '__main__':
     main()

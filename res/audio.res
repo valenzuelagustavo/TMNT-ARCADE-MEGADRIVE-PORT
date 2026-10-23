@@ -263,6 +263,10 @@ WAV shut_your_mouth_vo "audio/shut_your_mouth.wav" XGM2
 // reservado a las voces.
 WAV hit_foot_sfx       "audio/gen/hit_foot.wav" XGM2
 WAV mouser_hit_sfx     "audio/gen/mouser_hit.wav" XGM2
+// (23/10) Golpe a BAXTER (la mosca, Scene 3): baxter_hit.wav del artista, ya
+// MONO 8-bit 11025 Hz; puntas recortadas y normalizado a pico 96,9% (llego
+// con pico 58%). El original queda al lado como baxter_hit_orig.wav.
+WAV baxter_hit_sfx     "audio/baxter_hit.wav" XGM2
 WAV shuriken_throw_sfx "audio/gen/shuriken_throw.wav" XGM2
 WAV window_broken_sfx  "audio/gen/window_broken.wav" XGM2
 WAV hydrant_sfx        "audio/gen/hydrant.wav" XGM2

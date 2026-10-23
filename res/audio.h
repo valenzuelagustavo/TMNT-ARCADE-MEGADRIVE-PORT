@@ -35,6 +35,7 @@ extern const u8 any_prettier_vo[18176];
 extern const u8 shut_your_mouth_vo[27136];
 extern const u8 hit_foot_sfx[4096];
 extern const u8 mouser_hit_sfx[3840];
+extern const u8 baxter_hit_sfx[10240];
 extern const u8 shuriken_throw_sfx[2048];
 extern const u8 window_broken_sfx[9984];
 extern const u8 hydrant_sfx[18176];

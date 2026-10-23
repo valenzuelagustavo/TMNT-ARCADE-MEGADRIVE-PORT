@@ -283,6 +283,51 @@ static void boomsReleaseAll(void) {
 
 bool krangWhiteFlash(void) { return whiteFlash != 0; }
 
+// ---------------------------------------------------------------------------
+// (23/10) "I'M INVINCIBLE!": el globo (krang_inv_bubble, PAL1) mientras
+// suena krang_speech_vo, al caer a la sala (lo arranca level9_1 con
+// bossVoStart, ver krangJustLanded) y al escaparse la cabeza (headSpawn). Va
+// arriba del que habla, con la punta del globo (x ~37 del globo) hacia el, y
+// sin meterse en el HUD (filas 0-3).
+// ---------------------------------------------------------------------------
+#define SAY_T          116     // lo que dura krang_speech_vo (1,92 s)
+#define SAY_TAIL_X      36
+#define SAY_W           64
+#define SAY_H           32
+#define SAY_TOP_MIN     34     // debajo del HUD
+static Sprite* sayBub;
+static u16     sayT;
+static bool    landedNow;
+
+static void sayStart(void) {
+    if (!sayBub)
+        sayBub = SPR_addSprite(&krang_inv_bubble, -128, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (sayBub) SPR_setDepth(sayBub, SPR_MIN_DEPTH);
+    sayT = SAY_T;
+}
+
+static void sayRelease(void) {
+    if (sayBub) { SPR_releaseSprite(sayBub); sayBub = NULL; }
+    sayT = 0;
+}
+
+// (ax, ay): la boca del que habla, en pantalla.
+static void sayStep(s16 ax, s16 ay) {
+    if (!sayT) return;
+    if (--sayT == 0) { sayRelease(); return; }
+    if (!sayBub) return;
+    s16 bx = kclamp((s16)(ax - SAY_TAIL_X), 4, (s16)(320 - SAY_W - 4));
+    s16 by = (s16)(ay - SAY_H);
+    if (by < SAY_TOP_MIN) by = SAY_TOP_MIN;
+    SPR_setPosition(sayBub, bx, by);
+}
+
+bool krangJustLanded(void) {
+    bool r = landedNow;
+    landedNow = FALSE;
+    return r;
+}
+
 void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
     for (u16 i = 0; i < MAX_KRANG_FISTS; i++) {
         if (!fists[i].active) continue;
@@ -381,6 +426,7 @@ void krangShotsReleaseAll(void) {
 static u16 krangPal[16], krangPalBurn[16];
 
 void krangInit(Krang* k) {
+    sayBub = NULL; sayT = 0; landedNow = FALSE;   // (23/10)
     memset(k, 0, sizeof(Krang));
     k->state = KRANG_INACTIVE;
     k->dir = -1;
@@ -533,6 +579,7 @@ static void headSpawn(Krang* k) {
     }
     k->z = KRANG_HEAD_DZ;
     XGM2_playPCMEx(krang_speech_vo, sizeof(krang_speech_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    sayStart();                                  // (23/10) con su globo
 }
 
 static void render(Krang* k, bool visible) {
@@ -564,6 +611,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
             SPR_setPosition(k->head, x - 16 - camX, y - hz - 32 - camY);
             SPR_setDepth(k->head, (s16)(-y - 1));
         }
+        sayStep((s16)(x - camX), (s16)(y - hz - 32 - camY));   // (23/10)
         if (k->headShadow) {
             SPR_setPosition(k->headShadow, x - 16 - camX, y - 16 - camY);
             SPR_setDepth(k->headShadow, (s16)(-y + 1));
@@ -573,6 +621,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
             if (k->head)       { SPR_releaseSprite(k->head);       k->head = NULL; }
             if (k->headShadow) { SPR_releaseSprite(k->headShadow); k->headShadow = NULL; }
             k->state = KRANG_GONE;
+            sayRelease();
         }
         return;
     }
@@ -605,6 +654,10 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
             k->z = 0;
             XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
             enter(k, KRANG_TAUNT);
+            // (23/10) "I'm invincible!" al empezar la pelea: la voz la arranca
+            // level9_1 (bossVoStart, despues entra el tema); aca el globo.
+            landedNow = TRUE;
+            sayStart();
         }
         break;
 
@@ -722,6 +775,9 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
     y = kclamp((s16)(k->yq >> 2), k->laneT, k->laneB);
     k->yq = (s16)(y * 4);
     render(k, visible);
+    // (23/10) El globo, arriba del pecho (la cabeza del androide esta a
+    // KRANG_MOUTH_DY de los pies).
+    sayStep((s16)(x + k->dir * 8 - k->camX), (s16)(y - KRANG_MOUTH_DY - k->camY));
 }
 
 void krangRelease(Krang* k) {
@@ -731,4 +787,5 @@ void krangRelease(Krang* k) {
     k->state = KRANG_INACTIVE;
     krangShotsReleaseAll();
     boomsReleaseAll();
+    sayRelease();                                // (23/10)
 }

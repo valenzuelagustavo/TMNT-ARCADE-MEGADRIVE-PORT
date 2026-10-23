@@ -95,6 +95,7 @@ SceneId showSceneS4Title();
 SceneId showSceneS5Title();
 SceneId showSceneS6Title();
 SceneId showPendingScene(SceneId id);
+SceneId showCutVan(void);   // (23/10) el choque de la camioneta (cut_scenes.c)
 SceneId showEpilogue();
 SceneId showStaffCredits();
 SceneId showGameOver();

@@ -15,5 +15,8 @@ extern const SpriteDefinition fw_missile;
 extern const SpriteDefinition fw_tire;
 extern const SpriteDefinition fw_bomb_boom;
 extern const SpriteDefinition fw_pizza;
+extern const SpriteDefinition fw_moto_alone;
+extern const SpriteDefinition fw_valla;
+extern const SpriteDefinition fw_tire_pile;
 
 #endif // _RES_LEVEL5_1_H_

@@ -170,6 +170,13 @@ typedef enum {
 // Sheets con 3 frames de patada (Don, Raph): frame 0 = arranque, se ve estos
 // ticks antes de pasar al frame de la patada elegida.
 #define PLAYER_JUMPKICK_TUCK_TICKS  5
+// (22/10) Hoja NUEVA: las dos patadas voladoras (ANIM_JUMP_KICK y
+// ANIM_JUMP_KICK_DIR, 3 poses) corrian solas con el tiempo de la hoja (10
+// cuadros por pose): la pose intermedia se quedaba mucho y la patada estirada
+// (la ultima, la que mas alcanza) llegaba al cuadro 20. Ahora van a mano:
+// arranque F0, intermedias F1 cada una, y la ultima hasta tocar el piso.
+#define PLAYER_AIRKICK_F0_TICKS     4
+#define PLAYER_AIRKICK_F1_TICKS     3
 #define JUMPKICK_NONE       0
 #define JUMPKICK_SOFT       1   // Botón de golpe solo
 #define JUMPKICK_STRONG     2   // Golpe + dirección: más ímpetu
