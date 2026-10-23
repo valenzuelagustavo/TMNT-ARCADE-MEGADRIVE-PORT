@@ -15,6 +15,12 @@
 //             bg_freeway_far_p0.png: los mismos tiles con los indices de la
 //             paleta de la ruta, en PAL0 (PAL3 queda para los actores).
 // =============================================================================
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 PALETTE pal_freeway       "images/lvl_5_freeway/bg_freeway.png"
 BIN     bg_freeway_tiles  "images/lvl_5_freeway/bg_freeway_tiles.bin" 2 2 0 NONE
 BIN     bg_freeway_map    "images/lvl_5_freeway/bg_freeway_map.bin"   2 2 0 NONE
@@ -31,17 +37,17 @@ IMAGE   bg_freeway_far    "images/lvl_5_freeway/bg_freeway_far_p0.png" NONE ALL
 //                        la goma, 3 la tira, 4 con las manos vacias. PAL2.
 //   fw_missile / fw_tire lo que tiran (PAL2)
 //   fw_pizza             la caja de pizza del 2-1 en la paleta de la ruta (PAL0)
-SPRITE  fw_car_l   "images/lvl_5_freeway/fw_car_l.png"    12 13 NONE 0
-SPRITE  fw_car_r   "images/lvl_5_freeway/fw_car_r.png"    12 13 NONE 0
+SPRITE  fw_car_l   "images/lvl_5_freeway/fw_car_l.png"    12 13 FAST 0
+SPRITE  fw_car_r   "images/lvl_5_freeway/fw_car_r.png"    12 13 FAST 0
 SPRITE  fw_moto    "images/lvl_5_freeway/fw_moto.png"     15 8  NONE 0
-SPRITE  fw_thrower "images/lvl_5_freeway/fw_thrower.png"  8 13  NONE 0
-SPRITE  fw_missile "images/lvl_5_freeway/fw_missile.png"  8 4   NONE 0
-SPRITE  fw_tire    "images/lvl_5_freeway/fw_tire.png"     8 7   NONE 0
+SPRITE  fw_thrower "images/lvl_5_freeway/fw_thrower.png"  8 13  FAST 0
+SPRITE  fw_missile "images/lvl_5_freeway/fw_missile.png"  8 4   FAST 0
+SPRITE  fw_tire    "images/lvl_5_freeway/fw_tire.png"     8 7   FAST 0
 // (13/10) la explosion de la bomba: los cuartos de la izquierda de la de
 // Baxter (anim 0 arriba, 1 abajo; 8 frames de 64x64, PAL2); el codigo pone
 // los de la derecha espejados
-SPRITE  fw_bomb_boom "images/lvl_5_freeway/fw_bomb_boom.png" 8 8 NONE 0
-SPRITE  fw_pizza   "images/lvl_5_freeway/fw_pizza.png"    5 6   NONE 0
+SPRITE  fw_bomb_boom "images/lvl_5_freeway/fw_bomb_boom.png" 8 8 FAST 0
+SPRITE  fw_pizza   "images/lvl_5_freeway/fw_pizza.png"    5 6   FAST 0
 // (23/10) Arte nuevo del artista:
 //   fw_moto_alone  la moto SIN el foot soldier (120x64, misma paleta que
 //                  fw_moto: PAL3). Cuando le pegan al de la moto, el soldier
@@ -52,6 +58,6 @@ SPRITE  fw_pizza   "images/lvl_5_freeway/fw_pizza.png"    5 6   NONE 0
 //   fw_tire_pile   las gomas apiladas detras de las vallas (pile_tire.png,
 //                  2 frames de 56x80: 0 tres gomas, 1 dos). Ya viene en el
 //                  orden de indices de los foot soldiers: PAL2.
-SPRITE  fw_moto_alone "images/lvl_5_freeway/fw_moto_alone-sheet.png" 15 8 NONE 0
-SPRITE  fw_valla      "images/lvl_5_freeway/fw_valla_md.png"         12 13 NONE 0
-SPRITE  fw_tire_pile  "images/lvl_5_freeway/pile_tire.png"           7 10 NONE 0
+SPRITE  fw_moto_alone "images/lvl_5_freeway/fw_moto_alone-sheet.png" 15 8 FAST 0
+SPRITE  fw_valla      "images/lvl_5_freeway/fw_valla_md.png"         12 13 FAST 0
+SPRITE  fw_tire_pile  "images/lvl_5_freeway/pile_tire.png"           7 10 FAST 0

@@ -17,6 +17,12 @@
 //                         corresponde a x=26 de esta celda.
 // time 0: los frames los elige el codigo (src/meters_2_1.c).
 // =============================================================================
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 SPRITE parking_meter_stand "sprites/parking_meter_stand_gen.png" 2 8 FAST 0
 SPRITE parking_meter_fly   "sprites/parking_meter_fly_gen.png"   7 8 FAST 0
 
@@ -36,8 +42,8 @@ SPRITE tv_april "sprites/tv_april.png" 7 6 FAST 30
 // "who put the light out": relleno 11, borde 9, texto 8, sombra del texto 7.
 // El de "Help!" media 64x30: se relleno con 2 filas transparentes ARRIBA
 // (la cola apunta abajo, a la tele). Los originales: *_orig.png.
-SPRITE tv_help_bubble "sprites/help_baloon.png" 8 4 NONE 0
-SPRITE tv_dine_bubble "sprites/tonight_i_dinne_baloon.png" 8 4 NONE 0
+SPRITE tv_help_bubble "sprites/help_baloon.png" 8 4 FAST 0
+SPRITE tv_dine_bubble "sprites/tonight_i_dinne_baloon.png" 8 4 FAST 0
 
 // -----------------------------------------------------------------------------
 // UTILERIA DE LA CALLE (11/10) -- tools/gen_level2_1_props.py
@@ -77,7 +83,7 @@ SPRITE l21_pizza         "sprites/l21_pizza.png"          5 6  FAST 0
 //   youre_dead_bubble    Bebop: "You're dead, shell-brain"
 //   any_prettier_bubble  tortuga: "They aint getting any prettier!"
 //   watch_mouth_bubble   Bebop: "Watch your mouth, slime ball!!"
-SPRITE pizza_time_bubble   "sprites/pizza_time_baloon.png"    8 4 NONE 0
-SPRITE youre_dead_bubble   "sprites/youre_dead_baloon.png"    8 4 NONE 0
-SPRITE any_prettier_bubble "sprites/any_prettier_baloon.png" 12 4 NONE 0
-SPRITE watch_mouth_bubble  "sprites/watch_mouth_baloon.png"  12 4 NONE 0
+SPRITE pizza_time_bubble   "sprites/pizza_time_baloon.png"    8 4 FAST 0
+SPRITE youre_dead_bubble   "sprites/youre_dead_baloon.png"    8 4 FAST 0
+SPRITE any_prettier_bubble "sprites/any_prettier_baloon.png" 12 4 FAST 0
+SPRITE watch_mouth_bubble  "sprites/watch_mouth_baloon.png"  12 4 FAST 0

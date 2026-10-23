@@ -4,4 +4,4 @@
 // de punta (tools/gen_idle_missile.py): 2 frames de 32x64, PAL2.
 // La explosion es fw_bomb_boom (level5_1.res: la de Baxter en PAL2).
 // =============================================================================
-SPRITE  idle_missile "sprites/idle_missile.png" 4 8 NONE 4
+SPRITE  idle_missile "sprites/idle_missile.png" 4 8 FAST 4

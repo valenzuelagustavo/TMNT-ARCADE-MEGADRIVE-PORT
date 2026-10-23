@@ -26,7 +26,7 @@ IMAGE title_menu4 "images/intro_tmnt/genesis/title_menu4.png" NONE ALL
 // --- Sprites de interfaz ---
 // (09/10) La cabecita de cursor del arte nuevo (24x16), misma paleta que
 // title_menu_bg (PAL0). Reemplaza a title_scene/selector_turtle.png.
-SPRITE title_cursor "images/intro_tmnt/genesis/title_cursor.png" 3 2 NONE 0
+SPRITE title_cursor "images/intro_tmnt/genesis/title_cursor.png" 3 2 FAST 0
 // (16/10) SACADO (sin uso):
 // SPRITE sega_logo_sprite "images/title_scene/sega_logo.png" 17 10 FAST 8
 
@@ -42,9 +42,9 @@ SPRITE title_cursor "images/intro_tmnt/genesis/title_cursor.png" 3 2 NONE 0
 // veian los sprites). Sin comprimir se copia directo de la ROM.
 IMAGE  char_select_bg    "images/hud/char_select_bg.png" NONE ALL
 // Globo "nUP": fila = jugador (1UP..4UP), frame = tortuga (Leo, Mike, Don, Raph).
-SPRITE char_select_badge "images/hud/char_select_badge.png" 4 4 NONE 0
+SPRITE char_select_badge "images/hud/char_select_badge.png" 4 4 FAST 0
 // Cabeza de cada marco: fila = tortuga, frame 0 ojos abiertos / 1 cerrados.
-SPRITE char_select_head  "images/hud/char_select_head.png" 3 2 NONE 0
+SPRITE char_select_head  "images/hud/char_select_head.png" 3 2 FAST 0
 
 // --- Opciones (10/10) ---
 // Cortados de "option_menu/TELA OPTION_15 CORES.png" por tools/gen_option_menu.py.
@@ -52,7 +52,7 @@ SPRITE char_select_head  "images/hud/char_select_head.png" 3 2 NONE 0
 // title_font (sin dedup, el mapeo char->tile tiene que ser 1:1).
 IMAGE   option_bg    "images/option_menu/option_bg.png" NONE ALL   // NONE: ver char_select_bg
 TILESET option_font  "images/option_menu/option_font.png" NONE NONE
-SPRITE  option_arrow "images/option_menu/option_arrow.png" 1 1 NONE 0
+SPRITE  option_arrow "images/option_menu/option_arrow.png" 1 1 FAST 0
 
 // --- Creditos: reconocimiento al adaptador musical ---
 // sansenpai35_logo.png es el nombre del artista (200x32, 1 frame) y
@@ -64,4 +64,4 @@ SPRITE skeleton_music "sprites/logos/skeleton_music.png" 10 10 FAST 6
 
 // (20/10) Retratos del selector sin el fondo plano (tools/gen_highscore.py):
 // carga de iniciales y "BEST 10 PLAYERS" (hiscore.c). Un frame por tortuga.
-SPRITE hs_portraits "/images/hiscore/hs_portraits.png" 8 16 NONE 0
+SPRITE hs_portraits "/images/hiscore/hs_portraits.png" 8 16 FAST 0

@@ -28,6 +28,12 @@
 // hay que exportarlos a UNA frecuencia fija y, si hacen falta varias alturas,
 // usar una muestra distinta por altura.
 // Ver DEVLOG, entradas del 17/09.
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 XGM2 music_sega      "musica_intro.vgm"
 // (17/10) Tanda nueva de vgm: cada archivo se llama como su escenario.
 XGM2 music_level1    "music/04 - Fire.vgm"

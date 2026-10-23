@@ -24,17 +24,17 @@
 //   shredder_helmet 16x16: el casco que sale volando
 // =============================================================================
 SPRITE krang_boss      "sprites/krang_boss_gen.png"      18 18 FAST 0
-SPRITE krang_fist      "sprites/krang_fist_gen.png"       8  3 NONE 0
-SPRITE krang_head      "sprites/krang_head_gen.png"       4  4 NONE 0
-SPRITE krang_eyebeam   "sprites/krang_eyebeam_gen.png"    5  4 NONE 0
-SPRITE krang_boom      "sprites/krang_boom_gen.png"       8  8 NONE 0
-SPRITE krang_zap       "sprites/krang_zap_gen.png"        4  2 NONE 0
+SPRITE krang_fist      "sprites/krang_fist_gen.png"       8  3 FAST 0
+SPRITE krang_head      "sprites/krang_head_gen.png"       4  4 FAST 0
+SPRITE krang_eyebeam   "sprites/krang_eyebeam_gen.png"    5  4 FAST 0
+SPRITE krang_boom      "sprites/krang_boom_gen.png"       8  8 FAST 0
+SPRITE krang_zap       "sprites/krang_zap_gen.png"        4  2 FAST 0
 SPRITE shredder_boss   "sprites/shredder_boss_gen.png"   20 12 FAST 0
 SPRITE shredder_beam_a "sprites/shredder_beam_a_gen.png" 17 19 FAST 0
 SPRITE shredder_beam_b "sprites/shredder_beam_b_gen.png" 17 19 FAST 0
-SPRITE shredder_fx     "sprites/shredder_fx_gen.png"      4  4 NONE 0
-SPRITE shredder_helmet "sprites/shredder_helmet_gen.png"  2  2 NONE 0
+SPRITE shredder_fx     "sprites/shredder_fx_gen.png"      4  4 FAST 0
+SPRITE shredder_helmet "sprites/shredder_helmet_gen.png"  2  2 FAST 0
 // (23/10) El globo "I'm invincible!" de Krang (el 16 de la hoja de globos del
 // arcade, tools/gen_globos.py): 64x32, con la paleta de las tortugas (PAL1).
 // Sale cuando Krang cae a la sala y cuando se escapa la cabeza (krang.c).
-SPRITE krang_inv_bubble "sprites/im_invincible_baloon.png" 8 4 NONE 0
+SPRITE krang_inv_bubble "sprites/im_invincible_baloon.png" 8 4 FAST 0

@@ -8,5 +8,11 @@
 //   final_portal  el portal a la Dimension X (37 tiles), BG_B, PAL3: cicla
 //                 colores (ver portalCycle en level9_1.c).
 // =============================================================================
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 IMAGE final_room   "images/lvl_9_final/final_room.png"   NONE ALL
 IMAGE final_portal "images/lvl_9_final/final_portal.png" NONE ALL

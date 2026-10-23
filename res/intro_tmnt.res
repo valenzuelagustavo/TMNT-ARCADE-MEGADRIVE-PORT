@@ -22,16 +22,22 @@
 
 // --- Escenas A/B: tira vertical completa del dolly (256x1496 = 32x187 tiles,
 //     1001 tiles unicos). NO entra en un plano: se streamea por filas. ---
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 IMAGE  intro_dolly   "images/intro_tmnt/genesis/intro_dolly.png"   NONE
 
 // --- Escena C: haz de luz (64x224, 11 tiles unicos) y tapa de alcantarilla ---
 IMAGE  intro_luz     "images/intro_tmnt/genesis/intro_luz.png"     NONE
-SPRITE intro_tapa    "images/intro_tmnt/genesis/intro_tapa.png"    8 4 NONE 0
+SPRITE intro_tapa    "images/intro_tmnt/genesis/intro_tapa.png"    8 4 FAST 0
 
 // --- Escena A: nubes que cruzan el cielo por debajo de la luna, cada una en
 //     su direccion. Paleta propia PAL2 (5 colores): la PAL0 de arriba ya
 //     esta al limite de 16. Sprites estaticos (sin animacion, time 0). ---
-SPRITE intro_nube_chica  "images/intro_tmnt/genesis/intro_nube_chica.png"  11 4 NONE 0
+SPRITE intro_nube_chica  "images/intro_tmnt/genesis/intro_nube_chica.png"  11 4 FAST 0
 // (16/10) SACADO (sin uso, ver intro_arcade.c):
 // SPRITE intro_nube_grande "images/intro_tmnt/genesis/intro_nube_grande.png" 26 5 NONE 0
 

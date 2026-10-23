@@ -43,6 +43,12 @@
 // =============================================================================
 
 // --- Fondo principal (nivel completo) ---
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 IMAGE bg_level1 "images/lvl_1_scene/Arcade---Teenage-Mutant-Ninja-Turtles---Backgrounds---Stage-1_15-CORES.png" NONE
 
 // --- Fuego de primer plano (tira VERTICAL: 8 frames de 64x64 apilados) ---
@@ -72,8 +78,8 @@ TILESET fire_tiles "sprites/fire_strip_new.png" NONE NONE
 // nivel en la franja superior de 32px (siempre por encima de los planos, sin
 // gastar VRAM de tiles de fondo). Comparten la paleta de las tortugas (PAL1):
 // NO llevan PALETTE propia.
-SPRITE hud_1p "images/hud/hud_1p.png" 9 4 NONE 0
-SPRITE hud_2p "images/hud/hud_2p.png" 9 4 NONE 0
+SPRITE hud_1p "images/hud/hud_1p.png" 9 4 FAST 0
+SPRITE hud_2p "images/hud/hud_2p.png" 9 4 FAST 0
 // (16/09) Marcos 3UP/4UP para el modo de 4 jugadores. Generados a partir de
 // hud_2p.png repintando SOLO la caja del digito (x 8..15, y 0..13 de cada
 // fila) con el fondo local del marco (filas 9-10 = borde claro, fila 11 =
@@ -85,15 +91,15 @@ SPRITE hud_2p "images/hud/hud_2p.png" 9 4 NONE 0
 // (06/10) HUD de 3-4 jugadores: el contorno compartido y los carteles
 // "1UP".."4UP" (tools/gen_hud4_shared.py). El contorno va optimizado por
 // TILES (28 en vez de 35): los cuatro marcos usan esos mismos tiles.
-SPRITE hud4_outline "images/hud/hud4_outline.png" 9 4 NONE 0 NONE TILE MAX
-SPRITE hud4_label   "images/hud/hud4_label.png"   3 2 NONE 0
+SPRITE hud4_outline "images/hud/hud4_outline.png" 9 4 FAST 0 NONE TILE MAX
+SPRITE hud4_label   "images/hud/hud4_label.png"   3 2 FAST 0
 
 // (09/10) "PRESS START" (14/10; antes "PUSH START") del marco vacio del P2
 // (en 1 jugador), con las letras
 // del "INSERT COIN(S)" del HUD del arcade (tools/gen_push_start.py). Una
 // animacion de 2 frames de 72x16: letras verdes / blancas, que se alternan
 // solas cada 32 frames (~0,5 s). Paleta de las tortugas (PAL1).
-SPRITE push_start   "images/hud/push_start.png"   9 2 NONE 32
+SPRITE push_start   "images/hud/push_start.png"   9 2 FAST 32
 
 // --- Retrato de la tortuga elegida (32x32, 4 filas en ORDEN DE PERSONAJE) ---
 // frames_hud.png (32x128): fila 0=Leo 1=Mike 2=Don 3=Raph. time 0 -> sin
@@ -101,7 +107,7 @@ SPRITE push_start   "images/hud/push_start.png"   9 2 NONE 32
 // Vive en el espacio del borde que queda libre al correr los marcos del HUD
 // hacia adentro. Comparte la paleta de las tortugas (PAL1): el PNG es 4bpp
 // indexado sobre esa misma paleta -> NO lleva PALETTE propia.
-SPRITE turtle_portrait "images/hud/frames_hud.png" 4 4 NONE 0
+SPRITE turtle_portrait "images/hud/frames_hud.png" 4 4 FAST 0
 
 // --- Barra de vida (11 frames de 32x16 apilados en vertical) ---
 // (17/09) Paso de 32x8 a 32x16 -- el DOBLE de alto -- para parecerse a la del
@@ -163,7 +169,7 @@ TILESET hud_font "images/font/font_tmnt_arcade_2.png" NONE NONE
 // de esa paleta), asi que se dibuja con TILE_ATTR(PAL1,...) sin gastar una
 // linea de paleta. Las 4 del nivel ya estan ocupadas: PAL0 fondo, PAL1
 // tortugas, PAL2 enemigos+fuego, PAL3 flash/HUD. Mismo truco que hp_bar/hud.
-SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
+SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 FAST 0
 
 // --- Globo "Duuuh, who put the light out" (caida por la alcantarilla, 2-1) ---
 // 96x32px = 12x4 tiles, UN solo frame. Lo usa el 2-1 cuando una tortuga se cae
@@ -173,18 +179,18 @@ SPRITE attack_bubble "sprites/attack_bubble.png" 8 4 NONE 0
 // Igual que attack_bubble, NO lleva PALETTE propia: verificado indice por
 // indice, los 0/7/8/9/11 del PNG son los mismos colores de Megadrive (9 bits)
 // que la paleta de las tortugas, asi que se dibuja con TILE_ATTR(PAL1,...).
-SPRITE light_out_bubble "sprites/light_out_baloon.png" 12 4 NONE 0
+SPRITE light_out_bubble "sprites/light_out_baloon.png" 12 4 FAST 0
 
 // --- Globo "Do not resist us" (11/10): el robot del latigo al enganchar ---
 // 64x32 = 8x4 tiles. Sale de la hoja con todos los globos del arcade
 // (res/images/globos/globos_arcade.png) via tools/gen_globos.py, con el mismo
 // remapeo a PAL1 que los demas (relleno 11, borde 9, texto 8, sombra 7).
-SPRITE robot_resist_bubble "sprites/do_not_resist_baloon.png" 8 4 NONE 0
+SPRITE robot_resist_bubble "sprites/do_not_resist_baloon.png" 8 4 FAST 0
 
 // --- "HURRY UP!" (aviso de desplazamiento de camara) ---
 // 160x32px = spritesheet de 5 frames de 32x32 (4x4 tiles). time 6 -> anima
 // ciclicamente los 5 frames. Comparte la paleta de las tortugas (PAL1).
-SPRITE hurry_sheet "sprites/hurry_sheet.png" 4 4 NONE 6
+SPRITE hurry_sheet "sprites/hurry_sheet.png" 4 4 FAST 6
 
 // --- Bola de hierro (obstaculo que cae rebotando por las escaleras) ---
 // 64x32px = spritesheet de 2 frames de 32x32 (4x4 tiles) -> giro de la esfera.
@@ -192,7 +198,7 @@ SPRITE hurry_sheet "sprites/hurry_sheet.png" 4 4 NONE 6
 // el PNG esta indexado sobre la MISMA paleta de las tortugas (PAL1), igual que
 // attack_bubble/hp_bar, asi que se dibuja con TILE_ATTR(PAL1,...) sin gastar
 // una linea de paleta. Solo 2 frames x 16 tiles = 32 tiles en ROM.
-SPRITE iron_ball "sprites/iron_ball.png" 4 4 NONE 6
+SPRITE iron_ball "sprites/iron_ball.png" 4 4 FAST 6
 
 // --- Sparks: efecto de fuego detras de las puertas rompibles ---
 // 32x32px = 4x4 tiles, UN solo frame. Se ubica detras de cada puerta
@@ -232,7 +238,7 @@ SPRITE sparks "sprites/door_fire_gen.png" 5 10 NONE 0
 // del FONDO (PAL0) -- los indices coinciden con los slots del fondo -- asi que se
 // dibuja con TILE_ATTR(PAL0,...). Al acercarse el jugador se remueve y el foot
 // soldier la reemplaza rompiendola (ENEMY_ANIM_BREAK_DOOR).
-SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 NONE 0
+SPRITE door_lvl_1 "sprites/door_lvl_1.png" 5 10 FAST 0
 
 // --- Spark ascensor: fuego en los huecos de ascensores ---
 // 40x24px (5x3 tiles), UN solo frame. Misma paleta que sparks (PAL2).
@@ -251,14 +257,14 @@ SPRITE spark_ascensor "sprites/spark_ascensor_anim.png" 5 3 NONE 0
 // (7x4 tiles), PAL2. La llama cambia de forma en cada frame, asi que NO se
 // streamea como los sparks: es un sprite comun con auto-animacion, y cada
 // instancia se crea solo cuando esta cerca de camara (ver showScene11).
-SPRITE floor_fire "sprites/floor_fire_gen.png" 7 4 NONE 5
+SPRITE floor_fire "sprites/floor_fire_gen.png" 7 4 FAST 5
 
 // --- Puertas de ascensor (spawn animado) ---
 // 192x80px = spritesheet de 4 frames de 48x80 (6x10 tiles) -> animacion de
 // apertura. Se ubican DOS instancias, una en cada hueco de ascensor. NO lleva
 // PALETTE propia: comparte la paleta del FONDO (PAL0), igual que door_lvl_1.
 // time 8 -> los 4 frames en 32 ticks (calza con ELEV_DOOR_ANIM_TIME de scenes.c).
-SPRITE ascensor_door "sprites/ascensor_door.png" 6 10 NONE 8
+SPRITE ascensor_door "sprites/ascensor_door.png" 6 10 FAST 8
 
 // --- Robot del latigo (mini-jefe del final) ---
 // 2024x1040 = grilla de frames de 184x80 (23x10 tiles), 13 animaciones (0..12).
@@ -273,7 +279,7 @@ SPRITE robot_whip "sprites/robot_whip.png" 23 10 FAST 6
 // --- Laser del robot (sub-sprite) ---
 // whip_waves 288x80: solo se usa su animacion de LASER (el latigo ya esta
 // integrado en el sprite del robot). Frame 96x16 (12x2 tiles). Comparte PAL2.
-SPRITE whip_waves "sprites/whip_waves.png" 12 2 NONE 8
+SPRITE whip_waves "sprites/whip_waves.png" 12 2 FAST 8
 
 // --- Cutscene final (Shredder rapta a April) -- imagen combinada en 2 planos ---
 // Dos imagenes de 320x224, cada una con SU paleta de 16 colores: BG_B_final es
@@ -292,4 +298,4 @@ SPRITE whip_waves "sprites/whip_waves.png" 12 2 NONE 8
 // no se dibujaba (mismo caso que char_select_bg, ver char-select-arcade).
 IMAGE bg_b_final "images/lvl_1_scene/background.png" NONE
 IMAGE bg_a_final "images/lvl_1_scene/april_final_gen.png" NONE
-SPRITE final_turtles "images/lvl_1_scene/final_turtles_gen.png" 8 8 NONE 0
+SPRITE final_turtles "images/lvl_1_scene/final_turtles_gen.png" 8 8 FAST 0

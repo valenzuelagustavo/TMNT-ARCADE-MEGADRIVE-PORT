@@ -12,8 +12,8 @@
 //   traag_explosao  32x32: la explosion (7 frames, a mano)
 // Se llama traag_res (y no traag) para que su .h no choque con src/traag.h.
 // =============================================================================
-SPRITE traag_boss     "sprites/traag_boss.png"     18 18 NONE 8
-SPRITE traag_missil   "sprites/traag_missil.png"    8  4 NONE 4
-SPRITE traag_explosao "sprites/traag_explosao.png"  4  4 NONE 0
+SPRITE traag_boss     "sprites/traag_boss.png"     18 18 FAST 8
+SPRITE traag_missil   "sprites/traag_missil.png"    8  4 FAST 4
+SPRITE traag_explosao "sprites/traag_explosao.png"  4  4 FAST 0
 // (21/10) La explosion del misil es baxter_boom (baxter_res.res) con su
 // propia paleta en PAL2: ver traag.c.

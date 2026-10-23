@@ -14,6 +14,12 @@
 // (18/10) bg_skate ya no es un IMAGE: formato ancho con DICCIONARIO DE
 // COLUMNAS (tools/gen_level6_skate_cols.py, desde el mismo bg_skate_p.png).
 // 525 columnas unicas de 797: ~31 KB de mapa en vez de 44,6 KB.
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 PALETTE pal_skate     "images/lvl_6_skate/bg_skate_p.png"
 BIN     skate_tiles   "images/lvl_6_skate/skate_tiles.bin"  2 2 0 NONE
 BIN     skate_cols    "images/lvl_6_skate/skate_cols.bin"   2 2 0 NONE
@@ -35,8 +41,8 @@ IMAGE bg_skate_far "images/lvl_6_skate/bg_skate_far_p0.png" NONE ALL
 SPRITE  sk_cop_body      "images/lvl_6_skate/sk_cop_body.png"     14 15 NONE 0 NONE SPRITE SLOW
 SPRITE  sk_cop_rotor     "images/lvl_6_skate/sk_cop_rotor.png"    21 10 NONE 0 NONE SPRITE SLOW
 PALETTE sk_copter_purple "images/lvl_6_skate/sk_copter_purple.png"
-SPRITE  sk_bullet        "images/lvl_6_skate/sk_bullet.png"       2 2  NONE 0
-SPRITE  sk_flame         "images/lvl_6_skate/sk_flame.png"        2 3  NONE 0
-SPRITE  sk_board_turtle  "images/lvl_6_skate/sk_board_turtle.png" 8 3  NONE 0
-SPRITE  sk_board_foot    "images/lvl_6_skate/sk_board_foot.png"   8 3  NONE 0
-SPRITE  sk_shadow        "images/lvl_6_skate/sk_shadow.png"       6 3  NONE 0
+SPRITE  sk_bullet        "images/lvl_6_skate/sk_bullet.png"       2 2  FAST 0
+SPRITE  sk_flame         "images/lvl_6_skate/sk_flame.png"        2 3  FAST 0
+SPRITE  sk_board_turtle  "images/lvl_6_skate/sk_board_turtle.png" 8 3  FAST 0
+SPRITE  sk_board_foot    "images/lvl_6_skate/sk_board_foot.png"   8 3  FAST 0
+SPRITE  sk_shadow        "images/lvl_6_skate/sk_shadow.png"       6 3  FAST 0

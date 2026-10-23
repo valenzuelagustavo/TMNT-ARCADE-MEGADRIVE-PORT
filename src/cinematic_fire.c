@@ -73,8 +73,9 @@
 // ===========================================================================
 
 #include "scenes.h"
-#include "roof_april.h"   // roof_bg_a/b/c, roof_climb, roof_climb_far, roof_tiny,
-                          // roof_far, roof_near, roof_splinter, roof_baloon
+#include "roof_april.h"   // roof_bg_a_smoke (el humo de la escena A)
+#include "roof_april_far.h"   // (23/10, mapper) roof_bg_a/b/c, roof_climb, roof_climb_far,
+                          // roof_tiny, roof_far, roof_near, roof_splinter, roof_baloon
 #include "player.h"       // ANIM_*, PLAYER_SPRITE_W/PLAYER_FOOT_OFFSET y, via
                           // chars.h, las hojas del juego (leo_player, ...)
 #include "audio.h"        // fire_vo, hang_on_april_vo (voice over de los globos)

@@ -30,20 +30,26 @@
 //                  3 saludando. Paleta COMPARTIDA con Bebop y Rocksteady
 //                  (PAL3). time 12: balanceo de 2 frames.
 // =============================================================================
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 PALETTE pal_garage      "images/lvl_4_garage/bg_garage_md.png"
 BIN     bg_garage_tiles "images/lvl_4_garage/bg_garage_tiles.bin" 2 2 0 NONE
 BIN     bg_garage_map   "images/lvl_4_garage/bg_garage_map.bin"   2 2 0 NONE
 BIN     bg_garage_var   "images/lvl_4_garage/bg_garage_var.bin"   2 2 0 NONE
 
-SPRITE  garage_sign20   "images/lvl_4_garage/garage_sign20.png"  6 12 NONE 0
+SPRITE  garage_sign20   "images/lvl_4_garage/garage_sign20.png"  6 12 FAST 0
 // (14/10) El cartel "20 MPH" arrancado: [0] recibe el golpe, [1] volando
 // (tools/gen_garage_sign_fly.py, el cartel parado rotado sobre el pie).
-SPRITE  garage_sign20_fly "images/lvl_4_garage/garage_sign20_fly.png" 12 12 NONE 0
-SPRITE  garage_oneway   "images/lvl_4_garage/garage_oneway.png"  7 12 NONE 0
-SPRITE  garage_cone     "images/lvl_4_garage/garage_cone.png"    3 4  NONE 0
-SPRITE  garage_barrel   "images/lvl_4_garage/garage_barrel.png"  4 8  NONE 0
-SPRITE  garage_car_l    "images/lvl_4_garage/garage_car_l.png"   11 13 NONE 0
-SPRITE  garage_car_r    "images/lvl_4_garage/garage_car_r.png"   11 13 NONE 0
-SPRITE  garage_boom     "images/lvl_4_garage/garage_boom.png"    8 8  NONE 0
-SPRITE  garage_pizza    "images/lvl_4_garage/garage_pizza.png"   5 6  NONE 0
-SPRITE  april_garage    "sprites/april_gen.png"                  4 10 NONE 12
+SPRITE  garage_sign20_fly "images/lvl_4_garage/garage_sign20_fly.png" 12 12 FAST 0
+SPRITE  garage_oneway   "images/lvl_4_garage/garage_oneway.png"  7 12 FAST 0
+SPRITE  garage_cone     "images/lvl_4_garage/garage_cone.png"    3 4  FAST 0
+SPRITE  garage_barrel   "images/lvl_4_garage/garage_barrel.png"  4 8  FAST 0
+SPRITE  garage_car_l    "images/lvl_4_garage/garage_car_l.png"   11 13 FAST 0
+SPRITE  garage_car_r    "images/lvl_4_garage/garage_car_r.png"   11 13 FAST 0
+SPRITE  garage_boom     "images/lvl_4_garage/garage_boom.png"    8 8  FAST 0
+SPRITE  garage_pizza    "images/lvl_4_garage/garage_pizza.png"   5 6  FAST 0
+SPRITE  april_garage    "sprites/april_gen.png"                  4 10 FAST 12

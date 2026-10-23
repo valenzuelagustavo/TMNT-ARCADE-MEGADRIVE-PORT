@@ -26,6 +26,12 @@
 // snow_flake_spr  La celda 8x8 del SPRITE de los copos (solo da la forma: los
 //             tiles que se ven son los de snow_flakes).
 // =============================================================================
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 PALETTE pal_snow       "images/lvl_central_park/bg_snow_md.png"
 BIN     bg_snow_tiles  "images/lvl_central_park/bg_snow_tiles.bin" 2 2 0 NONE
 BIN     bg_snow_map    "images/lvl_central_park/bg_snow_map.bin"   2 2 0 NONE
@@ -34,6 +40,6 @@ BIN     bg_snow_band0_map   "images/lvl_central_park/bg_snow_band0_map.bin"   2 
 BIN     bg_snow_band1_map   "images/lvl_central_park/bg_snow_band1_map.bin"   2 2 0 NONE
 BIN     snow_flakes    "images/lvl_central_park/snow_flakes.bin"   2 2 0 NONE
 SPRITE  snow_flake_spr "images/lvl_central_park/snow_flake_spr.png" 1 1 NONE 0
-SPRITE  snow_oneway    "images/lvl_central_park/snow_oneway.png"    7 12 NONE 0
+SPRITE  snow_oneway    "images/lvl_central_park/snow_oneway.png"    7 12 FAST 0
 SPRITE  snow_trator_l  "images/lvl_central_park/snow_trator_l.png"  16 14 FAST 0 NONE TILE MEDIUM
 SPRITE  snow_trator_r  "images/lvl_central_park/snow_trator_r.png"  16 14 FAST 0 NONE TILE MEDIUM

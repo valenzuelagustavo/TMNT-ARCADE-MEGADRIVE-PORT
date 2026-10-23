@@ -19,6 +19,6 @@ SPRITE rocksteady_spr "sprites/rocksteady_sprite.png" 11 11 FAST 10
 IMAGE  konami_logo_a "images/konami_logo/konami_logo_a.png" NONE ALL
 IMAGE  konami_logo_b "images/konami_logo/konami_logo_b.png" NONE ALL
 // La estrella (4 frames, a mano), la linea fina y la linea gruesa (PAL3).
-SPRITE konami_star  "images/konami_logo/konami_star.png"  2 2 NONE 0
-SPRITE konami_trail "images/konami_logo/konami_trail.png" 4 1 NONE 0
-SPRITE konami_band  "images/konami_logo/konami_band.png"  4 2 NONE 0
+SPRITE konami_star  "images/konami_logo/konami_star.png"  2 2 FAST 0
+SPRITE konami_trail "images/konami_logo/konami_trail.png" 4 1 FAST 0
+SPRITE konami_band  "images/konami_logo/konami_band.png"  4 2 FAST 0

@@ -19,6 +19,12 @@
 // La paleta va aparte (un PNG de 1x16) y se carga en PAL0.
 // =============================================================================
 
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 PALETTE lvl21_pal "images/lvl_2_scene/genesis/lvl21_pal.png"
 
 TILESET lvl21_sec00 "images/lvl_2_scene/genesis/lvl21_sec00.png" NONE NONE

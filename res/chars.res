@@ -54,4 +54,4 @@ SPRITE don_player  "/sprites/players/don_new_13x13.png"  13 13 FAST 10
 // (18/10) Cartel "HIT BUTTONS" arriba de la tortuga cuando un foot soldier la
 // agarra por la espalda (player.c, hitButtonsUpdate). 2 frames de 80x32 que
 // se alternan a mano. Usa la paleta de las tortugas (PAL1): no lleva PALETTE.
-SPRITE hit_buttons "/sprites/hit_buttons.png" 10 4 NONE 0
+SPRITE hit_buttons "/sprites/hit_buttons.png" 10 4 FAST 0

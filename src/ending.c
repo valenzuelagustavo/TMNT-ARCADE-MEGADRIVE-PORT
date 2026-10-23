@@ -30,6 +30,7 @@
 #include "scenes.h"
 #include "level1.h"       // title_font, title_font_pal
 #include "roof_april.h"   // roof_bg_b (la ciudad de la intro, 256x224)
+#include "roof_april_far.h"   // (23/10, mapper) roof_bg_*, roof_* sprites
 #include "credits.h"      // credits_turtle_0..3, credits_konami
 
 // Espera 'frames' cuadros; TRUE si apretaron START (flanco).

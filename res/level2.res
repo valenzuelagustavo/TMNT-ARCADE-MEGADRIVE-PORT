@@ -14,6 +14,12 @@
 // images/lvl_1_scene/nivel1_2_collage_artista.png via
 // tools/gen_nivel1_2_artista.py -- si se retoca el collage hay que volver a
 // correrlo. El nombre del recurso sigue siendo bg_test para no tocar el codigo.
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 IMAGE bg_test "images/lvl_1_scene/bg_nivel1_2.png" NONE
 
 // --- Humo del techo (tira VERTICAL: 8 frames de 64x64 apilados) ---
@@ -59,7 +65,7 @@ SPRITE taladro_capsula "sprites/taladro_capsula_v2.png" 12 15 NONE 0
 // (15/10) april_l12.png sale ahora de "APRIL PALETA CHAMAS.png" (tools/
 // gen_april_l12.py): la paleta del fuego y los foot soldiers, PAL2 en el 1-2.
 // Mismo formato (2 frames de 32x64, pies en la fila 63).
-SPRITE april "sprites/april_l12.png" 4 8 NONE 12
+SPRITE april "sprites/april_l12.png" 4 8 FAST 12
 
 // Globo de dialogo del jefe "SAY YOUR PRAYERS!" (96x32 = grilla 12x4 de celdas
 // de 8px). Un solo frame (time = 0). Usa la paleta de las tortugas (PAL1),
@@ -67,7 +73,7 @@ SPRITE april "sprites/april_l12.png" 4 8 NONE 12
 // paleta indexada (sin PALETTE propia -> no gasta linea de paleta). Aparece
 // ~2 tiles sobre Rocksteady apenas emerge de la capsula y desaparece con el
 // mismo ciclo del globo "Attack!!" (solido -> parpadeo -> se suelta).
-SPRITE say_your_prayers "sprites/say_your_prayers.png" 12 4 NONE 0
+SPRITE say_your_prayers "sprites/say_your_prayers.png" 12 4 FAST 0
 
 // Rocksteady (jefe): 832x1144 = grilla 8x11 de celdas de 104x104 (13x13 tiles).
 // 11 anims: [0]Idle [1]Caminar [2]Estampida [3]Patada [4]Recibe golpes/cae

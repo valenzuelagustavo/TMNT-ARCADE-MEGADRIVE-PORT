@@ -12,6 +12,12 @@
 // pal_techno        La paleta del mapa (el indice 0, magenta, es transparente).
 // techno_elevator   El ascensor (320x128), misma paleta: se dibuja en BG_A.
 // =============================================================================
+// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros
+// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM
+// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).
+// Ver tools/mapper/README.md.
+NEAR
+
 PALETTE pal_techno      "images/lvl_8_techno/techno_pal.png"
 BIN     techno_tiles    "images/lvl_8_techno/techno_tiles.bin" 2 2 0 NONE
 // (18/10) techno_map.bin (411 KB) ya NO va a la ROM: pasaba los 4 MB. Va por
@@ -31,9 +37,9 @@ IMAGE   techno_elevator "images/lvl_8_techno/techno_elevator.png" NONE ALL
 //   techno_laser        el tiro (4 eslabones) 32x8; techno_laser_sh su sombra
 //   techno_pillar_sh    la sombra de la cabeza en el piso
 //   techno_ball         la bola del pozo, 2 frames 32x32
-SPRITE techno_pillar_head "images/lvl_8_techno/techno_pillar_head.png" 4 4 NONE 0 NONE NONE
-SPRITE techno_pillar_seg  "images/lvl_8_techno/techno_pillar_seg.png"  2 4 NONE 0 NONE NONE
-SPRITE techno_laser       "images/lvl_8_techno/techno_laser.png"       4 1 NONE 0 NONE NONE
-SPRITE techno_laser_sh    "images/lvl_8_techno/techno_laser_sh.png"    4 1 NONE 0 NONE NONE
-SPRITE techno_pillar_sh   "images/lvl_8_techno/techno_pillar_sh.png"   4 1 NONE 0 NONE NONE
-SPRITE techno_ball        "images/lvl_8_techno/techno_ball.png"        4 4 NONE 0
+SPRITE techno_pillar_head "images/lvl_8_techno/techno_pillar_head.png" 4 4 FAST 0 NONE NONE
+SPRITE techno_pillar_seg  "images/lvl_8_techno/techno_pillar_seg.png"  2 4 FAST 0 NONE NONE
+SPRITE techno_laser       "images/lvl_8_techno/techno_laser.png"       4 1 FAST 0 NONE NONE
+SPRITE techno_laser_sh    "images/lvl_8_techno/techno_laser_sh.png"    4 1 FAST 0 NONE NONE
+SPRITE techno_pillar_sh   "images/lvl_8_techno/techno_pillar_sh.png"   4 1 FAST 0 NONE NONE
+SPRITE techno_ball        "images/lvl_8_techno/techno_ball.png"        4 4 FAST 0
