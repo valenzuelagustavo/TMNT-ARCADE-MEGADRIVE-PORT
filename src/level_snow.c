@@ -2,9 +2,9 @@
 // level_snow.c - Scene 3-1: CENTRAL PARK con nieve (del port de NES) (21/10)
 // ===========================================================================
 // Nivel del fondo que mando el artista. (21/10) Con OLEADAS DE PRUEBA de
-// morados (2, 3, 4, 5 y 6). Todavia sin jefe (falta el arte: cartel de pizza,
-// carro de nieve, el jefe): se gana llegando al final (bossFeetX) y sigue la
-// pantalla de la ciudad (SCENE_CUT_CITY). Se entra tambien desde la pausa
+// morados (2, 3, 4, 5 y 6). (23/10) Al final, el jefe TORA (tora.c) con el
+// DISCO flotando; en dos tramos LLUEVEN ESFERAS DE HIELO. Ganado el jefe
+// sigue la pantalla de la ciudad (SCENE_CUT_CITY). Se entra tambien desde la pausa
 // (SCENE 3 / 3-1). Motor: stage_level.c.
 //
 // (22/10) FONDO POR CAPAS CON PARALLAX (tools/gen_level_snow.py, desde las
@@ -45,9 +45,13 @@
 #include "audio.h"             // music_winter
 #include "enemy.h"             // ENEMY_TYPE_*
 #include "hud.h"               // numJugadores
-#include "player.h"            // playerAttackHitsBox
+#include "player.h"            // playerAttackHitsBox, playerManhole*
+#include "level1.h"            // light_out_bubble (el globo del pozo)
+#include "tora.h"              // (23/10) el jefe y las esferas de hielo
+#include "level_snow_far.h"    // (23/10, mapper) snow_disco, snow_disco_sh
 
 #define SCREEN_W              320
+static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 // LVLSNOW_W (ancho del nivel) sale de level_snow_bg.h: el generador puede
 // alargar el fondo repitiendo su ciclo (EXTRA_CYCLES).
 // Franja caminable (pies, y de mundo = y de la imagen). El piso arranca en
@@ -56,7 +60,8 @@
 // deja como pared y obliga a pasar por delante.
 #define LVLSNOW_WALK_Y_MAX    216
 // Con los pies del lider aca (y la camara en el final) se gana el nivel.
-#define LVLSNOW_END_FEET_X   (LVLSNOW_W - 96)
+// (23/10) -96 -> -200: el jefe entra por la derecha.
+#define LVLSNOW_END_FEET_X   (LVLSNOW_W - 200)
 
 // (21/10) OLEADAS DE PRUEBA: solo morados, 2-3-4-5-6, repartidas en el ancho
 // (la camara se clava en lockX hasta limpiarlas), entrando por los dos
@@ -369,7 +374,8 @@ static void tracUpdate(Player** pls, u8 nPl, s16 camX) {
 
 static bool lvlSnowSpecial(u8 type, s8 side, s16 x, s16 camX) {
     (void)side; (void)x;
-    if (type == SP_TRACTOR) return tracStart(camX);
+    // (23/10) Nunca junto con la lluvia de esferas (las dos usan PAL3).
+    if (type == SP_TRACTOR) return (toraIceAlive() == 0) && tracStart(camX);
     return TRUE;
 }
 
@@ -382,6 +388,347 @@ static void lvlSnowFallback(u8 type, s8 side, s16 x, s16 camX) {
     if (snowOff) snowCreate();
 }
 
+// ===========================================================================
+// (23/10) ALCANTARILLAS en los circulos de hielo del piso (los 4 del arte, en
+// el primer tramo). Como las bocas de tormenta del 2-1: al pasar la tortuga
+// que va adelante por trigX, de la boca sale un morado con la tapa y la tira
+// hacia 'dir' (las 2 de mas atras atacan por la espalda); el agujero queda
+// ABIERTO y la tortuga que lo pisa (caminando: saltando no) se cae adentro
+// ("Duuuh, who put the light out"). La tapa cerrada (antes) y la boca
+// abierta (despues) son sprites con tiles fijos en los extraTiles del nivel.
+// ===========================================================================
+#define MH_N             4
+#define MH_HOLE_TILES   14          // snow_hole (rescomp)
+#define MH_LID_TILES    12          // snow_lid
+#define MH_HOLE_W       40
+#define MH_HOLE_H       24
+#define MH_LID_W        32
+#define MH_LID_H        24
+#define MH_HALF_W       12          // la trampa, como el 2-1 (LVL21_HOLE_*)
+#define MH_HALF_H       10
+#define MH_OUT_DY       22          // donde sale la tortuga, debajo del agujero
+#define MH_MARGIN       48
+#define MH_FOOT_DX      (PLAYER_SPRITE_W / 2)
+#define MH_BUBBLE_W     96
+#define MH_BUBBLE_DY   (-40)
+enum { MH_DORMANT = 0, MH_PENDING, MH_DONE };
+typedef struct { s16 x, y, trigX; s8 dir; } SnowHole;
+// Centros medidos sobre "itens separados.png" (los circulos de hielo).
+static const SnowHole holes[MH_N] = {
+    //  x    y   trigX  dir
+    { 314, 176,  200, -1 },
+    {  54, 182,  260, +1 },          // por la espalda
+    { 423, 166,  330, -1 },
+    { 147, 165,  380, +1 },          // por la espalda
+};
+static u8      mhSt[MH_N];
+static Sprite* mhSpr[MH_N];
+static u8      mhLook[MH_N];        // 0 nada, 1 tapa, 2 boca
+static Sprite* mhBubble;
+static u16     mhHoleVram, mhLidVram;
+
+static void mhInit(void) {
+    mhHoleVram = (u16)(stageExtraVram() + LVLSNOW_FLAKES);
+    mhLidVram  = (u16)(mhHoleVram + MH_HOLE_TILES);
+    const TileSet* th = snow_hole.animations[0]->frames[0]->tileset;
+    const TileSet* tl = snow_lid.animations[0]->frames[0]->tileset;
+    if (th->numTile <= MH_HOLE_TILES) VDP_loadTileSet(th, mhHoleVram, DMA);
+    if (tl->numTile <= MH_LID_TILES)  VDP_loadTileSet(tl, mhLidVram, DMA);
+    for (u16 i = 0; i < MH_N; i++) { mhSt[i] = MH_DORMANT; mhSpr[i] = NULL; mhLook[i] = 0; }
+    mhBubble = NULL;
+    lidInit();
+}
+
+static void mhRelease(void) {
+    for (u16 i = 0; i < MH_N; i++)
+        if (mhSpr[i]) { SPR_releaseSprite(mhSpr[i]); mhSpr[i] = NULL; mhLook[i] = 0; }
+    if (mhBubble) { SPR_releaseSprite(mhBubble); mhBubble = NULL; }
+    lidReleaseAll();
+}
+
+static void mhUpdate(Player** pls, u8 nPl, s16 camX) {
+    // Los pies del que va adelante.
+    s16 lead = -32000;
+    for (u8 k = 0; k < nPl; k++) {
+        if (isPlayerGameOver(pls[k])) continue;
+        s16 f = (s16)(pls[k]->x + MH_FOOT_DX);
+        if (f > lead) lead = f;
+    }
+    for (u16 i = 0; i < MH_N; i++) {
+        const SnowHole* h = &holes[i];
+        if (mhSt[i] == MH_DORMANT && lead >= h->trigX) mhSt[i] = MH_PENDING;
+        if (mhSt[i] == MH_PENDING && stageSpawnManhole(h->x, h->y, h->dir)) mhSt[i] = MH_DONE;
+        // La tapa hasta que sale el soldier (que la trae en sus cuadros) y
+        // despues la boca abierta. Solo cerca de la camara.
+        s16 sx = (s16)(h->x - camX);
+        bool near = (sx > -MH_MARGIN && sx < SCREEN_W + MH_MARGIN);
+        u8 look = near ? ((mhSt[i] == MH_DONE) ? 2 : 1) : 0;
+        if (look != mhLook[i]) {
+            if (mhSpr[i]) { SPR_releaseSprite(mhSpr[i]); mhSpr[i] = NULL; }
+            if (look) {
+                const SpriteDefinition* d = (look == 2) ? &snow_hole : &snow_lid;
+                u16 v = (look == 2) ? mhHoleVram : mhLidVram;
+                mhSpr[i] = SPR_addSpriteEx(d, -64, -64, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, v),
+                                           SPR_FLAG_AUTO_VISIBILITY);
+                if (mhSpr[i]) {
+                    SPR_setAutoAnimation(mhSpr[i], FALSE);
+                    SPR_setDepth(mhSpr[i], SPR_MAX_DEPTH);   // en el piso, detras de todo
+                }
+            }
+            mhLook[i] = look;
+        }
+        if (mhSpr[i]) {
+            s16 w = (look == 2) ? MH_HOLE_W : MH_LID_W;
+            s16 hh = (look == 2) ? MH_HOLE_H : MH_LID_H;
+            SPR_setPosition(mhSpr[i], (s16)(sx - w / 2), (s16)(h->y - hh / 2 - stageCamY));
+        }
+    }
+
+    // Caerse en una boca abierta (saltando no: playerManholeFall se apoya en
+    // playerCanBeHit, como en el 2-1).
+    for (u8 k = 0; k < nPl; k++) {
+        if (playerInManhole(pls[k])) continue;
+        s16 fx = (s16)(pls[k]->x + MH_FOOT_DX), fy = pls[k]->y;
+        for (u16 i = 0; i < MH_N; i++) {
+            if (mhSt[i] != MH_DONE) continue;
+            if (a16((s16)(fx - holes[i].x)) > MH_HALF_W) continue;
+            if (a16((s16)(fy - holes[i].y)) > MH_HALF_H) continue;
+            playerManholeFall(pls[k], (s16)(holes[i].x - MH_FOOT_DX),
+                              (s16)(holes[i].y + MH_OUT_DY));
+            break;
+        }
+    }
+
+    // Globo "Duuuh, who put the light out" mientras alguna esta en el fondo.
+    s8 talking = -1;
+    for (u8 k = 0; k < nPl; k++) if (playerManholeSpeaking(pls[k])) { talking = (s8)k; break; }
+    if (talking < 0) {
+        if (mhBubble) { SPR_releaseSprite(mhBubble); mhBubble = NULL; }
+    } else {
+        if (!mhBubble && sprVramFits(light_out_bubble.maxNumTile)) {
+            mhBubble = SPR_addSprite(&light_out_bubble, -128, -128, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+            XGM2_playPCMEx(who_put_light_vo, sizeof(who_put_light_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        }
+        if (mhBubble) {
+            s16 bx = (s16)(pls[(u8)talking]->x + MH_FOOT_DX - MH_BUBBLE_W / 2 - camX);
+            if (bx < 4) bx = 4;
+            if (bx > SCREEN_W - MH_BUBBLE_W - 4) bx = SCREEN_W - MH_BUBBLE_W - 4;
+            s16 by = (s16)(pls[(u8)talking]->y + MH_BUBBLE_DY - stageCamY);
+            if (by < 36) by = 36;
+            SPR_setPosition(mhBubble, bx, by);
+            SPR_setDepth(mhBubble, SPR_MIN_DEPTH);
+        }
+    }
+
+    // Las tapas que tiran (como en el 2-1): un golpe cuerpo a cuerpo las
+    // devuelve y ahi barren soldiers; si no, pegan a las tortugas.
+    lidUpdate(camX, stageCamY);
+    for (u8 k = 0; k < nPl; k++)
+        if (lidReflectByPlayerAttack(pls[k], (s8)k))
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    Enemy* en = stageEnemies();
+    for (u16 i = 0; en && i < MAX_ENEMIES; i++) {
+        if (!enemyCanBeHit(&en[i])) continue;
+        s8 owner = -1;
+        if (!lidHitsEnemy(i, getEnemyCenterX(&en[i]), getEnemyCenterY(&en[i]),
+                          enemyBodyHalfW(&en[i]), &owner)) continue;
+        damageEnemy(&en[i], LID_ENEMY_DMG);
+        if (en[i].state == ENEMY_STATE_DEAD) {
+            XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+            if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[(u8)owner], 1);
+        }
+    }
+    for (u8 k = 0; k < nPl; k++) {
+        if (!playerCanBeHit(pls[k])) continue;
+        s16 lx = 0;
+        if (!lidHits(getPlayerHurtCX(pls[k]), getPlayerY(pls[k]), PLAYER_BODY_HALF_W, &lx)) continue;
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        damagePlayer(pls[k], lx);
+    }
+}
+
+// ===========================================================================
+// (23/10) El TACHO de basura (snow_trash): como los conos del garage, un golpe
+// lo hace salir volando en X hacia donde lo empujo y, volando, le pega a los
+// soldiers que cruza. Al salir de la pantalla no vuelve.
+// ===========================================================================
+#define TRASH_X        790          // borde izquierdo de la celda (mundo)
+#define TRASH_BASE     156          // borde de abajo (los pies)
+#define TRASH_W         48
+#define TRASH_H         56
+#define TRASH_HALF_W    14          // la parte que se le puede pegar
+#define TRASH_BODY_H    44
+#define TRASH_SPEED      6          // px/f volando (el cono)
+#define TRASH_ENEMY_DMG  2
+#define TRASH_TOL_Y     14
+enum { TR_IDLE = 0, TR_FLY, TR_GONE };
+static struct { Sprite* s; s16 x; s8 dir, owner; u8 st, hitMask; } trash;
+
+static void trashRelease(void) {
+    if (trash.s) { SPR_releaseSprite(trash.s); trash.s = NULL; }
+}
+
+static void trashUpdate(Player** pls, u8 nPl, s16 camX) {
+    if (trash.st == TR_GONE) return;
+    s16 sx = (s16)(trash.x - camX);
+    bool near = (sx > -TRASH_W - 16 && sx < SCREEN_W + 16);
+    if (!near) {
+        if (trash.st == TR_FLY) { trashRelease(); trash.st = TR_GONE; return; }
+        trashRelease();
+        return;
+    }
+    if (!trash.s) {
+        if (!sprVramFits(snow_trash.maxNumTile)) return;
+        trash.s = SPR_addSprite(&snow_trash, -64, -64, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        if (!trash.s) return;
+        SPR_setAutoAnimation(trash.s, FALSE);
+    }
+    s16 cx = (s16)(trash.x + TRASH_W / 2);
+    if (trash.st == TR_IDLE) {
+        for (u8 k = 0; k < nPl; k++) {
+            if (!playerAttackHitsBox(pls[k], cx, TRASH_BASE, TRASH_HALF_W, TRASH_BODY_H)) continue;
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            s16 pcx = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
+            trash.dir = (cx >= pcx) ? 1 : -1;
+            trash.owner = (s8)k;
+            trash.hitMask = 0;
+            trash.st = TR_FLY;
+            break;
+        }
+    } else {
+        trash.x = (s16)(trash.x + trash.dir * TRASH_SPEED);
+        cx = (s16)(trash.x + TRASH_W / 2);
+        Enemy* en = stageEnemies();
+        for (u16 e = 0; en && e < MAX_ENEMIES && e < 8; e++) {
+            if (trash.hitMask & (1 << e)) continue;
+            if (!enemyCanBeHit(&en[e])) continue;
+            if (a16((s16)(getEnemyCenterX(&en[e]) - cx)) > TRASH_HALF_W + enemyBodyHalfW(&en[e])) continue;
+            if (a16((s16)(getEnemyCenterY(&en[e]) - TRASH_BASE)) > TRASH_TOL_Y) continue;
+            damageEnemy(&en[e], TRASH_ENEMY_DMG);
+            trash.hitMask |= (u8)(1 << e);
+            if (en[e].state == ENEMY_STATE_DEAD) {
+                XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
+                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                if (trash.owner >= 0 && trash.owner < (s8)nPl) addPlayerScore(pls[(u8)trash.owner], 1);
+            }
+        }
+        sx = (s16)(trash.x - camX);
+        if (sx + TRASH_W < -8 || sx > SCREEN_W + 8) { trashRelease(); trash.st = TR_GONE; return; }
+    }
+    SPR_setPosition(trash.s, sx, (s16)(TRASH_BASE - TRASH_H - stageCamY));
+    SPR_setDepth(trash.s, (s16)-TRASH_BASE);
+}
+
+// ===========================================================================
+// (23/10) LLUVIA DE ESFERAS DE HIELO: en dos tramos (camara pasando rainAt)
+// caen RAIN_N esferas, de a RAIN_MAX a la vez, cerca de una tortuga al azar;
+// la sombra avisa donde (tora.c). No clava la camara ni frena oleadas, pero
+// no arranca con el tractor en pantalla (y el tractor la espera): PAL3.
+// ===========================================================================
+#define RAIN_ZONES      2
+#define RAIN_N          8
+#define RAIN_MAX        2
+#define RAIN_GAP       30      // + random(RAIN_GAP_RND) entre una y otra
+#define RAIN_GAP_RND   30
+#define RAIN_SPREAD    30      // +- px alrededor de la tortuga
+static const s16 rainAt[RAIN_ZONES] = { 1480, 2540 };
+static u8  rainZone, rainLeft, rainCd;
+
+static void rainUpdate(Player** pls, u8 nPl, s16 camX) {
+    if (rainLeft == 0) {
+        if (rainZone >= RAIN_ZONES || camX < rainAt[rainZone] || trac.on) return;
+        rainZone++;
+        rainLeft = RAIN_N;
+        rainCd = 20;
+        toraLoadPal();
+        return;
+    }
+    if (rainCd) { rainCd--; return; }
+    if (toraIceAlive() >= RAIN_MAX) return;
+    u8 k = (u8)(random() % nPl), tries = nPl;
+    while (tries-- && isPlayerGameOver(pls[k])) k = (u8)((k + 1) % nPl);
+    s16 x = (s16)(getPlayerHurtCX(pls[k]) + (s16)(random() % (2 * RAIN_SPREAD + 1)) - RAIN_SPREAD);
+    if (x < camX + 24) x = (s16)(camX + 24);
+    if (x > camX + SCREEN_W - 24) x = (s16)(camX + SCREEN_W - 24);
+    s16 lane = (s16)(getPlayerY(pls[k]) + (s16)(random() % 21) - 10);
+    s16 top = stageWalkTopAt(x);
+    if (lane < top) lane = top;
+    if (lane > LVLSNOW_WALK_Y_MAX) lane = LVLSNOW_WALK_Y_MAX;
+    toraIceRain(x, lane);              // sin VRAM: esa no cae
+    rainLeft--;
+    rainCd = (u8)(RAIN_GAP + random() % RAIN_GAP_RND);
+}
+
+// ---------------------------------------------------------------------------
+// (23/10) EL DISCO: la esfera que flota a media altura al final del nivel
+// (snow_disco, 3 cuadros, con su sombra en el piso). Decorado; PAL3 con la
+// paleta del jefe. Aparece cuando entra en camara (el tractor ya paso).
+// ---------------------------------------------------------------------------
+#define DISCO_X        (LVLSNOW_W - 104)   // centro (mundo)
+#define DISCO_LANE      150                // donde esta la sombra
+#define DISCO_TOP        54                // borde de arriba (pantalla), sin vaiven
+#define DISCO_ANIM        8
+static const s8 discoBob[16] = { 0,1,2,3,3,4,4,4,3,3,2,1,0,-1,-1,-1 };
+static struct { Sprite* s; Sprite* sh; u16 t; } disco;
+
+static void discoRelease(void) {
+    if (disco.s)  { SPR_releaseSprite(disco.s);  disco.s  = NULL; }
+    if (disco.sh) { SPR_releaseSprite(disco.sh); disco.sh = NULL; }
+}
+
+static void discoUpdate(s16 camX) {
+    s16 sx = (s16)(DISCO_X - camX);
+    if (!disco.s) {
+        if (sx > SCREEN_W + 40 || trac.on) return;
+        if (!sprVramFits((u16)(snow_disco.maxNumTile + snow_disco_sh.maxNumTile))) return;
+        toraLoadPal();
+        disco.s  = SPR_addSprite(&snow_disco, -128, -128, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        disco.sh = SPR_addSprite(&snow_disco_sh, -128, -128, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        if (!disco.s) { discoRelease(); return; }
+        SPR_setAutoAnimation(disco.s, FALSE);
+        SPR_setDepth(disco.s, -DISCO_LANE);
+        if (disco.sh) SPR_setDepth(disco.sh, -DISCO_LANE + 1);
+        disco.t = 0;
+    }
+    disco.t++;
+    SPR_setFrame(disco.s, (s16)((disco.t / DISCO_ANIM) % 3));
+    SPR_setPosition(disco.s, (s16)(sx - 32),
+                    (s16)(DISCO_TOP + discoBob[(disco.t >> 3) & 15] - stageCamY));
+    if (disco.sh) SPR_setPosition(disco.sh, (s16)(sx - 28), (s16)(DISCO_LANE - 8 - stageCamY));
+}
+
+// ---------------------------------------------------------------------------
+// (23/10) Jefe: TORA (tora.c). Arena = la ultima pantalla.
+// ---------------------------------------------------------------------------
+static Tora tora;
+
+static void bossInitSnow(void) {
+    toraInit(&tora);
+}
+
+static void bossStartSnow(s16 camX, s16 levelW) {
+    (void)levelW;
+    // Menos copos: el jefe usa hasta 12 sprites de VDP y cada esfera 8.
+    if (!snowOff) snowDestroy();
+    snowN = SNOW_N_FEW;
+    snowCreate();
+    toraSpawn(&tora, (s16)(camX + 24), (s16)(camX + SCREEN_W - 24),
+              LVLSNOW_WALK_Y_MIN, LVLSNOW_WALK_Y_MAX, stageWalkTopAt);
+}
+
+static bool bossUpdateSnow(Player** pls, u8 nPl, s16 camX) {
+    toraUpdate(&tora, pls, nPl, camX);
+    s8 killer = -1;
+    if (toraPlayerHits(&tora, pls, nPl, &killer) && killer >= 0)
+        addPlayerScore(pls[(u8)killer], 5);
+    return toraIsGone(&tora) && toraIceAlive() == 0;
+}
+
+static bool bossDyingSnow(void) { return toraIsDying(&tora); }
+
+static void bossReleaseSnow(void) { toraRelease(&tora); }
+
 static void lvlSnowInit(void) {
     signsInit();
     trac.on = FALSE;
@@ -392,11 +739,21 @@ static void lvlSnowInit(void) {
     snowN    = (numJugadores() > 2) ? SNOW_N_FEW : SNOW_N_MANY;
     for (u16 i = 0; i < SNOW_N; i++) flakes[i].spr = NULL;
     snowCreate();
+    mhInit();                       // (23/10) alcantarillas
+    trash.s = NULL; trash.x = TRASH_X; trash.st = TR_IDLE;
+    toraIceInit();                  // (23/10) lluvia de esferas, disco
+    rainZone = rainLeft = rainCd = 0;
+    disco.s = disco.sh = NULL;
 }
 
 static void lvlSnowUpdate(Player** pls, u8 nPl, s16 camX) {
     signsUpdate(pls, nPl, camX);
     tracUpdate(pls, nPl, camX);
+    mhUpdate(pls, nPl, camX);       // (23/10)
+    trashUpdate(pls, nPl, camX);
+    rainUpdate(pls, nPl, camX);     // (23/10)
+    toraIceUpdate(pls, nPl, camX);  // las de la lluvia y la del jefe
+    discoUpdate(camX);
     s16 dcam = (s16)(camX - snowCamX);       // la camara avanza: los copos quedan atras
     snowCamX = camX;
     snowT++;
@@ -425,13 +782,17 @@ static void lvlSnowRelease(void) {
     signsRelease();
     tracRelease();
     snowDestroy();
+    mhRelease();
+    trashRelease();
+    toraIceReleaseAll();
+    discoRelease();
 }
 
 static const StageLevel levelSnow = {
     .bgRaw        = &snowBg,
     .bands        = &snowBands,     // (22/10) parallax
     .fg           = NULL,
-    .extraTiles   = LVLSNOW_FLAKES,
+    .extraTiles   = LVLSNOW_FLAKES + MH_HOLE_TILES + MH_LID_TILES,   // (23/10) + alcantarillas
     .bgSlots      = LVLSNOW_BG_WORST + 8,
     .levelW       = LVLSNOW_W,
     .walkTop      = lvlSnowWalkTop, // (22/10) los canteros
@@ -441,6 +802,13 @@ static const StageLevel levelSnow = {
     .waves        = wavesSnow,
     .nWaves       = sizeof(wavesSnow) / sizeof(wavesSnow[0]),
     .bossFeetX    = LVLSNOW_END_FEET_X,
+    .bossMusic    = music_boss,     // (23/10) TORA
+    .bossMusicVol = 80,
+    .bossInit     = bossInitSnow,
+    .bossStart    = bossStartSnow,
+    .bossUpdate   = bossUpdateSnow,
+    .bossDying    = bossDyingSnow,
+    .bossRelease  = bossReleaseSnow,
     .music        = music_winter,
     .musicVol     = 80,
     .levelInit    = lvlSnowInit,

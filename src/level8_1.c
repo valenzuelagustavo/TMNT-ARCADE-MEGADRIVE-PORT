@@ -159,10 +159,21 @@ typedef enum { PH_TOP, PH_RIDE, PH_BOTTOM } TechnoPhase;
 #define K ENEMY_TYPE_FOOT_SOLDIER_KNIFE
 #define G ENEMY_TYPE_FOOT_SOLDIER_GUN
 #define TW_MAX 6
+// (23/10) side = L8_SIDE_DOOR: sale por el HUECO DE PUERTA de la pared de
+// arriba (el negro del mapa en x 768-799, y 48-110), caminando hacia afuera
+// con los ultimos cuadros de ENEMY_ANIM_BREAK_DOOR (como los de los
+// ascensores del 1-1, initEnemyElevatorSpawn). De a uno, cada L8_DOOR_GAP.
+#define L8_SIDE_DOOR    2
+#define L8_DOOR_CX    784          // centro del hueco (mundo)
+#define L8_DOOR_GAP    45          // cuadros entre uno y el siguiente
+#define D L8_SIDE_DOOR
 typedef struct { s16 trigX, lockX; u8 n; s8 side[TW_MAX]; u8 type[TW_MAX]; } TechnoWave;
 static const TechnoWave topWaves[] = {
     {  200,    0, 3, { +1, -1, +1 },             { W, W, W } },
     {  540,  360, 4, { +1, +1, -1, +1 },         { W, W, W, W } },
+    // (23/10) 3 morados por el hueco de la puerta (camara en 600: la puerta
+    // queda en x 168-199 de pantalla).
+    {  760,  600, 3, { D, D, D },                { P, P, P } },
     {  820,  640, 4, { -1, +1, +1, -1 },         { W, S, W, S } },
     { 1080,  900, 4, { +1, -1, +1, +1 },         { K, P, K, P } },
     { 1300, 1120, 5, { +1, -1, +1, -1, +1 },     { P, S, P, S, P } },
@@ -181,6 +192,7 @@ static const TechnoWave botWaves[] = {
 #undef W
 #undef K
 #undef G
+#undef D
 
 static const SbgBlk2D technoMap = {
     (const u32*) techno_tiles,
@@ -306,6 +318,15 @@ static void drawPlayers(Player** pls, u8 nPl, s16 camX, s16 camY) {
         if (pls[k]->sprite)
             playerSetSpritePos(pls[k], pls[k]->x - camX,
                             pls[k]->y - PLAYER_FOOT_OFFSET - playerDrawZ(pls[k]) - camY);
+}
+
+// (23/10) El que sale por el hueco de la puerta: un morado que aparece en la
+// puerta con los pies en el borde de arriba de la franja y camina hacia
+// afuera (los 2 ultimos cuadros de BREAK_DOOR), despues pelea como siempre.
+static void spawnDoorEnemy(Enemy* e, s16 laneT, s16 laneB) {
+    initEnemyElevatorSpawn(e, L8_DOOR_CX, PAL2);
+    e->y = (s16)(laneT + 2);
+    setEnemyBounds(e, laneT, laneB, 0, 0, L8_W);
 }
 
 static void spawnWaveEnemy(Enemy* e, s8 side, u8 type, s16 camX, s16 laneT, s16 laneB) {
@@ -486,6 +507,7 @@ SceneId showScene81() {
     s16 camLockX    = -1;
     u8  arm         = 0;               // frames con todos encima del ascensor
     u16 spawnWait   = 0;               // (10/10) frames sin poder hacer entrar al siguiente
+    u16 doorCd      = 0;               // (23/10) espera entre los que salen por la puerta
     u16 rideAcc     = 0;               // (18/10) fraccion de px del viaje (Q8)
 
     // Revelado: PAL0 el mapa, PAL1 las tortugas, PAL2 los soldiers, PAL3 la
@@ -676,6 +698,7 @@ SceneId showScene81() {
         if (!dying && continueStepAll(conts, pls, huds, nPl, fps)) { allOut = TRUE; break; }
 
         // --- Hacer entrar a los de la oleada en curso ------------------------
+        if (doorCd) doorCd--;
         if (wave && phase != PH_RIDE) {
             s16 lt = (phase == PH_TOP) ? L8_TOP_LANE_T : L8_BOT_LANE_T;
             s16 lb = (phase == PH_TOP) ? L8_TOP_LANE_B : L8_BOT_LANE_B;
@@ -696,8 +719,14 @@ SceneId showScene81() {
                 spawnWait = 0;
                 // (18/10) Abajo todos entran por la DERECHA: el jugador tiene
                 // que avanzar.
-                spawnWaveEnemy(&enemies[i], (phase == PH_BOTTOM) ? 1 : wave->side[we],
-                               wave->type[we], cameraX, lt, lb);
+                s8 sd = (phase == PH_BOTTOM) ? 1 : wave->side[we];
+                if (sd == L8_SIDE_DOOR) {
+                    if (doorCd) break;              // de a uno por la puerta
+                    spawnDoorEnemy(&enemies[i], lt, lb);
+                    doorCd = L8_DOOR_GAP;
+                } else {
+                    spawnWaveEnemy(&enemies[i], sd, wave->type[we], cameraX, lt, lb);
+                }
                 waveSpawned++;
                 alive++;
             }

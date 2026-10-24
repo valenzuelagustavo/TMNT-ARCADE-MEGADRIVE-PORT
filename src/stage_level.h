@@ -270,6 +270,9 @@ Enemy* stageEnemies(void);
 // vivos -- salvo STAGE_IN_PLACE, que reemplaza a un actor --, no hay lugar o
 // no entra su hoja en la VRAM): se reintenta despues.
 bool stageSpawnEnemyAt(u8 type, s8 side, s16 x, s16 y);
+// (23/10) Un morado que sale por una alcantarilla (agujero de centro x, y de
+// mundo) con la tapa y la tira hacia 'dir' (como en el 2-1). FALSE = ahora no.
+bool stageSpawnManhole(s16 holeX, s16 holeY, s8 dir);
 // (18/10) Carga los ovW*ovH tiles de un frame del overlay (ver ovW).
 void stageOverlayFrame(const u32* tiles);
 // (18/10) Primer tile de los extraTiles del nivel en curso.

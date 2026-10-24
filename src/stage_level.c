@@ -732,6 +732,30 @@ bool stageSpawnEnemyAt(u8 type, s8 side, s16 x, s16 y) {
     return TRUE;
 }
 
+// (23/10) Un morado que sale por una ALCANTARILLA con la tapa (la anim 17,
+// como en el 2-1: initEnemyManholeSpawn) en el agujero de centro
+// (holeX, holeY) de mundo, y la tira hacia 'dir'. Las mismas cuentas del 2-1:
+// el frame de 64 px centrado en el agujero y la lane FINAL, por delante de la
+// boca (ENEMY_MANHOLE_HOP_DROP). FALSE = ahora no (tope de vivos, sin lugar o
+// sin VRAM): se reintenta despues.
+#define STAGE_MANHOLE_DY  10
+bool stageSpawnManhole(s16 holeX, s16 holeY, s8 dir) {
+    if (!cur || !stageEnemyList) return FALSE;
+    if (stageAliveEnemies() >= stageMaxAliveV) return FALSE;
+    u16 i;
+    for (i = 0; i < MAX_ENEMIES; i++)
+        if (stageEnemyList[i].state == ENEMY_STATE_INACTIVE) break;
+    if (i >= MAX_ENEMIES) return FALSE;
+    if (!sprVramFits(foot_soldier.maxNumTile)) return FALSE;
+    Enemy* e = &stageEnemyList[i];
+    eStepZ[i] = 0;
+    initEnemyManholeSpawn(e, (s16)(holeX - ENEMY_SPRITE_W_PURPLE / 2),
+                          (s16)(holeY + STAGE_MANHOLE_DY + ENEMY_MANHOLE_HOP_DROP), dir, PAL2);
+    if (!e->sprite) { e->state = ENEMY_STATE_INACTIVE; return FALSE; }
+    setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
+    return TRUE;
+}
+
 // ===========================================================================
 // El nivel
 // ===========================================================================
@@ -935,6 +959,9 @@ SceneId stageLevelRun(const StageLevel* L) {
 
         // --- Jugadores -----------------------------------------------------
         for (u8 k = 0; k < nPl; k++) {
+            // (23/10) Cayendo por una alcantarilla (Central Park): la
+            // secuencia corre sola, sin input (como en el 2-1).
+            if (playerInManhole(pls[k])) { playerManholeStep(pls[k]); continue; }
             s16 prevX = pls[k]->x, prevY = pls[k]->y;
             updatePlayer(pls[k]);
             clampWalk(&pls[k]->x, &pls[k]->y, prevX, prevY, FOOT_DX);

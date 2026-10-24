@@ -49,20 +49,27 @@
 // Tope de la cabeza: z <= lane - zTopK (thInit). Technodrome 110: con camY 32,
 // 32 + 46 + 32 de cabeza; su borde de arriba queda en y >= 46 de pantalla.
 
-// (18/10) Las 4 del arcade, juntas (~36 px entre una y otra), en distintas
-// lanes y con distintas velocidades. Estan en la zona de la 2da oleada
-// (camara trabada en 360: se ven las 4 a la vez).
+// (18/10) Estan en la zona de la 2da oleada (camara trabada en 360: se ven
+// todas a la vez). (23/10, Gustavo) 3 en vez de 4 (menos sprites), y como en
+// el arcade se desplazan en profundidad (lane 140..240 de la franja de arriba,
+// 128..248), cada una a su velocidad y arrancando en otro lugar: 0,375 /
+// 0,625 / 0,875 px por cuadro. La de la izquierda mira y dispara a la DERECHA
+// (al que ya la paso), las otras dos a la IZQUIERDA. Cabeza a 8-10 px del
+// piso: el laser va a la altura del pecho y se esquiva saltando.
 const ThPillarDef thTechnoPillars[TH_TECHNO_PILLARS] = {
-    {  560, 214,  4, 96, 16, 50 },
-    {  596, 150,  6, 80, 10, 20 },
-    {  632, 236,  4, 90, 20, 40 },
-    {  668, 178, 10, 72, 12, 10 },
+    // x    lane zMin zMax  vel  1er tiro  laneMin laneMax dir
+    {  560, 200,   8,   8,   6,  50,       140,    240,   +1 },
+    {  614, 150,  10,  10,  10,  20,       140,    240,   -1 },
+    {  668, 232,   8,   8,  14,  35,       140,    240,   -1 },
 };
 
 typedef struct {
     u8   zMax;                      // zMax de la tabla, recortado por la lane
     s16  zq;                        // altura en Q4
-    s8   dirZ;                      // +1 sube, -1 baja
+    s8   dirZ;                      // +1 sube, -1 baja (o, en profundidad: +1 baja la pantalla)
+    s16  laneq;                     // (23/10) lane actual en Q4
+    bool depth;                     // (23/10) se mueve en profundidad (ThPillarDef.laneMin/Max)
+    s8   dir;                       // (23/10) hacia donde mira y dispara
     u8   hits, flash, hitCd;
     u8   fireT, burst, pause;
     bool dead;
@@ -180,6 +187,10 @@ void thInit(u16 vram, const ThPillarDef* defs, u8 n, s16 zTopK) {
         p->zq   = (s16)(((pilDefs[i].zMin + p->zMax) / 2) << 4);
         p->dirZ = (i & 1) ? 1 : -1;
         p->fireT = pilDefs[i].delay;
+        p->laneq = (s16)(pilDefs[i].lane << 4);
+        p->depth = (bool)(pilDefs[i].laneMax > pilDefs[i].laneMin);
+        p->dir   = (pilDefs[i].dir > 0) ? 1 : -1;
+        if (p->depth) p->zq = (s16)(pilDefs[i].zMin << 4);   // altura fija
     }
     for (u16 i = 0; i < LAS_MAX; i++) { lasers[i].on = FALSE; lasers[i].s = lasers[i].sh = NULL; }
     for (u16 i = 0; i < BALL_MAX; i++) { balls[i].on = FALSE; balls[i].s = balls[i].sh = NULL; }
@@ -272,20 +283,29 @@ void thPillarsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
         }
         if (!p->head && !pillarAlloc(p)) continue;
 
-        // --- Movimiento: la cabeza sube y baja entre zMin y zMax ---------------
-        if (!p->dead) {
+        // --- Movimiento ------------------------------------------------------
+        // (23/10) En profundidad: la columna entera va y viene entre laneMin y
+        // laneMax (como si caminara de arriba hacia abajo). Si no, la cabeza
+        // sube y baja entre zMin y zMax en su lane.
+        if (!p->dead && p->depth) {
+            p->laneq = (s16)(p->laneq + p->dirZ * d->speedQ);
+            if (p->laneq >= (s16)(d->laneMax << 4)) { p->laneq = (s16)(d->laneMax << 4); p->dirZ = -1; }
+            if (p->laneq <= (s16)(d->laneMin << 4)) { p->laneq = (s16)(d->laneMin << 4); p->dirZ = 1; }
+        } else if (!p->dead) {
             p->zq = (s16)(p->zq + p->dirZ * d->speedQ);
             if (p->zq >= (s16)(p->zMax << 4)) { p->zq = (s16)(p->zMax << 4); p->dirZ = -1; }
             if (p->zq <= (s16)(d->zMin << 4)) { p->zq = (s16)(d->zMin << 4); p->dirZ = 1; }
         }
+        s16 lane = (s16)(p->laneq >> 4);
         s16 z = (s16)(p->zq >> 4);
+        if (p->depth && z > lane - pilZTopK) z = (s16)(lane - pilZTopK);   // nunca en el HUD
 
         // --- Golpes de las tortugas -------------------------------------------
         if (p->hitCd) p->hitCd--;
         if (p->flash) p->flash--;
         if (!p->dead && !p->hitCd) {
             for (u8 k = 0; k < nPl; k++) {
-                if (!playerAttackHitsBand(pls[k], d->x, d->lane, PIL_HALF_W - 4,
+                if (!playerAttackHitsBand(pls[k], d->x, lane, PIL_HALF_W - 4,
                                           (s16)-(z + 32), (s16)-z)) continue;
                 p->hitCd = PIL_HIT_CD;
                 p->flash = PIL_FLASH;
@@ -300,15 +320,16 @@ void thPillarsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
         }
 
         // --- Disparos ---------------------------------------------------------
-        // Siempre hacia la IZQUIERDA (como en el arcade: no se dan vuelta).
+        // Hacia donde mira (no se dan vuelta): la izquierda, salvo las que la
+        // tabla pone mirando a la derecha (23/10).
         if (!p->dead && sx > -8 && sx < SCREEN_W + 8) {
             Player* t = nearestPlayer(pls, nPl, d->x);
             if (p->pause) p->pause--;
             else if (t) {
                 if (p->fireT) p->fireT--;
                 if (!p->fireT) {
-                    s16 mx = (s16)(d->x - PIL_HALF_W);
-                    laserFire(mx, d->lane, (s16)(z + PIL_MUZZLE_Z), -1);
+                    s16 mx = (s16)(d->x + p->dir * PIL_HALF_W);
+                    laserFire(mx, lane, (s16)(z + PIL_MUZZLE_Z), p->dir);
                     if (!firedSfx && p->burst == 0) {
                         XGM2_playPCMEx(rodney_shoot_sfx, sizeof(rodney_shoot_sfx),
                                        SOUND_PCM_CH3, 6, FALSE, FALSE);
@@ -331,10 +352,11 @@ void thPillarsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
         }
         else if (p->dead) pillarSetLook(p, TV_HEAD_ORANGE, TV_SEG_ORANGE);
         else              pillarSetLook(p, TV_HEAD_PLAIN, TV_SEG_PLAIN);
-        s16 hy = (s16)(d->lane - z - 32 - camY);
+        s16 hy = (s16)(lane - z - 32 - camY);
+        SPR_setHFlip(p->head, p->dir > 0);          // el arte mira a la izquierda
         SPR_setPosition(p->head, (s16)(sx - PIL_HALF_W), hy);
         SPR_setVisibility(p->head, VISIBLE);
-        SPR_setDepth(p->head, (s16)-(d->lane));
+        SPR_setDepth(p->head, (s16)-lane);
         for (u16 k = 0; k < PIL_SEGS; k++) {
             s16 y = (s16)(hy - 32 * (k + 1));
             Sprite* s = p->seg[k];
@@ -343,9 +365,9 @@ void thPillarsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             if (y <= -32) { SPR_setVisibility(s, HIDDEN); continue; }
             SPR_setPosition(s, (s16)(sx - 8), y);
             SPR_setVisibility(s, VISIBLE);
-            SPR_setDepth(s, (s16)-(d->lane));
+            SPR_setDepth(s, (s16)-lane);
         }
-        SPR_setPosition(p->sh, (s16)(sx - PIL_HALF_W), (s16)(d->lane - 6 - camY));
+        SPR_setPosition(p->sh, (s16)(sx - PIL_HALF_W), (s16)(lane - 6 - camY));
         SPR_setVisibility(p->sh, VISIBLE);
         SPR_setDepth(p->sh, SPR_MAX_DEPTH);
     }

@@ -14,5 +14,13 @@ extern const SpriteDefinition snow_flake_spr;
 extern const SpriteDefinition snow_oneway;
 extern const SpriteDefinition snow_trator_l;
 extern const SpriteDefinition snow_trator_r;
+extern const SpriteDefinition snow_trash;
+extern const SpriteDefinition snow_hole;
+extern const SpriteDefinition snow_lid;
+extern const SpriteDefinition snow_tora;
+extern const SpriteDefinition snow_iceball;
+extern const SpriteDefinition snow_iceshadow;
+extern const SpriteDefinition snow_disco;
+extern const SpriteDefinition snow_disco_sh;
 
 #endif // _RES_LEVEL_SNOW_H_

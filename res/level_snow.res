@@ -43,3 +43,14 @@ SPRITE  snow_flake_spr "images/lvl_central_park/snow_flake_spr.png" 1 1 NONE 0
 SPRITE  snow_oneway    "images/lvl_central_park/snow_oneway.png"    7 12 FAST 0
 SPRITE  snow_trator_l  "images/lvl_central_park/snow_trator_l.png"  16 14 FAST 0 NONE TILE MEDIUM
 SPRITE  snow_trator_r  "images/lvl_central_park/snow_trator_r.png"  16 14 FAST 0 NONE TILE MEDIUM
+// (23/10) Utileria nueva ("tampa bueiro_lixeira.png", tools/gen_snow_props.py),
+// en la paleta del nivel (PAL0):
+//   snow_trash  48x56  el TACHO de basura: un golpe lo hace salir volando
+//                      (como los conos del garage)
+//   snow_hole   40x24  la boca de alcantarilla abierta \ tiles fijos cargados a
+//   snow_lid    32x24  la tapa cerrada                 / mano (extraTiles)
+SPRITE  snow_trash "images/lvl_central_park/snow_trash.png" 6 7 FAST 0
+SPRITE  snow_hole  "images/lvl_central_park/snow_hole.png"  5 3 NONE 0
+SPRITE  snow_lid   "images/lvl_central_park/snow_lid.png"   4 3 NONE 0
+// (23/10) El jefe TORA, sus esferas y el disco: en level_snow_far.res (FAR,
+// rama mapper): solo los carga el motor de sprites.
