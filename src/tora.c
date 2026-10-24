@@ -55,7 +55,7 @@ void toraLoadPal(void) {
 #define ICE_FALL_V0Q   32      // Q4: 2 px/f al empezar a caer
 #define ICE_FALL_GQ     4      // Q4: +0,25 px/f por frame
 #define ICE_HELD_VQ    96      // Q4: 6 px/f cayendo a las manos
-#define ICE_ARC_H      40      // panza del arco
+#define ICE_ARC_H      10      // panza del arco (23/10: 40 -> 10, no se mete en el HUD)
 #define ICE_BRK1        6
 #define ICE_BRK2       14
 
@@ -247,11 +247,16 @@ void toraIceUpdate(Player** pls, u8 nPl, s16 camX) {
             }
         }
         if (ice[i].s) {
+            // (23/10) Nunca en las filas del HUD: el HUD tiene sprites (los
+            // recuadros) y con los 6 de la esfera en las mismas lineas se pasa
+            // el limite de sprites por linea y el HUD se rompe. La que cae del
+            // cielo aparece recien debajo del HUD.
+            s16 z = (s16)(ice[i].zq >> 4);
+            s16 top = (s16)(ice[i].lane - z - ICE_CELL_CY - stageCamY);
+            if (top < TORA_HUD_BOTTOM) ball = FALSE;
             SPR_setVisibility(ice[i].s, ball ? VISIBLE : HIDDEN);
             if (ball) {
-                s16 z = (s16)(ice[i].zq >> 4);
-                SPR_setPosition(ice[i].s, (s16)(sx - ICE_CELL_CX),
-                                (s16)(ice[i].lane - z - ICE_CELL_CY - stageCamY));
+                SPR_setPosition(ice[i].s, (s16)(sx - ICE_CELL_CX), top);
                 SPR_setDepth(ice[i].s, (s16)(-ice[i].lane - 2));
             }
         }
@@ -470,7 +475,10 @@ void toraUpdate(Tora* t, Player** pls, u8 nPl, s16 camX) {
 
     case TORA_DASH: {
         s16 d = (s16)(t->dashTo - x);
-        if (tabs(d) <= TORA_DASH_PX) {
+        // (23/10) Tambien baja hacia adelante: con la esfera en las manos
+        // tiene que quedar debajo del HUD (TORA_CATCH_LANE).
+        if (y < TORA_CATCH_LANE) t->yq += 2 * 4;
+        if (tabs(d) <= TORA_DASH_PX && y >= TORA_CATCH_LANE - 2) {
             t->xq = (s16)(t->dashTo * 4);
             t->dir = (dX >= 0) ? 1 : -1;
             toraEnter(t, TORA_CATCH);
@@ -479,7 +487,8 @@ void toraUpdate(Tora* t, Player** pls, u8 nPl, s16 camX) {
             if (t->ball < 0) { toraNextDash(t); t->anim = 0xFF; toraEnter(t, TORA_CHASE); }
         } else {
             toraWalk(t, TORA_DASH_TICKS);
-            t->xq += (d > 0) ? TORA_DASH_PX * 4 : -TORA_DASH_PX * 4;
+            if (tabs(d) > TORA_DASH_PX) t->xq += (d > 0) ? TORA_DASH_PX * 4 : -TORA_DASH_PX * 4;
+            else t->xq = (s16)(t->dashTo * 4);
         }
         break;
     }

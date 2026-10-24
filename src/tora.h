@@ -80,6 +80,8 @@
 #define TORA_DASH_EVERY    200
 #define TORA_DASH_RND       90
 #define TORA_EDGE_IN        28     // se para a esto del borde de la arena
+#define TORA_CATCH_LANE    194     // (23/10) atrapa adelante: la esfera en alto queda debajo del HUD
+#define TORA_HUD_BOTTOM     32     // filas 0-3: el HUD
 #define TORA_HOLD_Z        122     // centro de la esfera sobre los pies (en las manos)
 #define TORA_HOLD_DX         3
 #define TORA_HOLD_T         20     // con la esfera arriba antes de lanzarla
