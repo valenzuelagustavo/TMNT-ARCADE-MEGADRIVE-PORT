@@ -109,6 +109,25 @@ def tora():
     save(grid, src.getpalette()[:48], 'snow_tora.png')
 
 
+def soft_shadow(W, H, rx, ry):
+    sh = np.zeros((H, W), np.uint8)
+    cx, cy = (W - 1) / 2.0, (H - 1) / 2.0
+    for y in range(H):
+        for x in range(W):
+            d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+            if d < 0.45:
+                sh[y, x] = 2
+            elif d < 0.72:
+                sh[y, x] = 3 if (d > 0.6 and (x + y) & 1) else 2 if d < 0.6 else 3
+            elif d < 0.92:
+                sh[y, x] = 4 if (d > 0.84 and (x + y) & 1) else 3
+            elif d < 1.0:
+                sh[y, x] = 4
+            elif d < 1.15 and (x + y) & 1:
+                sh[y, x] = 4
+    return sh
+
+
 def iceball():
     src = Image.open(os.path.join(D, 'ice_ball.png'))
     a = np.array(src)
@@ -121,11 +140,11 @@ def iceball():
         h, w = part.shape
         paste(grid[:, c * CW:(c + 1) * CW], part, (CW - w) // 2, (CH - h) // 2)
     save(grid, src.getpalette()[:48], 'snow_iceball.png')
-    x0, x1, y0, y1 = fr[3]
-    part = a[y0:y1, x0:x1]
-    sh = np.zeros((24, 56), np.uint8)
-    paste(sh, part, (56 - part.shape[1]) // 2, (24 - part.shape[0]) // 2)
-    save(sh, src.getpalette()[:48], 'snow_iceshadow.png')
+    # (23/10) La sombra del arte (fr[3]) esta escalada x3 y tiene bordes en
+    # escalon: se dibuja una elipse suave del mismo tamano, con degrade de
+    # grises de la paleta (2 oscuro, 3 medio, 4 claro) y el ultimo anillo
+    # tramado contra lo transparente (no hay transparencia parcial).
+    save(soft_shadow(56, 24, 27.5, 9.0), src.getpalette()[:48], 'snow_iceshadow.png')
 
 
 def disco():
