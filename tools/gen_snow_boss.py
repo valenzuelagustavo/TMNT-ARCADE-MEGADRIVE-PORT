@@ -109,22 +109,23 @@ def tora():
     save(grid, src.getpalette()[:48], 'snow_tora.png')
 
 
-def soft_shadow(W, H, rx, ry):
+def soft_shadow(W, H, rx, ry, ink=(2, 3, 4)):
+    k0, k1, k2 = ink            # oscuro, medio, claro
     sh = np.zeros((H, W), np.uint8)
     cx, cy = (W - 1) / 2.0, (H - 1) / 2.0
     for y in range(H):
         for x in range(W):
             d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
             if d < 0.45:
-                sh[y, x] = 2
+                sh[y, x] = k0
             elif d < 0.72:
-                sh[y, x] = 3 if (d > 0.6 and (x + y) & 1) else 2 if d < 0.6 else 3
+                sh[y, x] = k1 if (d > 0.6 and (x + y) & 1) else k0 if d < 0.6 else k1
             elif d < 0.92:
-                sh[y, x] = 4 if (d > 0.84 and (x + y) & 1) else 3
+                sh[y, x] = k2 if (d > 0.84 and (x + y) & 1) else k1
             elif d < 1.0:
-                sh[y, x] = 4
+                sh[y, x] = k2
             elif d < 1.15 and (x + y) & 1:
-                sh[y, x] = 4
+                sh[y, x] = k2
     return sh
 
 
@@ -148,21 +149,31 @@ def iceball():
 
 
 def disco():
+    # (23/10) El disco va en PAL0 (la del fondo, pal_snow), no en la del jefe:
+    # con PAL3 parpadeaba junto con Tora cuando le queda poca vida. Sus
+    # colores (grises, blanco y celeste) se pasan al color mas cercano de
+    # pal_snow (bg_snow_md.png).
     src = Image.open(os.path.join(D, 'DISCO.png'))
     a = np.array(src)
     rows = segment(a, y_from=12)       # la fila 0-8 es la muestra de colores
     assert [len(r) for r in rows] == [3, 3], [len(r) for r in rows]
+    bgp = Image.open(os.path.join(D, 'bg_snow_md.png')).getpalette()[:48]
+    sp = src.getpalette()[:48]
+    def near(i):
+        if i == 0:
+            return 0
+        c = sp[i * 3:i * 3 + 3]
+        return min(range(1, 16), key=lambda k: sum((c[j] - bgp[k * 3 + j]) ** 2 for j in range(3)))
+    lut = np.array([near(i) for i in range(256 if a.max() > 15 else 16)], np.uint8)
     grid = np.zeros((64, 64 * 3), np.uint8)
     for c, (x0, x1, y0, y1) in enumerate(rows[0]):
-        part = a[y0:y1, x0:x1]
+        part = lut[a[y0:y1, x0:x1]]
         h, w = part.shape
         paste(grid[:, c * 64:(c + 1) * 64], part, (64 - w) // 2, 64 - h)
-    save(grid, src.getpalette()[:48], 'snow_disco.png')
-    x0, x1, y0, y1 = rows[1][0]
-    part = a[y0:y1, x0:x1]
-    sh = np.zeros((16, 56), np.uint8)
-    paste(sh, part, (56 - part.shape[1]) // 2, 16 - part.shape[0])
-    save(sh, src.getpalette()[:48], 'snow_disco_sh.png')
+    save(grid, bgp, 'snow_disco.png')
+    # Sombra: la misma elipse suave que la de las esferas (grises 46/91/163 de
+    # pal_snow = indices 3, 4, 5).
+    save(soft_shadow(56, 16, 26.5, 6.5, ink=(3, 4, 5)), bgp, 'snow_disco_sh.png')
 
 
 if __name__ == '__main__':

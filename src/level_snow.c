@@ -662,8 +662,9 @@ static void rainUpdate(Player** pls, u8 nPl, s16 camX) {
 
 // ---------------------------------------------------------------------------
 // (23/10) EL DISCO: la esfera que flota a media altura al final del nivel
-// (snow_disco, 3 cuadros, con su sombra en el piso). Decorado; PAL3 con la
-// paleta del jefe. Aparece cuando entra en camara (el tractor ya paso).
+// (snow_disco, 3 cuadros, con su sombra en el piso). Decorado; (23/10) en
+// PAL0, la del fondo, para no parpadear con el jefe. Aparece cuando entra en
+// camara.
 // ---------------------------------------------------------------------------
 #define DISCO_X        (LVLSNOW_W - 104)   // centro (mundo)
 #define DISCO_LANE      150                // donde esta la sombra
@@ -682,9 +683,10 @@ static void discoUpdate(s16 camX) {
     if (!disco.s) {
         if (sx > SCREEN_W + 40 || trac.on) return;
         if (!sprVramFits((u16)(snow_disco.maxNumTile + snow_disco_sh.maxNumTile))) return;
-        toraLoadPal();
-        disco.s  = SPR_addSprite(&snow_disco, -128, -128, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
-        disco.sh = SPR_addSprite(&snow_disco_sh, -128, -128, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        // (23/10) En PAL0 (pal_snow; gen_snow_boss.py lo remapea): con la
+        // paleta del jefe parpadeaba junto con Tora cuando le queda poca vida.
+        disco.s  = SPR_addSprite(&snow_disco, -128, -128, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        disco.sh = SPR_addSprite(&snow_disco_sh, -128, -128, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
         if (!disco.s) { discoRelease(); return; }
         SPR_setAutoAnimation(disco.s, FALSE);
         SPR_setDepth(disco.s, -DISCO_LANE);
