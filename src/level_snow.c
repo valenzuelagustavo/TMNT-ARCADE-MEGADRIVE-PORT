@@ -80,19 +80,26 @@ static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 // Las oleadas de soldiers quedan entre medio (cada una lejos de la anterior:
 // mientras dura una, la siguiente no se puede disparar).
 #define SP_TRACTOR  (STAGE_SPECIAL | 1)
+// (24/10) La LLUVIA DE ESFERAS tambien es una oleada propia (SP_RAIN): la
+// camara queda clavada en lockX mientras caen y se suelta al terminar.
+#define SP_RAIN     (STAGE_SPECIAL | 2)
 #define P  ENEMY_TYPE_FOOT_SOLDIER
 #define TR SP_TRACTOR
+#define RN SP_RAIN
 static const StageWave wavesSnow[] = {
     {  450,  270, 2, { P, P },             { +1, -1 },                 { 0 } },
     { 1000,  850, 1, { TR },               { +1 },                     { 0 } },
     { 1420, 1240, 3, { P, P, P },          { +1, +1, -1 },             { 0 } },
+    { 1640, 1480, 1, { RN },               { +1 },                     { 0 } },   // (24/10) lluvia
     { 1880, 1700, 4, { P, P, P, P },       { +1, -1, +1, -1 },         { 0 } },
     { 2290, 2140, 1, { TR },               { +1 },                     { 0 } },
+    { 2480, 2330, 1, { RN },               { +1 },                     { 0 } },   // (24/10) lluvia
     { 2700, 2520, 5, { P, P, P, P, P },    { +1, +1, -1, +1, -1 },     { 0 } },
     { 3060, 2880, 4, { P, P, P, P },       { +1, -1, +1, -1 },         { 0 } },   // (24/10) 6 -> 4
 };
 #undef P
 #undef TR
+#undef RN
 
 static const SbgRaw snowBg = {
     (const u32*) bg_snow_tiles,
@@ -374,14 +381,18 @@ static void tracUpdate(Player** pls, u8 nPl, s16 camX) {
     }
 }
 
+static bool rainStart(void);       // (24/10) mas abajo
+static bool rainActive(void);
+
 static bool lvlSnowSpecial(u8 type, s8 side, s16 x, s16 camX) {
     (void)side; (void)x;
     // (23/10) Nunca junto con la lluvia de esferas (las dos usan PAL3).
     if (type == SP_TRACTOR) return (toraIceAlive() == 0) && tracStart(camX);
+    if (type == SP_RAIN)    return rainStart();
     return TRUE;
 }
 
-static u16 lvlSnowSpecialAlive(void) { return trac.on ? 1 : 0; }
+static u16 lvlSnowSpecialAlive(void) { return (u16)((trac.on ? 1 : 0) + (rainActive() ? 1 : 0)); }
 
 // No entro en la VRAM (2 jugadores): se saltea y vuelven los copos.
 static void lvlSnowFallback(u8 type, s8 side, s16 x, s16 camX) {
@@ -399,7 +410,7 @@ static void lvlSnowFallback(u8 type, s8 side, s16 x, s16 camX) {
 // ("Duuuh, who put the light out"). La tapa cerrada (antes) y la boca
 // abierta (despues) son sprites con tiles fijos en los extraTiles del nivel.
 // ===========================================================================
-#define MH_N             4
+#define MH_N             2          // (24/10) 4 -> 2: sin las dos primeras (x 54 y 147)
 #define MH_HOLE_TILES   14          // snow_hole (rescomp)
 #define MH_LID_TILES    12          // snow_lid
 #define MH_HOLE_W       40
@@ -419,9 +430,7 @@ typedef struct { s16 x, y, trigX; s8 dir; } SnowHole;
 static const SnowHole holes[MH_N] = {
     //  x    y   trigX  dir
     { 314, 176,  200, -1 },
-    {  54, 182,  260, +1 },          // por la espalda
     { 423, 166,  330, -1 },
-    { 147, 165,  380, +1 },          // por la espalda
 };
 static u8      mhSt[MH_N];
 static Sprite* mhSpr[MH_N];
@@ -623,29 +632,30 @@ static void trashUpdate(Player** pls, u8 nPl, s16 camX) {
 }
 
 // ===========================================================================
-// (23/10) LLUVIA DE ESFERAS DE HIELO: en dos tramos (camara pasando rainAt)
-// caen RAIN_N esferas, de a RAIN_MAX a la vez, cerca de una tortuga al azar;
-// la sombra avisa donde (tora.c). No clava la camara ni frena oleadas, pero
-// no arranca con el tractor en pantalla (y el tractor la espera): PAL3.
+// (23/10) LLUVIA DE ESFERAS DE HIELO: en dos tramos caen RAIN_N esferas, de
+// a RAIN_MAX a la vez, cerca de una tortuga al azar; la sombra avisa donde
+// (tora.c). (24/10) Es una oleada (SP_RAIN): la camara queda clavada hasta que
+// cae y se rompe la ultima. No arranca con el tractor en pantalla: PAL3.
 // ===========================================================================
-#define RAIN_ZONES      2
 #define RAIN_N          8
 #define RAIN_MAX        2
 #define RAIN_GAP       30      // + random(RAIN_GAP_RND) entre una y otra
 #define RAIN_GAP_RND   30
 #define RAIN_SPREAD    30      // +- px alrededor de la tortuga
-static const s16 rainAt[RAIN_ZONES] = { 1480, 2540 };
-static u8  rainZone, rainLeft, rainCd;
+static u8  rainLeft, rainCd;
+
+static bool rainStart(void) {
+    if (trac.on) return FALSE;                 // se reintenta
+    rainLeft = RAIN_N;
+    rainCd = 20;
+    toraLoadPal();
+    return TRUE;
+}
+
+static bool rainActive(void) { return rainLeft > 0 || toraIceAlive() > 0; }
 
 static void rainUpdate(Player** pls, u8 nPl, s16 camX) {
-    if (rainLeft == 0) {
-        if (rainZone >= RAIN_ZONES || camX < rainAt[rainZone] || trac.on) return;
-        rainZone++;
-        rainLeft = RAIN_N;
-        rainCd = 20;
-        toraLoadPal();
-        return;
-    }
+    if (rainLeft == 0) return;
     if (rainCd) { rainCd--; return; }
     if (toraIceAlive() >= RAIN_MAX) return;
     u8 k = (u8)(random() % nPl), tries = nPl;
@@ -738,9 +748,9 @@ static void bossStartSnow(s16 camX, s16 levelW) {
 #define END_LANE        (DISCO_LANE + 6)   // delante del disco
 #define END_RUN_DX       78      // desde donde salta (centro, del lado de la tortuga)
 #define END_LAND_DX      18      // donde cae (pasando por el disco)
-#define END_KICK_T       40      // frames del salto
-#define END_KICK_PEAK    52
-#define END_HIT_T        22      // frame del salto en que la patada llega
+#define END_KICK_T       44      // frames del salto (24/10: 40 -> 44)
+#define END_KICK_PEAK    66      // (24/10) 52 -> 66: patea ya arriba
+#define END_HIT_T        26      // frame del salto en que la patada llega (24/10: 22 -> 26)
 #define END_BOOM_T      110      // duracion de las explosiones
 #define END_HOLD_T       50      // y despues, un momento quieto
 #define END_SMALL_N       4
@@ -1027,7 +1037,7 @@ static void lvlSnowInit(void) {
     mhInit();                       // (23/10) alcantarillas
     trash.s = NULL; trash.x = TRASH_X; trash.st = TR_IDLE;
     toraIceInit();                  // (23/10) lluvia de esferas, disco
-    rainZone = rainLeft = rainCd = 0;
+    rainLeft = rainCd = 0;
     disco.s = disco.sh = NULL;
     disco.gone = FALSE;
 }

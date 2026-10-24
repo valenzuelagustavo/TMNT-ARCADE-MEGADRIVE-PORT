@@ -1023,8 +1023,8 @@ bool playerManholeGone(const Player* p);
 
 // (23/10) PATADA VOLADORA GUIONADA (final de Central Park: la tortuga patea
 // el disco). Como playerExitJumpStart / Step (arco de 'frames' con 'peak' px
-// de alto hasta (tx = X del frame, ty = lane)), pero desde el primer cuarto
-// del arco con las poses de la patada voladora (ANIM_JUMP_KICK_DIR; las
+// de alto hasta (tx = X del frame, ty = lane)), pero (24/10) desde el 45%
+// del arco (casi en lo mas alto) con las poses de la patada voladora (ANIM_JUMP_KICK_DIR; las
 // hojas viejas, ANIM_JUMP_KICK). Step devuelve TRUE el frame en que aterriza.
 void playerCutsceneKickStart(Player* p, s16 tx, s16 ty, u16 frames, s16 peak);
 bool playerCutsceneKickStep(Player* p);

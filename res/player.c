@@ -2689,7 +2689,7 @@ bool playerCutsceneKickStep(Player* p) {
     p->y = (s16)(p->exY0 + ((s32)(p->exTY - p->exY0) * t) / n);
     p->jumpZ  = (s16)((4 * (s32)p->mhOutX * t * (n - t)) / (n * n));
     p->jumpZq = (s32)p->jumpZ << PLAYER_JUMP_Q;
-    s32 k0 = n / 4;
+    s32 k0 = (n * 9) / 20;     // (24/10) n/4 -> 45%: sube casi hasta arriba y recien ahi patea
     if (t < k0) {
         SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 1);
     } else {
