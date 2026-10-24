@@ -373,6 +373,10 @@ static void toraKill(Tora* t) {
     PAL_setPalette(PAL3, toraPal, DMA);
     toraManual(t, TORA_ANIM_DEATH, 0);
     XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    // (24/10) El grito al caer, el mismo de Rocksteady. En CH2 (como el de
+    // Bebop) para que el golpe de CH3 no lo corte.
+    XGM2_playPCMEx(boss_scream_rocksteady_vo, sizeof(boss_scream_rocksteady_vo),
+                   SOUND_PCM_CH2, 15, FALSE, FALSE);
 }
 
 bool toraPlayerHits(Tora* t, Player** pls, u8 nPl, s8* killer) {

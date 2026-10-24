@@ -132,6 +132,10 @@ WAV scream_april "audio/scream_april.wav" XGM2
 WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
 // WAV attack_turtles "audio/attack_turtles.wav" XGM2
 WAV hit_turtles "audio/hit_turtles.wav" XGM2
+// (24/10) boss_hit sonaba muy bajo (pico 21,9%, rms 5,5%): ganancia x4,58
+// hasta rms 25% con la rodilla suave tanh desde el 80% (toca el 0,3%).
+//   boss_hit                0,167s  pico 94,1%  rms 25,0%
+// El original queda como boss_hit_orig.wav.
 WAV boss_hit "audio/boss_hit.wav" XGM2
 // (01/10) Embestida de Rocksteady: el sonido de la CORRIDA hacia el logo de SEGA
 // (musica_intro.vgm, no el golpe: es un tema XGM2 de FM y no se puede tocar
