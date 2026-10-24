@@ -313,3 +313,13 @@ WAV car_highway_sfx         "audio/gen/car_highway.wav" XGM2
 // 42 x 256 muestras exactas (sin relleno de silencio en el loop). 10,5 KB en
 // vez de 53,5 KB.
 WAV elevator_tecnodrome_sfx "audio/gen/elevator_tecnodrome_loop.wav" XGM2 6650
+
+// --- Tora, el jefe de Central Park (24/10) ----------------------------------
+// "Time to put you on ice!" cuando entra a escena (con su globo). Llego MONO
+// 8-bit 8000 Hz de 1,32 s (pico 73,4%, rms 10,3%). Convencion de la casa:
+// puntas recortadas (10 ms antes / 20 ms despues de la voz), a 11025 Hz y
+// ganancia x2,09 hasta rms 22% con la rodilla suave tanh desde el 80% (toca
+// el 0,8%). Medido despues de convertir:
+//   tora                    1,144s  pico 96,9%  rms 22,0%  12.613 B
+// El original queda como tora_orig.wav.
+WAV tora_vo "audio/tora.wav" XGM2

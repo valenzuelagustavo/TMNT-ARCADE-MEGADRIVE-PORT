@@ -23,3 +23,6 @@ SPRITE  snow_iceball   "images/lvl_central_park/snow_iceball.png"   10 9  FAST 0
 SPRITE  snow_iceshadow "images/lvl_central_park/snow_iceshadow.png" 7 3   FAST 0
 SPRITE  snow_disco     "images/lvl_central_park/snow_disco.png"     8 8   FAST 0
 SPRITE  snow_disco_sh  "images/lvl_central_park/snow_disco_sh.png"  7 2   FAST 0
+// (24/10) El globo de Tora al entrar: "Time to put you on ice!" (96x32, PAL1
+// como todos los globos). Armado por tools/gen_globos.py (COMPUESTOS).
+SPRITE  tora_ice_bubble "sprites/tora_ice_baloon.png" 12 4 FAST 0

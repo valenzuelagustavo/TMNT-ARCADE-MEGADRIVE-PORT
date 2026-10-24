@@ -4,6 +4,7 @@
 #include "boss_flash.h"
 #include "stage_level.h"
 #include "enemy.h"         // sprVramFits
+#include "boss_vo.h"       // (24/10) bossVoActive: se queda quieto mientras habla
 
 // ===========================================================================
 // TORA + ESFERAS DE HIELO — ver tora.h (23/10)
@@ -330,10 +331,16 @@ void toraSpawn(Tora* t, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot,
 }
 
 bool toraIsGone(const Tora* t)  { return t->state == TORA_GONE; }
+bool toraJustArrived(const Tora* t) { return t->arrived; }
+
+static void toraSayRelease(Tora* t) {
+    if (t->say) { SPR_releaseSprite(t->say); t->say = NULL; }
+}
 bool toraIsDying(const Tora* t) { return t->state == TORA_DEATH || t->state == TORA_GONE; }
 
 static bool toraCanBeHit(const Tora* t) {
     return t->sprite && t->state != TORA_INACTIVE && t->state != TORA_ENTER &&
+           t->state != TORA_TAUNT &&
            t->state != TORA_DEATH && t->state != TORA_GONE;
 }
 
@@ -359,6 +366,7 @@ static void toraStartDash(Tora* t, s16 px) {
 
 static void toraKill(Tora* t) {
     t->hp = 0;
+    toraSayRelease(t);
     toraDropBall(t);
     toraEnter(t, TORA_DEATH);
     t->blinks = 0;
@@ -421,6 +429,7 @@ void toraUpdate(Tora* t, Player** pls, u8 nPl, s16 camX) {
     bool gameOn = !isPlayerGameOver(tgt);
 
     t->timer++;
+    t->arrived = FALSE;
     if (t->flash)   t->flash--;
     if (t->invuln)  t->invuln--;
     if (t->punchCd) t->punchCd--;
@@ -433,7 +442,33 @@ void toraUpdate(Tora* t, Player** pls, u8 nPl, s16 camX) {
         toraWalk(t, TORA_WALK_TICKS);
         t->dir = -1;
         t->xq -= 6;                                   // 1,5 px/f
-        if ((t->xq >> 2) <= t->arenaRight - TORA_ENTER_DX) toraEnter(t, TORA_CHASE);
+        if ((t->xq >> 2) <= t->arenaRight - TORA_ENTER_DX) {
+            // (24/10) Llego: se para y habla, con su globo.
+            toraEnter(t, TORA_TAUNT);
+            t->arrived = TRUE;
+            toraManual(t, TORA_ANIM_WALK, 0);
+            if (!t->say)
+                t->say = SPR_addSprite(&tora_ice_bubble, -128, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+            if (t->say) SPR_setDepth(t->say, SPR_MIN_DEPTH);
+        }
+        break;
+
+    case TORA_TAUNT:
+        t->dir = (dX >= 0) ? 1 : -1;
+        if (t->say) {
+            s16 bx = tclamp((s16)(x - camX - TORA_SAY_TAIL_X), 4, (s16)(320 - TORA_SAY_W - 4));
+            s16 by = (s16)(y - TORA_SAY_DY - TORA_SAY_H - stageCamY);
+            if (by < TORA_SAY_TOP_MIN) by = TORA_SAY_TOP_MIN;
+            SPR_setPosition(t->say, bx, by);
+        }
+        // timer > 1: la voz arranca en este mismo frame (el nivel la ve en
+        // toraJustArrived despues de toraUpdate).
+        if ((t->timer > 1 && t->timer >= TORA_TAUNT_MIN && !bossVoActive()) ||
+            t->timer >= TORA_TAUNT_MAX) {
+            toraSayRelease(t);
+            t->anim = 0xFF;
+            toraEnter(t, TORA_CHASE);
+        }
         break;
 
     case TORA_CHASE: {
@@ -560,6 +595,7 @@ void toraUpdate(Tora* t, Player** pls, u8 nPl, s16 camX) {
 
 void toraRelease(Tora* t) {
     if (t->sprite) { SPR_releaseSprite(t->sprite); t->sprite = NULL; }
+    toraSayRelease(t);
     t->state = TORA_INACTIVE;
     t->ball = -1;
     toraIceReleaseAll();

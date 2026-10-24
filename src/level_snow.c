@@ -50,6 +50,7 @@
 #include "tora.h"              // (23/10) el jefe y las esferas de hielo
 #include "level_snow_far.h"    // (23/10, mapper) snow_disco, snow_disco_sh
 #include "baxter_res.h"         // (23/10) baxter_boom / rat_boom: el disco explota
+#include "boss_vo.h"            // (24/10) la voz de Tora antes del tema
 
 #define SCREEN_W              320
 static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
@@ -971,6 +972,9 @@ static bool endUpdate(Player** pls, u8 nPl, s16 camX) {
 
 static bool bossUpdateSnow(Player** pls, u8 nPl, s16 camX) {
     toraUpdate(&tora, pls, nPl, camX);
+    // (24/10) "Time to put you on ice!" al llegar; el tema entra despues.
+    if (toraJustArrived(&tora))
+        bossVoStart(tora_vo, sizeof(tora_vo), music_boss, 80);
     s8 killer = -1;
     if (toraPlayerHits(&tora, pls, nPl, &killer) && killer >= 0)
         addPlayerScore(pls[(u8)killer], 5);
@@ -1057,6 +1061,7 @@ static const StageLevel levelSnow = {
     .bossFeetX    = LVLSNOW_END_FEET_X,
     .bossMusic    = music_boss,     // (23/10) TORA
     .bossMusicVol = 80,
+    .bossMusicByVo = TRUE,          // (24/10) primero la voz de Tora
     .bossInit     = bossInitSnow,
     .bossStart    = bossStartSnow,
     .bossUpdate   = bossUpdateSnow,

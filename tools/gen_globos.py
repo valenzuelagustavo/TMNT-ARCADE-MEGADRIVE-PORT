@@ -35,6 +35,36 @@ GLOBOS = [
     ("im_invincible", 224, 88, 64, 32),   # (23/10) Krang (9-1): al caer y al escaparse la cabeza
 ]
 
+# (24/10) Globos ARMADOS: el arcade no tiene la frase. Se usa un globo de la
+# hoja como plantilla (se le borra el texto) y se escribe con letras
+# recortadas de otros globos de la misma hoja (la fuente del arcade: x-height
+# 5, mayusculas 7, descendentes 2; 1 px entre letras, 3 de espacio).
+# GLYPHS: letra -> (x0, top, x1) en la hoja: columnas x0..x1 y 9 filas desde
+# 'top' (la fila de arriba de las mayusculas de esa linea).
+GLYPHS = {
+    "T": (154, 94, 158),     # "Tonight I dine"
+    "i": (169, 94, 169),
+    "e": (205, 94, 208),
+    "o": (155, 104, 158),    # "on turtle soup"
+    "n": (160, 104, 163),
+    "t": (166, 104, 169),
+    "u": (171, 104, 174),
+    "p": (209, 104, 212),
+    "m": (234, 100, 238),    # "I'm invincible!"
+    "c": (262, 100, 265),
+    "!": (282, 100, 282),
+    "y": (395, 140, 399),    # "I owe you one"
+}
+SPACE_W = 3
+# (nombre, plantilla (x, y, w, h), [(texto, x, top, alineacion)])
+#   alineacion "l": x = columna de la primera letra; "r": x = la ultima.
+COMPUESTOS = [
+    # (24/10) Tora (Central Park) al entrar: "Time to put you on ice!".
+    # Plantilla: "They aint getting any prettier!" (96x32, punta en x ~71).
+    ("tora_ice", (224, 208, 96, 32),
+     [("Time to put you", 5, 6, "l"), ("on ice!", 90, 16, "r")]),
+]
+
 COLMAP = {
     (123, 123, 214): 11,   # relleno
     (82, 231, 255): 9,     # borde
@@ -43,9 +73,55 @@ COLMAP = {
 }
 
 
+def text_w(txt):
+    w = 0
+    for ch in txt:
+        w += SPACE_W if ch == " " else (GLYPHS[ch][2] - GLYPHS[ch][0] + 1)
+        w += 1
+    return w - 1
+
+
+def compose(a, tpl, lines):
+    x, y, w, h = tpl
+    cell = a[y:y + h, x:x + w].copy()
+    fill = np.array((123, 123, 214), np.uint8)
+    for c in ((255, 239, 0), (189, 173, 49)):          # sin el texto de la plantilla
+        cell[(cell == c).all(-1)] = fill
+    for txt, lx, top, al in lines:
+        cx = lx if al == "l" else lx - text_w(txt) + 1
+        for ch in txt:
+            if ch == " ":
+                cx += SPACE_W + 1
+                continue
+            gx0, gtop, gx1 = GLYPHS[ch]
+            g = a[gtop:gtop + 9, gx0:gx1 + 1]
+            for yy in range(9):
+                for xx in range(gx1 - gx0 + 1):
+                    c = tuple(int(v) for v in g[yy, xx])
+                    if c in ((255, 239, 0), (189, 173, 49)):
+                        cell[top + yy, cx + xx] = c
+            cx += gx1 - gx0 + 2
+    return cell
+
+
+def save_cell(cell, name, pal):
+    h, w = cell.shape[:2]
+    out = np.zeros((h, w), np.uint8)
+    for yy in range(h):
+        for xx in range(w):
+            out[yy, xx] = COLMAP.get(tuple(int(v) for v in cell[yy, xx]), 0)
+    im = Image.fromarray(out, "P")
+    im.putpalette(pal)
+    p = os.path.join(SPR, name + "_baloon.png")
+    im.save(p, transparency=0)
+    print(os.path.basename(p), w, h)
+
+
 def main():
     a = np.asarray(Image.open(SHEET).convert("RGB"))
     pal = Image.open(PAL_REF).getpalette()
+    for name, tpl, lines in COMPUESTOS:
+        save_cell(compose(a, tpl, lines), name, pal)
     for name, x, y, w, h in GLOBOS:
         cell = a[y:y + h, x:x + w]
         out = np.zeros((h, w), np.uint8)

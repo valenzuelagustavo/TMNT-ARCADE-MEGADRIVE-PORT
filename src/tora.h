@@ -91,6 +91,16 @@
 #define TORA_THROW_AIR      44     // frames de vuelo
 #define TORA_BALL_DMG        2
 
+// (24/10) Al llegar se queda quieto y dice "Time to put you on ice!" (el
+// nivel arranca tora_vo con bossVoStart al ver toraJustArrived) con su globo
+// (tora_ice_bubble, 96x32, PAL1) sobre la cabeza. No recibe dano mientras.
+#define TORA_TAUNT_MIN      40     // minimo quieto (si no hay voz)
+#define TORA_TAUNT_MAX     150     // tope
+#define TORA_SAY_TAIL_X     71     // la punta del globo, en x del globo
+#define TORA_SAY_W          96
+#define TORA_SAY_H          32
+#define TORA_SAY_DY         92     // la boca, sobre los pies
+#define TORA_SAY_TOP_MIN    34     // debajo del HUD
 #define TORA_HURT_TICKS     12
 #define TORA_STREAK_MAX      4
 #define TORA_STREAK_RESET   50
@@ -109,7 +119,7 @@
 #define TORA_RAIN_DMG_ARCADE 3
 
 typedef enum {
-    TORA_INACTIVE, TORA_ENTER, TORA_CHASE, TORA_PUNCH, TORA_DASH,
+    TORA_INACTIVE, TORA_ENTER, TORA_TAUNT, TORA_CHASE, TORA_PUNCH, TORA_DASH,
     TORA_CATCH, TORA_THROW, TORA_HURT, TORA_DEATH, TORA_GONE
 } ToraState;
 
@@ -132,6 +142,8 @@ typedef struct {
     u8          streak, streakT;
     u8          punchCd;
     u8          blinks;
+    bool        arrived;      // (24/10) un frame: recien llego (la voz)
+    Sprite*     say;          // (24/10) el globo
     s8          ball;         // esfera que tiene en las manos (-1 ninguna)
     BossFlash   flashLow;
     s16         arenaLeft, arenaRight, laneTop, laneBot;
@@ -145,6 +157,8 @@ void toraSpawn(Tora* t, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot,
 void toraUpdate(Tora* t, Player** pls, u8 nPl, s16 camX);
 bool toraIsDying(const Tora* t);
 bool toraIsGone(const Tora* t);
+// (24/10) TRUE el frame en que termina de entrar (arranca la voz).
+bool toraJustArrived(const Tora* t);
 bool toraPlayerHits(Tora* t, Player** pls, u8 nPl, s8* killer);
 void toraRelease(Tora* t);
 
