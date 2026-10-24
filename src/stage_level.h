@@ -283,6 +283,10 @@ u16 stageExtraVram(void);
 void stageShake(u8 frames);
 // Soldiers vivos (estado != INACTIVE).
 u16 stageAliveEnemies(void);
+// (23/10) Jugadores guionados: con el bit k prendido stage_level NO llama a
+// updatePlayer para ese jugador (lo mueve el nivel con playerCutscene*) y no
+// corre el misil de quieto (ARCADE). Se pone en 0 al entrar a cada nivel.
+extern u8 stageScriptMask;
 // (12/10) Avance del fondo en los niveles con autoScrollQ (px).
 s16 stageProgress(void);
 

@@ -119,6 +119,7 @@ static void camYApply(bool now) {
 // del nivel que les pegan (conos y barriles del garage).
 static Enemy* stageEnemyList;
 Enemy* stageEnemies(void) { return stageEnemyList; }
+u8 stageScriptMask = 0;           // (23/10) ver stage_level.h
 static u16 stageMaxAliveV = 3;      // (12/10) el tope de vivos en curso
 
 // (21/10) Tope de vivos del nivel en curso (ver maxAlive1P/2P en stage_level.h).
@@ -882,6 +883,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     u16 maxAlive = aliveCap(dosJugadores);
     stageMaxAliveV = maxAlive;
 
+    stageScriptMask = 0;               // (23/10)
     if (L->bossInit) L->bossInit();
     if (L->levelInit) L->levelInit();
     bool bossStarted = FALSE;
@@ -962,6 +964,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             // (23/10) Cayendo por una alcantarilla (Central Park): la
             // secuencia corre sola, sin input (como en el 2-1).
             if (playerInManhole(pls[k])) { playerManholeStep(pls[k]); continue; }
+            if (stageScriptMask & (1 << k)) continue;     // (23/10) lo mueve el nivel
             s16 prevX = pls[k]->x, prevY = pls[k]->y;
             updatePlayer(pls[k]);
             clampWalk(&pls[k]->x, &pls[k]->y, prevX, prevY, FOOT_DX);
@@ -975,7 +978,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         }
         // (14/10) Modo ARCADE: quieto 7 s con la camara parada -> misil. En la
         // patineta no (la camara no se mueve nunca: corre el fondo).
-        if (!L->autoScrollQ) idleMissileUpdate(pls, nPl, cameraX, stageCamY);
+        if (!L->autoScrollQ && !stageScriptMask) idleMissileUpdate(pls, nPl, cameraX, stageCamY);
 
         // --- Camara: dead-zone a la derecha, nunca vuelve -------------------
         s16 leadX = p1.x;
@@ -1276,6 +1279,7 @@ SceneId stageLevelRun(const StageLevel* L) {
         XGM2_setLoopNumber(-1);
     }
 
+    stageScriptMask = 0;
     shurikenReleaseAll();
     boomerangReleaseAll();
     splashRelease();

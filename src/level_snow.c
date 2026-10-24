@@ -49,6 +49,7 @@
 #include "level1.h"            // light_out_bubble (el globo del pozo)
 #include "tora.h"              // (23/10) el jefe y las esferas de hielo
 #include "level_snow_far.h"    // (23/10, mapper) snow_disco, snow_disco_sh
+#include "baxter_res.h"         // (23/10) baxter_boom / rat_boom: el disco explota
 
 #define SCREEN_W              320
 static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
@@ -704,9 +705,12 @@ static void discoUpdate(s16 camX) {
 // (23/10) Jefe: TORA (tora.c). Arena = la ultima pantalla.
 // ---------------------------------------------------------------------------
 static Tora tora;
+static void endReset(void);
+static void endRelease(void);
 
 static void bossInitSnow(void) {
     toraInit(&tora);
+    endReset();             // (23/10) el final con el disco
 }
 
 static void bossStartSnow(s16 camX, s16 levelW) {
@@ -719,17 +723,264 @@ static void bossStartSnow(s16 camX, s16 levelW) {
               LVLSNOW_WALK_Y_MIN, LVLSNOW_WALK_Y_MAX, stageWalkTopAt);
 }
 
+// ---------------------------------------------------------------------------
+// (23/10) FINAL DEL NIVEL: con Tora derrotado, la tortuga en juego mas cerca
+// del disco camina hasta el (si quedo lejos), salta y le da una PATADA
+// VOLADORA; el disco estalla (explosiones chicas, rat_boom, y grandes,
+// baxter_boom, con la paleta de Baxter en PAL3, libre sin el jefe) y
+// desaparece. Despues, el "scene clear" de siempre.
+// Las tortugas van guionadas (stageScriptMask): las otras se quedan quietas.
+// ---------------------------------------------------------------------------
+#define END_SETTLE_MAX   90      // espera a que todas esten de pie (tope)
+#define END_LANE        (DISCO_LANE + 6)   // delante del disco
+#define END_RUN_DX       78      // desde donde salta (centro, del lado de la tortuga)
+#define END_LAND_DX      18      // donde cae (pasando por el disco)
+#define END_KICK_T       40      // frames del salto
+#define END_KICK_PEAK    52
+#define END_HIT_T        22      // frame del salto en que la patada llega
+#define END_BOOM_T      110      // duracion de las explosiones
+#define END_HOLD_T       50      // y despues, un momento quieto
+#define END_SMALL_N       4
+#define END_SMALL_FR      7      // rat_boom: 7 cuadros de 32x32
+#define END_SMALL_TK      4
+#define END_BIG_FR        8      // baxter_boom: 8 cuadros, cuartos de 64x64
+#define END_BIG_TK        5
+#define END_DISCO_CY     (DISCO_TOP + 34)  // centro del disco (pantalla)
+
+enum { END_OFF, END_SETTLE, END_WALK, END_KICK, END_BOOMS, END_HOLD, END_DONE };
+static u8  endSt;
+static u16 endT;
+static s8  endWho, endSide;
+
+// Explosion chica: un sprite. Grande: 4 cuartos (2 duenos + espejos, como
+// las de Traag) o 1 dueno + 3 espejos si no entra.
+static struct { Sprite* s; s16 x, y; u8 f, tk; } endSm[END_SMALL_N];
+static struct { Sprite* q[4]; u8 an[4]; s16 x, y; u8 f, tk; bool on; } endBig;
+
+static Sprite* endBigMaster(u16 anim) {
+    Sprite* s = SPR_addSpriteEx(&baxter_boom, -128, -128, TILE_ATTR(PAL3, FALSE, FALSE, FALSE),
+                                SPR_FLAG_AUTO_VISIBILITY | SPR_FLAG_AUTO_VRAM_ALLOC |
+                                SPR_FLAG_AUTO_TILE_UPLOAD | SPR_FLAG_DISABLE_DELAYED_FRAME_UPDATE);
+    if (s) { SPR_setAutoAnimation(s, FALSE); SPR_setAnimAndFrame(s, (s16)anim, 0); }
+    return s;
+}
+
+static Sprite* endBigMirror(const Sprite* m, u16 anim, bool hf, bool vf) {
+    if (!m) return NULL;
+    Sprite* s = SPR_addSpriteEx(&baxter_boom, -128, -128,
+                                TILE_ATTR_FULL(PAL3, FALSE, FALSE, FALSE, m->attribut & TILE_INDEX_MASK),
+                                SPR_FLAG_AUTO_VISIBILITY);
+    if (s) {
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, (s16)anim, 0);
+        SPR_setHFlip(s, hf);
+        SPR_setVFlip(s, vf);
+    }
+    return s;
+}
+
+static void endBigRelease(void) {
+    for (u16 q = 0; q < 4; q++) if (endBig.q[q]) { SPR_releaseSprite(endBig.q[q]); endBig.q[q] = NULL; }
+    if (endBig.on) sprDefragLock = 0;
+    endBig.on = FALSE;
+}
+
+static void endBigStart(s16 x, s16 y) {
+    endBigRelease();
+    // Nunca en las filas del HUD (limite de sprites por linea, ver tora.c).
+    if (y - 64 - stageCamY < 32) y = (s16)(96 + stageCamY);
+    Sprite** sp = endBig.q;
+    sprDefragLock = 1;
+    endBig.on = TRUE;
+    endBig.x = x; endBig.y = y; endBig.f = 0; endBig.tk = 0;
+    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 14, FALSE, FALSE);
+    stageShake(12);
+    const u16 T = baxter_boom.maxNumTile;
+    if (SPR_getFreeVRAM() >= 2 * T) {
+        sp[0] = endBigMaster(0);
+        sp[2] = endBigMaster(2);
+        if (sp[0] && sp[2]) {
+            sp[1] = endBigMirror(sp[0], 0, TRUE, FALSE);
+            sp[3] = endBigMirror(sp[2], 2, TRUE, FALSE);
+            endBig.an[0] = endBig.an[1] = 0;
+            endBig.an[2] = endBig.an[3] = 2;
+            return;
+        }
+        for (u16 q = 0; q < 4; q++) if (sp[q]) { SPR_releaseSprite(sp[q]); sp[q] = NULL; }
+    }
+    sp[0] = endBigMaster(0);
+    if (!sp[0]) return;
+    sp[1] = endBigMirror(sp[0], 0, TRUE,  FALSE);
+    sp[2] = endBigMirror(sp[0], 0, FALSE, TRUE);
+    sp[3] = endBigMirror(sp[0], 0, TRUE,  TRUE);
+    for (u16 q = 0; q < 4; q++) endBig.an[q] = 0;
+}
+
+static void endSmallStart(s16 x, s16 y) {
+    for (u16 i = 0; i < END_SMALL_N; i++) {
+        if (endSm[i].s) continue;
+        endSm[i].s = SPR_addSprite(&rat_boom, -64, -64, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        if (!endSm[i].s) return;
+        SPR_setAutoAnimation(endSm[i].s, FALSE);
+        SPR_setAnimAndFrame(endSm[i].s, 0, 0);
+        SPR_setDepth(endSm[i].s, -DISCO_LANE - 3);
+        endSm[i].x = x; endSm[i].y = y; endSm[i].f = 0; endSm[i].tk = 0;
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 11, FALSE, FALSE);
+        return;
+    }
+}
+
+static void endBoomsUpdate(s16 camX) {
+    for (u16 i = 0; i < END_SMALL_N; i++) {
+        if (!endSm[i].s) continue;
+        if (++endSm[i].tk >= END_SMALL_TK) {
+            endSm[i].tk = 0;
+            if (++endSm[i].f >= END_SMALL_FR) { SPR_releaseSprite(endSm[i].s); endSm[i].s = NULL; continue; }
+            SPR_setFrame(endSm[i].s, endSm[i].f);
+        }
+        SPR_setPosition(endSm[i].s, (s16)(endSm[i].x - camX - 16), (s16)(endSm[i].y - 16 - stageCamY));
+    }
+    if (endBig.on) {
+        if (++endBig.tk >= END_BIG_TK) {
+            endBig.tk = 0;
+            if (++endBig.f >= END_BIG_FR) { endBigRelease(); return; }
+            for (u16 q = 0; q < 4; q++)
+                if (endBig.q[q]) SPR_setAnimAndFrame(endBig.q[q], endBig.an[q], endBig.f);
+        }
+        s16 bx = (s16)(endBig.x - camX - 64), by = (s16)(endBig.y - 64 - stageCamY);
+        for (u16 q = 0; q < 4; q++) {
+            if (!endBig.q[q]) continue;
+            SPR_setPosition(endBig.q[q], (s16)(bx + (q & 1) * 64), (s16)(by + (q >> 1) * 64));
+            SPR_setDepth(endBig.q[q], -DISCO_LANE - 2);
+        }
+    }
+}
+
+static void endRelease(void) {
+    for (u16 i = 0; i < END_SMALL_N; i++)
+        if (endSm[i].s) { SPR_releaseSprite(endSm[i].s); endSm[i].s = NULL; }
+    endBigRelease();
+}
+
+static void endReset(void) {
+    endSt = END_OFF; endT = 0;
+    for (u16 i = 0; i < END_SMALL_N; i++) endSm[i].s = NULL;
+    for (u16 q = 0; q < 4; q++) endBig.q[q] = NULL;
+    endBig.on = FALSE;
+}
+
+// Explosiones sobre el disco: (frame desde la patada, dx, dy, grande)
+static const s8 endPlan[][4] = {
+    {  0,   0,   0, 0 }, {  6, -18, -14, 0 }, { 12,  16,  10, 0 },
+    { 18,   0,   0, 1 }, { 30, -20,  14, 0 }, { 38,  18, -16, 0 },
+    { 48,   6,  -4, 1 }, { 62, -12,   8, 0 }, { 70,  14,  16, 0 },
+};
+#define END_PLAN_N  (sizeof(endPlan) / sizeof(endPlan[0]))
+#define END_DISCO_GONE_T  20    // con la primera grande, el disco ya no esta
+
+static bool endSettled(Player* p) {
+    if (isPlayerGameOver(p) || !p->sprite) return TRUE;
+    return (p->state == STATE_IDLE || p->state == STATE_WALKING) && !isPlayerJumping(p);
+}
+
+// TRUE cuando termino todo.
+static bool endUpdate(Player** pls, u8 nPl, s16 camX) {
+    endT++;
+    switch (endSt) {
+    case END_OFF:
+        endSt = END_SETTLE; endT = 0;
+        endWho = -1;
+        for (u16 i = 0; i < END_SMALL_N; i++) endSm[i].s = NULL;
+        for (u16 q = 0; q < 4; q++) endBig.q[q] = NULL;
+        endBig.on = FALSE;
+        return FALSE;
+    case END_SETTLE: {
+        bool all = TRUE;
+        for (u8 k = 0; k < nPl; k++) if (!endSettled(pls[k])) all = FALSE;
+        if (!all && endT < END_SETTLE_MAX) return FALSE;
+        // La que patea: la en juego mas cerca del disco.
+        s16 best = 0x7FFF;
+        for (u8 k = 0; k < nPl; k++) {
+            if (isPlayerGameOver(pls[k]) || !pls[k]->sprite) continue;
+            s16 d = a16((s16)(getPlayerHurtCX(pls[k]) - DISCO_X));
+            if (d < best) { best = d; endWho = (s8)k; }
+        }
+        if (endWho < 0) return TRUE;                 // nadie (no deberia pasar)
+        stageScriptMask = 0x0F;
+        for (u8 k = 0; k < nPl; k++) {
+            pls[k]->state = STATE_IDLE;
+            pls[k]->jumpZ = 0; pls[k]->jumpZq = 0;
+        }
+        endSide = (getPlayerHurtCX(pls[(u8)endWho]) <= DISCO_X) ? -1 : 1;   // de que lado queda
+        if (!disco.s) endSide = -1;
+        PAL_setPalette(PAL3, baxter_boom.palette->data, DMA);
+        endSt = END_WALK; endT = 0;
+        return FALSE;
+    }
+    default: break;
+    }
+
+    Player* kp = pls[(u8)endWho];
+    for (u8 k = 0; k < nPl; k++) if (k != (u8)endWho) playerCutsceneStand(pls[k]);
+    endBoomsUpdate(camX);
+
+    switch (endSt) {
+    case END_WALK: {
+        s16 tx = (s16)(DISCO_X + endSide * END_RUN_DX - PLAYER_SPRITE_W / 2);
+        if (playerCutsceneWalkTo(kp, tx, END_LANE) || endT > 300) {
+            playerCutsceneKickStart(kp, (s16)(DISCO_X + endSide * END_LAND_DX - PLAYER_SPRITE_W / 2),
+                                    END_LANE, END_KICK_T, END_KICK_PEAK);
+            endSt = END_KICK; endT = 0;
+        }
+        break;
+    }
+    case END_KICK:
+        if (playerCutsceneKickStep(kp)) playerCutsceneStand(kp);
+        if (endT == END_HIT_T) { endSt = END_BOOMS; endT = 0; }
+        break;
+    case END_BOOMS:
+        if (kp->state == STATE_JUMPING) {
+            if (playerCutsceneKickStep(kp)) playerCutsceneStand(kp);
+        } else {
+            playerCutsceneStand(kp);
+        }
+        for (u16 i = 0; i < END_PLAN_N; i++) {
+            if (endT - 1 != (u16)endPlan[i][0]) continue;
+            s16 x = (s16)(DISCO_X + endPlan[i][1]);
+            s16 y = (s16)(END_DISCO_CY + stageCamY + endPlan[i][2]);   // mundo
+            if (endPlan[i][3]) endBigStart(x, y); else endSmallStart(x, y);
+        }
+        if (endT == END_DISCO_GONE_T) discoRelease();
+        if (endT >= END_BOOM_T) { endSt = END_HOLD; endT = 0; }
+        break;
+    case END_HOLD:
+        playerCutsceneStand(kp);
+        if (endT >= END_HOLD_T) {
+            endRelease();
+            for (u8 k = 0; k < nPl; k++) playerCutsceneStand(pls[k]);
+            endSt = END_DONE;
+            return TRUE;
+        }
+        break;
+    case END_DONE:
+        return TRUE;
+    default: break;
+    }
+    return FALSE;
+}
+
 static bool bossUpdateSnow(Player** pls, u8 nPl, s16 camX) {
     toraUpdate(&tora, pls, nPl, camX);
     s8 killer = -1;
     if (toraPlayerHits(&tora, pls, nPl, &killer) && killer >= 0)
         addPlayerScore(pls[(u8)killer], 5);
-    return toraIsGone(&tora) && toraIceAlive() == 0;
+    if (!toraIsGone(&tora) || toraIceAlive() != 0) return FALSE;
+    return endUpdate(pls, nPl, camX);      // (23/10) la patada al disco
 }
 
 static bool bossDyingSnow(void) { return toraIsDying(&tora); }
 
-static void bossReleaseSnow(void) { toraRelease(&tora); }
+static void bossReleaseSnow(void) { toraRelease(&tora); endRelease(); }
 
 static void lvlSnowInit(void) {
     signsInit();

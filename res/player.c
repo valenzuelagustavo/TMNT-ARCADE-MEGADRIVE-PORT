@@ -2676,6 +2676,40 @@ void playerManholeEnter(Player* p) {
     SPR_setAnimAndFrame(p->sprite, ANIM_MANHOLE, 0);
 }
 
+// (23/10) Patada voladora guionada -- ver player.h
+void playerCutsceneKickStart(Player* p, s16 tx, s16 ty, u16 frames, s16 peak) {
+    playerExitJumpStart(p, tx, ty, frames, peak);
+}
+
+bool playerCutsceneKickStep(Player* p) {
+    if (!p->sprite || p->gameOver) return TRUE;
+    if (p->exT < p->exN) p->exT++;
+    s32 t = p->exT, n = p->exN;
+    p->x = (s16)(p->exX0 + ((s32)(p->exTX - p->exX0) * t) / n);
+    p->y = (s16)(p->exY0 + ((s32)(p->exTY - p->exY0) * t) / n);
+    p->jumpZ  = (s16)((4 * (s32)p->mhOutX * t * (n - t)) / (n * n));
+    p->jumpZq = (s32)p->jumpZ << PLAYER_JUMP_Q;
+    s32 k0 = n / 4;
+    if (t < k0) {
+        SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 1);
+    } else {
+        u16 a = (p->numAnims > ANIM_JUMP_KICK_DIR) ? ANIM_JUMP_KICK_DIR : ANIM_JUMP_KICK;
+        u8 nf = 1;
+        SPR_setAnim(p->sprite, (s16)a);
+        if (p->sprite->animation) nf = (u8)p->sprite->animation->numFrame;
+        s16 f = (s16)((t - k0) / PLAYER_AIRKICK_F1_TICKS);
+        if (f > nf - 1) f = (s16)(nf - 1);
+        SPR_setFrame(p->sprite, f);
+    }
+    playerRenderAt(p);
+    if (p->exT >= p->exN) {
+        p->jumpZ = 0; p->jumpZq = 0;
+        p->state = STATE_IDLE;
+        return TRUE;
+    }
+    return FALSE;
+}
+
 bool playerManholeGone(const Player* p) {
     return (bool)(p->mhPhase == 4 && p->mhTimer == 0);
 }
