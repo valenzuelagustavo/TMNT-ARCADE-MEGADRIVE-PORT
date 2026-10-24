@@ -673,7 +673,7 @@ static void rainUpdate(Player** pls, u8 nPl, s16 camX) {
 #define DISCO_TOP        54                // borde de arriba (pantalla), sin vaiven
 #define DISCO_ANIM        8
 static const s8 discoBob[16] = { 0,1,2,3,3,4,4,4,3,3,2,1,0,-1,-1,-1 };
-static struct { Sprite* s; Sprite* sh; u16 t; } disco;
+static struct { Sprite* s; Sprite* sh; u16 t; bool gone; } disco;   // gone: (24/10) ya la rompieron
 
 static void discoRelease(void) {
     if (disco.s)  { SPR_releaseSprite(disco.s);  disco.s  = NULL; }
@@ -683,7 +683,7 @@ static void discoRelease(void) {
 static void discoUpdate(s16 camX) {
     s16 sx = (s16)(DISCO_X - camX);
     if (!disco.s) {
-        if (sx > SCREEN_W + 40 || trac.on) return;
+        if (disco.gone || sx > SCREEN_W + 40 || trac.on) return;
         if (!sprVramFits((u16)(snow_disco.maxNumTile + snow_disco_sh.maxNumTile))) return;
         // (23/10) En PAL0 (pal_snow; gen_snow_boss.py lo remapea): con la
         // paleta del jefe parpadeaba junto con Tora cuando le queda poca vida.
@@ -707,6 +707,8 @@ static void discoUpdate(s16 camX) {
 // ---------------------------------------------------------------------------
 static Tora tora;
 static void endReset(void);
+static void endFlashOff(void);
+static bool endWhite;            // (24/10) flash blanco del final
 static void endRelease(void);
 
 static void bossInitSnow(void) {
@@ -858,6 +860,7 @@ static void endBoomsUpdate(s16 camX) {
 }
 
 static void endRelease(void) {
+    endFlashOff();
     for (u16 i = 0; i < END_SMALL_N; i++)
         if (endSm[i].s) { SPR_releaseSprite(endSm[i].s); endSm[i].s = NULL; }
     endBigRelease();
@@ -865,6 +868,7 @@ static void endRelease(void) {
 
 static void endReset(void) {
     endSt = END_OFF; endT = 0;
+    endWhite = FALSE;
     for (u16 i = 0; i < END_SMALL_N; i++) endSm[i].s = NULL;
     for (u16 q = 0; q < 4; q++) endBig.q[q] = NULL;
     endBig.on = FALSE;
@@ -877,7 +881,26 @@ static const s8 endPlan[][4] = {
     { 48,   6,  -4, 1 }, { 62, -12,   8, 0 }, { 70,  14,  16, 0 },
 };
 #define END_PLAN_N  (sizeof(endPlan) / sizeof(endPlan[0]))
-#define END_DISCO_GONE_T  20    // con la primera grande, el disco ya no esta
+// (24/10) Con la primera explosion, FLASH A BLANCO (las 4 paletas) de
+// END_FLASH_T frames; al volver, el disco ya no esta. (Antes se liberaba a
+// los 20 frames pero discoUpdate lo volvia a crear al frame siguiente.)
+#define END_FLASH_T       8
+static u16  endPalSave[64];
+
+static void endFlashOn(void) {
+    static const u16 white[16] = {
+        0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE,
+        0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE, 0xEEE };
+    PAL_getColors(0, endPalSave, 64);
+    for (u16 k = 0; k < 4; k++) PAL_setColors((u16)(k * 16), white, 16, DMA_QUEUE);
+    endWhite = TRUE;
+}
+
+static void endFlashOff(void) {
+    if (!endWhite) return;
+    PAL_setColors(0, endPalSave, 64, DMA_QUEUE);
+    endWhite = FALSE;
+}
 
 static bool endSettled(Player* p) {
     if (isPlayerGameOver(p) || !p->sprite) return TRUE;
@@ -951,7 +974,12 @@ static bool endUpdate(Player** pls, u8 nPl, s16 camX) {
             s16 y = (s16)(END_DISCO_CY + stageCamY + endPlan[i][2]);   // mundo
             if (endPlan[i][3]) endBigStart(x, y); else endSmallStart(x, y);
         }
-        if (endT == END_DISCO_GONE_T) discoRelease();
+        if (endT == 1) {                     // la primera explosion: flash
+            endFlashOn();
+            discoRelease();
+            disco.gone = TRUE;
+        }
+        if (endT == 1 + END_FLASH_T) endFlashOff();
         if (endT >= END_BOOM_T) { endSt = END_HOLD; endT = 0; }
         break;
     case END_HOLD:
@@ -1001,6 +1029,7 @@ static void lvlSnowInit(void) {
     toraIceInit();                  // (23/10) lluvia de esferas, disco
     rainZone = rainLeft = rainCd = 0;
     disco.s = disco.sh = NULL;
+    disco.gone = FALSE;
 }
 
 static void lvlSnowUpdate(Player** pls, u8 nPl, s16 camX) {
