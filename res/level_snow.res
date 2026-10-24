@@ -37,3 +37,28 @@ SPRITE  snow_flake_spr "images/lvl_central_park/snow_flake_spr.png" 1 1 NONE 0
 SPRITE  snow_oneway    "images/lvl_central_park/snow_oneway.png"    7 12 NONE 0
 SPRITE  snow_trator_l  "images/lvl_central_park/snow_trator_l.png"  16 14 FAST 0 NONE TILE MEDIUM
 SPRITE  snow_trator_r  "images/lvl_central_park/snow_trator_r.png"  16 14 FAST 0 NONE TILE MEDIUM
+// (23/10) Utileria nueva ("tampa bueiro_lixeira.png", tools/gen_snow_props.py),
+// en la paleta del nivel (PAL0):
+//   snow_trash  48x56  el TACHO de basura: un golpe lo hace salir volando
+//                      (como los conos del garage)
+//   snow_hole   40x24  la boca de alcantarilla abierta \ tiles fijos cargados a
+//   snow_lid    32x24  la tapa cerrada                 / mano (extraTiles)
+SPRITE  snow_trash "images/lvl_central_park/snow_trash.png" 6 7 FAST 0
+SPRITE  snow_hole  "images/lvl_central_park/snow_hole.png"  5 3 NONE 0
+SPRITE  snow_lid   "images/lvl_central_park/snow_lid.png"   4 3 NONE 0
+// (23/10) El jefe TORA y su utileria (tools/gen_snow_boss.py, desde
+// Tora_Boss.png, ice_ball.png y DISCO.png). Comparten UNA paleta: PAL3 (la
+// cargan la lluvia de esferas, el disco y el jefe; el tractor, que tambien usa
+// PAL3, nunca esta al mismo tiempo).
+//   snow_tora       104x104, pies en el borde de abajo, mira a la derecha:
+//                   0 camina (4) 1 espera la esfera / la lanza (2)
+//                   2 golpe (2) 3 recibe un golpe (1) 4 muere (3)
+//   snow_iceball    80x72: 0 la esfera, 1-2 se rompe
+//   snow_iceshadow  56x24: la sombra que avisa donde cae
+//   snow_disco      64x64: la esfera que flota al final (3 cuadros)
+//   snow_disco_sh   56x16: su sombra
+SPRITE  snow_tora      "images/lvl_central_park/snow_tora.png"      13 13 FAST 0
+SPRITE  snow_iceball   "images/lvl_central_park/snow_iceball.png"   10 9  FAST 0
+SPRITE  snow_iceshadow "images/lvl_central_park/snow_iceshadow.png" 7 3   FAST 0
+SPRITE  snow_disco     "images/lvl_central_park/snow_disco.png"     8 8   FAST 0
+SPRITE  snow_disco_sh  "images/lvl_central_park/snow_disco_sh.png"  7 2   FAST 0

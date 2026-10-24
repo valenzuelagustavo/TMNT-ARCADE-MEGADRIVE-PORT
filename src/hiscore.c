@@ -2,10 +2,11 @@
 // hiscore.c -- carga de iniciales y "BEST 10 PLAYERS" (20/10)
 // ============================================================================
 // Como en el arcade: al terminar la partida (game over, o despues de los
-// creditos del final) cada jugador que entra en el top 10 pone 3 letras en una
-// pantalla con SU retrato del selector a color dentro de un marco (con "1UP",
-// su puntaje y el puesto) y las otras tres tortugas en negro, sin el fondo
-// plano de color. Despues se ve la tabla: titulo, puesto, iniciales y puntos,
+// creditos del final) los jugadores que entran en el top 10 ponen 3 letras,
+// (23/10) todos a la vez en la misma pantalla: cada tortuga tiene su lugar,
+// con su retrato del selector a color dentro de un marco (con "1UP", su
+// puntaje y el puesto); las tortugas que no cargan quedan en negro, sin el
+// fondo plano de color. Despues se ve la tabla: titulo, puesto, iniciales y puntos,
 // con los retratos del selector pasando por detras de derecha a izquierda,
 // cada uno en un solo tono.
 //
@@ -32,7 +33,9 @@
 #define HS_NAME        3
 #define HS_REC         6          // 3 letras + puntaje (2) + tortuga
 #define HS_SRAM_SIZE  (5 + HS_N * HS_REC + 1)   // "TMNT" + version + tabla + suma
-#define HS_VERSION     1
+// (23/10) 2: tabla de fabrica nueva (290 arriba). Una SRAM con la version 1
+// se vuelve a formatear con la tabla nueva.
+#define HS_VERSION     2
 
 typedef struct { char name[HS_NAME]; u16 score; u8 ch; } HsEntry;
 
@@ -40,12 +43,13 @@ static HsEntry hsTable[HS_N];
 static bool    hsLoaded = FALSE;
 static s8      hsNew[MAX_PLAYERS] = { -1, -1, -1, -1 };   // puesto recien cargado por cada jugador
 
-// Tabla de fabrica: los personajes del juego.
+// Tabla de fabrica: los personajes del juego. (23/10) Mas alta: el 1ro con
+// 290 y de a 30 hacia abajo (antes 100..10).
 static const HsEntry hsDefault[HS_N] = {
-    { {'L','E','O'}, 100, 0 }, { {'M','I','K'},  90, 1 }, { {'D','O','N'},  80, 2 },
-    { {'R','A','P'},  70, 3 }, { {'A','P','R'},  60, 0 }, { {'S','P','L'},  50, 1 },
-    { {'C','A','S'},  40, 2 }, { {'B','E','B'},  30, 3 }, { {'R','O','C'},  20, 0 },
-    { {'S','H','R'},  10, 1 },
+    { {'L','E','O'}, 290, 0 }, { {'M','I','K'}, 260, 1 }, { {'D','O','N'}, 230, 2 },
+    { {'R','A','P'}, 200, 3 }, { {'A','P','R'}, 170, 0 }, { {'S','P','L'}, 140, 1 },
+    { {'C','A','S'}, 110, 2 }, { {'B','E','B'},  80, 3 }, { {'R','O','C'},  50, 0 },
+    { {'S','H','R'},  20, 1 },
 };
 
 // ---------------------------------------------------------------------------
@@ -54,17 +58,30 @@ static const HsEntry hsDefault[HS_N] = {
 static u8 hsBuf[HS_SRAM_SIZE];
 
 // Copia SRAM <-> hsBuf. Sin datos constantes adentro (la ROM alta no se ve).
-static void hsSramIO(bool write) {
+// (23/10) Al escribir, se relee lo escrito y se reintenta (hasta 3 veces) si
+// algun byte no quedo: en el log de BlastEm/Gens KMod queda si la SRAM no
+// responde (cabecera mal leida por el emulador, SRAM no mapeada).
+static bool hsSramIO(bool write) {
+    bool ok = TRUE;
     SYS_disableInts();
     Z80_requestBus(TRUE);
     SRAM_enable();
-    for (u16 i = 0; i < HS_SRAM_SIZE; i++) {
-        if (write) SRAM_writeByte(i, hsBuf[i]);
-        else       hsBuf[i] = SRAM_readByte(i);
+    if (write) {
+        for (u16 tries = 0; tries < 3; tries++) {
+            for (u16 i = 0; i < HS_SRAM_SIZE; i++) SRAM_writeByte(i, hsBuf[i]);
+            ok = TRUE;
+            for (u16 i = 0; i < HS_SRAM_SIZE; i++)
+                if (SRAM_readByte(i) != hsBuf[i]) { ok = FALSE; break; }
+            if (ok) break;
+        }
+    } else {
+        for (u16 i = 0; i < HS_SRAM_SIZE; i++) hsBuf[i] = SRAM_readByte(i);
     }
     SRAM_disable();
     Z80_releaseBus();
     SYS_enableInts();
+    if (!ok) KLog("hiscore: la SRAM no guardo los datos (no esta mapeada?)");
+    return ok;
 }
 
 static u8 hsSum(void) {
@@ -231,85 +248,116 @@ static void hsFadeIn(const u16* p0, const u16* p1, const u16* p2, const u16* p3)
 static const char hsAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ.!?-*& ";
 #define HS_ALPHA_N ((s16)(sizeof(hsAlphabet) - 1))
 
-static void hsEntryOne(u8 k, u16 score, u8 ch, u8 rank) {
+// (23/10) TODOS LOS JUGADORES A LA VEZ (antes: una pantalla por jugador). La
+// pantalla tiene un lugar fijo por TORTUGA (Leo, Mike, Don, Raph, de
+// izquierda a derecha, HS_SLOT_W columnas cada uno): como cada jugador tiene
+// una tortuga distinta, nunca se pisan. El que entra en la tabla tiene su
+// retrato a color, su marco con "nUP", su puntaje, el puesto y sus 3 letras;
+// las tortugas que no cargan iniciales quedan en negro. Cada uno carga con su
+// joystick; termina cuando terminaron todos o se acaba el tiempo.
+#define HS_SLOT_W     10          // columnas por tortuga (40 / 4)
+#define HS_LETTER_Y   24
+
+typedef struct {
+    u8   k, ch, rank;
+    u16  score;
+    char name[HS_NAME];
+    s16  cur, sel;
+    u16  joy, prev, rep, blink;
+} HsInput;
+
+// Columna 0 del lugar de la tortuga 'ch' (el marco va de x0 + 1 a x0 + 9).
+static u16 hsSlotX(u8 ch) { return (u16)(ch * HS_SLOT_W); }
+
+static void hsLetter(const HsInput* in, s16 i, char c, u8 color) {
+    hsPutChar((u16)(hsSlotX(in->ch) + 3 + i * 2), HS_LETTER_Y, c, color);
+}
+
+static s16 hsAlphaIndex(char c) {
+    for (s16 i = 0; i < HS_ALPHA_N; i++) if (hsAlphabet[i] == c) return i;
+    return 0;
+}
+
+// Un cuadro de entrada de un jugador. TRUE = ya tiene las 3 letras.
+static bool hsInputStep(HsInput* in) {
+    if (in->cur >= HS_NAME) return TRUE;
+    u16 v = JOY_readJoypad(in->joy);
+    u16 down = v & ~in->prev;
+    if (in->prev == 0xFFFF) down = 0;     // lo que venia apretado no cuenta
+    in->prev = v;
+    in->blink++;
+
+    s16 d = 0;
+    if (down & BUTTON_UP)   { d = 1;  in->rep = 0; }
+    if (down & BUTTON_DOWN) { d = -1; in->rep = 0; }
+    if (v & (BUTTON_UP | BUTTON_DOWN)) {
+        if (++in->rep > 18 && (in->rep & 3) == 0) d = (v & BUTTON_UP) ? 1 : -1;
+    }
+    if (d) {
+        in->sel = (s16)((in->sel + d + HS_ALPHA_N) % HS_ALPHA_N);
+        in->name[in->cur] = hsAlphabet[in->sel];
+        in->blink = 0;
+    }
+    if ((down & BUTTON_LEFT) && in->cur > 0) {
+        hsLetter(in, in->cur, in->name[in->cur], HS_WHITE);
+        in->cur--;
+        in->sel = hsAlphaIndex(in->name[in->cur]);
+    }
+    if (down & (BUTTON_A | BUTTON_B | BUTTON_C | BUTTON_START | BUTTON_RIGHT)) {
+        hsLetter(in, in->cur, in->name[in->cur], HS_WHITE);
+        in->cur++;
+        if (in->cur < HS_NAME) {
+            in->name[in->cur] = in->name[in->cur - 1];      // arranca en la misma letra
+            in->sel = hsAlphaIndex(in->name[in->cur]);
+        }
+        in->blink = 0;
+    }
+    for (s16 i = 0; i < HS_NAME; i++) {
+        if (i == in->cur) hsLetter(in, i, (in->blink & 16) ? ' ' : in->name[i], HS_LAV);
+        else if (i > in->cur) hsLetter(in, i, in->name[i], HS_WHITE);
+    }
+    return in->cur >= HS_NAME;
+}
+
+static void hsEntryAll(HsInput* in, u8 n) {
     hsSceneBegin();
     hsLoadGfx(hsGradEntryTiles);
 
-    // Marco y textos (cols 2..10). "nUP" y el puntaje arriba, el puesto, el
-    // retrato y las 3 letras abajo.
-    hsFrame(2, 1, 10, 27);
-    char up[4] = { (char)('1' + k), 'U', 'P', 0 };
-    hsText(3, 2, up, HS_LAV);
-    hsNumber(9, 2, score, HS_WHITE, 1);
-    hsText(4, 5, hsRankStr[rank], HS_WHITE);
-
-    Sprite* me = hsPortrait(ch, 20, 64, PAL1);
-    Sprite* sil[3];
-    u8 n = 0;
-    for (u8 t = 0; t < 4; t++) {
-        if (t == ch) continue;
-        sil[n] = hsPortrait(t, (s16)(96 + 72 * n), 64, PAL2);
-        n++;
+    bool entering[4] = { FALSE, FALSE, FALSE, FALSE };
+    for (u8 i = 0; i < n; i++) {
+        HsInput* p = &in[i];
+        u16 x0 = hsSlotX(p->ch);
+        entering[p->ch & 3] = TRUE;
+        hsFrame((u16)(x0 + 1), 1, (u16)(x0 + 9), 27);
+        char up[4] = { (char)('1' + p->k), 'U', 'P', 0 };
+        hsText((u16)(x0 + 2), 2, up, HS_LAV);
+        hsNumber((u16)(x0 + 8), 2, p->score, HS_WHITE, 1);
+        hsText((u16)(x0 + 3), 5, hsRankStr[p->rank], HS_WHITE);
+        p->name[0] = p->name[1] = p->name[2] = 'A';
+        p->cur = 0; p->sel = 0; p->prev = 0xFFFF; p->rep = 0; p->blink = 0;
+        p->joy = playerJoy(p->k);
     }
+    // Los cuatro retratos, cada uno en su lugar: a color (PAL1, los colores
+    // del selector) los que cargan, en negro (PAL2) los demas.
+    for (u8 t = 0; t < 4; t++)
+        hsPortrait(t, (s16)(12 + 80 * t), 64, entering[t] ? PAL1 : PAL2);
     SPR_update();
-    // PAL1: los colores del selector (los de la hoja del sprite).
     hsFadeIn(hsPalEntry, hs_portraits.palette->data, hsPalBlack, hsPalBlack);
 
-    char name[HS_NAME] = { 'A', 'A', 'A' };
-    s16 cur = 0, sel = 0;
-    u16 joy = playerJoy(k), prev = 0xFFFF;
     u16 fps = IS_PAL_SYSTEM ? 50 : 60;
     u16 timer = (u16)(HS_ENTRY_SECS * fps);
-    u16 rep = 0, blink = 0;
-    while (cur < HS_NAME && timer > 0) {
-        u16 v = JOY_readJoypad(joy);
-        u16 down = v & ~prev;
-        if (prev == 0xFFFF) down = 0;     // lo que venia apretado no cuenta
-        prev = v;
+    while (timer > 0) {
         timer--;
-        blink++;
-
-        s16 d = 0;
-        if (down & BUTTON_UP)   { d = 1;  rep = 0; }
-        if (down & BUTTON_DOWN) { d = -1; rep = 0; }
-        if (v & (BUTTON_UP | BUTTON_DOWN)) {
-            if (++rep > 18 && (rep & 3) == 0) d = (v & BUTTON_UP) ? 1 : -1;
-        }
-        if (d) {
-            sel = (s16)((sel + d + HS_ALPHA_N) % HS_ALPHA_N);
-            name[cur] = hsAlphabet[sel];
-            blink = 0;
-        }
-        if ((down & BUTTON_LEFT) && cur > 0) {
-            hsPutChar((u16)(4 + cur * 2), 24, name[cur], HS_WHITE);
-            cur--;
-            for (s16 i = 0; i < HS_ALPHA_N; i++) if (hsAlphabet[i] == name[cur]) sel = i;
-        }
-        if (down & (BUTTON_A | BUTTON_B | BUTTON_C | BUTTON_START | BUTTON_RIGHT)) {
-            hsPutChar((u16)(4 + cur * 2), 24, name[cur], HS_WHITE);
-            cur++;
-            if (cur < HS_NAME) {
-                name[cur] = name[cur - 1];      // arranca en la misma letra
-                for (s16 i = 0; i < HS_ALPHA_N; i++) if (hsAlphabet[i] == name[cur]) sel = i;
-            }
-            blink = 0;
-        }
-        for (s16 i = 0; i < HS_NAME; i++) {
-            if (i == cur) hsPutChar((u16)(4 + i * 2), 24, (blink & 16) ? ' ' : name[i], HS_LAV);
-            else if (i > cur) hsPutChar((u16)(4 + i * 2), 24, name[i], HS_WHITE);
-        }
+        bool all = TRUE;
+        for (u8 i = 0; i < n; i++) if (!hsInputStep(&in[i])) all = FALSE;
         SPR_update();
         SYS_doVBlankProcess();
+        if (all) break;
     }
-    // Sin tiempo: lo que haya quedado.
-    for (s16 i = 0; i < HS_NAME; i++) hsPutChar((u16)(4 + i * 2), 24, name[i], HS_WHITE);
+    // Sin tiempo: a cada uno lo que le haya quedado.
+    for (u8 i = 0; i < n; i++)
+        for (s16 c = 0; c < HS_NAME; c++) hsLetter(&in[i], c, in[i].name[c], HS_WHITE);
     for (u16 t = 0; t < fps; t++) SYS_doVBlankProcess();
-
-    hsInsert(rank, name, score, ch);
-    hsNew[k] = (s8)rank;
-    for (u8 j = 0; j < MAX_PLAYERS; j++)            // los de otros jugadores bajan
-        if (j != k && hsNew[j] >= (s8)rank && hsNew[j] >= 0) hsNew[j]++;
-    (void)me; (void)sil;
     hsSceneEnd();
 }
 
@@ -331,18 +379,33 @@ SceneId showHiscoreEntry(void) {
     }
     playerFinalClear();
 
-    bool any = FALSE;
+    // (23/10) Los puestos se reservan ANTES de cargar, del mejor al peor: el
+    // siguiente (con igual o menos puntaje) siempre queda abajo, asi que los
+    // puestos ya reservados no se corren. Despues se cargan todos juntos.
+    HsInput in[MAX_PLAYERS];
+    u8 m = 0;
+    static const char blank[HS_NAME] = { ' ', ' ', ' ' };
     for (u8 i = 0; i < n; i++) {
         u8 k = order[i];
         u8 rank = hsRankOf(sc[k]);
         if (rank >= HS_N || sc[k] == 0) continue;
+        hsInsert(rank, blank, sc[k], chs[k]);
+        in[m].k = k; in[m].ch = chs[k] & 3; in[m].rank = rank; in[m].score = sc[k];
+        m++;
+    }
+    if (m) {
         // (20/10) Por ahora, "02 - Character Profiles" mientras se cargan
         // las iniciales (en loop: setLoopNumber(-1) antes del play).
-        if (!any) { XGM2_setLoopNumber(-1); playMusicVol(music_profiles, 80); }
-        any = TRUE;
-        hsEntryOne(k, sc[k], chs[k], rank);
-    }
-    if (any) {
+        XGM2_setLoopNumber(-1);
+        playMusicVol(music_profiles, 80);
+        hsEntryAll(in, m);
+        for (u8 i = 0; i < m; i++) {
+            HsEntry* e = &hsTable[in[i].rank];
+            e->name[0] = in[i].name[0];
+            e->name[1] = in[i].name[1];
+            e->name[2] = in[i].name[2];
+            hsNew[in[i].k] = (s8)in[i].rank;
+        }
         XGM2_stop();
         hsSramSave();
     }

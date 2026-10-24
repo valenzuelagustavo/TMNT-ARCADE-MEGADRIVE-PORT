@@ -82,8 +82,8 @@ static const StageWave waves71[] = {
 // de techno_hazards.c. A x 1540/1580 quedan fuera de pantalla con la camara
 // del jefe (1704): no chocan con la paleta de Granitor (PAL3).
 static const ThPillarDef pillars71[2] = {
-    { 1540, 168, 6, 72, 12, 20 },
-    { 1580, 206, 4, 90, 18, 45 },
+    { 1540, 168, 6, 72, 12, 20, 0, 0, -1 },   // (23/10) sin moverse en profundidad,
+    { 1580, 206, 4, 90, 18, 45, 0, 0, -1 },   // mirando a la izquierda (como siempre)
 };
 
 // (18/10) PLATAFORMA "NFP-1" (columnas 61-106 de la colision): arriba

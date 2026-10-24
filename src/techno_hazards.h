@@ -7,10 +7,14 @@
 // al arrancar y Traag la pisa recien al final, cuando ya no queda nada de
 // esto en pantalla.
 //
-// COLUMNAS (arriba): 4, juntas. Cuelgan del techo (llegan hasta arriba de la
-// pantalla) y la cabeza (con el canon) sube y baja sin parar, cada una a su
-// velocidad, disparando rafagas de laser siempre hacia la IZQUIERDA (no se
-// dan vuelta). Disparando son plateadas lisas; cada golpe de una tortuga le
+// COLUMNAS (arriba): cuelgan del techo (llegan hasta arriba de la pantalla).
+// Dos maneras de moverse (ThPillarDef):
+//   - la cabeza (con el canon) sube y baja sin parar en su lane (la fabrica);
+//   - (23/10, Technodrome, como el arcade) la columna entera se DESPLAZA EN
+//     PROFUNDIDAD, de arriba hacia abajo de la franja y vuelta, con la cabeza
+//     a una altura fija. 3 columnas, cada una a su velocidad: dos apuntan y
+//     disparan a la IZQUIERDA y una a la DERECHA.
+// Disparan rafagas de laser hacia donde miran (no se dan vuelta). Disparando son plateadas lisas; cada golpe de una tortuga le
 // saca rayitos y la hace parpadear naranja; al 4to golpe queda quieta donde
 // estaba, naranja y sin disparar.
 // El laser vuela a la altura del canon sobre la lane de la columna (con su
@@ -36,13 +40,20 @@
 // (18/10) Una columna: x/lane (pies) de mundo, altura de la base de la cabeza
 // sobre el piso (zMin..zMax, recortada por zTopK de thInit), velocidad en Q4
 // (8 = 0,5 px/f) y frames hasta el primer disparo.
+// (23/10) laneMin < laneMax: en vez de subir y bajar la cabeza, la columna se
+// mueve en PROFUNDIDAD entre esas lanes (arranca en 'lane'), a speedQ, con la
+// cabeza fija a zMin de altura. dir: hacia donde mira y dispara (-1 izquierda,
+// +1 derecha; 0 = izquierda, como antes). Los campos nuevos van al final: una
+// tabla vieja (sin ellos) queda como estaba.
 typedef struct {
     s16 x, lane;
     u8  zMin, zMax;
     u8  speedQ;
     u8  delay;
+    s16 laneMin, laneMax;
+    s8  dir;
 } ThPillarDef;
-#define TH_TECHNO_PILLARS 4
+#define TH_TECHNO_PILLARS 3
 extern const ThPillarDef thTechnoPillars[TH_TECHNO_PILLARS];
 
 // Carga los tiles compartidos en 'vram' (TH_VRAM_TILES) y deja todo apagado.
