@@ -928,7 +928,8 @@ static void bebopHits(Player** pls, u8 nPl) {
             continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? BEBOP_JUMPKICK_DMG : 1);
-        sfxHit();
+        // (24/10) Golpe al jefe: boss_hit (como Rocksteady y Tora).
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
         if (bebopDamage(&bebop, dmg)) addPlayerScore(pls[k], 5);
         break;
     }

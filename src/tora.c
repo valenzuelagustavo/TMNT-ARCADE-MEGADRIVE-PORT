@@ -385,8 +385,8 @@ bool toraPlayerHits(Tora* t, Player** pls, u8 nPl, s8* killer) {
                                       TORA_HIT_DY_UP, TORA_HIT_DY_DOWN)) continue;
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? TORA_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? TORA_JUMPKICK_DMG : 1);
-        // Mismo sonido que los robots del latigo y los otros jefes.
-        XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        // (24/10) boss_hit, como Rocksteady y Bebop (antes mouser_hit_sfx).
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
         t->hp -= dmg;
         t->flash = 8;
         t->invuln = TORA_HURT_TICKS;

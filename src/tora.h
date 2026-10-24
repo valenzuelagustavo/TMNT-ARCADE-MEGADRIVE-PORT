@@ -52,7 +52,7 @@
 #define TORA_HIT_DY_UP      10
 #define TORA_HIT_DY_DOWN    10
 
-#define TORA_HP             34
+#define TORA_HP             56     // (24/10) 34 -> 56: moria muy rapido
 #define TORA_SPECIAL_DMG     5
 #define TORA_JUMPKICK_DMG    2
 
