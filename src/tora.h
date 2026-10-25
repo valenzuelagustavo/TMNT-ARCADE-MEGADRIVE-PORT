@@ -88,7 +88,7 @@
 #define TORA_THROW_T        24     // pose de lanzar
 #define TORA_THROW_MIN     110     // alcance del arco
 #define TORA_THROW_MAX     180
-#define TORA_THROW_AIR      44     // frames de vuelo
+#define TORA_THROW_AIR      26     // frames de vuelo (24/10: 44 -> 26, mas rapida)
 #define TORA_BALL_DMG        2
 
 // (24/10) Al llegar se queda quieto y dice "Time to put you on ice!" (el
