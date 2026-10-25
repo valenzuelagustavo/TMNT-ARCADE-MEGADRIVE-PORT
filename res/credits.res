@@ -15,3 +15,7 @@ IMAGE credits_turtle_1 "images/credits/credits_turtle_1.png" NONE
 IMAGE credits_turtle_2 "images/credits/credits_turtle_2.png" NONE
 IMAGE credits_turtle_3 "images/credits/credits_turtle_3.png" NONE
 IMAGE credits_konami   "images/credits/credits_konami.png" NONE
+// (25/10) Fondo del EPILOGO (src/ending.c, showEpilogue): 320x224, 12 colores,
+// va en PAL1 en BG_B con el texto en BG_A. Provisorio (no es el definitivo).
+// NONE: se dibuja con VDP_drawImageEx + DMA (FAR_SAFE) y sin descomprimir en RAM.
+IMAGE epilogue_bg "images/epilogue/bg_epilogue.png" NONE

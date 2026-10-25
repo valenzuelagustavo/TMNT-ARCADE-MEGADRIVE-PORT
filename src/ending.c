@@ -81,6 +81,13 @@ SceneId showEpilogue() {
     VDP_setBackgroundColor(0);
     PAL_setColors(0, title_font_pal.data, title_font_pal.length, DMA);
 
+    // (25/10) Fondo provisorio del epilogo en BG_B (PAL1, sin indice 0: no se
+    // usa el color transparente); el texto sigue en BG_A / PAL0 encima.
+    PAL_setPalette(PAL1, epilogue_bg.palette->data, DMA);
+    VDP_drawImageEx(BG_B, &epilogue_bg,
+                    TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, TILE_USER_INDEX),
+                    0, 0, FALSE, DMA);
+
     endPrevJoy = JOY_readJoypad(JOY_1);
 
     bool skipped = FALSE;
