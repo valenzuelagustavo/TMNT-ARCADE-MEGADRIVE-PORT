@@ -49,7 +49,7 @@ static bool endWait(u16 frames) {
 // ---------------------------------------------------------------------------
 // 1. EPILOGO
 // ---------------------------------------------------------------------------
-// Texto del arcade tal cual (incluido el "DIMENTION"). Fuente arcade
+// Texto del arcade (25/10: corregido el "DIMENTION" de Konami -> "DIMENSION"). Fuente arcade
 // (title_font, 40 columnas), una linea cada dos filas y un blanco entre
 // parrafos. Cada linea se centra sola.
 #define EPI_CHAR_DELAY   3
@@ -64,7 +64,7 @@ static const struct { const char* text; u16 row; } epiLines[] = {
     { "KRANG ...!?",                            14 },
     { "BURNED TO TOAST ?",                      16 },
     { "VAPORIZED TO MILK SHAKE ??",             18 },
-    { "OR.. ESCAPED TO DIMENTION X ???",        20 },
+    { "OR.. ESCAPED TO DIMENSION X ???",        20 },
     { "UNTIL WE KNOW, NONE OF US CAN SLEEP",    23 },
     { "SAFELY IN OUR BEDS.. ER, SHELLS!",       25 },
 };

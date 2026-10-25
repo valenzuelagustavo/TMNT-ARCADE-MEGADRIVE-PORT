@@ -2836,7 +2836,7 @@ SceneId showScene21Title() {
 // Mismo tratamiento que los de la SCENE 1 y 2. Antes habia un titulo por
 // nivel (SCENE 3..9); ahora cada SCENE agrupa dos niveles y el titulo va solo
 // antes del primero (ver el recorrido en scenes.h).
-#define SCENE_S3_LINE2  "LET'S MELT SNOW AND REBUILD N.Y. CITY"
+#define SCENE_S3_LINE2  "LET'S MELT THE SNOW, AND REBUILD NYC!!"
 #define SCENE_S4_LINE2  "LET'S GET TO THAT SECRET FACTORY!!"
 #define SCENE_S5_LINE2  "C'MON, LET'S BUST THIS JOINT!!"
 #define SCENE_S6_LINE2  "WE GOTTA FIND OUT THE TECHNODROME!!"
