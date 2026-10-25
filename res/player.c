@@ -742,7 +742,7 @@ static void walkAnim(Player* p, u16 anim) {
 #define HITBTN_W        80
 #define HITBTN_H        32
 #define HITBTN_HEAD     66   // de los pies al borde de abajo del cartel
-#define HITBTN_TICKS    10   // frames por cada uno de los dos cuadros
+#define HITBTN_TICKS    20   // frames por cada uno de los dos cuadros (era 10: pasaba muy rapido)
 
 static void hitButtonsRelease(Player* p) {
     if (p->hitBtnSpr) { SPR_releaseSprite(p->hitBtnSpr); p->hitBtnSpr = NULL; }
