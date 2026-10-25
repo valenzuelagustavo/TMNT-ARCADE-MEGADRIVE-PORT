@@ -49,6 +49,7 @@
 #include <genesis.h>
 #include "scenes.h"
 #include "level4_1.h"          // pal_garage, bg_garage_*, garage_* (rescomp)
+#include "level4_1_far.h"      // (25/10) garage_capsule, cork_bubble (FAR)
 #include "level4_1_bg.h"       // regiones y posiciones (generado)
 #include "stage_level.h"
 #include "enemy.h"             // ENEMY_TYPE_*, sprVramFits
@@ -860,6 +861,111 @@ static void duoUpdate41(Bebop* b, Rocksteady* r) {
 
 static bool bossDying41(void);
 
+// ---------------------------------------------------------------------------
+// (25/10) LA SALIDA: LA CAPSULA DEL TALADRO (reemplaza el cierre con April
+// saludando). Cuando caen los dos jefes y April ya se solto y saluda, el piso
+// tiembla y sale la capsula del taladro (garage_capsule, 17 cuadros sacados del
+// arcade: tools/gen_drill_capsule.py), girando, mientras la tortuga dice "Oh,no.
+// it's that overgrown cork-screw again". Cuando termino de salir se queda un
+// momento y el nivel se cierra.
+//   - La capsula es un SPRITE en el lado derecho de la arena (lejos de la
+//     puerta del ascensor y de April), con el piso en CAP_LANE; la tapa el HUD.
+//   - PAL2 (los jefes ya no estan) lleva sus 8 grises.
+//   - Sin VRAM para el sprite: se cierra como antes (sin capsula).
+// ---------------------------------------------------------------------------
+#define CAP_WORLD_CX    (LVL41_CAM_MAX_X + 250)   // centro de la capsula (la camara queda clavada)
+#define CAP_LANE        176     // piso (mundo): profundidad = -CAP_LANE
+#define CAP_CELL_W      104
+#define CAP_CELL_H      184
+#define CAP_FRAMES       17
+#define CAP_FRAME_TICKS   9     // frames de juego por cuadro
+#define CAP_WAIT_T       40     // April ya saluda: respiro antes de que tiemble
+#define CAP_VRAM_T      120     // espera maxima por VRAM libre para el sprite
+#define CAP_BUB_T        80     // el globo dura hasta que la capsula ya es grande
+#define CAP_BUB_TAIL     99     // x de la punta del globo (cork_bubble, 128x32)
+#define CAP_BUB_DY       70     // de los pies al borde de abajo del globo
+#define CAP_HOLD_T       70     // entera, quieta, antes de cerrar el nivel
+enum { CAP_IDLE = 0, CAP_WAIT, CAP_RISE, CAP_HOLD };
+static u8      capSt;
+static u16     capT;
+static Sprite* capSpr;
+static Sprite* capBub;
+
+static void capsuleRelease41(void) {
+    if (capSpr) { SPR_releaseSprite(capSpr); capSpr = NULL; }
+    if (capBub) { SPR_releaseSprite(capBub); capBub = NULL; }
+}
+
+// TRUE cuando la secuencia termino (o no se puede hacer: sin VRAM).
+static bool capsuleUpdate41(Player** pls, u8 nPl, s16 camX) {
+    (void)nPl;
+    if (capSt == CAP_IDLE) {
+        // April ya saluda (o no hay April)
+        if (aprilSpr && aprState != APR_WAVE) return FALSE;
+        capSt = CAP_WAIT;
+        capT = 0;
+    }
+    if (capSt == CAP_WAIT) {
+        capT++;
+        if (capT < CAP_WAIT_T) return FALSE;
+        if (!sprVramFits(garage_capsule.maxNumTile) ||
+            SPR_getFreeVRAM() < garage_capsule.maxNumTile) {
+            return (bool)(capT >= CAP_WAIT_T + CAP_VRAM_T);   // se cierra sin capsula
+        }
+        PAL_setPalette(PAL2, garage_capsule.palette->data, DMA);
+        capSpr = SPR_addSpriteSafe(&garage_capsule, 0, -CAP_CELL_H,
+                                   TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        if (!capSpr) return TRUE;
+        SPR_setAutoAnimation(capSpr, FALSE);
+        SPR_setAnimAndFrame(capSpr, 0, 0);
+        SPR_setDepth(capSpr, (s16)(-CAP_LANE));
+        if (sprVramFits(cork_bubble.maxNumTile)) {
+            capBub = SPR_addSprite(&cork_bubble, 0, -64, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+            if (capBub) SPR_setDepth(capBub, SPR_MIN_DEPTH);
+        }
+        XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        capSt = CAP_RISE;
+        capT = 0;
+    }
+
+    // --- Posiciones (la camara esta clavada, pero igual se sigue camX) ---
+    if (capSpr) {
+        SPR_setPosition(capSpr, (s16)(CAP_WORLD_CX - CAP_CELL_W / 2 - camX),
+                        (s16)(CAP_LANE - CAP_CELL_H - stageCamY));
+    }
+
+    if (capSt == CAP_RISE) {
+        u16 f = (u16)(capT / CAP_FRAME_TICKS);
+        if (f >= CAP_FRAMES) {
+            f = CAP_FRAMES - 1;
+            capSt = CAP_HOLD;
+            capT = 0;
+        } else {
+            capT++;
+            stageShake(2);                       // el piso tiembla mientras sale
+        }
+        SPR_setAnimAndFrame(capSpr, 0, (s16)f);
+        if (capBub) {
+            if (capT >= CAP_BUB_T) {
+                SPR_releaseSprite(capBub); capBub = NULL;
+            } else {
+                Player* p = pls[0];
+                s16 bx = (s16)(p->x + PLAYER_SPRITE_W / 2 - camX - CAP_BUB_TAIL);
+                if (bx < 4) bx = 4;
+                if (bx > 320 - 128 - 4) bx = 320 - 128 - 4;
+                s16 by = (s16)(p->y - stageCamY - CAP_BUB_DY - 32);
+                if (by < 36) by = 36;
+                SPR_setPosition(capBub, bx, by);
+            }
+        }
+        return FALSE;
+    }
+
+    // CAP_HOLD
+    if (capBub) { SPR_releaseSprite(capBub); capBub = NULL; }
+    return (bool)(++capT >= CAP_HOLD_T);
+}
+
 static void bossInit41(void) {
     bebopInit(&bebop);
     rocksteadyInit(&rock);
@@ -871,6 +977,10 @@ static void bossInit41(void) {
     aprilSpr = NULL;
     aprState = APR_TIED;
     aprT = 0;
+    capSt = CAP_IDLE;
+    capT = 0;
+    capSpr = NULL;
+    capBub = NULL;
     duoInit41();
 }
 
@@ -1014,8 +1124,8 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
                            rockOut && rock.state == ROCKSTEADY_GONE);
     if (aprState == APR_TIED && bossDying41()) { aprState = APR_STRUGGLE; aprT = 0; }
     if (!bothGone) return FALSE;
-    if (!aprilSpr) return TRUE;                 // sin sprite (VRAM): no se espera
-    return (bool)(aprState == APR_WAVE && aprT >= APR_WAVE_HOLD);
+    // (25/10) Ya no se cierra con April saludando: sale la capsula del taladro.
+    return capsuleUpdate41(pls, nPl, camX);
 }
 
 static bool bossDying41(void) {
@@ -1030,6 +1140,8 @@ static void bossRelease41(void) {
     if (rock.sprite) { SPR_releaseSprite(rock.sprite); rock.sprite = NULL; }
     rock.state = ROCKSTEADY_INACTIVE;
     if (aprilSpr) { SPR_releaseSprite(aprilSpr); aprilSpr = NULL; }
+    capsuleRelease41();
+    capSt = CAP_IDLE;
 }
 
 static const StageLevel level41 = {

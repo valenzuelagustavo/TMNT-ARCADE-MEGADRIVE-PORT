@@ -28,7 +28,7 @@ Lo que NO puede ir mas alla de los 3 MB (va en archivos `.res` con `NEAR`):
 | Archivo | Reparto | Por que |
 | --- | --- | --- |
 | audio, level1, level2, level2_1, level3_1, level4_1, level5_1, level6_1, level7_1, level8_1, level9_1, level_snow, props_2_1, intro_tmnt, roof_april | NEAR | lectura directa / Z80 |
-| chars, enemies, final_bosses, granitor_res, traag_res, baxter_res, profiles, intro, menus, credits, cutscenes, idle_missile_res, roof_april_far, level_snow_far | FAR | solo funciones de SGDK, sprites comprimidos |
+| chars, enemies, final_bosses, granitor_res, traag_res, baxter_res, profiles, intro, menus, credits, cutscenes, idle_missile_res, roof_april_far, level_snow_far, level4_1_far | FAR | solo funciones de SGDK, sprites comprimidos |
 
 Sprites que quedan SIN comprimir a proposito (el codigo sube sus tiles a mano
 o con `DMA_QUEUE`): `factory_capsule`, `taladro_capsula`, `sparks`,
