@@ -138,6 +138,7 @@ TRAC_WHEEL_X = 100
 # Franja caminable: el piso arranca en 124; los pies desde WALK_Y_MIN.
 WALK_Y_MIN = 132
 OBST_MARGIN = 4
+OBST_WALL_Y = 156              # (24/10) tope parejo de canteros y bancos
 OBST_Y0 = 126                  # objetos del piso: de aca para abajo
 GROUND = {15, 1, 5, 9, 10, 11}  # colores de la nieve / el piso
 
@@ -472,6 +473,12 @@ def main():
         if bot:
             walk[c] = max(WALK_Y_MIN, bot + OBST_MARGIN)
             obst.append(c)
+    # (24/10) Cada obstaculo es una PARED pareja hasta OBST_WALL_Y (la base del
+    # banco / el borde de abajo de la nieve del cantero): antes el tope seguia el
+    # borde irregular de las piedras (133..148) y la tortuga se metia en la nieve
+    # que tapa el cantero y entre las patas del banco.
+    for c in obst:
+        walk[c] = max(walk[c], OBST_WALL_Y)
     spans, i = [], 0
     while i < len(obst):
         j = i
