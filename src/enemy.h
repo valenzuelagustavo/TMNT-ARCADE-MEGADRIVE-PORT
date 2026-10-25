@@ -330,7 +330,7 @@
 // vuelo total no se estire (la caida ahora dura 21 frames en vez de 14).
 // 14*3 + 21*2 = 84 px, practicamente los mismos 84 de antes (28*3).
 #define WHITE_FALL_SPEED_X       2
-#define WHITE_AIR_SLASH_REACH   30   // hitbox mientras cae con la espada
+#define WHITE_AIR_SLASH_REACH   20   // hitbox mientras cae con la espada (24/10: era 30; la punta del arte llega a 19 px del centro y se suma el ancho de la tortuga)
 
 // Rango en el que el blanco decide atacar: MAS que el generico de 60 porque
 // su estocada llega a 50 y si usara el rango comun desperdiciaria el arma.
