@@ -623,6 +623,7 @@ typedef struct {
     u8          heldFrame;   // Frame actual del loop manual de ANIM_HELD (0-2)
     u8          heldTimer;   // Ticks hasta el próximo paso del loop de HELD
     u8          heldHit;     // Frames restantes del frame 3 de HELD (golpe en el agarre)
+    u8          bossKickSpent; // (24/10) 1 = la patada voladora de este salto ya le pego a un jefe
 
     // --- Caida por la boca de tormenta (20/09, solo 2-1) ---
     u8          mhPhase;     // 0 = no esta en el pozo; 1 = cayendo (f0-2),

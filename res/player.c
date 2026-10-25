@@ -214,6 +214,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->palIdx        = palette;
     p->hitBtnSpr     = NULL;     // (18/10) el motor de sprites ya se reinicio
     p->hitBtnT       = 0;
+    p->bossKickSpent = 0;
     p->heldFrame     = 0;
     p->heldTimer     = 0;
     p->heldHit       = 0;
@@ -1426,6 +1427,7 @@ void updatePlayer(Player* p) {
         default: break;
     }
 
+    if (!isPlayerJumpKicking(p)) p->bossKickSpent = 0;   // (24/10) patada terminada
     p->prevJoy = joy;
 
     // Renderizar el sprite en posición de PANTALLA (mundo - cámara).
@@ -1536,16 +1538,28 @@ static bool bossLaneOk(const Player* p, s16 targetFeetY, s16 tolUp, s16 tolDown)
     return (dy >= -tolUp && dy <= tolDown);
 }
 
+// (24/10) Una patada voladora le pega UNA vez a los jefes por salto: el jefe
+// queda golpeado/invulnerable unos ticks y la patada sigue activa todo el
+// vuelo, asi que al terminar ese lapso le volvia a pegar (doble golpe). Se
+// marca en el jugador al conectar y se limpia al terminar la patada (fin de
+// updatePlayer). Vale para todos los jefes que usan estas dos funciones.
+static bool bossKickGate(const Player* p, bool hit) {
+    if (!isPlayerJumpKicking(p)) return hit;
+    if (p->bossKickSpent) return FALSE;
+    if (hit) ((Player*)p)->bossKickSpent = 1;
+    return hit;
+}
+
 bool playerAttackHitsBoss(const Player* p, s16 targetCX, s16 targetFeetY,
                           s16 targetHalfW, s16 targetBodyH, s16 tolUp, s16 tolDown) {
     if (!bossLaneOk(p, targetFeetY, tolUp, tolDown)) return FALSE;
-    return playerAttackHitsBox(p, targetCX, targetFeetY, targetHalfW, targetBodyH);
+    return bossKickGate(p, playerAttackHitsBox(p, targetCX, targetFeetY, targetHalfW, targetBodyH));
 }
 
 bool playerAttackHitsBossBand(const Player* p, s16 targetCX, s16 targetFeetY,
                               s16 targetHalfW, s16 yTop, s16 yBot, s16 tolUp, s16 tolDown) {
     if (!bossLaneOk(p, targetFeetY, tolUp, tolDown)) return FALSE;
-    return playerAttackHitsBand(p, targetCX, targetFeetY, targetHalfW, yTop, yBot);
+    return bossKickGate(p, playerAttackHitsBand(p, targetCX, targetFeetY, targetHalfW, yTop, yBot));
 }
 
 bool playerAttackHitsBand(const Player* p, s16 targetCX, s16 targetFeetY,
