@@ -381,7 +381,7 @@ static void beamUpdate(ShredderBoss* s, Player** pls, u8 nPl) {
         if (sabs((s16)(getPlayerY(pls[k]) - s->beamY)) > SHRED_BEAM_DY) continue;
         s->hitMask |= bit;
         XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
-        playerHitBarsKnockdown(pls[k], s->beamX, PLAYER_MAX_HEALTH);
+        playerDemutantHit(pls[k], s->beamX);
         // (16/10) El rayo electrocuta: "turtles shock pain" (CH1, voz).
         XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
     }

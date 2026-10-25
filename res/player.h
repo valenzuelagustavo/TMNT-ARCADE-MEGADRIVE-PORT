@@ -60,10 +60,14 @@ typedef enum {
                              // van A MANO: cada boton que toca el jugador
                              // avanza uno (ver GRAB_TYPE_MOUSER). La traen las
                              // hojas de Leo y Don; Mike y Raph caen a ANIM_HELD.
-    ANIM_BURN         = 26   // (18/10) Quemada por el lanzallamas de Granitor:
+    ANIM_BURN         = 26,  // (18/10) Quemada por el lanzallamas de Granitor:
                              // la cabeza carbonizada (2 frames en loop, ver
                              // playerBurnHit). Solo Leo y Don; Mike y Raph
                              // reciben el golpe liviano de siempre.
+    ANIM_DEMUTANT     = 27   // (25/10) El rayo de Shredder las DESMUTA: la tortuga
+                             // vuelve a ser una tortuga comun (6 cuadros, la misma
+                             // imagen en las 4 hojas: tools/add_demutant_row.py).
+                             // Los cuadros van a mano (STATE_DEMUTANT).
 } PlayerAnim;
 
 // Hoja NUEVA (09/10): trae ANIM_ATTACK_4 y ANIM_JUMP_KICK_DIR. Las hojas viejas
@@ -72,6 +76,7 @@ typedef enum {
 #define playerHasNewSheet(p)    ((p)->numAnims >= PLAYER_NEW_SHEET_ANIMS)
 #define playerHasBiteAnim(p)    ((p)->numAnims > ANIM_MOUSER_BITE)
 #define playerHasBurnAnim(p)    ((p)->numAnims > ANIM_BURN)
+#define playerHasDemutAnim(p)   ((p)->numAnims > ANIM_DEMUTANT)
 
 // ---------------------------------------------------------------------------
 // Estados lógicos del personaje
@@ -85,7 +90,9 @@ typedef enum {
     STATE_KO,        // Sin vida: tortuga knockeada (último frame de HIT_BEHIND_2)
     STATE_KNOCKED_DOWN,  // Derribada por un golpe fuerte (patada del jefe):
                          // cae de espaldas, queda tirada y se levanta
-    STATE_GRABBED
+    STATE_GRABBED,
+    STATE_DEMUTANT   // (25/10) Rayo de Shredder: anim de desmutacion, queda un
+                     // segundo en el ultimo cuadro y recien ahi pierde la vida
 } PlayerState;
 
 // ---------------------------------------------------------------------------
@@ -623,6 +630,7 @@ typedef struct {
     u8          heldFrame;   // Frame actual del loop manual de ANIM_HELD (0-2)
     u8          heldTimer;   // Ticks hasta el próximo paso del loop de HELD
     u8          heldHit;     // Frames restantes del frame 3 de HELD (golpe en el agarre)
+    u16         demutT;      // (25/10) Frames en STATE_DEMUTANT
     u8          bossKickSpent; // (24/10) 1 = la patada voladora de este salto ya le pego a un jefe
 
     // --- Caida por la boca de tormenta (20/09, solo 2-1) ---
@@ -836,6 +844,14 @@ void playerHitProjectile(Player* p, s16 attackerX, u8 bars);
 // queda vida y la hoja la trae, la tortuga queda quieta con ANIM_BURN
 // PLAYER_BURN_FRAMES antes de volver al idle.
 void playerBurnHit(Player* p, s16 attackerX, u8 bars);
+
+// (25/10) Rayo de Shredder: la tortuga se DESMUTA (ANIM_DEMUTANT: 6 cuadros a
+// DEMUT_FRAME_TICKS cada uno), queda un segundo en el ultimo y despues pierde
+// la vida (el KO de siempre). Intocable mientras tanto. Sin la fila en la
+// hoja: el derribo fatal de antes.
+#define DEMUT_FRAMES        6
+#define DEMUT_FRAME_TICKS   8
+void playerDemutantHit(Player* p, s16 attackerX);
 
 // Golpe FUERTE que DERRIBA: la tortuga cae de espaldas, queda tirada un
 // momento y se levanta (la usa la patada de Rocksteady). Misma regla de vida

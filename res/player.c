@@ -218,6 +218,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->heldFrame     = 0;
     p->heldTimer     = 0;
     p->heldHit       = 0;
+    p->demutT        = 0;
     p->mhPhase       = 0;
     p->mhTimer       = 0;
     p->mhOutX        = 0;
@@ -767,6 +768,8 @@ static void hitButtonsUpdate(Player* p) {
                     (s16)(p->y - HITBTN_HEAD - HITBTN_H - stageCamY));
 }
 
+static void playerEnterKO(Player* p);   // (25/10) lo usa STATE_DEMUTANT
+
 void updatePlayer(Player* p) {
     // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
     // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
@@ -1268,6 +1271,25 @@ void updatePlayer(Player* p) {
                 p->state = STATE_IDLE;
                 SPR_setAnimationLoop(p->sprite, TRUE);
                 SPR_setAnim(p->sprite, ANIM_IDLE);
+            }
+            break;
+        }
+
+        case STATE_DEMUTANT: {
+            // (25/10) Rayo de Shredder. Quieta, sin entrada: los cuadros de la
+            // desmutacion a mano, un segundo en el ultimo y despues pierde la
+            // vida (el KO de siempre: pose de knockeada, sin deslizarse).
+            u16 hold = (u16)(IS_PAL_SYSTEM ? 50 : 60);
+            u16 f = (u16)(p->demutT / DEMUT_FRAME_TICKS);
+            if (f >= DEMUT_FRAMES) f = DEMUT_FRAMES - 1;
+            SPR_setFrame(p->sprite, (s16)f);
+            if (p->demutT < 0xFFFF) p->demutT++;
+            if (p->demutT >= (u16)(DEMUT_FRAMES * DEMUT_FRAME_TICKS) + hold) {
+                p->health    = 0;
+                p->hurtDir   = 0;
+                p->invincible = 0;
+                SPR_setAnimationLoop(p->sprite, TRUE);
+                playerEnterKO(p);
             }
             break;
         }
@@ -1883,7 +1905,8 @@ bool playerCanBeHit(const Player* p) {
     // HELD sin soltar el agarre). El doble agarre se bloquea aparte con
     // playerIsGrabbed (ver playerWhipGrab y el grab de enemy.c).
     if (p->state == STATE_HURT || p->state == STATE_JUMPING ||
-        p->state == STATE_KO || p->state == STATE_KNOCKED_DOWN)
+        p->state == STATE_KO || p->state == STATE_KNOCKED_DOWN ||
+        p->state == STATE_DEMUTANT)
         return FALSE;
     return TRUE;
 }
@@ -1897,7 +1920,7 @@ bool playerCanBeHitAir(const Player* p) {
     if (p->invincible > 0) return FALSE;
     if (p->mhPhase != 0) return FALSE;
     if (p->state == STATE_HURT || p->state == STATE_KO ||
-        p->state == STATE_KNOCKED_DOWN)
+        p->state == STATE_KNOCKED_DOWN || p->state == STATE_DEMUTANT)
         return FALSE;
     return TRUE;
 }
@@ -2107,6 +2130,31 @@ void playerBurnHit(Player* p, s16 attackerX, u8 bars) {
     SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, TRUE);
     SPR_setAnimAndFrame(p->sprite, ANIM_BURN, 0);
+}
+
+// (25/10) El rayo de Shredder desmuta a la tortuga (ver DEMUT_* en player.h).
+// Corta lo que estuviera haciendo, la deja quieta donde estaba y ya no la toca
+// nada hasta que pierde la vida. Sin la fila ANIM_DEMUTANT en la hoja: el
+// derribo que dejaba la barra en 0 de antes.
+void playerDemutantHit(Player* p, s16 attackerX) {
+    if (!playerCanBeHit(p)) return;
+    if (!playerHasDemutAnim(p)) {
+        playerHitBarsKnockdown(p, attackerX, PLAYER_MAX_HEALTH);
+        return;
+    }
+    if (p->state == STATE_GRABBED) playerReleaseGrab(p);   // suelta al que la tenia
+    p->comboStep       = 0;
+    arcCut(p);
+    p->comboBuffered   = 0;
+    p->comboLinger     = 0;
+    p->attackIsSpecial = 0;
+    p->hurtDir         = 0;
+    p->hurtTimer       = 0;
+    p->demutT          = 0;
+    p->state           = STATE_DEMUTANT;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_DEMUTANT, 0);
 }
 
 // Golpe fuerte que DERRIBA (patada de Rocksteady): cae de espaldas, queda
