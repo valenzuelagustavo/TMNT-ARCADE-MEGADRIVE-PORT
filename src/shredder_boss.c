@@ -365,6 +365,29 @@ static void beamFire(ShredderBoss* s, s16 x, s16 y) {
     XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
 }
 
+// (25/10) El rayo son TRES rayitos que se abren en abanico (arriba, centro,
+// abajo; sprites shredder_beam_a/_b: a 268 px de la punta quedan a +-72 px del
+// central). Antes solo pegaba en la lane de Shredder (+-SHRED_BEAM_DY) y una
+// tortuga a la que los rayitos le pasaban por encima no sentia nada. Ahora
+// pega si la lane coincide O si alguno de los tres rayitos cruza el cuerpo
+// (BEAM_BODY_H hacia arriba desde los pies) a esa distancia.
+#define BEAM_CORE_UP   65   // altura del rayito central sobre los pies de Shredder
+#define BEAM_BODY_H    56   // alto del cuerpo de la tortuga
+#define BEAM_BODY_TOL   6
+static bool beamCrosses(const ShredderBoss* s, const Player* p, s16 fwd) {
+    s16 dy = (s16)(getPlayerY(p) - s->beamY);       // pies de la tortuga vs lane
+    if (sabs(dy) <= SHRED_BEAM_DY) return TRUE;
+    if (fwd < 0) fwd = 0;
+    s16 spread = (s16)((fwd * 69) >> 8);             // ~0.27 px por px de largo
+    s16 lo = (s16)(dy - BEAM_BODY_H - BEAM_BODY_TOL);
+    s16 hi = (s16)(dy + BEAM_BODY_TOL);
+    for (s8 a = -1; a <= 1; a++) {
+        s16 ay = (s16)(-BEAM_CORE_UP + a * spread);
+        if (ay >= lo && ay <= hi) return TRUE;
+    }
+    return FALSE;
+}
+
 static void beamUpdate(ShredderBoss* s, Player** pls, u8 nPl) {
     if (!s->beamOn) return;
     s->beamT++;
@@ -378,7 +401,7 @@ static void beamUpdate(ShredderBoss* s, Player** pls, u8 nPl) {
         if ((s->hitMask & bit) || !playerCanBeHit(pls[k])) continue;
         s16 fwd = (s16)((getPlayerHurtCX(pls[k]) - s->beamX) * s->beamDir);
         if (fwd < -8 || fwd > (s16)beamReach[f]) continue;
-        if (sabs((s16)(getPlayerY(pls[k]) - s->beamY)) > SHRED_BEAM_DY) continue;
+        if (!beamCrosses(s, pls[k], fwd)) continue;
         s->hitMask |= bit;
         XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
         playerDemutantHit(pls[k], s->beamX);
