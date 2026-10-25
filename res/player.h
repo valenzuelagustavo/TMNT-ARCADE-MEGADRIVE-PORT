@@ -64,10 +64,16 @@ typedef enum {
                              // la cabeza carbonizada (2 frames en loop, ver
                              // playerBurnHit). Solo Leo y Don; Mike y Raph
                              // reciben el golpe liviano de siempre.
-    ANIM_DEMUTANT     = 27   // (25/10) El rayo de Shredder las DESMUTA: la tortuga
+    ANIM_DEMUTANT     = 27,  // (25/10) El rayo de Shredder las DESMUTA: la tortuga
                              // vuelve a ser una tortuga comun (6 cuadros, la misma
                              // imagen en las 4 hojas: tools/add_demutant_row.py).
                              // Los cuadros van a mano (STATE_DEMUTANT).
+    ANIM_FROZEN       = 28,  // (25/10) Congelada por el spray del tubo del
+                             // Technodrome: 4 cuadros del bloque de hielo (se
+                             // repiten FREEZE_LOOPS veces). Arte de
+                             // turtle_frosen.png remapeado a PAL1
+                             // (tools/add_frozen_rows.py). A mano.
+    ANIM_FROZEN_BREAK = 29   // (25/10) El hielo se rompe y la libera (2 cuadros).
 } PlayerAnim;
 
 // Hoja NUEVA (09/10): trae ANIM_ATTACK_4 y ANIM_JUMP_KICK_DIR. Las hojas viejas
@@ -77,6 +83,7 @@ typedef enum {
 #define playerHasBiteAnim(p)    ((p)->numAnims > ANIM_MOUSER_BITE)
 #define playerHasBurnAnim(p)    ((p)->numAnims > ANIM_BURN)
 #define playerHasDemutAnim(p)   ((p)->numAnims > ANIM_DEMUTANT)
+#define playerHasFrozenAnim(p)  ((p)->numAnims > ANIM_FROZEN_BREAK)
 
 // ---------------------------------------------------------------------------
 // Estados lógicos del personaje
@@ -91,6 +98,8 @@ typedef enum {
     STATE_KNOCKED_DOWN,  // Derribada por un golpe fuerte (patada del jefe):
                          // cae de espaldas, queda tirada y se levanta
     STATE_GRABBED,
+    STATE_FROZEN,    // (25/10) Spray del tubo del Technodrome: bloque de hielo
+                     // (FREEZE_*), quieta e intocable hasta que se rompe
     STATE_DEMUTANT   // (25/10) Rayo de Shredder: anim de desmutacion, queda un
                      // segundo en el ultimo cuadro y recien ahi pierde la vida
 } PlayerState;
@@ -631,6 +640,7 @@ typedef struct {
     u8          heldTimer;   // Ticks hasta el próximo paso del loop de HELD
     u8          heldHit;     // Frames restantes del frame 3 de HELD (golpe en el agarre)
     u16         demutT;      // (25/10) Frames en STATE_DEMUTANT
+    u16         frozenT;     // (25/10) Frames en STATE_FROZEN
     u8          bossKickSpent; // (24/10) 1 = la patada voladora de este salto ya le pego a un jefe
 
     // --- Caida por la boca de tormenta (20/09, solo 2-1) ---
@@ -852,6 +862,18 @@ void playerBurnHit(Player* p, s16 attackerX, u8 bars);
 #define DEMUT_FRAMES        6
 #define DEMUT_FRAME_TICKS   8
 void playerDemutantHit(Player* p, s16 attackerX);
+
+// (25/10) Spray del tubo: resta 'bars' barras y la CONGELA en el lugar: 4
+// cuadros de hielo a FREEZE_TICK cada uno, FREEZE_LOOPS vueltas; despues el
+// hielo se rompe (2 cuadros a FREEZE_BREAK_TICK) y vuelve al idle con unos
+// cuadros de invulnerabilidad. Con 0 barras: KO directo. Sin las filas en la
+// hoja: el golpe liviano de siempre.
+#define FREEZE_FRAMES       4
+#define FREEZE_LOOPS        2
+#define FREEZE_TICK         9
+#define FREEZE_BREAK_FRAMES 2
+#define FREEZE_BREAK_TICK   8
+void playerFreezeHit(Player* p, s16 attackerX, u8 bars);
 
 // Golpe FUERTE que DERRIBA: la tortuga cae de espaldas, queda tirada un
 // momento y se levanta (la usa la patada de Rocksteady). Misma regla de vida

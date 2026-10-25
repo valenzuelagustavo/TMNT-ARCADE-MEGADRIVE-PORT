@@ -57,6 +57,7 @@
 #include "stage_bg.h"
 #include "traag.h"
 #include "techno_hazards.h"   // (18/10) columnas con laser y bolas del ascensor
+#include "techno_tubes.h"     // (25/10) tubos de spray congelante (zona de los triangulos)
 #include "pause_menu.h"
 #include "audio.h"
 
@@ -448,6 +449,7 @@ SceneId showScene81() {
     sbgInitRaw2D(&technoMap, BG_B, PAL0, (u16)(elevVram + elevTiles), L8_BG_SLOTS,
                  cameraX, cameraY);
     thInit((u16)(elevVram + elevTiles + L8_BG_SLOTS), thTechnoPillars, TH_TECHNO_PILLARS, 110);
+    ttInit();                  // (25/10)
     techPalInit();
     stageCamY = cameraY;
     s16 elevFine = elevUpdate((s16)(elevX - cameraX), DMA);
@@ -821,6 +823,12 @@ SceneId showScene81() {
         thPillarsUpdate(pls, nPl, cameraX, cameraY);
         thBallsUpdate(pls, nPl, cameraX, cameraY, elevX, elevY,
                       phase == PH_RIDE && cameraY < L8_BALLS_STOP_Y);
+        // (25/10) Tubos de spray congelante en el piso de los triangulos
+        // (solo arriba; al arrancar el ascensor se sueltan).
+        if (phase == PH_TOP)
+            ttUpdate(pls, nPl, cameraX, cameraY, L8_TOP_LANE_T, L8_TOP_LANE_B, leadFeetX, TRUE);
+        else
+            ttRelease();
 
         // --- Jefe: Traag -------------------------------------------------------
         if (!bossStarted && phase == PH_BOTTOM && botFired && botIdx == BOT_WAVES - 1 &&
@@ -865,6 +873,7 @@ SceneId showScene81() {
 
     if (phase == PH_RIDE) XGM2_stopPCM(L8_ELEV_SFX_CH);   // salio en pleno viaje
     thRelease();               // (18/10)
+    ttRelease();               // (25/10)
     shurikenReleaseAll();
     stageCamY = 0;
     traagRelease(&traag);

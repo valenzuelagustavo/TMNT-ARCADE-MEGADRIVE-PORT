@@ -219,6 +219,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->heldTimer     = 0;
     p->heldHit       = 0;
     p->demutT        = 0;
+    p->frozenT       = 0;
     p->mhPhase       = 0;
     p->mhTimer       = 0;
     p->mhOutX        = 0;
@@ -1275,6 +1276,31 @@ void updatePlayer(Player* p) {
             break;
         }
 
+        case STATE_FROZEN: {
+            // (25/10) Bloque de hielo (spray del tubo). Quieta, sin entrada:
+            // los cuadros a mano, FREEZE_LOOPS vueltas de los 4 del hielo y
+            // despues los 2 en que se rompe; ahi vuelve al idle.
+            u16 iceT = (u16)(FREEZE_FRAMES * FREEZE_LOOPS * FREEZE_TICK);
+            if (p->frozenT < 0xFFFF) p->frozenT++;
+            if (p->frozenT < iceT) {
+                SPR_setFrame(p->sprite, (s16)((p->frozenT / FREEZE_TICK) % FREEZE_FRAMES));
+            } else {
+                u16 bt = (u16)(p->frozenT - iceT);
+                u16 bf = (u16)(bt / FREEZE_BREAK_TICK);
+                if (bf >= FREEZE_BREAK_FRAMES) {
+                    p->state      = STATE_IDLE;
+                    p->invincible = PLAYER_HURT_INVINCIBLE;
+                    SPR_setAutoAnimation(p->sprite, TRUE);
+                    SPR_setAnimationLoop(p->sprite, TRUE);
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                } else {
+                    if (bt == 0) SPR_setAnimAndFrame(p->sprite, ANIM_FROZEN_BREAK, 0);
+                    else         SPR_setFrame(p->sprite, (s16)bf);
+                }
+            }
+            break;
+        }
+
         case STATE_DEMUTANT: {
             // (25/10) Rayo de Shredder. Quieta, sin entrada: los cuadros de la
             // desmutacion a mano, un segundo en el ultimo y despues pierde la
@@ -1906,7 +1932,7 @@ bool playerCanBeHit(const Player* p) {
     // playerIsGrabbed (ver playerWhipGrab y el grab de enemy.c).
     if (p->state == STATE_HURT || p->state == STATE_JUMPING ||
         p->state == STATE_KO || p->state == STATE_KNOCKED_DOWN ||
-        p->state == STATE_DEMUTANT)
+        p->state == STATE_DEMUTANT || p->state == STATE_FROZEN)
         return FALSE;
     return TRUE;
 }
@@ -1920,7 +1946,7 @@ bool playerCanBeHitAir(const Player* p) {
     if (p->invincible > 0) return FALSE;
     if (p->mhPhase != 0) return FALSE;
     if (p->state == STATE_HURT || p->state == STATE_KO ||
-        p->state == STATE_KNOCKED_DOWN || p->state == STATE_DEMUTANT)
+        p->state == STATE_KNOCKED_DOWN || p->state == STATE_DEMUTANT || p->state == STATE_FROZEN)
         return FALSE;
     return TRUE;
 }
@@ -2155,6 +2181,32 @@ void playerDemutantHit(Player* p, s16 attackerX) {
     SPR_setAutoAnimation(p->sprite, FALSE);
     SPR_setAnimationLoop(p->sprite, FALSE);
     SPR_setAnimAndFrame(p->sprite, ANIM_DEMUTANT, 0);
+}
+
+// (25/10) Spray del tubo del Technodrome: ver FREEZE_* en player.h.
+void playerFreezeHit(Player* p, s16 attackerX, u8 bars) {
+    if (!playerCanBeHit(p)) return;
+    if (!playerHasFrozenAnim(p)) {
+        playerTakeHit(p, attackerX, bars, FALSE);
+        return;
+    }
+    if (p->state == STATE_GRABBED) playerReleaseGrab(p);
+    bars = playerDiffBars(p, bars);
+    if (p->health > (s16)bars) p->health -= (s16)bars;
+    else                       p->health = 0;
+    if (p->health == 0) { p->hurtDir = 0; playerEnterKO(p); return; }
+    p->comboStep       = 0;
+    arcCut(p);
+    p->comboBuffered   = 0;
+    p->comboLinger     = 0;
+    p->attackIsSpecial = 0;
+    p->hurtDir         = 0;
+    p->hurtTimer       = 0;
+    p->frozenT         = 0;
+    p->state           = STATE_FROZEN;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_FROZEN, 0);
 }
 
 // Golpe fuerte que DERRIBA (patada de Rocksteady): cae de espaldas, queda
