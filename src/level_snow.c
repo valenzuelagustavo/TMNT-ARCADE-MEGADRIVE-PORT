@@ -70,7 +70,7 @@ static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 // bordes. Tope de vivos a la vez propio del nivel (LVLSNOW_MAX_ALIVE_*): el
 // resto espera su turno. Si no entran en la VRAM, stage_level espera a que
 // caiga alguno y a los 2,5 s sin nadie vivo lo saltea.
-#define LVLSNOW_MAX_ALIVE_1P   5
+#define LVLSNOW_MAX_ALIVE_1P   3   // (25/10) 5 -> 3: nunca mas de tres a la vez
 #define LVLSNOW_MAX_ALIVE_2P   3
 // (22/10) EL TRACTOR (SP_TRACTOR, ver mas abajo) es una oleada propia: con la
 // camara clavada cruza de derecha a izquierda y recien al salir se suelta la
