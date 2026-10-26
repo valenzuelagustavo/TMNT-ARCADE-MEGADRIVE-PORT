@@ -572,6 +572,8 @@
 #define MORADO_CIRCLE_READY     6   // cruza recien con la Y a esto de la de rodeo
 #define MORADO_CIRCLE_CLEAR    12   // del otro lado y a esto del centro: termino
 #define MORADO_CIRCLE_FACE     10   // frame 12/1 (de espaldas) a menos de esto en X
+#define MORADO_HOP_PERIOD      12   // (26/10) cuadros de cada saltito mientras rodea
+#define MORADO_HOP_HEIGHT       4   // px que se eleva el sprite en lo alto del saltito
 
 // Naranja (ENEMY_TYPE_FOOT_SOLDIER_ORANGE): NO kitea ni se aleja del jugador.
 // A distancia lanza shurikens (solo se acerca caminando si el jugador está
@@ -784,6 +786,11 @@ typedef struct {
     // baja/sube respecto de los pies de la tortuga (sorteado por soldier).
     u8          circling;
     u8          circleDY;
+    // (26/10) Saltitos mientras rodea (frames sueltos: sin esto parece que se
+    // desliza): hopT = fase, hopZ = cuanto se eleva el SPRITE este cuadro (solo
+    // visual, no toca jumpZ ni los golpes).
+    u8          hopT;
+    u8          hopZ;
 
     // --- Animaciones nuevas del morado (31/07) ---
     s16         w;            // Ancho del frame (px, según el tipo)

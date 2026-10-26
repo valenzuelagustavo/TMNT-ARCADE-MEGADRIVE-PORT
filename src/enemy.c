@@ -1350,6 +1350,8 @@ void initEnemySpawn(Enemy* e, s16 spawnX, s16 y, s16 patrolRange, u8 palette, u8
     e->flankTimer  = 0;
     e->circling   = 0;
     e->circleDY   = 0;
+    e->hopT       = 0;
+    e->hopZ       = 0;
     e->attackCooldown = (u8)(random() & 31);
     e->lastMoveDir = 0;
     e->turnTimer   = 0;
@@ -1908,6 +1910,8 @@ static void enemySpearToPurple(Enemy* e) {
     e->flankTimer = 0;
     e->circling   = 0;
     e->circleDY   = 0;
+    e->hopT       = 0;
+    e->hopZ       = 0;
     e->hitToggle  = 0;
     SPR_setDefinition(e->sprite, &foot_soldier);
     SPR_setAutoAnimation(e->sprite, TRUE);
@@ -2118,6 +2122,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
 
     EnemyState newState = e->state;
 
+    e->hopZ = 0;      // (26/10) lo setea el rodeo del morado, cuadro a cuadro
     switch (e->state) {
 
         case ENEMY_STATE_PATROL: {
@@ -2578,6 +2583,16 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
                 }
                 SPR_setFrame(e->sprite, fr);
                 e->dir = 1;
+                // (26/10) Saltitos: cada cuadro de desplazamiento el sprite sube y
+                // baja (parabola de MORADO_HOP_PERIOD cuadros); cada frame es
+                // una sola imagen y sin esto parece que se desliza. Parado, no.
+                if (moveX != 0 || moveY != 0) {
+                    if (++e->hopT >= MORADO_HOP_PERIOD) e->hopT = 0;
+                    s16 h = (s16)(e->hopT * (MORADO_HOP_PERIOD - e->hopT));      // 0..36
+                    e->hopZ = (u8)((h * MORADO_HOP_HEIGHT * 4 / (MORADO_HOP_PERIOD * MORADO_HOP_PERIOD)));
+                } else {
+                    e->hopT = 0;
+                }
             } else if (moveX == 0 && moveY == 0) {
                 if (e->type == ENEMY_TYPE_FOOT_SOLDIER) {
                     // Morado: posturas de espera. Si otro soldier está atacando,
@@ -2877,7 +2892,7 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
     }
 
     SPR_setHFlip(e->sprite, (e->dir < 0));
-    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e), e->y - e->footOffset - e->jumpZ - stageCamY);
+    SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e), e->y - e->footOffset - e->jumpZ - e->hopZ - stageCamY);
     SPR_setDepth(e->sprite, -(e->y));
 }
 
