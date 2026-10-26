@@ -1218,6 +1218,7 @@ static void contDrawText(HudPlayer* h, s8 seconds) {
 // re-inicializa con el personaje elegido en el lugar donde cayó y restaura
 // vidas/barra completas con i-frames para no morir al instante.
 static void revivePlayer(Player* p, u8 ch, u16 joyId) {
+    if (p->isSlash) ch = PLAYER_CHAR_SLASH;   // (26/10) Slash sigue siendo Slash al continuar
     // (26/09) Donde cayo puede haber quedado fuera de camara (el companero
     // siguio avanzando mientras estaba fuera): se lo trae adentro de los
     // bordes que el nivel le fijo este frame.
@@ -3172,7 +3173,7 @@ SceneId showScene11() {
     // paso 3 del bucle (dependen de la cámara); acá solo el arranque.
     Player p1, p2, p3, p4;
     Player* pls[MAX_PLAYERS] = { &p1, &p2, &p3, &p4 };
-    initPlayer(&p1, personajeSeleccionado, JOY_1, PAL1, 40, 182);   // 5 tiles desde el borde izq
+    initPlayer(&p1, playerChar(0), JOY_1, PAL1, 40, 182);   // 5 tiles desde el borde izq
     setPlayerRightBound(&p1, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
 
     // Jugadores 2..4: se reparten en X para no nacer uno encima del otro.
@@ -4593,7 +4594,7 @@ SceneId showScene12() {
 
     Player p1, p2, p3, p4;
     Player* pls[MAX_PLAYERS] = { &p1, &p2, &p3, &p4 };
-    initPlayer(&p1, personajeSeleccionado, JOY_1, PAL1, 40, 182);
+    initPlayer(&p1, playerChar(0), JOY_1, PAL1, 40, 182);
     setPlayerRightBound(&p1, SCREEN_PIXEL_WIDTH - PLAYER_SPRITE_W);
 
     // Jugadores 2..4: se reparten en X para no nacer uno encima del otro.
