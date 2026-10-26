@@ -786,6 +786,11 @@ bool isPlayerKillAttack(const Player* p);
 // slashMode (el menu lo activa con A B A C A B B y 1 jugador). Un solo jugador.
 #define PLAYER_CHAR_SLASH  4
 extern bool slashMode;
+// (26/10) La paleta de PAL1 de los niveles (tortugas, HUD): la de las tortugas, o
+// con slashMode la de Slash, con sus colores originales (tools/gen_slash_sheet.py
+// los acomoda para que el HUD, dibujado con los indices de las tortugas, se
+// parezca). Reemplaza a leo_player.palette->data en los niveles.
+const u16* playerSheetPalette(void);
 // Golpe contra un objetivo EN EL AIRE, sin lane (ver player.c).
 bool playerAttackHitsFlying(const Player* p, s16 targetCX, s16 top, s16 bot,
                             s16 targetHalfW);

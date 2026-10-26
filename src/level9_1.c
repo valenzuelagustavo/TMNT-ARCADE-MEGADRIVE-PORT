@@ -228,7 +228,7 @@ SceneId showScene91() {
     u16 target[64];
     for (u16 i = 0; i < 16; i++) {
         target[i]      = final_room.palette->data[i];
-        target[16 + i] = leo_player.palette->data[i];
+        target[16 + i] = playerSheetPalette()[i];
         target[32 + i] = 0;
         target[48 + i] = final_portal.palette->data[i];
     }

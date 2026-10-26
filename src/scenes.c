@@ -2489,7 +2489,7 @@ static void titleHudBegin(void) {
     VDP_setTextPlane(BG_A);
     VDP_setTextPriority(1);
     VDP_setTextPalette(PAL1);
-    PAL_setColors(16, leo_player.palette->data, 16, DMA);   // PAL1: tortugas/HUD
+    PAL_setColors(16, playerSheetPalette(), 16, DMA);   // PAL1: tortugas/HUD (26/10: o la de Slash)
     hudSetPlane(BG_A);
     hudInit();
     for (u8 k = 0; k < titleNPl; k++) {
@@ -3351,7 +3351,7 @@ SceneId showScene11() {
     // cargó con la CRAM negra, así que quedó invisible. Acá se revela la escena.
     // PAL1 = paleta unificada de las tortugas (la misma que cargaba initPlayer).
     levelFadeIn(bg_level1.palette->data,
-                leo_player.palette->data,
+                playerSheetPalette(),
                 foot_soldier.palette->data,
                 foot_soldier_white.palette->data);
 
@@ -4730,7 +4730,7 @@ SceneId showScene12() {
     // jugadores, oleada A) se cargó con la CRAM negra, así que quedó
     // invisible. Acá se revela la escena. ---
     levelFadeIn(bg_test.palette->data,
-                leo_player.palette->data,
+                playerSheetPalette(),
                 foot_soldier.palette->data,
                 foot_soldier_white.palette->data);
 

@@ -9,8 +9,12 @@
 #   x=52, pies y=95), UNA FILA POR PlayerAnim (res/player.h) hasta ANIM_MANHOLE
 #   (22 filas), para que todo el motor del jugador (golpes, KO, volteo...) siga
 #   funcionando sin cambios. Lo que Slash no tiene se rellena con la pose
-#   "golpeado". El arte se REMAPEA a la paleta de las tortugas (PAL1, la de la
-#   hoja de Leo): el HUD y los fades comparten esa linea, no hay una libre.
+#   "golpeado". (26/10) El arte conserva SUS COLORES ORIGINALES: la hoja lleva
+#   la paleta de Slash, con los colores REORDENADOS (asignacion optima, ver
+#   assign) para que cada uno caiga en el indice de PAL1 cuyo color de las
+#   tortugas se le parece: asi el HUD y lo demas que usa PAL1 (que esta dibujado
+#   con los indices de las tortugas) queda lo mas parecido posible. En modo
+#   Slash los niveles cargan esta paleta en PAL1 (playerSheetPalette).
 # Tambien imprime el alcance de los golpes (px desde el centro, mirando a la
 # derecha) para SLASH_REACH_* de res/player.c.
 # Uso:  python3 tools/gen_slash_sheet.py [--preview carpeta]
@@ -31,12 +35,7 @@ FEET_Y = 95
 # frames por fila de origen
 SRC_FRAMES = {0: 3, 1: 3, 2: 1, 3: 4, 4: 1, 5: 3, 6: 3}
 
-# Mapa manual de colores de Slash -> indices de PAL1 (la de las tortugas):
-#  Leo: 1 negro, 2 verde oscuro, 3 oliva, 4 gris oscuro, 5 verde, 6 marron,
-#  7 amarillo, 8 verde claro, 9 azul, 10 gris, 11 azul violeta, 12 violeta,
-#  13 blanco, 14 rojo, 15 naranja
-# Se completa solo (color mas cercano con peso al brillo); MANUAL pisa casos.
-MANUAL = {2: 2, 3: 3, 4: 6, 6: 12, 7: 2, 9: 6, 10: 5, 13: 12}
+# (26/10) Ya no se remapea a mano: ver assign().
 
 
 def pal_of(im):
@@ -44,20 +43,47 @@ def pal_of(im):
     return [tuple(p[i * 3:i * 3 + 3]) for i in range(16)]
 
 
-def build_map(sp, dp):
+def assign(sp, dp):
+    """Permutacion indice-de-Slash -> indice-de-PAL1 (1..15 <-> 1..15) de costo
+    minimo (distancia de color + brillo). Hungarian O(n^3), n = 15."""
+    n = 15
+    cost = np.zeros((n, n))
+    for a in range(n):
+        for b in range(n):
+            s_ = np.array(sp[a + 1], float)
+            d_ = np.array(dp[b + 1], float)
+            cost[a, b] = ((s_ - d_) ** 2).sum() + 2.0 * (s_.sum() / 3 - d_.sum() / 3) ** 2
+    # Hungarian (e-maxx)
+    INF = 1e18
+    u = [0.0] * (n + 1); v = [0.0] * (n + 1); p = [0] * (n + 1); way = [0] * (n + 1)
+    for i in range(1, n + 1):
+        p[0] = i; j0 = 0
+        minv = [INF] * (n + 1); used = [False] * (n + 1)
+        while True:
+            used[j0] = True
+            i0 = p[j0]; delta = INF; j1 = 0
+            for j in range(1, n + 1):
+                if not used[j]:
+                    cur = cost[i0 - 1][j - 1] - u[i0] - v[j]
+                    if cur < minv[j]:
+                        minv[j] = cur; way[j] = j0
+                    if minv[j] < delta:
+                        delta = minv[j]; j1 = j
+            for j in range(n + 1):
+                if used[j]:
+                    u[p[j]] += delta; v[j] -= delta
+                else:
+                    minv[j] -= delta
+            j0 = j1
+            if p[j0] == 0:
+                break
+        while True:
+            j1 = way[j0]; p[j0] = p[j1]; j0 = j1
+            if j0 == 0:
+                break
     m = np.zeros(256, np.uint8)
-    for i in range(1, 16):
-        if i in MANUAL:
-            m[i] = MANUAL[i]
-            continue
-        s = np.array(sp[i], float)
-        best, bd = 1, 1e18
-        for j in range(1, 16):
-            d_ = np.array(dp[j], float)
-            d = ((s - d_) ** 2).sum() + 2.0 * (s.sum() / 3 - d_.sum() / 3) ** 2
-            if d < bd:
-                best, bd = j, d
-        m[i] = best
+    for j in range(1, n + 1):
+        m[p[j]] = j
     return m
 
 
@@ -65,7 +91,8 @@ def main():
     prev = sys.argv[sys.argv.index('--preview') + 1] if '--preview' in sys.argv else None
     sim = Image.open(SRC)
     src = np.array(sim)
-    cmap = build_map(pal_of(sim), pal_of(Image.open(LEO)))
+    spal = pal_of(sim)
+    cmap = assign(spal, pal_of(Image.open(LEO)))
     print('mapa', {i: int(cmap[i]) for i in range(1, 16)})
 
     def cell(srow, k):
@@ -95,7 +122,11 @@ def main():
     for r, fr in enumerate(rows):
         for k, f in enumerate(fr):
             sheet[r * CELL:(r + 1) * CELL, k * CELL:(k + 1) * CELL] = f
-    lp = Image.open(LEO).getpalette()
+    # paleta de la hoja: colores de Slash en el indice que les asigno assign()
+    newpal = [(0, 0, 0)] * 16
+    for i in range(1, 16):
+        newpal[int(cmap[i])] = spal[i]
+    lp = [c for col in newpal for c in col] + [0] * (768 - 48)
     res = Image.fromarray(sheet, 'P')
     res.putpalette(lp)
     res.save(OUT, transparency=0, optimize=False)

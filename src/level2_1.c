@@ -1656,7 +1656,7 @@ SceneId showScene21() {
     u16 target[64];
     for (u16 i = 0; i < 16; i++) {
         target[i]      = lvl21_pal.data[i];
-        target[16 + i] = leo_player.palette->data[i];
+        target[16 + i] = playerSheetPalette()[i];
         target[32 + i] = foot_soldier.palette->data[i];
         // (24/09) PAL3 es la del JEFE. En este nivel no hay foot soldier
         // blanco ni naranja, asi que la linea estaba en negro y Bebop se la

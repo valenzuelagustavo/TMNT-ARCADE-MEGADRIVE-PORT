@@ -900,7 +900,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     u16 target[64];
     for (u16 i = 0; i < 16; i++) {
         target[i]      = L->bgRaw ? L->bgRaw->pal->data[i] : L->bg->palette->data[i];
-        target[16 + i] = leo_player.palette->data[i];
+        target[16 + i] = playerSheetPalette()[i];
         target[32 + i] = foot_soldier.palette->data[i];
         target[48 + i] = L->pal3 ? L->pal3[i]
                        : ((L->far && !L->farPal0) ? L->far->palette->data[i] : 0);

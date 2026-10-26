@@ -1826,6 +1826,10 @@ bool isPlayerJumpKicking(const Player* p) {
     return (p->state == STATE_JUMPING && p->isJumpKicking != JUMPKICK_NONE);
 }
 
+const u16* playerSheetPalette(void) {
+    return slashMode ? slash_player.palette->data : leo_player.palette->data;
+}
+
 bool isPlayerKillAttack(const Player* p) {
     if (isPlayerSpecialAttack(p)) return TRUE;
     return (p->isSlash && (p->state == STATE_ATTACKING || p->state == STATE_JUMPING));

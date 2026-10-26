@@ -523,7 +523,7 @@ SceneId showScene81() {
     u16 target[64];
     for (u16 i = 0; i < 16; i++) {
         target[i]      = pal_techno.data[i];
-        target[16 + i] = leo_player.palette->data[i];
+        target[16 + i] = playerSheetPalette()[i];
         target[32 + i] = foot_soldier.palette->data[i];
         target[48 + i] = foot_soldier_white.palette->data[i];
     }
