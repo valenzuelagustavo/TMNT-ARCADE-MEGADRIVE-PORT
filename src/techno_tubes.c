@@ -10,18 +10,18 @@
 
 #define SCREEN_W        320
 
-#define TT_MAX            2
-#define TT_HITS           3        // golpes para destruirlo
+#define TT_MAX            3
+#define TT_HITS           1        // golpes para destruirlo (26/10: de uno)
 #define TT_HIT_CD        14        // un golpe por swing
 #define TT_BODY_H        50
 #define TT_HALF_W         9
 
 // Tiempos (cuadros a 60 Hz)
 #define TT_RISE_N         6        // cuadros de la salida (0..5 del sprite)
-#define TT_AIM_T         24        // entero, apuntando, antes del chorro
+#define TT_AIM_T         16        // entero, apuntando, antes del chorro
 #define TT_SPRAY_T       80        // largo de cada chorro
 #define TT_FADE_T         6        // cuadros ralos al empezar y al terminar
-#define TT_PAUSE_T       36        // entre un chorro y el otro
+#define TT_PAUSE_T       24        // entre un chorro y el otro
 #define TT_BURSTS         2
 #define TT_SINK_STEP      5        // cuadros por cuadro al hundirse
 #define TT_DEAD_T        50        // destruido: queda y parpadea
@@ -33,8 +33,8 @@
 #define TT_DMG            2        // barras
 
 // Aparicion
-#define TT_SPAWN_MIN     150       // cuadros entre un tubo y el siguiente
-#define TT_SPAWN_RND      90
+#define TT_SPAWN_MIN      70       // cuadros entre un tubo y el siguiente
+#define TT_SPAWN_RND      60
 #define TT_AHEAD_MIN      70       // a que distancia al frente de la tortuga
 #define TT_AHEAD_RND      70
 #define TT_NEAR_PLAYER    44       // nunca mas cerca que esto (X) de una tortuga en su lane
@@ -88,6 +88,11 @@ void ttInit(void) {
     spawnWait = 90;     // el primero, un rato despues de entrar a la zona
 }
 
+bool ttBusy(void) {
+    for (u8 i = 0; i < TT_MAX; i++) if (tubes[i].st != TS_OFF) return TRUE;
+    return FALSE;
+}
+
 void ttRelease(void) {
     for (u8 i = 0; i < TT_MAX; i++) tubeFree(&tubes[i]);
 }
@@ -95,12 +100,12 @@ void ttRelease(void) {
 // Cuadro del sprite del tubo segun el estado
 static s16 riseFrame(u16 t) {
     // 0 y 1 (el disco) un poco mas lentos; despues 5 cuadros por cuadro
-    if (t < 8)  return 0;
-    if (t < 15) return 1;
-    u16 f = (u16)(2 + (t - 15) / 5);
+    if (t < 5)  return 0;
+    if (t < 10) return 1;
+    u16 f = (u16)(2 + (t - 10) / 4);
     return (s16)(f > TF_RISE_LAST ? TF_RISE_LAST : f);
 }
-#define TT_RISE_T   (15 + 4 * 5 + 5)   // 40: el cuadro 5 ya entero
+#define TT_RISE_T   (10 + 4 * 4 + 2)   // 28: el cuadro 5 ya entero (26/10: antes 40)
 
 static void trySpawn(Player** pls, u8 nPl, s16 camX, s16 laneT, s16 laneB) {
     Tube* b = NULL;
@@ -108,21 +113,14 @@ static void trySpawn(Player** pls, u8 nPl, s16 camX, s16 laneT, s16 laneB) {
     for (u8 i = 0; i < TT_MAX; i++) { if (tubes[i].st == TS_OFF) { if (!b) b = &tubes[i]; } else alive++; }
     if (!b || alive >= TT_MAX) return;
     if (!sprVramFits(techno_tube.maxNumTile)) return;
-    // Al frente de una tortuga al azar (la que va mas adelante pesa igual que
-    // las demas: en 2P tambien salen cerca de la que va atras).
-    Player* t = pls[nPl > 1 ? (random() % nPl) : 0];
-    if (!t) return;
-    s16 px = getPlayerWorldX(t) + PLAYER_SPRITE_W / 2;
-    s16 py = getPlayerY(t);
-    s16 x = (s16)(px + TT_AHEAD_MIN + (random() % TT_AHEAD_RND));
-    if (x > TT_X_MAX) x = TT_X_MAX;
-    if (x < TT_X_MIN) x = TT_X_MIN;
-    // en pantalla, con margen
-    if (x - camX < 28)  x = (s16)(camX + 28);
-    if (x - camX > SCREEN_W - 28) x = (s16)(camX + SCREEN_W - 28);
-    s16 lane = (s16)(py + (s16)(random() % 69) - 34);
-    if (lane < laneT + 14) lane = (s16)(laneT + 14);
-    if (lane > laneB - 6)  lane = (s16)(laneB - 6);
+    // (26/10) En cualquier lugar de la parte VISIBLE de la zona (adelante o
+    // atras de las tortugas: tapan el paso) y mirando para cualquier lado.
+    s16 x0 = (s16)(camX + 28), x1 = (s16)(camX + SCREEN_W - 28);
+    if (x0 < TT_X_MIN) x0 = TT_X_MIN;
+    if (x1 > TT_X_MAX) x1 = TT_X_MAX;
+    if (x1 <= x0) return;
+    s16 x = (s16)(x0 + (random() % (x1 - x0 + 1)));
+    s16 lane = (s16)(laneT + 14 + (random() % (laneB - laneT - 19)));
     // ni encima de una tortuga ni pegado a otro tubo
     for (u8 k = 0; k < nPl; k++) {
         s16 cx = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
@@ -134,10 +132,11 @@ static void trySpawn(Player** pls, u8 nPl, s16 camX, s16 laneT, s16 laneB) {
     }
     b->s = SPR_addSprite(&techno_tube, -64, -64, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
     if (!b->s) return;
+    b->dir = (random() & 1) ? 1 : -1;  // 26/10: tambien tiran a la derecha
+    SPR_setHFlip(b->s, b->dir > 0);
     SPR_setAutoAnimation(b->s, FALSE);
     SPR_setAnimAndFrame(b->s, 0, 0);
     b->st = TS_RISE; b->t = 0; b->x = x; b->lane = lane;
-    b->dir = (px < x) ? -1 : 1;        // tira hacia las tortugas
     b->burst = 0; b->hits = 0; b->hitCd = 0; b->hitMask = 0;
     spawnWait = (u16)(TT_SPAWN_MIN + (random() % TT_SPAWN_RND));
 }

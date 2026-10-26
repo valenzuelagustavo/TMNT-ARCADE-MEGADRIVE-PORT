@@ -7,6 +7,7 @@ extern const u8 techno_tiles[76320];
 extern const u8 techno_blocks[25600];
 extern const u8 techno_bidx[3212];
 extern const Palette pal_techno;
+extern const Palette pal_frozen;
 extern const Image techno_elevator;
 extern const SpriteDefinition techno_pillar_head;
 extern const SpriteDefinition techno_pillar_seg;

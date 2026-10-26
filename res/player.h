@@ -874,6 +874,13 @@ void playerDemutantHit(Player* p, s16 attackerX);
 #define FREEZE_BREAK_FRAMES 2
 #define FREEZE_BREAK_TICK   8
 void playerFreezeHit(Player* p, s16 attackerX, u8 bars);
+// (26/10) El hielo tiene su propia paleta (turtle_frosen.png): al congelarse la
+// tortuga pasa a la linea 'pal' y se carga ahi 'iceColors'; al romperse vuelve
+// a su linea y 'pal' recupera 'restoreColors'. El nivel lo llama al arrancar
+// (Technodrome: PAL2, que es la de los soldiers y en la zona de los tubos no
+// hay). Sin llamarlo, playerFreezeHit da el golpe liviano de siempre.
+void playerSetFreezePalette(const u16* iceColors, u16 pal, const u16* restoreColors);
+bool playerIsFrozen(const Player* p);
 
 // Golpe FUERTE que DERRIBA: la tortuga cae de espaldas, queda tirada un
 // momento y se levanta (la usa la patada de Rocksteady). Misma regla de vida

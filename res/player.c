@@ -771,6 +771,18 @@ static void hitButtonsUpdate(Player* p) {
 
 static void playerEnterKO(Player* p);   // (25/10) lo usa STATE_DEMUTANT
 
+// (26/10) Paleta propia del hielo (ver playerSetFreezePalette).
+static const u16* frzIce     = NULL;
+static const u16* frzRestore = NULL;
+static u16        frzPal     = PAL2;
+static u8         frzCount   = 0;      // tortugas congeladas ahora
+
+void playerSetFreezePalette(const u16* iceColors, u16 pal, const u16* restoreColors) {
+    frzIce = iceColors; frzPal = pal; frzRestore = restoreColors; frzCount = 0;
+}
+
+bool playerIsFrozen(const Player* p) { return p->state == STATE_FROZEN; }
+
 void updatePlayer(Player* p) {
     // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
     // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
@@ -1282,6 +1294,7 @@ void updatePlayer(Player* p) {
             // despues los 2 en que se rompe; ahi vuelve al idle.
             u16 iceT = (u16)(FREEZE_FRAMES * FREEZE_LOOPS * FREEZE_TICK);
             if (p->frozenT < 0xFFFF) p->frozenT++;
+            if (frzIce) PAL_setPalette(frzPal, frzIce, DMA_QUEUE);   // por si algo la piso
             if (p->frozenT < iceT) {
                 SPR_setFrame(p->sprite, (s16)((p->frozenT / FREEZE_TICK) % FREEZE_FRAMES));
             } else {
@@ -1290,6 +1303,9 @@ void updatePlayer(Player* p) {
                 if (bf >= FREEZE_BREAK_FRAMES) {
                     p->state      = STATE_IDLE;
                     p->invincible = PLAYER_HURT_INVINCIBLE;
+                    SPR_setPalette(p->sprite, p->palIdx);
+                    if (frzCount) frzCount--;
+                    if (!frzCount && frzRestore) PAL_setPalette(frzPal, frzRestore, DMA_QUEUE);
                     SPR_setAutoAnimation(p->sprite, TRUE);
                     SPR_setAnimationLoop(p->sprite, TRUE);
                     SPR_setAnim(p->sprite, ANIM_IDLE);
@@ -2186,7 +2202,7 @@ void playerDemutantHit(Player* p, s16 attackerX) {
 // (25/10) Spray del tubo del Technodrome: ver FREEZE_* en player.h.
 void playerFreezeHit(Player* p, s16 attackerX, u8 bars) {
     if (!playerCanBeHit(p)) return;
-    if (!playerHasFrozenAnim(p)) {
+    if (!playerHasFrozenAnim(p) || !frzIce) {
         playerTakeHit(p, attackerX, bars, FALSE);
         return;
     }
@@ -2204,6 +2220,9 @@ void playerFreezeHit(Player* p, s16 attackerX, u8 bars) {
     p->hurtTimer       = 0;
     p->frozenT         = 0;
     p->state           = STATE_FROZEN;
+    frzCount++;
+    PAL_setPalette(frzPal, frzIce, DMA_QUEUE);
+    SPR_setPalette(p->sprite, frzPal);
     SPR_setAutoAnimation(p->sprite, FALSE);
     SPR_setAnimationLoop(p->sprite, FALSE);
     SPR_setAnimAndFrame(p->sprite, ANIM_FROZEN, 0);

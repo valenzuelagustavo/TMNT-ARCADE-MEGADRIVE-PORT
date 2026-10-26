@@ -19,6 +19,8 @@
 NEAR
 
 PALETTE pal_techno      "images/lvl_8_techno/techno_pal.png"
+// (26/10) Paleta del hielo de la tortuga congelada (se carga en PAL2, ver player.c)
+PALETTE pal_frozen      "sprites/turtle_frosen.png"
 BIN     techno_tiles    "images/lvl_8_techno/techno_tiles.bin" 2 2 0 NONE
 // (18/10) techno_map.bin (411 KB) ya NO va a la ROM: pasaba los 4 MB. Va por
 // bloques de 8x8 celdas (tools/pack_techno_map.py): bloques unicos + indice.

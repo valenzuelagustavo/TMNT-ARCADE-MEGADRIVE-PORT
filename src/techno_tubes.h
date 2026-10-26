@@ -4,10 +4,14 @@
 // Arte: tools/gen_techno_tube.py (hoja del arcade "Enemies - Robot Enemies"),
 // res/level8_1_far.res; PAL3 = paleta del foot soldier blanco (la del nivel).
 //
+// (26/10) Sin foot soldiers en esta parte del pasillo: PAL2 queda libre para la
+// paleta del hielo. Salen en cualquier lugar visible de la zona y miran a
+// izquierda o derecha al azar; se destruyen de un golpe.
+//
 // Sale del piso un tubo (disco, se abre, sube), apunta unos cuadros y tira el
 // spray hacia donde estan las tortugas (2 rafagas con una pausa en el medio),
 // y se vuelve a hundir. La tortuga que toca el spray pierde 2 barras y queda
-// CONGELADA (playerFreezeHit, ANIM_FROZEN). Se destruye con 3 golpes.
+// CONGELADA (playerFreezeHit, ANIM_FROZEN). Se destruye de un golpe.
 //
 // Salen en la zona del piso con los triangulos (TT_X_MIN..TT_X_MAX, entre las
 // columnas con laser y el ascensor), de a uno cada tanto, al frente de las
@@ -32,5 +36,8 @@ void ttInit(void);
 void ttUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, s16 laneT, s16 laneB,
               s16 leadFeetX, bool spawn);
 void ttRelease(void);
+// TRUE mientras queda algun tubo en pantalla (el nivel no suelta la oleada
+// siguiente hasta que no queda ninguno: comparten la paleta PAL2 con el hielo).
+bool ttBusy(void);
 
 #endif

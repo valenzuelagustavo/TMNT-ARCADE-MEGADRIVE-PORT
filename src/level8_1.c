@@ -176,8 +176,10 @@ static const TechnoWave topWaves[] = {
     // queda en x 168-199 de pantalla).
     {  760,  600, 3, { D, D, D },                { P, P, P } },
     {  820,  640, 4, { -1, +1, +1, -1 },         { W, S, W, S } },
-    { 1080,  900, 4, { +1, -1, +1, +1 },         { K, P, K, P } },
-    { 1300, 1120, 5, { +1, -1, +1, -1, +1 },     { P, S, P, S, P } },
+    // (26/10) Las oleadas de x 1080 (blancos del cuchillo + morados) y x 1300
+    // (morados + lanzas) se sacaron: de x 1040 a 1390 (el piso de los
+    // triangulos) esta la zona de los TUBOS de spray congelante, y sin
+    // soldiers PAL2 queda libre para la paleta del hielo (techno_tubes.c).
     { 1460, 1348, 4, { +1, +1, -1, +1 },         { S, P, P, S } },
 };
 #define TOP_WAVES ((s16)(sizeof(topWaves) / sizeof(topWaves[0])))
@@ -450,6 +452,9 @@ SceneId showScene81() {
                  cameraX, cameraY);
     thInit((u16)(elevVram + elevTiles + L8_BG_SLOTS), thTechnoPillars, TH_TECHNO_PILLARS, 110);
     ttInit();                  // (25/10)
+    // (26/10) El hielo de la tortuga congelada va en PAL2 con su propia paleta;
+    // al romperse PAL2 vuelve a la de los soldiers.
+    playerSetFreezePalette(pal_frozen.data, PAL2, foot_soldier.palette->data);
     techPalInit();
     stageCamY = cameraY;
     s16 elevFine = elevUpdate((s16)(elevX - cameraX), DMA);
@@ -574,8 +579,12 @@ SceneId showScene81() {
                 if (nc > cameraX) cameraX = nc;
             }
             // Oleadas de arriba.
+            // (26/10) La oleada siguiente espera a que no quede tubo ni tortuga
+            // congelada: el hielo usa PAL2, la paleta de los soldiers.
+            bool iceBusy = ttBusy();
+            for (u8 k = 0; k < nPl; k++) if (playerIsFrozen(pls[k])) iceBusy = TRUE;
             if ((wave == NULL || waveSpawned >= waveTot) && topIdx + 1 < TOP_WAVES &&
-                leadFeetX >= topWaves[topIdx + 1].trigX) {
+                !iceBusy && leadFeetX >= topWaves[topIdx + 1].trigX) {
                 topIdx++;
                 wave = &topWaves[topIdx];
                 waveSpawned = 0;
@@ -826,7 +835,8 @@ SceneId showScene81() {
         // (25/10) Tubos de spray congelante en el piso de los triangulos
         // (solo arriba; al arrancar el ascensor se sueltan).
         if (phase == PH_TOP)
-            ttUpdate(pls, nPl, cameraX, cameraY, L8_TOP_LANE_T, L8_TOP_LANE_B, leadFeetX, TRUE);
+            ttUpdate(pls, nPl, cameraX, cameraY, L8_TOP_LANE_T, L8_TOP_LANE_B, leadFeetX,
+                     alive == 0 && (wave == NULL || waveSpawned >= waveTot));
         else
             ttRelease();
 
