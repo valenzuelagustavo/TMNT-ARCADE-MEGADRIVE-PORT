@@ -589,6 +589,7 @@ bool streetPlayerHits(Player** pls, u8 nPl) {
             playerAttackHitsBox(pls[k], (s16)(girlX + GIRL_W / 2), GIRL_FEET,
                                 GIRL_HIT_HALF_W, GIRL_BODY_H)) {
             girlDown = TRUE;
+            addPlayerScore(pls[k], 1);   // (26/10) +1 punto a la tortuga que la golpea
             if (girlSpr) SPR_setFrame(girlSpr, 1);
             // CH3: en CH2 van los golpes con prioridad 15 y lo cortarian.
             XGM2_playPCMEx(scream_april, sizeof(scream_april),
