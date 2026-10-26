@@ -54,13 +54,16 @@
 // el arcade se desplazan en profundidad (lane 140..240 de la franja de arriba,
 // 128..248), cada una a su velocidad y arrancando en otro lugar: 0,375 /
 // 0,625 / 0,875 px por cuadro. La de la izquierda mira y dispara a la DERECHA
-// (al que ya la paso), las otras dos a la IZQUIERDA. Cabeza a 8-10 px del
+// (al que ya la paso), las otras dos a la IZQUIERDA.
+// (26/10, Gustavo) Ahora al reves: las DOS PRIMERAS disparan a la IZQUIERDA y la
+// tercera a la DERECHA. Velocidades 0,69 / 1,0 / 0,875 px por cuadro: la
+// segunda es la mas rapida de las tres. Cabeza a 8-10 px del
 // piso: el laser va a la altura del pecho y se esquiva saltando.
 const ThPillarDef thTechnoPillars[TH_TECHNO_PILLARS] = {
     // x    lane zMin zMax  vel  1er tiro  laneMin laneMax dir
-    {  560, 200,   8,   8,   6,  50,       140,    240,   +1 },
-    {  614, 150,  10,  10,  10,  20,       140,    240,   -1 },
-    {  668, 232,   8,   8,  14,  35,       140,    240,   -1 },
+    {  560, 200,   8,   8,  11,  50,       140,    240,   -1 },
+    {  614, 150,  10,  10,  16,  20,       140,    240,   -1 },
+    {  668, 232,   8,   8,  14,  35,       140,    240,   +1 },
 };
 
 typedef struct {
