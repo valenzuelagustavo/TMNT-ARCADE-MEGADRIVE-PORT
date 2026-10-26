@@ -49,6 +49,9 @@ SPRITE leo_player  "/sprites/players/leo_new_13x13.png"  13 13 FAST 10
 SPRITE mike_player "/sprites/players/mike_new_13x13.png" 13 13 FAST 10
 // (20/10) Raph con la hoja nueva (tools/gen_players_new.py, rip 50923_RAPH.png)
 SPRITE raph_player "/sprites/players/raph_new_13x13.png" 13 13 FAST 10
+// (26/10) SLASH (personaje secreto, secuencia A B A C A B B en el menu: 1 jugador).
+// tools/gen_slash_sheet.py: una fila por PlayerAnim, paleta de las tortugas.
+SPRITE slash_player "/sprites/players/slash_new_13x13.png" 13 13 FAST 8
 SPRITE don_player  "/sprites/players/don_new_13x13.png"  13 13 FAST 10
 
 // (18/10) Cartel "HIT BUTTONS" arriba de la tortuga cuando un foot soldier la

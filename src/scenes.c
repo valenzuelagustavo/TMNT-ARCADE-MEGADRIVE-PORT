@@ -316,6 +316,7 @@ static Sprite* sparksAddSprite(const SpriteDefinition* sizeDef, u16 vramInd,
 // ---------------------------------------------------------------------------
 // Estado global de selección (necesario entre escenas)
 // ---------------------------------------------------------------------------
+bool slashMode = FALSE;     // (26/10) personaje secreto SLASH en esta partida (1 jugador)
 u8 personajeSeleccionado  = 0;  // P1: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
 u8 personaje2Seleccionado = 2;  // P2: 0=Leo 1=Mike 2=Don 3=Raph (columnas de pantalla)
 // (14/09) Modo secreto de CUATRO tortugas: cantidadJugadores puede valer 1..4.
@@ -387,6 +388,7 @@ u16 playerJoy(u8 k) {
 
 // Personaje de cada jugador (indice 0..3).
 u8 playerChar(u8 k) {
+    if (slashMode && k == 0) return PLAYER_CHAR_SLASH;   // (26/10)
     switch (k) {
         case 1:  return personaje2Seleccionado;
         case 2:  return personaje3Seleccionado;
@@ -1453,7 +1455,8 @@ static u8   p2jSel;
 static u16  p2jPrevJoy;
 
 void p2JoinReset(void) {
-    p2jState   = P2J_INVITE;
+    // (26/10) Con Slash no entra un segundo jugador: ni invitacion ni seleccion.
+    p2jState   = slashMode ? P2J_DONE : P2J_INVITE;
     p2jSel     = 0;
     p2jPrevJoy = 0;
 }
@@ -1695,6 +1698,9 @@ static const u16 sndCodeSeq[SNDCODE_LEN] = {
     BUTTON_A, BUTTON_B, BUTTON_A, BUTTON_C, BUTTON_A, BUTTON_B, BUTTON_B
 };
 static bool soundExtra = FALSE;
+// (26/10) A B A C A B B tambien (des)activa el modo SLASH: con 1 JUGADOR se salta la
+// seleccion de personaje y se juega con Slash. La misma secuencia lo apaga.
+static bool slashArmed = FALSE;
 
 // (27/09) CODIGO KONAMI: prende el selector de niveles de la pausa (ver
 // pause_menu.h). Arriba y abajo tambien mueven el cursor del menu, no
@@ -1861,7 +1867,7 @@ SceneId showPlayerSelect() {
         }
 
         // --- (20/10) A B A C A B B: pistas extra del sound test ---
-        if (!soundExtra) {
+        {
             u16 in = 0;
             if      (justPressedJoy(value, prev, BUTTON_A)) in = BUTTON_A;
             else if (justPressedJoy(value, prev, BUTTON_B)) in = BUTTON_B;
@@ -1877,8 +1883,14 @@ SceneId showPlayerSelect() {
                 sndLast[SNDCODE_LEN - 1] = in;
                 if (match && in == sndCodeSeq[SNDCODE_LEN - 1]) {
                     soundExtra = TRUE;
-                    XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    slashArmed = !slashArmed;
+                    for (u16 i = 0; i < SNDCODE_LEN; i++) sndLast[i] = 0;   // no se re-dispara solo
+                    if (slashArmed)
+                        XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
+                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                    else
+                        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
+                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
                 }
             }
         }
@@ -1911,6 +1923,7 @@ SceneId showPlayerSelect() {
     u8 optOptions = secret4P ? 3 : 2;
     if (selectedOption < optOptions) {
         cantidadJugadores = (selectedOption == 2) ? 4 : (u8)(selectedOption + 1);
+        slashMode = (slashArmed && cantidadJugadores == 1);   // (26/10)
         if (cantidadJugadores == 4) {
             // El multitap ya se declaro al arrancar (ver main.c): los 4 mandos
             // salen del TeamPlayer del puerto 1 y se leen como JOY_1..JOY_4.
@@ -1943,6 +1956,13 @@ SceneId showPlayerSelect() {
     // En 4 jugadores se SALTEA la seleccion de tortuga: cada joystick ya tiene
     // la suya. OPCIONES es siempre la ultima fila.
     if (selectedOption == optOptions) return SCENE_OPTIONS;
+    if (slashMode) {
+        // (26/10) Slash: sin seleccion de personaje (mismo cierre que el modo de 4).
+        personajeSeleccionado = 0;
+        playerPersistReset();
+        continuesLeft = continuesIniciales;
+        return SCENE_CINEMATIC_FIRE;
+    }
     if (cantidadJugadores == 4) {
         // Mismo cierre que hace showCharSelect al confirmar: partida nueva.
         playerPersistReset();
@@ -3901,7 +3921,7 @@ SceneId showScene11() {
             Player* attacker = NULL;
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerAttackHitsEnemy(pls[k], &enemies[i])) continue;   // (02/10) hurtbox por tipo
-                dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
+                dmg = isPlayerKillAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
                 break;
             }
 
@@ -5278,7 +5298,7 @@ SceneId showScene12() {
             Player* attacker = NULL;
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerAttackHitsEnemy(pls[k], &enemies[i])) continue;   // (02/10) hurtbox por tipo
-                dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
+                dmg = isPlayerKillAttack(pls[k]) ? ENEMY_HP : 1; attacker = pls[k];
                 break;
             }
 

@@ -641,6 +641,8 @@ typedef struct {
     u8          heldHit;     // Frames restantes del frame 3 de HELD (golpe en el agarre)
     u16         demutT;      // (25/10) Frames en STATE_DEMUTANT
     u16         frozenT;     // (25/10) Frames en STATE_FROZEN
+    bool        isSlash;     // (26/10) es SLASH (personaje secreto, ver slashStep)
+    u8          slashGuard;  // (26/10) 1 mientras se cubre (mantiene A): intocable
     u8          bossKickSpent; // (24/10) 1 = la patada voladora de este salto ya le pego a un jefe
 
     // --- Caida por la boca de tormenta (20/09, solo 2-1) ---
@@ -776,6 +778,14 @@ s16 getPlayerHurtX(const Player* p);
 // TRUE si el ataque en curso es el ESPECIAL (mata foot soldiers de un
 // golpe). Consultar junto con playerAttackHits para decidir el daño.
 bool isPlayerSpecialAttack(const Player* p);
+// (26/10) Golpe que MATA de un toque a los foot soldiers: el especial (como
+// siempre) y, en SLASH, cualquier ataque o el salto. Los sitios que hacen
+// 'isPlayerSpecialAttack(p) ? ENEMY_HP : 1' contra soldiers usan esta.
+bool isPlayerKillAttack(const Player* p);
+// (26/10) SLASH: personaje secreto. playerChar(0) devuelve PLAYER_CHAR_SLASH con
+// slashMode (el menu lo activa con A B A C A B B y 1 jugador). Un solo jugador.
+#define PLAYER_CHAR_SLASH  4
+extern bool slashMode;
 // Golpe contra un objetivo EN EL AIRE, sin lane (ver player.c).
 bool playerAttackHitsFlying(const Player* p, s16 targetCX, s16 top, s16 bot,
                             s16 targetHalfW);

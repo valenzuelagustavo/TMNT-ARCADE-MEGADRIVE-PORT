@@ -125,7 +125,7 @@ static void playerOnFrameChange(Sprite* s) {
 // Ubica el sprite de la tortuga: (sx, sy) = esquina del frame en pantalla.
 void playerSetSpritePos(Player* p, s16 sx, s16 sy) {
     if (!p->sprite) return;
-    p->sprite->data = ((u32)p->charIndex << 16) | (u16)sx;
+    p->sprite->data = ((u32)(p->isSlash ? 0xFF : p->charIndex) << 16) | (u16)sx;
     SPR_setPosition(p->sprite, sx + playerFrameDX(p->sprite, p->charIndex), sy);
 }
 
@@ -140,7 +140,10 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
         case 1: spriteDef = &mike_player; break;
         case 2: spriteDef = &don_player;  break;
         case 3: spriteDef = &raph_player; break;
+        case PLAYER_CHAR_SLASH: spriteDef = &slash_player; break;   // (26/10)
     }
+    p->isSlash    = (selectedCharacter == PLAYER_CHAR_SLASH);
+    p->slashGuard = 0;
     // Indexa playerAtkReach (el alcance por frame medido sobre el arte).
     p->charIndex = (selectedCharacter < PHB_CHARS) ? selectedCharacter : 0;
 
@@ -250,7 +253,7 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     // una anim (HURT, ATTACKING) se cuelgan para siempre.
     if (p->sprite) {
         SPR_setAnim(p->sprite, ANIM_IDLE);
-        p->sprite->data = ((u32)p->charIndex << 16) | (u16)p->x;
+        p->sprite->data = ((u32)(p->isSlash ? 0xFF : p->charIndex) << 16) | (u16)p->x;   // 0xFF: sin tablas de la hoja de Leo
         SPR_setFrameChangeCallback(p->sprite, playerOnFrameChange);
     }
 
@@ -438,7 +441,7 @@ s16 playerSkateLift = 0;
 s16 playerDrawZ(const Player* p) {
     s16 z = (s16)(p->jumpZ + playerSkateLift);
     // (09/10) Cada pose del salto a la altura que tiene en el arcade.
-    if (p->state == STATE_JUMPING && p->sprite && p->sprite->animInd == ANIM_JUMP &&
+    if (p->state == STATE_JUMPING && p->sprite && p->sprite->animInd == ANIM_JUMP && !p->isSlash &&
         p->charIndex < PDX_CHARS && p->sprite->frameInd >= 0 && p->sprite->frameInd < PDX_FRAMES)
         z += playerJumpDYTab[p->charIndex][p->sprite->frameInd];
     if (p->state == STATE_ATTACKING && p->attackIsSpecial)
@@ -783,6 +786,106 @@ void playerSetFreezePalette(const u16* iceColors, u16 pal, const u16* restoreCol
 
 bool playerIsFrozen(const Player* p) { return p->state == STATE_FROZEN; }
 
+// ---------------------------------------------------------------------------
+// (26/10) SLASH - personaje secreto. Funciona distinto a las tortugas:
+//   B  ataque en combo de DOS golpes (ANIM_ATTACK_1 -> ANIM_ATTACK_2)
+//   C  salto: la bola de pinches lastima todo lo que toca (updatePlayer, JUMPING)
+//   A  (mantenido) se CUBRE: ANIM_SPECIAL, quieto e intocable (slashGuard)
+// Mata a los foot soldiers de un golpe (isPlayerKillAttack) y al golpearlo suena
+// boss_hit. Usa los mismos estados que las tortugas para que golpes, KO, volteo,
+// vidas y HUD sigan igual; solo IDLE/WALKING/ATTACKING los maneja esta funcion.
+// ---------------------------------------------------------------------------
+static bool slashOwns(const Player* p) {
+    return p->isSlash && (p->state == STATE_IDLE || p->state == STATE_WALKING ||
+                          p->state == STATE_ATTACKING);
+}
+
+static void slashStep(Player* p, u16 joy, s16 effRight) {
+    p->bcWindow = 0;
+    p->attackIsSpecial = 0;
+
+    if (p->state == STATE_ATTACKING) {
+        p->slashGuard = 0;
+        if (justPressed(joy, p->prevJoy, BUTTON_B)) p->comboBuffered = 1;
+        if (!SPR_isAnimationDone(p->sprite)) return;      // el swing sigue
+        if (p->comboStep == 1 && p->comboBuffered) {
+            p->comboStep     = 2;
+            p->comboBuffered = 0;
+            SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_2, 0);
+            playAttackGrunt(p);
+            return;
+        }
+        p->state         = STATE_IDLE;
+        p->comboStep     = 0;
+        p->comboBuffered = 0;
+        SPR_setAutoAnimation(p->sprite, TRUE);
+        SPR_setAnimationLoop(p->sprite, TRUE);
+        SPR_setAnim(p->sprite, ANIM_IDLE);
+        return;
+    }
+
+    // --- IDLE / WALKING ---
+    if (joy & BUTTON_A) {
+        // Cubrirse: quieto (puede darse vuelta), intocable mientras lo mantiene.
+        p->slashGuard = 1;
+        p->state      = STATE_IDLE;
+        if (joy & BUTTON_RIGHT)     { p->dir =  1; SPR_setHFlip(p->sprite, FALSE); }
+        else if (joy & BUTTON_LEFT) { p->dir = -1; SPR_setHFlip(p->sprite, TRUE);  }
+        p->idleTimer = 0;
+        if (SPR_getAutoAnimation(p->sprite) || p->sprite->animInd != ANIM_SPECIAL) {
+            SPR_setAutoAnimation(p->sprite, FALSE);
+            SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
+        }
+        return;
+    }
+    p->slashGuard = 0;
+
+    s8 moveY = 0;
+    if (walkStep(p, joy, effRight, TRUE, &moveY)) {
+        p->state = STATE_WALKING;
+        walkAnim(p, (moveY < 0) ? ANIM_WALK_BACK : ANIM_WALK_FRONT);
+    } else {
+        p->state = STATE_IDLE;
+        if (p->sprite->animInd != ANIM_IDLE || !SPR_getAutoAnimation(p->sprite)) {
+            SPR_setAutoAnimation(p->sprite, TRUE);
+            SPR_setAnimationLoop(p->sprite, TRUE);
+            SPR_setAnim(p->sprite, ANIM_IDLE);
+        }
+    }
+
+    if (justPressed(joy, p->prevJoy, BUTTON_C)) {
+        // SALTO (mismo arranque que las tortugas; sin patada: el salto ES el ataque).
+        p->state     = STATE_JUMPING;
+        p->jumpVq    = -PLAYER_JUMP_V0_Q;
+        p->jumpZq    = 0;
+        p->jumpZ     = 0;
+        p->jumpT     = 0;
+        if (PLAYER_ARCADE_CONTROL) {
+            p->jumpVq = -PLAYER_AJ_V_Q;
+            p->jumpZq = (s32)PLAYER_AJ_POP << PLAYER_JUMP_Q;
+            p->jumpZ  = PLAYER_AJ_POP;
+        }
+        p->airFrame  = 1;
+        p->airTimer  = 0;
+        p->idleTimer = 0;
+        p->idleTwice = 0;
+        p->isJumpKicking = JUMPKICK_NONE;
+        SPR_setAutoAnimation(p->sprite, FALSE);
+        SPR_setAnimAndFrame(p->sprite, ANIM_JUMP, 0);
+    } else if (justPressed(joy, p->prevJoy, BUTTON_B)) {
+        p->state           = STATE_ATTACKING;
+        p->comboStep       = 1;
+        p->comboBuffered   = 0;
+        p->comboLinger     = 0;
+        p->idleTimer       = 0;
+        p->idleTwice       = 0;
+        SPR_setAutoAnimation(p->sprite, TRUE);
+        SPR_setAnimationLoop(p->sprite, FALSE);
+        SPR_setAnimAndFrame(p->sprite, ANIM_ATTACK_1, 0);
+        playAttackGrunt(p);
+    }
+}
+
 void updatePlayer(Player* p) {
     // (15/09) Guarda de sprite NULO: si el motor de sprites se quedo sin lugar
     // (pasa con 4 tortugas), este jugador no tiene sprite. Sin la guarda, todo
@@ -823,7 +926,9 @@ void updatePlayer(Player* p) {
             SPR_setVisibility(p->sprite, VISIBLE);   // asegurar visible al final
     }
 
-    switch (p->state) {
+    if (p->isSlash && slashOwns(p)) {
+        slashStep(p, joy, effRight);        // (26/10) Slash maneja IDLE/WALKING/ATTACKING
+    } else switch (p->state) {
 
         case STATE_IDLE:
         case STATE_WALKING: {
@@ -1110,7 +1215,7 @@ void updatePlayer(Player* p) {
             // --- Inicio de la patada en salto (una sola por salto) ---
             // Golpe solo            -> anteultimo frame de ANIM_JUMP_KICK (débil)
             // Golpe + direccion X   -> ultimo frame, con ímpetu (viaja más lejos)
-            if (!p->isJumpKicking && (justPressed(joy, p->prevJoy, BUTTON_A) || justPressed(joy, p->prevJoy, BUTTON_B))) {
+            if (!p->isSlash && !p->isJumpKicking && (justPressed(joy, p->prevJoy, BUTTON_A) || justPressed(joy, p->prevJoy, BUTTON_B))) {
                 if      (joy & BUTTON_RIGHT) { p->dir =  1; SPR_setHFlip(p->sprite, FALSE); }
                 else if (joy & BUTTON_LEFT)  { p->dir = -1; SPR_setHFlip(p->sprite, TRUE);  }
 
@@ -1238,6 +1343,11 @@ void updatePlayer(Player* p) {
                     if (p->airTimer < 255) p->airTimer++;
                 }
                 SPR_setFrame(p->sprite, f);
+            } else if (p->isSlash) {
+                // (26/10) Slash: la bola gira todo el salto (4 cuadros, 3 ticks cada uno).
+                u16 n = p->sprite->animation->numFrame;
+                if (n == 0) n = 1;
+                SPR_setFrame(p->sprite, (s16)((p->jumpT / 3) % n));
             } else if (!p->isJumpKicking) {
                 u16 n = p->sprite->animation->numFrame;
                 if (p->jumpVq < 0) {
@@ -1518,6 +1628,8 @@ static s16 absPS16(s16 v) {
 // HITBOX DE ATAQUE — tortuga → enemigos
 // ---------------------------------------------------------------------------
 bool isPlayerAttackActive(const Player* p) {
+    // (26/10) Slash: saltando es una bola de pinches que lastima a todo lo que toca.
+    if (p->isSlash && p->state == STATE_JUMPING) return TRUE;
     // Swing de ataque en curso. La pose congelada de la ventana de enlace
     // (anim terminada) ya NO pega: la hitbox vive solo durante la animación.
     // El especial corre con la auto-animacion apagada (ver specialStep):
@@ -1551,10 +1663,23 @@ bool playerAttackHits(const Player* p, s16 targetCX, s16 targetFeetY) {
 // los frames de preparacion el golpe no llega, y recien conecta cuando el arma
 // esta de verdad extendida. Vale para el combo, la patada, el especial y la
 // patada en salto sin distinguir casos: todos son animaciones de la misma hoja.
+// (26/10) SLASH: hasta donde llega cada cuadro de sus dos ataques (px desde el
+// centro; medido con tools/gen_slash_sheet.py: la garra/el arco del cuadro) y
+// la bola del salto. PHB_NONE = el cuadro de preparacion no pega.
+#define SLASH_REACH_JUMP  26
+static const s16 slashReach1[3] = { PHB_NONE, 44, 44 };
+static const s16 slashReach2[3] = { PHB_NONE, 36, 36 };
+
 static s16 attackReachNow(const Player* p, s16 targetFeetY, s16 targetBodyH) {
     if (!p->sprite) return PHB_NONE;
     s16 a = p->sprite->animInd;
     s16 f = p->sprite->frameInd;
+    if (p->isSlash) {                      // (26/10) alcance de Slash (no hay tablas medidas)
+        if (p->state == STATE_JUMPING) return SLASH_REACH_JUMP;
+        if (p->state == STATE_ATTACKING && f >= 0 && f < 3)
+            return (p->comboStep == 2) ? slashReach2[f] : slashReach1[f];
+        return PHB_NONE;
+    }
     if (a < 0 || a >= PHB_ANIMS || f < 0 || f >= PHB_FRAMES) return PHB_NONE;
     s8 slot = phbSlotOfAnim[a];
     if (slot < 0) return PHB_NONE;          // esta animacion no golpea
@@ -1696,7 +1821,14 @@ bool isPlayerSpecialAttack(const Player* p) {
 // fuerte). Sirve para dispararle un SFX de impacto sólo cuando el golpe que
 // conecta es la patada aérea, no el combo de tierra ni el especial.
 bool isPlayerJumpKicking(const Player* p) {
+    // (26/10) Slash: el salto entero es el ataque (una sola vez por salto contra jefes).
+    if (p->isSlash && p->state == STATE_JUMPING) return TRUE;
     return (p->state == STATE_JUMPING && p->isJumpKicking != JUMPKICK_NONE);
+}
+
+bool isPlayerKillAttack(const Player* p) {
+    if (isPlayerSpecialAttack(p)) return TRUE;
+    return (p->isSlash && (p->state == STATE_ATTACKING || p->state == STATE_JUMPING));
 }
 
 // En el aire saltando (con o sin patada voladora). La usa Rocksteady para
@@ -1941,6 +2073,7 @@ bool playerCanBeHit(const Player* p) {
     if (p->invincible > 0) return FALSE;
     // Dentro de la boca de tormenta no la alcanza nada (esta bajo tierra).
     if (p->mhPhase != 0) return FALSE;
+    if (p->isSlash && p->slashGuard) return FALSE;   // (26/10) Slash cubriendose
     // Saltando no se recibe daño (esquive aéreo estilo arcade). KO = ya está
     // en el piso. AGARRADO SÍ se puede: los otros foot soldiers le pegan a la
     // tortuga inmovilizada (damagePlayer lo resuelve mostrando el frame 3 del
@@ -1961,6 +2094,7 @@ bool playerCanBeHitAir(const Player* p) {
     if (p->gameOver) return FALSE;     // (01/10) fuera de juego
     if (p->invincible > 0) return FALSE;
     if (p->mhPhase != 0) return FALSE;
+    if (p->isSlash && p->slashGuard) return FALSE;
     if (p->state == STATE_HURT || p->state == STATE_KO ||
         p->state == STATE_KNOCKED_DOWN || p->state == STATE_DEMUTANT || p->state == STATE_FROZEN)
         return FALSE;
@@ -2021,6 +2155,9 @@ static void playerEnterKO(Player* p) {
 // (17/10) 'exact': las barras se restan TAL CUAL, sin pasar por
 // playerDiffBars (ver footHitBars).
 static void playerTakeHitEx(Player* p, s16 attackerX, u8 bars, bool volteo, bool exact) {
+    p->slashGuard = 0;
+    // (26/10) Slash: al golpearlo suena lo mismo que cuando le pegan a un jefe.
+    if (p->isSlash) XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
     // Golpe recibido EN EL AIRE (sólo lo permite playerCanBeHitAir, hoy las
     // balas del jefe): hay que bajar la tortuga al piso a mano, porque el
     // estado pasa a HURT y nadie más vuelve a tocar jumpZ — si no, se queda
@@ -2253,6 +2390,7 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     p->comboLinger     = 0;
     p->attackIsSpecial = 0;
 
+    if (p->isSlash) XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
     bars = playerDiffBars(p, bars);   // (10/10) NORMAL: menos dano
     if (p->health > (s16)bars) p->health -= (s16)bars;
     else                       p->health = 0;

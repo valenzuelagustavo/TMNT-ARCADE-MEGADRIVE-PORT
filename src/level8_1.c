@@ -781,7 +781,7 @@ SceneId showScene81() {
             s16 dmg = 0;
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerAttackHitsEnemy(pls[k], &enemies[i])) continue;   // (02/10) hurtbox por tipo
-                dmg = isPlayerSpecialAttack(pls[k]) ? ENEMY_HP : 1; att = pls[k];
+                dmg = isPlayerKillAttack(pls[k]) ? ENEMY_HP : 1; att = pls[k];
                 break;
             }
             if (dmg > 0) {
