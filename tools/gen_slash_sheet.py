@@ -107,7 +107,8 @@ def main():
 
     empty = np.zeros((CELL, CELL), np.uint8)
     idle = [cell(0, k) for k in range(3)]
-    walk = [cell(1, k) for k in range(3)]
+    w3 = [cell(1, k) for k in range(3)]
+    walk = [w3[0], w3[1], w3[2], w3[1]]   # ida y vuelta: sin salto brusco 2->0
     guard = [cell(2, 0)]
     ball = [cell(3, k) for k in range(4)]
     hit = [cell(4, 0)]
