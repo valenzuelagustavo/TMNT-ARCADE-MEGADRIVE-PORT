@@ -1748,26 +1748,16 @@ static void menuDraw4P(bool with4P) {
                      m->tilemap->w, m->tilemap->h, CPU);
 }
 
-// (26/10) Version del build en el menu de titulo, para que los jugadores la
-// indiquen al reportar bugs. build_info.h lo genera build_rom_ssf.bat
-// (git describe: hash corto, "-dirty" si hay cambios sin commitear); si no
-// existe (otro build) queda solo la fecha de compilacion.
-#if defined(__has_include)
-#  if __has_include("build_info.h")
-#    include "build_info.h"
-#  endif
-#endif
-#ifndef BUILD_VERSION
-#  define BUILD_VERSION "dev"
-#endif
+// (26/10) Version del juego + fecha de compilacion en el menu de titulo, para
+// que los jugadores la indiquen al reportar bugs. Subir GAME_VERSION al
+// publicar una version nueva.
+#define GAME_VERSION "0.4.0"
 static void buildVersionDraw(void) {
     char buf[40];
-    const char* d = __DATE__;            // "Oct 26 2026"
+    const char* d = __DATE__;            // "Oct 27 2026"
     u16 n = 0;
-    const char* v = BUILD_VERSION;
-    buf[n++] = 'V'; buf[n++] = ' ';
-    for (u16 i = 0; v[i] && n < 22; i++) buf[n++] = (v[i] >= 'a' && v[i] <= 'z') ? (char)(v[i] - 32) : v[i];
-    buf[n++] = ' ';
+    const char* v = "VERSION " GAME_VERSION " ";
+    for (u16 i = 0; v[i]; i++) buf[n++] = v[i];
     for (u16 i = 0; d[i] && n < 39; i++) buf[n++] = (d[i] >= 'a' && d[i] <= 'z') ? (char)(d[i] - 32) : d[i];
     buf[n] = 0;
     VDP_drawText(buf, (u16)(39 - n), 27);
