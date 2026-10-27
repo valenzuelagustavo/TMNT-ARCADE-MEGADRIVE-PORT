@@ -1748,6 +1748,31 @@ static void menuDraw4P(bool with4P) {
                      m->tilemap->w, m->tilemap->h, CPU);
 }
 
+// (26/10) Version del build en el menu de titulo, para que los jugadores la
+// indiquen al reportar bugs. build_info.h lo genera build_rom_ssf.bat
+// (git describe: hash corto, "-dirty" si hay cambios sin commitear); si no
+// existe (otro build) queda solo la fecha de compilacion.
+#if defined(__has_include)
+#  if __has_include("build_info.h")
+#    include "build_info.h"
+#  endif
+#endif
+#ifndef BUILD_VERSION
+#  define BUILD_VERSION "dev"
+#endif
+static void buildVersionDraw(void) {
+    char buf[40];
+    const char* d = __DATE__;            // "Oct 26 2026"
+    u16 n = 0;
+    const char* v = BUILD_VERSION;
+    buf[n++] = 'V'; buf[n++] = ' ';
+    for (u16 i = 0; v[i] && n < 22; i++) buf[n++] = (v[i] >= 'a' && v[i] <= 'z') ? (char)(v[i] - 32) : v[i];
+    buf[n++] = ' ';
+    for (u16 i = 0; d[i] && n < 39; i++) buf[n++] = (d[i] >= 'a' && d[i] <= 'z') ? (char)(d[i] - 32) : d[i];
+    buf[n] = 0;
+    VDP_drawText(buf, (u16)(39 - n), 27);
+}
+
 SceneId showPlayerSelect() {
     clearScene();
     // El fondo 320x224 necesita muchos tiles de usuario. Reducimos el
@@ -1786,6 +1811,8 @@ SceneId showPlayerSelect() {
 
     // Menu (3 filas, o 4 con el secreto de 4 jugadores desbloqueado).
     menuDraw4P(secret4P);
+
+    buildVersionDraw();   // (26/10) version del build, abajo a la derecha
 
     Sprite *cursor = SPR_addSprite(&title_cursor, MENU_CURSOR_X,
                                    MENU_Y0(secret4P) + MENU_CURSOR_DY,

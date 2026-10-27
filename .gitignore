@@ -20,3 +20,4 @@ _tmp_intro/
 
 # Capturas de MAME para ingenieria inversa del jefe (varios GB).
 arcade_reverse_eng/Rocksteady/
+src/build_info.h
