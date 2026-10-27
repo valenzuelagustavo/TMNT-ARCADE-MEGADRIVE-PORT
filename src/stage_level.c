@@ -1064,7 +1064,8 @@ SceneId stageLevelRun(const StageLevel* L) {
         }
         if ((waveIdx < 0 || waveSpawned >= waveTot) &&
             waveIdx + 1 < (s16)L->nWaves &&
-            leadFeetX >= L->waves[waveIdx + 1].trigX) {
+            leadFeetX >= L->waves[waveIdx + 1].trigX &&
+            !(L->waveBusy && L->waveBusy())) {
             waveIdx++;
             waveSpawned = 0;
             waveTot = (u8)(L->waves[waveIdx].n + diffWaveExtra(waveSoldiers(&L->waves[waveIdx])));

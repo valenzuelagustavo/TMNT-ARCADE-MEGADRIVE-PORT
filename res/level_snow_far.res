@@ -26,3 +26,18 @@ SPRITE  snow_disco_sh  "images/lvl_central_park/snow_disco_sh.png"  7 2   FAST 0
 // (24/10) El globo de Tora al entrar: "Time to put you on ice!" (96x32, PAL1
 // como todos los globos). Armado por tools/gen_globos.py (COMPUESTOS).
 SPRITE  tora_ice_bubble "sprites/tora_ice_baloon.png" 12 4 FAST 0
+// (27/10) FROSTY, el muneco de nieve robot (tools/gen_frosty.py, desde
+// frosty-sheet.png). Todo comparte UNA paleta (PAL3, la carga frosty.c). Hojas
+// de una fila; el codigo elige el cuadro (medidas en src/frosty_art.h):
+//   frosty_snow    64x112: 0 en el piso, 1 saltando
+//   frosty_break   104x104: 0-2 se rompe el disfraz
+//   frosty_bot     80x120: 0 piso, 1-2 salto, 3 golpeado, 4 muerto, 5 sin nariz, 6 regenera
+//   frosty_missile 64x24: la nariz, 0 sin fuego / 1 con fuego (mira a la derecha)
+//   frosty_shadow  40x24
+//   frosty_boom    la explosion de Baxter con la paleta de Frosty (como baxter_boom)
+SPRITE  frosty_snow    "images/lvl_central_park/frosty_snow.png"    8 14 FAST 0
+SPRITE  frosty_break   "images/lvl_central_park/frosty_break.png"   13 13 FAST 0
+SPRITE  frosty_bot     "images/lvl_central_park/frosty_bot.png"     10 15 FAST 0
+SPRITE  frosty_missile "images/lvl_central_park/frosty_missile.png" 8 3 FAST 0
+SPRITE  frosty_shadow  "images/lvl_central_park/frosty_shadow.png"  5 3 FAST 0
+SPRITE  frosty_boom    "images/lvl_central_park/frosty_boom.png"    8 8 FAST 0

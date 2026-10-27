@@ -222,6 +222,10 @@ typedef struct {
     // se trabe. Antes de saltearlo se llama a esto, si no es NULL, para que el
     // nivel ponga algo en su lugar (el auto: sus foot soldiers igual entran).
     void (*specialFallback)(u8 type, s8 side, s16 x, s16 camX);
+    // (27/10) Opcional: TRUE = la oleada siguiente NO se dispara todavia (el nivel
+    // tiene algo en juego, p.ej. los Frosty de Central Park). Sin esto, con la
+    // camara clavada las tortugas llegan caminando al trigX de la que sigue.
+    bool (*waveBusy)(void);
     // --- Salida ---
     SceneId       nextScene;    // al ganar
     // (21/10, nieve) RELLENO DE BG_A: un patron de aPatW x aPatH celdas (los

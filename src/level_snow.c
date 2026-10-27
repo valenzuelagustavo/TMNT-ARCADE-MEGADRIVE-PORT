@@ -49,6 +49,7 @@
 #include "level1.h"            // light_out_bubble (el globo del pozo)
 #include "tora.h"              // (23/10) el jefe y las esferas de hielo
 #include "level_snow_far.h"    // (23/10, mapper) snow_disco, snow_disco_sh
+#include "frosty.h"             // (27/10) el muneco de nieve robot
 #include "baxter_res.h"         // (23/10) baxter_boom / rat_boom: el disco explota
 #include "boss_vo.h"            // (24/10) la voz de Tora antes del tema
 
@@ -83,12 +84,17 @@ static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 // (24/10) La LLUVIA DE ESFERAS tambien es una oleada propia (SP_RAIN): la
 // camara queda clavada en lockX mientras caen y se suelta al terminar.
 #define SP_RAIN     (STAGE_SPECIAL | 2)
+// (27/10) FROSTY (frosty.c): el muneco de nieve robot. Oleada propia: la camara
+// queda clavada hasta que mueren todos (2 con una tortuga, 3 con mas).
+#define SP_FROSTY   (STAGE_SPECIAL | 3)
 #define P  ENEMY_TYPE_FOOT_SOLDIER
 #define TR SP_TRACTOR
 #define RN SP_RAIN
+#define FY SP_FROSTY
 static const StageWave wavesSnow[] = {
     {  450,  270, 2, { P, P },             { +1, -1 },                 { 0 } },
     { 1000,  850, 1, { TR },               { +1 },                     { 0 } },
+    { 1130, 1050, 1, { FY },               { +1 },                     { 0 } },   // (27/10) Frosty, pasado el tractor
     { 1420, 1240, 3, { P, P, P },          { +1, +1, -1 },             { 0 } },
     { 1640, 1480, 1, { RN },               { +1 },                     { 0 } },   // (24/10) lluvia
     { 1880, 1700, 4, { P, P, P, P },       { +1, -1, +1, -1 },         { 0 } },
@@ -100,6 +106,7 @@ static const StageWave wavesSnow[] = {
 #undef P
 #undef TR
 #undef RN
+#undef FY
 
 static const SbgRaw snowBg = {
     (const u32*) bg_snow_tiles,
@@ -387,12 +394,15 @@ static bool rainActive(void);
 static bool lvlSnowSpecial(u8 type, s8 side, s16 x, s16 camX) {
     (void)side; (void)x;
     // (23/10) Nunca junto con la lluvia de esferas (las dos usan PAL3).
-    if (type == SP_TRACTOR) return (toraIceAlive() == 0) && tracStart(camX);
-    if (type == SP_RAIN)    return rainStart();
+    if (type == SP_TRACTOR) return (toraIceAlive() == 0) && !frostyActive() && tracStart(camX);
+    if (type == SP_RAIN)    return !frostyActive() && rainStart();
+    // (27/10) Frosty: PAL3 propia, sin tractor ni lluvia en pantalla
+    if (type == SP_FROSTY)  return !trac.on && !rainActive() && frostyStart(camX, numJugadores(), LVLSNOW_WALK_Y_MAX);
     return TRUE;
 }
 
-static u16 lvlSnowSpecialAlive(void) { return (u16)((trac.on ? 1 : 0) + (rainActive() ? 1 : 0)); }
+static u16 lvlSnowSpecialAlive(void) { return (u16)((trac.on ? 1 : 0) + (rainActive() ? 1 : 0) + (frostyActive() ? 1 : 0)); }
+static bool lvlSnowWaveBusy(void) { return frostyActive(); }   // (27/10)
 
 // No entro en la VRAM (2 jugadores): se saltea y vuelven los copos.
 static void lvlSnowFallback(u8 type, s8 side, s16 x, s16 camX) {
@@ -1037,6 +1047,7 @@ static void lvlSnowInit(void) {
     mhInit();                       // (23/10) alcantarillas
     trash.s = NULL; trash.x = TRASH_X; trash.st = TR_IDLE;
     toraIceInit();                  // (23/10) lluvia de esferas, disco
+    frostyInit();                   // (27/10)
     rainLeft = rainCd = 0;
     disco.s = disco.sh = NULL;
     disco.gone = FALSE;
@@ -1048,6 +1059,7 @@ static void lvlSnowUpdate(Player** pls, u8 nPl, s16 camX) {
     mhUpdate(pls, nPl, camX);       // (23/10)
     trashUpdate(pls, nPl, camX);
     rainUpdate(pls, nPl, camX);     // (23/10)
+    frostyUpdate(pls, nPl, camX);   // (27/10)
     toraIceUpdate(pls, nPl, camX);  // las de la lluvia y la del jefe
     discoUpdate(camX);
     s16 dcam = (s16)(camX - snowCamX);       // la camara avanza: los copos quedan atras
@@ -1081,6 +1093,7 @@ static void lvlSnowRelease(void) {
     mhRelease();
     trashRelease();
     toraIceReleaseAll();
+    frostyRelease();                // (27/10)
     discoRelease();
 }
 
@@ -1116,6 +1129,7 @@ static const StageLevel levelSnow = {
     .maxAlive2P   = LVLSNOW_MAX_ALIVE_2P,
     .specialSpawn = lvlSnowSpecial,     // (22/10) el tractor
     .specialAlive = lvlSnowSpecialAlive,
+    .waveBusy     = lvlSnowWaveBusy,    // (27/10) la oleada siguiente espera a Frosty
     .specialFallback = lvlSnowFallback,
 };
 
