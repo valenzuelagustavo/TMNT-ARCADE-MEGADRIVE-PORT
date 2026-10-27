@@ -330,15 +330,13 @@ static void misLaunch(Frosty* f, u8 target) {
     u8 i;
     for (i = 0; i < FR_MIS_MAX; i++) if (!mis[i].on) break;
     if (i >= FR_MIS_MAX) return;
-    if (!sprVramFits((u16)(frosty_missile.maxNumTile + frosty_shadow.maxNumTile))) return;
+    if (!sprVramFits(frosty_missile.maxNumTile)) return;
     Missile* m = &mis[i];
     m->s  = SPR_addSprite(&frosty_missile, -80, -80, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
-    m->sh = SPR_addSprite(&frosty_shadow, -80, -80, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
-    if (!m->s || !m->sh) { misFree(m); return; }
+    m->sh = NULL;                      // (27/10) el misil no lleva sombra
+    if (!m->s) { misFree(m); return; }
     SPR_setAutoAnimation(m->s, FALSE);
-    SPR_setAutoAnimation(m->sh, FALSE);
     SPR_setVisibility(m->s, HIDDEN);
-    SPR_setVisibility(m->sh, HIDDEN);
     m->on = TRUE;
     m->vis = FALSE;
     m->face = f->face;
@@ -405,16 +403,12 @@ static void misUpdate(Player** pls, u8 nPl) {
         if (v != (bool)m->vis) {
             m->vis = v;
             SPR_setVisibility(m->s,  v ? VISIBLE : HIDDEN);
-            SPR_setVisibility(m->sh, v ? VISIBLE : HIDDEN);
         }
         SPR_setHFlip(m->s, m->face < 0);
         SPR_setFrame(m->s, (s16)((m->t / 3) & 1));
         if (v) {
             SPR_setPosition(m->s, sx, sy);
             SPR_setDepth(m->s, (s16)(-lane - 4));
-            SPR_setPosition(m->sh, (s16)(x - FR_SHADOW_W / 2 - frCamX),
-                            (s16)(lane - FR_SHADOW_H / 2 - stageCamY));
-            SPR_setDepth(m->sh, (s16)(-lane + 1));
         }
     }
 }
