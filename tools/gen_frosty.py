@@ -2,7 +2,7 @@
 # gen_frosty.py (27/10) - recorta y ordena frosty-sheet.png (el muneco de nieve
 # robot de Central Park) en las hojas que usa src/frosty.c.
 #
-# Fuente: res/images/lvl_central_park/frosty-sheet.png (628x230, una paleta de 16;
+# Fuente: res/images/lvl_central_park/frosty-sheet.png (471x172 desde el 27/10: Gustavo la achico al 75%, una paleta de 16;
 # el indice 0 es transparente). Salida (misma paleta, mismos indices):
 #   frosty_snow.png    muneco: [0 en el piso, 1 saltando]
 #   frosty_break.png   se rompe el disfraz: [0, 1, 2]
@@ -24,7 +24,7 @@ import os
 SRC = 'res/images/lvl_central_park/frosty-sheet.png'
 OUT = 'res/images/lvl_central_park/'
 BOOM_SRC = 'res/sprites/baxter_boom_gen.png'
-GB = 6          # el cuerpo en el piso: su borde de abajo, GB px bajo el lane
+GB = 4          # el cuerpo en el piso: su borde de abajo, GB px bajo el lane
 
 im = Image.open(SRC)
 A = np.array(im)
@@ -45,23 +45,24 @@ def tile8(v):
 # nombre -> (rect, tipo, sombra)  tipo: 'g' piso, 'a' aire (con sombra), 'l' alinear
 # el borde izquierdo (los de la rotura)
 SNOW = [
-    ('ground', (20, 23, 84, 115), 'g', None),
-    ('jump',   (101, 0, 165, 90), 'a', (112, 96, 154, 117)),
+    ('ground', (12, 15, 65, 88), 'g', None),
+    ('jump',   (73, 0, 125, 69), 'a', (81, 70, 117, 90)),
 ]
 BREAK = [
-    ('b1', (178, 26, 262, 122), 'l', None),
-    ('b2', (266, 13, 352, 122), 'l', None),
-    ('b3', (368, 24, 432, 115), 'g', None),
+    ('b1', (132, 20, 196, 93), 'l', None),
+    ('b2', (198, 9, 265, 93), 'l', None),
+    ('b3', (273, 16, 325, 88), 'g', None),
 ]
 BOT = [
-    ('ground', (441, 30, 494, 113), 'g', None),
-    ('jumpA',  (514, 0, 566, 91), 'a', (511, 98, 552, 118)),
-    ('jumpB',  (580, 0, 628, 90), 'a', (577, 97, 618, 117)),
-    ('hit',    (519, 146, 581, 232), 'g', None),
-    ('dead',   (406, 185, 484, 226), 'g', None),
-    ('nonose', (154, 134, 209, 220), 'g', None),
-    ('regen',  (218, 134, 273, 220), 'g', None),
+    ('ground', (328, 20, 372, 87), 'g', None),
+    ('jumpA',  (383, 0, 426, 70), 'a', (380, 71, 415, 90)),
+    ('jumpB',  (432, 0, 471, 69), 'a', (430, 70, 465, 90)),
+    ('hit',    (388, 109, 436, 172), 'g', None),
+    ('dead',   (303, 138, 364, 170), 'g', None),
+    ('nonose', (114, 100, 158, 166), 'g', None),
+    ('regen',  (162, 100, 206, 166), 'g', None),
 ]
+BALL_HALF = 25      # medio ancho de la bola del muneco (la rotura se alinea a ella)
 
 
 def layout(frames, W, anchor_left=None):
@@ -80,7 +81,7 @@ def layout(frames, W, anchor_left=None):
             bottom_rel = GB
         top_rel = bottom_rel - (b[3] - b[1])
         if kind == 'l':
-            dx = int(W // 2 - 32)
+            dx = int(W // 2 - BALL_HALF)
             dx = dx - 0                        # el borde izq. del escombro
         else:
             dx = int(round(W / 2.0 - bw / 2.0))
@@ -115,29 +116,34 @@ def build(name, frames, W):
 
 
 dims = {}
-dims['snow'] = build('frosty_snow', SNOW, 64)
-dims['break'] = build('frosty_break', BREAK, 104)
-dims['bot'] = build('frosty_bot', BOT, 80)
+dims['snow'] = build('frosty_snow', SNOW, 56)
+dims['break'] = build('frosty_break', BREAK, 80)
+dims['bot'] = build('frosty_bot', BOT, 64)
 
 # --- misil: la punta (borde derecho) alineada ---
-MIS = [((20, 154, 62, 178)), ((66, 152, 130, 180))]
+MIS = [(14, 117, 45, 131), (52, 114, 97, 134)]
 bb = [bbox(r) for r in MIS]
-mw, mh = 64, 24
+mw = tile8(max(b[2] - b[0] for b in bb) + 3)
+mh = tile8(max(b[3] - b[1] for b in bb))
+tip = mw - 3
 sheet = np.zeros((mh, mw * 2), np.uint8)
 for i, b in enumerate(bb):
     sub = A[b[1]:b[3], b[0]:b[2]]
-    x0 = 60 - sub.shape[1]
+    x0 = tip - sub.shape[1]
     y0 = (mh - sub.shape[0]) // 2
     sheet[y0:y0 + sub.shape[0], i * mw + x0:i * mw + x0 + sub.shape[1]] = sub
 o = Image.fromarray(sheet, 'P'); o.putpalette(pal); o.save(OUT + 'frosty_missile.png', transparency=0)
-print('missile', bb)
+mis_cx = tip - (bb[0][2] - bb[0][0]) // 2      # centro del cuerpo (sin llama)
+print('missile', mw, mh, 'cx', mis_cx)
 
-# --- sombra 40x24 ---
-sb = bbox((112, 96, 154, 117))
-sh = A[sb[1]:sb[3], sb[0]:sb[0] + 40]
-S = np.zeros((24, 40), np.uint8)
-S[2:2 + sh.shape[0], 0:sh.shape[1]] = sh
+# --- sombra ---
+sb = bbox((81, 70, 117, 90))
+sw, sh_ = tile8(sb[2] - sb[0]), tile8(sb[3] - sb[1])
+S = np.zeros((sh_, sw), np.uint8)
+oy, ox = (sh_ - (sb[3] - sb[1])) // 2, (sw - (sb[2] - sb[0])) // 2
+S[oy:oy + sb[3] - sb[1], ox:ox + sb[2] - sb[0]] = A[sb[1]:sb[3], sb[0]:sb[2]]
 o = Image.fromarray(S, 'P'); o.putpalette(pal); o.save(OUT + 'frosty_shadow.png', transparency=0)
+print('shadow', sw, sh_)
 
 # --- explosion de Baxter con la paleta de Frosty ---
 bi = Image.open(BOOM_SRC)
@@ -157,5 +163,7 @@ with open('src/frosty_art.h', 'w') as f:
     for k, (w, h, ft) in dims.items():
         K = k.upper()
         f.write('#define FA_%s_W %d\n#define FA_%s_H %d\n#define FA_%s_FEET %d\n' % (K, w, K, h, K, ft))
-    f.write('#define FA_GB %d\n#endif\n' % GB)
+    f.write('#define FA_GB %d\n' % GB)
+    f.write('#define FA_MIS_W %d\n#define FA_MIS_H %d\n#define FA_MIS_CX %d\n' % (mw, mh, mis_cx))
+    f.write('#define FA_SH_W %d\n#define FA_SH_H %d\n#endif\n' % (sw, sh_))
 print(open('src/frosty_art.h').read())

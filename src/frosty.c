@@ -20,14 +20,14 @@
 
 // Salto (cuadros a 60 Hz)
 #define FR_HOP_T         22
-#define FR_HOP_DX        34          // tope de lo que avanza por salto
-#define FR_HOP_DL        10          // y de profundidad
-#define FR_HOP_ARC        6          // px extra de arco (el arte ya trae el vuelo)
-#define FR_HOVER         23          // altura de los cuadros "saltando" (golpes)
+#define FR_HOP_DX        26          // tope de lo que avanza por salto
+#define FR_HOP_DL         8          // y de profundidad
+#define FR_HOP_ARC        4          // px extra de arco (el arte ya trae el vuelo)
+#define FR_HOVER         17          // altura de los cuadros "saltando" (golpes)
 #define FR_WAIT_MIN      12
 #define FR_WAIT_RND      22
-#define FR_STAND_MIN     34          // a que distancia de la tortuga se detiene (X)
-#define FR_STAND_RND     50
+#define FR_STAND_MIN     28          // a que distancia de la tortuga se detiene (X)
+#define FR_STAND_RND     40
 
 // Golpes y rotura
 #define FR_HURT_T        14
@@ -37,9 +37,9 @@
 #define FR_DEAD_BLINK     8
 
 // Hitbox (cuerpo)
-#define FR_HALF_W_SNOW   22
-#define FR_HALF_W_BOT    14
-#define FR_BODY_H        70
+#define FR_HALF_W_SNOW   16
+#define FR_HALF_W_BOT    11
+#define FR_BODY_H        52
 
 // Nariz
 #define FR_NOSE_CD_MIN  100          // espera entre misiles (cuadros)
@@ -47,23 +47,25 @@
 #define FR_NOSE_FIRST    80          // la primera vez que es robot
 #define FR_NOSE_GONE     70          // sin nariz
 #define FR_NOSE_REGEN    26          // regenerandola
-#define FR_NOSE_Z        56          // altura de la nariz (sale de ahi)
-#define FR_NOSE_DX       20          // y que tan adelante
+#define FR_NOSE_Z        42          // altura de la nariz (sale de ahi)
+#define FR_NOSE_DX       15          // y que tan adelante
 
-// Misil
+// Misil: SIEMPRE avanza hacia la tortuga (velocidad fija) y va dibujando arcos
+// en el aire (saltos parabolicos de FR_MIS_PH_SPD en FR_MIS_PH_SPD en la altura);
+// los arcos se achican a medida que se acerca, hasta quedar a la altura del cuerpo.
 #define FR_MIS_MAX        3
 #define FR_MIS_SPD_Q4    40          // 2,5 px por cuadro
-#define FR_MIS_ARC_T     26          // cuadros del arco inicial (sin buscar)
-#define FR_MIS_ARC_ROT    6          // giro del arco (de 1024 por vuelta)
-#define FR_MIS_TURN       7          // giro maximo buscando (~2,5 grados por cuadro)
+#define FR_MIS_PH_SPD    16          // fase del arco por cuadro (512 = un arco): ~32 cuadros, ~80 px
+#define FR_MIS_PH0      160          // fase al salir (ya arriba, a la altura de la nariz)
+#define FR_MIS_ZMIN       6          // piso de los arcos
+#define FR_MIS_AMP_MIN   14
+#define FR_MIS_AMP_MAX   44
+#define FR_MIS_AMP_DIV    3          // amplitud = distancia / esto
 #define FR_MIS_LIFE     420
-#define FR_MIS_Z0       230          // angulo de salida (1024 = vuelta; ~81 grados)
-#define FR_MIS_TZ        22          // altura a la que apunta (cuerpo de la tortuga)
-#define FR_MIS_HIT_DX    12
-#define FR_MIS_HIT_DL    12
-#define FR_MIS_HIT_Z     52
+#define FR_MIS_HIT_DX    10
+#define FR_MIS_HIT_DL    10
+#define FR_MIS_HIT_Z     40
 #define FR_MIS_DMG        2          // barras
-#define FR_MIS_BODY_X    42          // del borde izq. de la celda 64x24 al centro del cuerpo
 
 // Explosion (la de Baxter, con la paleta de Frosty)
 #define FR_BOOM_MAX       2
@@ -74,8 +76,8 @@
 #define FR_ENTER_GAP     45          // cuadros entre uno y el siguiente
 #define FR_STARVE_MAX   240          // sin VRAM y sin nadie: se saltea
 
-#define FR_SHADOW_W      40
-#define FR_SHADOW_H      24
+#define FR_SHADOW_W      FA_SH_W
+#define FR_SHADOW_H      FA_SH_H
 
 enum { D_SNOW, D_BREAK, D_BOT, D_NONE = 0xFF };
 // cuadros
@@ -109,7 +111,7 @@ typedef struct {
 typedef struct {
     u8      on;
     s32     xq, zq, lq;   // Q4
-    s16     th;           // angulo 0..1023
+    u16     ph;           // fase del arco (0..511 = un arco)
     u16     t;
     s8      face;
     u8      target;       // indice de tortuga
@@ -343,7 +345,7 @@ static void misLaunch(Frosty* f, u8 target) {
     m->xq = (s32)(f->x + f->face * FR_NOSE_DX) << 4;
     m->zq = (s32)FR_NOSE_Z << 4;
     m->lq = (s32)f->lane << 4;
-    m->th = (s16)(f->face > 0 ? FR_MIS_Z0 : 512 - FR_MIS_Z0);
+    m->ph = FR_MIS_PH0;
     m->t = 0;
     m->target = target;
 }
@@ -352,7 +354,7 @@ static void misUpdate(Player** pls, u8 nPl) {
     for (u8 i = 0; i < FR_MIS_MAX; i++) {
         Missile* m = &mis[i];
         if (!m->on) continue;
-        s16 x = (s16)(m->xq >> 4), z = (s16)(m->zq >> 4), lane = (s16)(m->lq >> 4);
+        s16 x = (s16)(m->xq >> 4), lane = (s16)(m->lq >> 4);
         m->t++;
         // el blanco: la tortuga elegida (si cayo, la mas cercana)
         if (m->target >= nPl || !playerAlive(pls[m->target])) {
@@ -362,27 +364,22 @@ static void misUpdate(Player** pls, u8 nPl) {
         }
         Player* tp = pls[m->target];
         s16 tx = getPlayerHurtCX(tp), tl = getPlayerY(tp);
-        s32 cs = cosFix16(m->th), sn = sinFix16(m->th);
-        if (m->t <= FR_MIS_ARC_T) {
-            // arco: sube y se inclina hacia adelante
-            m->th = (s16)((m->th + (m->face > 0 ? -FR_MIS_ARC_ROT : FR_MIS_ARC_ROT)) & 1023);
-        } else {
-            // teledirigido: gira hacia el blanco (producto cruz), con tope
-            s32 dx = tx - x, dz = FR_MIS_TZ - z;
-            s32 cross = cs * dz - sn * dx;
-            if (cross > 0)      m->th = (s16)((m->th + FR_MIS_TURN) & 1023);
-            else if (cross < 0) m->th = (s16)((m->th - FR_MIS_TURN) & 1023);
-        }
-        m->xq += (cs * FR_MIS_SPD_Q4) >> 10;
-        m->zq += (sn * FR_MIS_SPD_Q4) >> 10;
-        if (m->zq < (2 << 4))   m->zq = (2 << 4);     // roza el piso
-        if (m->zq > (130 << 4)) m->zq = (130 << 4);
+        // avanza siempre hacia ella
+        s16 dx = (s16)(tx - x);
+        if (dx > 4) m->face = 1; else if (dx < -4) m->face = -1;
+        m->xq += m->face * FR_MIS_SPD_Q4;
+        // altura: arcos (|seno|) que se achican con la distancia
+        s16 amp = (s16)(iabs(dx) / FR_MIS_AMP_DIV);
+        if (amp < FR_MIS_AMP_MIN) amp = FR_MIS_AMP_MIN;
+        if (amp > FR_MIS_AMP_MAX) amp = FR_MIS_AMP_MAX;
+        m->ph = (u16)((m->ph + FR_MIS_PH_SPD) & 511);
+        s16 z = (s16)(FR_MIS_ZMIN + (((s32)amp * sinFix16((s16)m->ph)) >> 10));
+        m->zq = (s32)z << 4;
         // profundidad: se acomoda de a poco a la de la tortuga
         s32 dl = ((s32)tl << 4) - m->lq;
         if (dl > 20) dl = 20; else if (dl < -20) dl = -20;
         m->lq += dl;
-        x = (s16)(m->xq >> 4); z = (s16)(m->zq >> 4); lane = (s16)(m->lq >> 4);
-        m->face = (cs >= 0) ? 1 : -1;
+        x = (s16)(m->xq >> 4); lane = (s16)(m->lq >> 4);
 
         // le da a alguna tortuga?
         bool done = FALSE;
@@ -402,9 +399,9 @@ static void misUpdate(Player** pls, u8 nPl) {
         }
 
         // dibujo
-        s16 sx = (s16)(x - (m->face > 0 ? FR_MIS_BODY_X : 64 - FR_MIS_BODY_X) - frCamX);
-        s16 sy = (s16)(lane - z - 12 - stageCamY);
-        bool v = (sx > -64 && sx < SCREEN_W);
+        s16 sx = (s16)(x - (m->face > 0 ? FA_MIS_CX : FA_MIS_W - FA_MIS_CX) - frCamX);
+        s16 sy = (s16)(lane - z - FA_MIS_H / 2 - stageCamY);
+        bool v = (sx > -FA_MIS_W && sx < SCREEN_W);
         if (v != (bool)m->vis) {
             m->vis = v;
             SPR_setVisibility(m->s,  v ? VISIBLE : HIDDEN);
