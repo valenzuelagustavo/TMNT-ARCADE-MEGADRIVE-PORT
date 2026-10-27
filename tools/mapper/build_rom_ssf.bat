@@ -20,12 +20,6 @@ if not exist "%GDK_WIN%\lib_ssf\libmd.a" (
 )
 
 pushd "%~dp0..\.."
-
-rem (26/10) version del build para el menu de titulo (src\build_info.h, no se versiona)
-set "BV=dev"
-for /f "delims=" %%i in ('git describe --always --dirty --abbrev=7 2^>nul') do set "BV=%%i"
-> src\build_info.h echo #define BUILD_VERSION "%BV%"
-
 make -f "%GDK_WIN%\makefile.gen" clean
 make -f "%GDK_WIN%\makefile.gen" "EXTRA_FLAGS=-DENABLE_BANK_SWITCH=1" "LIBMD=%GDK%/lib_ssf/libmd.a" release
 set ERR=%ERRORLEVEL%
