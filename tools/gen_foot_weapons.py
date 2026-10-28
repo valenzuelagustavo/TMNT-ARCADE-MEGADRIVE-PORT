@@ -161,6 +161,36 @@ def fx_sheet(name, cells, cw, ch):
     print('%-22s celda %dx%d, %d filas' % (name, cw, ch, len(cells)))
 
 
+def fix_gun_shadow(path, cw, ch):
+    """(28/10) Los fusileros comparten paleta con los naranjas, y su sombra
+    del piso venia en naranja (indice 9) en vez del gris oscuro (14) que
+    usan los naranjas. La sombra es una mancha de indice 9 cerca del piso de
+    la celda (los pies van en el borde de abajo) que no toca ninguna otra
+    parte del traje (7, 10, 11): esas pasan a 14."""
+    im = Image.open(path)
+    a = np.array(im)
+    st = np.ones((3, 3), bool)
+    for r in range(a.shape[0] // ch):
+        for c in range(a.shape[1] // cw):
+            cell = a[r * ch:(r + 1) * ch, c * cw:(c + 1) * cw]
+            ys = np.nonzero((cell != 0).any(axis=1))[0]
+            if len(ys) == 0:
+                continue
+            floor = ys.max()
+            suit = ndimage.binary_dilation(np.isin(cell, (7, 10, 11)), structure=st)
+            lab, n = ndimage.label(cell == 9, structure=st)
+            for i, sl in enumerate(ndimage.find_objects(lab), 1):
+                m = lab[sl] == i
+                if sl[0].stop - 1 < floor - 8 or sl[0].stop - 1 > floor:
+                    continue
+                if (suit[sl] & m).any():
+                    continue
+                cell[sl][m] = 14
+    out = Image.fromarray(a, 'P')
+    out.putpalette(im.getpalette())
+    out.save(path, transparency=0)
+
+
 def main():
     # --- FUSIL (naranja) -----------------------------------------------------
     # Indices de foot_gun.png en orden de lectura (ver el docstring):
@@ -178,6 +208,7 @@ def main():
         ('death',   [0, 1, 1]),
         ('taunt',   [8, 8, 2, 8, 8, 2]),
     ])
+    fix_gun_shadow(os.path.join(SPR, 'foot_gun_gen.png'), 120, 72)
     # La bala: un punto naranja (lo que sale del cano en el frame 13). Las
     # chispas: el impacto contra el piso.
     bullet = np.zeros((3, 5), np.uint8)
