@@ -327,3 +327,7 @@ WAV elevator_tecnodrome_sfx "audio/gen/elevator_tecnodrome_loop.wav" XGM2 6650
 //   tora                    1,144s  pico 96,9%  rms 22,0%  12.613 B
 // El original queda como tora_orig.wav.
 WAV tora_vo "audio/tora.wav" XGM2
+// (27/10) Cutscene de Splinter despues de la fabrica (SCENE_CUT_SPLINTER): "Thank you, my turtles!".
+// WAV mono 8-bit a 8000 Hz (1,24 s): rescomp lo resamplea al rate de XGM2 como a los de 11025 Hz,
+// la duracion no cambia. Ver cut_scenes.c.
+WAV thank_you_vo "audio/thank_you_my_turtles.wav" XGM2
