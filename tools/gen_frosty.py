@@ -2,7 +2,7 @@
 # gen_frosty.py (27/10) - recorta y ordena frosty-sheet.png (el muneco de nieve
 # robot de Central Park) en las hojas que usa src/frosty.c.
 #
-# Fuente: res/images/lvl_central_park/frosty-sheet.png (471x172 desde el 27/10: Gustavo la achico al 75%, una paleta de 16;
+# Fuente: res/images/lvl_central_park/frosty-sheet.png (353x129 desde el 27/10 (noche): Gustavo la volvio a achicar al 75%, una paleta de 16;
 # el indice 0 es transparente). Salida (misma paleta, mismos indices):
 #   frosty_snow.png    muneco: [0 en el piso, 1 saltando]
 #   frosty_break.png   se rompe el disfraz: [0, 1, 2]
@@ -24,7 +24,7 @@ import os
 SRC = 'res/images/lvl_central_park/frosty-sheet.png'
 OUT = 'res/images/lvl_central_park/'
 BOOM_SRC = 'res/sprites/baxter_boom_gen.png'
-GB = 4          # el cuerpo en el piso: su borde de abajo, GB px bajo el lane
+GB = 3          # el cuerpo en el piso: su borde de abajo, GB px bajo el lane
 
 im = Image.open(SRC)
 A = np.array(im)
@@ -45,24 +45,24 @@ def tile8(v):
 # nombre -> (rect, tipo, sombra)  tipo: 'g' piso, 'a' aire (con sombra), 'l' alinear
 # el borde izquierdo (los de la rotura)
 SNOW = [
-    ('ground', (12, 15, 65, 88), 'g', None),
-    ('jump',   (73, 0, 125, 69), 'a', (81, 70, 117, 90)),
+    ('ground', (10, 13, 48, 65), 'g', None),
+    ('jump',   (56, 0, 93, 51), 'a', (62, 54, 87, 67)),
 ]
 BREAK = [
-    ('b1', (132, 20, 196, 93), 'l', None),
-    ('b2', (198, 9, 265, 93), 'l', None),
-    ('b3', (273, 16, 325, 88), 'g', None),
+    ('b1', (100, 16, 146, 69), 'l', None),
+    ('b2', (150, 8, 198, 69), 'l', None),
+    ('b3', (206, 13, 243, 65), 'g', None),
 ]
 BOT = [
-    ('ground', (328, 20, 372, 87), 'g', None),
-    ('jumpA',  (383, 0, 426, 70), 'a', (380, 71, 415, 90)),
-    ('jumpB',  (432, 0, 471, 69), 'a', (430, 70, 465, 90)),
-    ('hit',    (388, 109, 436, 172), 'g', None),
-    ('dead',   (303, 138, 364, 170), 'g', None),
-    ('nonose', (114, 100, 158, 166), 'g', None),
-    ('regen',  (162, 100, 206, 166), 'g', None),
+    ('ground', (247, 17, 278, 65), 'g', None),
+    ('jumpA',  (289, 0, 318, 52), 'a', (286, 55, 311, 67)),
+    ('jumpB',  (325, 0, 353, 51), 'a', (324, 54, 348, 67)),
+    ('hit',    (292, 83, 326, 129), 'g', None),
+    ('dead',   (229, 105, 272, 127), 'g', None),
+    ('nonose', (88, 76, 118, 124), 'g', None),
+    ('regen',  (124, 76, 154, 124), 'g', None),
 ]
-BALL_HALF = 25      # medio ancho de la bola del muneco (la rotura se alinea a ella)
+BALL_HALF = 19      # medio ancho de la bola del muneco (la rotura se alinea a ella)
 
 
 def layout(frames, W, anchor_left=None):
@@ -116,12 +116,12 @@ def build(name, frames, W):
 
 
 dims = {}
-dims['snow'] = build('frosty_snow', SNOW, 56)
-dims['break'] = build('frosty_break', BREAK, 80)
-dims['bot'] = build('frosty_bot', BOT, 64)
+dims['snow'] = build('frosty_snow', SNOW, 40)
+dims['break'] = build('frosty_break', BREAK, 64)
+dims['bot'] = build('frosty_bot', BOT, 40)
 
 # --- misil: la punta (borde derecho) alineada ---
-MIS = [(14, 117, 45, 131), (52, 114, 97, 134)]
+MIS = [(11, 89, 36, 100), (39, 85, 73, 100)]
 bb = [bbox(r) for r in MIS]
 mw = tile8(max(b[2] - b[0] for b in bb) + 3)
 mh = tile8(max(b[3] - b[1] for b in bb))
@@ -137,7 +137,7 @@ mis_cx = tip - (bb[0][2] - bb[0][0]) // 2      # centro del cuerpo (sin llama)
 print('missile', mw, mh, 'cx', mis_cx)
 
 # --- sombra ---
-sb = bbox((81, 70, 117, 90))
+sb = bbox((62, 54, 87, 67))
 sw, sh_ = tile8(sb[2] - sb[0]), tile8(sb[3] - sb[1])
 S = np.zeros((sh_, sw), np.uint8)
 oy, ox = (sh_ - (sb[3] - sb[1])) // 2, (sw - (sb[2] - sb[0])) // 2

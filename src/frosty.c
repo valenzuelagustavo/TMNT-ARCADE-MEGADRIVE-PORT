@@ -20,14 +20,14 @@
 
 // Salto (cuadros a 60 Hz)
 #define FR_HOP_T         22
-#define FR_HOP_DX        26          // tope de lo que avanza por salto
-#define FR_HOP_DL         8          // y de profundidad
-#define FR_HOP_ARC        4          // px extra de arco (el arte ya trae el vuelo)
-#define FR_HOVER         17          // altura de los cuadros "saltando" (golpes)
+#define FR_HOP_DX        20          // tope de lo que avanza por salto
+#define FR_HOP_DL          6          // y de profundidad
+#define FR_HOP_ARC         3          // px extra de arco (el arte ya trae el vuelo)
+#define FR_HOVER         13          // altura de los cuadros "saltando" (golpes)
 #define FR_WAIT_MIN      12
 #define FR_WAIT_RND      22
-#define FR_STAND_MIN     28          // a que distancia de la tortuga se detiene (X)
-#define FR_STAND_RND     40
+#define FR_STAND_MIN     21          // a que distancia de la tortuga se detiene (X)
+#define FR_STAND_RND     30
 
 // Golpes y rotura
 #define FR_HURT_T        14
@@ -37,9 +37,9 @@
 #define FR_DEAD_BLINK     8
 
 // Hitbox (cuerpo)
-#define FR_HALF_W_SNOW   16
-#define FR_HALF_W_BOT    11
-#define FR_BODY_H        52
+#define FR_HALF_W_SNOW   12
+#define FR_HALF_W_BOT     8
+#define FR_BODY_H        39
 
 // Nariz
 #define FR_NOSE_CD_MIN  100          // espera entre misiles (cuadros)
@@ -47,8 +47,8 @@
 #define FR_NOSE_FIRST    80          // la primera vez que es robot
 #define FR_NOSE_GONE     70          // sin nariz
 #define FR_NOSE_REGEN    26          // regenerandola
-#define FR_NOSE_Z        42          // altura de la nariz (sale de ahi)
-#define FR_NOSE_DX       15          // y que tan adelante
+#define FR_NOSE_Z        32          // altura de la nariz (sale de ahi)
+#define FR_NOSE_DX       11          // y que tan adelante
 
 // Misil: SIEMPRE avanza hacia la tortuga (velocidad fija) y va dibujando arcos
 // en el aire (saltos parabolicos de FR_MIS_PH_SPD en FR_MIS_PH_SPD en la altura);
@@ -57,14 +57,14 @@
 #define FR_MIS_SPD_Q4    40          // 2,5 px por cuadro
 #define FR_MIS_PH_SPD    16          // fase del arco por cuadro (512 = un arco): ~32 cuadros, ~80 px
 #define FR_MIS_PH0      160          // fase al salir (ya arriba, a la altura de la nariz)
-#define FR_MIS_ZMIN       6          // piso de los arcos
-#define FR_MIS_AMP_MIN   14
-#define FR_MIS_AMP_MAX   44
+#define FR_MIS_ZMIN        5          // piso de los arcos
+#define FR_MIS_AMP_MIN   11
+#define FR_MIS_AMP_MAX   33
 #define FR_MIS_AMP_DIV    3          // amplitud = distancia / esto
 #define FR_MIS_LIFE     420
-#define FR_MIS_HIT_DX    10
-#define FR_MIS_HIT_DL    10
-#define FR_MIS_HIT_Z     40
+#define FR_MIS_HIT_DX     8
+#define FR_MIS_HIT_DL     8
+#define FR_MIS_HIT_Z     30
 #define FR_MIS_DMG        2          // barras
 
 // Explosion (la de Baxter, con la paleta de Frosty)

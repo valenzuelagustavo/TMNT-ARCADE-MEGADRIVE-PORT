@@ -29,15 +29,15 @@ SPRITE  tora_ice_bubble "sprites/tora_ice_baloon.png" 12 4 FAST 0
 // (27/10) FROSTY, el muneco de nieve robot (tools/gen_frosty.py, desde
 // frosty-sheet.png). Todo comparte UNA paleta (PAL3, la carga frosty.c). Hojas
 // de una fila; el codigo elige el cuadro (medidas en src/frosty_art.h):
-//   frosty_snow    56x88: 0 en el piso, 1 saltando
-//   frosty_break   80x80: 0-2 se rompe el disfraz
-//   frosty_bot     64x88: 0 piso, 1-2 salto, 3 golpeado, 4 muerto, 5 sin nariz, 6 regenera
-//   frosty_missile 40x16: la nariz, 0 sin fuego / 1 con fuego (mira a la derecha)
-//   frosty_shadow  32x16
+//   frosty_snow    40x64: 0 en el piso, 1 saltando
+//   frosty_break   64x64: 0-2 se rompe el disfraz
+//   frosty_bot     40x64: 0 piso, 1-2 salto, 3 golpeado, 4 muerto, 5 sin nariz, 6 regenera
+//   frosty_missile 32x16: la nariz, 0 sin fuego / 1 con fuego (mira a la derecha)
+//   frosty_shadow  24x16
 //   frosty_boom    la explosion de Baxter con la paleta de Frosty (como baxter_boom)
-SPRITE  frosty_snow    "images/lvl_central_park/frosty_snow.png"    7 11 FAST 0
-SPRITE  frosty_break   "images/lvl_central_park/frosty_break.png"   10 10 FAST 0
-SPRITE  frosty_bot     "images/lvl_central_park/frosty_bot.png"     8 11 FAST 0
-SPRITE  frosty_missile "images/lvl_central_park/frosty_missile.png" 5 2 FAST 0
-SPRITE  frosty_shadow  "images/lvl_central_park/frosty_shadow.png"  4 2 FAST 0
+SPRITE  frosty_snow    "images/lvl_central_park/frosty_snow.png"    5 8 FAST 0
+SPRITE  frosty_break   "images/lvl_central_park/frosty_break.png"   8 8 FAST 0
+SPRITE  frosty_bot     "images/lvl_central_park/frosty_bot.png"     5 8 FAST 0
+SPRITE  frosty_missile "images/lvl_central_park/frosty_missile.png" 4 2 FAST 0
+SPRITE  frosty_shadow  "images/lvl_central_park/frosty_shadow.png"  3 2 FAST 0
 SPRITE  frosty_boom    "images/lvl_central_park/frosty_boom.png"    8 8 FAST 0
