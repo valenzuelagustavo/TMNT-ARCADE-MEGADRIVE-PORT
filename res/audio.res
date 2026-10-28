@@ -331,3 +331,5 @@ WAV tora_vo "audio/tora.wav" XGM2
 // WAV mono 8-bit a 8000 Hz (1,24 s): rescomp lo resamplea al rate de XGM2 como a los de 11025 Hz,
 // la duracion no cambia. Ver cut_scenes.c.
 WAV thank_you_vo "audio/thank_you_my_turtles.wav" XGM2
+// (27/10) Baxter al aparecer: "Yippee-I-Ay!". WAV mono 8-bit a 8000 Hz (1,2 s).
+WAV yippee_vo "audio/yeepi_a_yey.wav" XGM2

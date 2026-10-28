@@ -27,3 +27,6 @@ SPRITE baxter_boss "sprites/baxter_boss.png" 6 9 FAST 6
 SPRITE baxter_rat  "sprites/baxter_rat.png"  5 5 FAST 5
 SPRITE baxter_boom "sprites/baxter_boom_gen.png" 8 8 FAST 0
 SPRITE rat_boom    "sprites/rat_boom.png"    4 4 FAST 0
+// (27/10) El globo "Yippee-I-Ay!" de Baxter al aparecer (tools/gen_yippee.py):
+// 64x32, con la paleta de las tortugas (PAL1) como los demas globos.
+SPRITE baxter_yippee_bubble "sprites/yippee_baloon.png" 8 4 FAST 0

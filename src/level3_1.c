@@ -599,7 +599,32 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
 // ---------------------------------------------------------------------------
 static Baxter baxter;
 
+// (27/10) "Yippee-I-Ay!": voice over + globo cuando aparece Baxter. El globo
+// (tools/gen_yippee.py, PAL1 como los demas) acompana a la nave mientras dura
+// la voz y se suelta cuando termina.
+static Sprite* yipSay;
+
+static void yipRelease(void) {
+    if (yipSay) { SPR_releaseSprite(yipSay); yipSay = NULL; }
+}
+
+static void yipUpdate(s16 camX) {
+    if (!yipSay) return;
+    if (!bossVoActive() || baxter.state == BAXTER_DEAD || baxter.state == BAXTER_GONE) {
+        yipRelease();
+        return;
+    }
+    // Encima de la nave; si entra por fuera de pantalla queda pegado al borde.
+    s16 bx = (s16)(baxter.x - camX - 32);
+    s16 by = (s16)(baxter.y - stageCamY - 32);
+    if (bx < 4) bx = 4;
+    if (bx > 320 - 64 - 4) bx = (s16)(320 - 64 - 4);
+    if (by < 4) by = 4;
+    SPR_setPosition(yipSay, bx, by);
+}
+
 static void bossInit31(void) {
+    yipSay = NULL;
     baxterInit(&baxter);
     baxterRatInitAll();
 }
@@ -608,13 +633,20 @@ static void bossStart31(s16 camX, s16 levelW) {
     (void)levelW;
     swBoss = TRUE;
     baxterSpawn(&baxter, (s16)(camX + 16), (s16)(camX + SCREEN_W - 16), LVL31_WALK_MIN, 216);
-    // (14/10) Sin voice over: el "I'm invincible!" es de Krang, no de Baxter
-    // (estaba mal asignado). El tema del jefe lo arranca stage_level al
-    // entrar (bossMusicByVo = FALSE).
+    // (14/10) El "I'm invincible!" es de Krang, no de Baxter.
+    // (27/10) Baxter si tiene voz propia: "Yippee-I-Ay!" (yeepi_a_yey.wav) con
+    // su globo. El tema entra cuando termina (bossMusicByVo = TRUE).
+    bossVoStart(yippee_vo, sizeof(yippee_vo), music_boss, 80);
+    if (!yipSay)
+        yipSay = SPR_addSprite(&baxter_yippee_bubble, -128, -128,
+                               TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (yipSay) SPR_setDepth(yipSay, SPR_MIN_DEPTH);
+    yipUpdate(camX);
 }
 
 static bool bossUpdate31(Player** pls, u8 nPl, s16 camX) {
     baxterUpdate(&baxter, pls, nPl, camX);
+    yipUpdate(camX);
     baxterRatUpdateAll(pls, nPl, camX, stageWalkTopAt);
     s8 killer = -1;
     if (baxterPlayerHits(&baxter, pls, nPl, &killer) && killer >= 0)
@@ -628,6 +660,7 @@ static bool bossDying31(void) {
 }
 
 static void bossRelease31(void) {
+    yipRelease();
     baxterRelease(&baxter);
 }
 
@@ -655,7 +688,7 @@ static const StageLevel level31 = {
     .musicVol     = 80,
     .bossMusic    = music_boss,
     .bossMusicVol = 80,
-    .bossMusicByVo = FALSE,     // (14/10) sin voz: el tema entra directo
+    .bossMusicByVo = TRUE,      // (27/10) lo arranca la voz de Baxter (bossVoStart)
     .bossInit     = bossInit31,
     .bossStart    = bossStart31,
     .bossUpdate   = bossUpdate31,
