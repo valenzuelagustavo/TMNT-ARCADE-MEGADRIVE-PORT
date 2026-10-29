@@ -75,7 +75,7 @@ void streetBreakWindow(u8 w) {
     if (w >= L21W_COUNT || winBroken[w]) return;
     winBroken[w] = TRUE;
     // (16/10) El foot entra rompiendo la ventana ("window_broken" del arcade).
-    XGM2_playPCMEx(window_broken_sfx, sizeof(window_broken_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
+    XGM2_playPCMEx(window_broken_sfx, sizeof(window_broken_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);
 }
 
 static void winRelease(u8 w) {
@@ -242,7 +242,7 @@ static void hydUpdate(s16 camX, s16 camY) {
 static void hydOpen(u8 i, s8 dir, s8 owner) {
     hyd[i].state = HYD_SPRAY;
     // (16/10) El hidrante se rompe ("hydrant" del arcade).
-    XGM2_playPCMEx(hydrant_sfx, sizeof(hydrant_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
+    XGM2_playPCMEx(hydrant_sfx, sizeof(hydrant_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);
     hyd[i].dir   = dir;
     hyd[i].owner = owner;
     hyd[i].tick  = 0;
@@ -441,7 +441,7 @@ static void pizzaBubUpdate(s16 camX, s16 camY) {
         pizzaBub = SPR_addSprite(&pizza_time_bubble, 0, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
         if (!pizzaBub) return;
         SPR_setDepth(pizzaBub, SPR_MIN_DEPTH);
-        XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
         pizzaBubSt = 1;
         pizzaBubT  = 0;
     }
@@ -474,7 +474,7 @@ static void pizzaUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             if (abs(p->y - (PIZZA_FEET + 6)) > PIZZA_PICK_DY) continue;
             p->health  = PLAYER_MAX_HEALTH;          // toda la vida
             // (16/10) "get pizza" del arcade.
-            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
             pizzaState = PIZZA_OPEN;
             pizzaTick  = 0;
             break;
@@ -593,7 +593,7 @@ bool streetPlayerHits(Player** pls, u8 nPl) {
             if (girlSpr) SPR_setFrame(girlSpr, 1);
             // CH3: en CH2 van los golpes con prioridad 15 y lo cortarian.
             XGM2_playPCMEx(scream_april, sizeof(scream_april),
-                           SOUND_PCM_CH2, 15, FALSE, FALSE);
+                           SOUND_PCM_CH2, 15, TRUE, FALSE);
         }
     }
     return opened;

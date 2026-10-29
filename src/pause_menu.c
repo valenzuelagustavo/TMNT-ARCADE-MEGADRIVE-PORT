@@ -283,7 +283,7 @@ SceneId pausePoll(Player** pls, u8 nPl) {
     XGM2_pause();
     // (16/10) El jingle de pausa del arcade. Va DESPUES de XGM2_pause: la
     // pausa calla la musica, pero los canales PCM siguen sonando.
-    XGM2_playPCMEx(pause_sfx, sizeof(pause_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(pause_sfx, sizeof(pause_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
     saveUnderBox();
     u8 bg = darkestPal1();
     VDP_fillTileData((u8)(bg | (bg << 4)), SOLID_TILE, 1, TRUE);

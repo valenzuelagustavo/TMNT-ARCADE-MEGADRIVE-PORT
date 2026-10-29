@@ -739,7 +739,7 @@ static void playerStepStreet(Player* p, s16 prevX, s16 prevY,
 // los dos PNG cae mas o menos en x=38 de 64).
 #define LVL21_TV_APRIL_FRAMES 3
 #define LVL21_TV_SHREDDER_F   3
-#define LVL21_PCM_RATE     13300
+#define LVL21_PCM_RATE     6650
 #define LVL21_TVB_W           64
 #define LVL21_TVB_H           32
 #define LVL21_TVB_X   (LVL21_TV_X + LVL21_TV_W / 2 - 38)
@@ -778,12 +778,12 @@ static void tvStartPhase(u8 phase) {
     if (phase == 0) {
         tvBubbleSet(&tv_help_bubble);
         XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo),
-                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, TRUE, FALSE);
         tvPhaseLen = tvVoFrames(sizeof(help_me_april_vo));
     } else {
         tvBubbleSet(&tv_dine_bubble);
         XGM2_playPCMEx(dinne_turtle_vo, sizeof(dinne_turtle_vo),
-                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, TRUE, FALSE);
         tvPhaseLen = tvVoFrames(sizeof(dinne_turtle_vo));
     }
 }
@@ -1376,7 +1376,7 @@ static void dlgUpdate(const Bebop* b, Player** pls, u8 nPl, s16 camX, s16 camY) 
         dlgBubOff();
         dlgBub = SPR_addSprite(L->bub, 0, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
         if (dlgBub) SPR_setDepth(dlgBub, SPR_MIN_DEPTH);
-        XGM2_playPCMEx(L->vo, L->len, SOUND_PCM_CH2, 15, FALSE, FALSE);
+        XGM2_playPCMEx(L->vo, L->len, SOUND_PCM_CH2, 15, TRUE, FALSE);
         dlgOn = TRUE;
         dlgT  = 0;
     }
@@ -1831,7 +1831,7 @@ SceneId showScene21() {
                                                 TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
                     // El voice over arranca con el globo, una sola vez.
                     XGM2_playPCMEx(who_put_light_vo, sizeof(who_put_light_vo),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH2, 15, TRUE, FALSE);
                 }
                 if (lightBubble) {
                     s16 bx = (s16)(pls[talking]->x + FOOT_DX - LVL21_BUBBLE_W / 2 - cameraX);
@@ -2055,7 +2055,7 @@ SceneId showScene21() {
                 damageEnemy(&enemies[i], dmg);          // (16/10) suena hit_foot adentro
                 if (att && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, TRUE, FALSE);
                     addPlayerScore(att, 1);
                     // (27/09) El golpe que lo mata lo lanza (ver ENEMY_DEATH_PUSH).
                     enemyDeathPush(&enemies[i], (s16)(att->x + PLAYER_SPRITE_W / 2),
@@ -2074,7 +2074,7 @@ SceneId showScene21() {
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -2085,14 +2085,14 @@ SceneId showScene21() {
         // vuelve a la mano dispara la atrapada del soldier.
         if (boomerangStep(pls, nPl, cameraX, cameraY))
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
 
         // --- Proyectiles del guion (19/09) ---------------------------------
         // Dinamita: mismo bloque que el 1-1, pero con tntUpdateEx porque aca la
         // camara tambien baja. Devuelve TRUE el frame exacto del impacto.
         if (tntUpdateEx(cameraX, cameraY))
             XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
         // Un jugador se come UN solo golpe por explosion: el estallido dura 24
         // frames quieto, asi que sin la mascara le sacaria una barra por frame.
         if (tntBlastActive()) {
@@ -2123,7 +2123,7 @@ SceneId showScene21() {
         for (u8 k = 0; k < nPl; k++) {
             if (lidReflectByPlayerAttack(pls[k], (s8)k))
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
         }
 
         // Tapa devuelta contra los soldiers: LID_ENEMY_DMG de vida por soldier,
@@ -2138,7 +2138,7 @@ SceneId showScene21() {
             damageEnemy(&enemies[i], LID_ENEMY_DMG);    // (16/10) suena hit_foot adentro
             if (enemies[i].state == ENEMY_STATE_DEAD) {
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[owner], 1);
             }
         }
@@ -2151,7 +2151,7 @@ SceneId showScene21() {
             if (!lidHits(getPlayerHurtCX(pls[k]), getPlayerY(pls[k]),
                          PLAYER_BODY_HALF_W, &lx)) continue;
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
             damagePlayer(pls[k], lx);     // una barra
         }
 
@@ -2161,7 +2161,7 @@ SceneId showScene21() {
         // soldier). Parados, sus bases las frena clampToWalk.
         if (metersPlayerHits(pls, nPl))
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
         metersUpdate(cameraX, cameraY);
 
         // --- Utileria de la calle (11/10): ver street_2_1.h ----------------
@@ -2171,7 +2171,7 @@ SceneId showScene21() {
         if (l21Done(L21E20)) streetBillboardFall();
         if (streetPlayerHits(pls, nPl))
             XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
         streetUpdate(pls, nPl, cameraX, cameraY);
         for (u16 i = 0; i < MAX_ENEMIES; i++) {
             if (!enemyCanBeHit(&enemies[i])) continue;
@@ -2183,7 +2183,7 @@ SceneId showScene21() {
             damageEnemy(&enemies[i], kill ? (s16)(enemies[i].hp > 0 ? enemies[i].hp : ENEMY_HP) : 1);
             if (enemies[i].state == ENEMY_STATE_DEAD) {
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[owner], 1);
             }
         }
@@ -2195,7 +2195,7 @@ SceneId showScene21() {
                                 enemyBodyHalfW(&enemies[i]), &owner)) continue;
             damageEnemy(&enemies[i], (s16)(enemies[i].hp > 0 ? enemies[i].hp : ENEMY_HP));
             XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
             if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[owner], 1);
         }
 
@@ -2291,7 +2291,7 @@ SceneId showScene21() {
                             : (isPlayerJumpKicking(pls[k]) ? BEBOP_JUMPKICK_DMG : 1);
                     // (24/10) Golpe al jefe: boss_hit (como Rocksteady y Tora).
                     XGM2_playPCMEx(boss_hit, sizeof(boss_hit),
-                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, TRUE, FALSE);
                     if (bebopDamage(&bebop, dmg)) addPlayerScore(pls[k], 5);
                     break;
                 }

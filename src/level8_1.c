@@ -788,7 +788,7 @@ SceneId showScene81() {
                 damageEnemy(&enemies[i], dmg);          // (16/10) suena hit_foot adentro
                 if (att && enemies[i].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, TRUE, FALSE);
                     addPlayerScore(att, 1);
                     // (27/09) El golpe que lo mata lo lanza (ver ENEMY_DEATH_PUSH).
                     enemyDeathPush(&enemies[i], (s16)(att->x + PLAYER_SPRITE_W / 2),
@@ -804,7 +804,7 @@ SceneId showScene81() {
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -815,7 +815,7 @@ SceneId showScene81() {
         for (u8 k = 0; k < nPl; k++)
             if (shurikenBreakByPlayerAttack(pls[k]))
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
         {
             s16 hitX = 0;
             for (u8 k = 0; k < nPl; k++) {
@@ -823,7 +823,7 @@ SceneId showScene81() {
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX))
                     continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 damagePlayer(pls[k], hitX);
             }
         }

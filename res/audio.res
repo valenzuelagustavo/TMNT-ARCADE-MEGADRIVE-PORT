@@ -115,7 +115,7 @@ XGM2 golpe         "golpe.vgm"
 // Se dispara con XGM2_playPCMEx sobre un canal PCM libre (CH2), asi la musica
 // del nivel (CH1) sigue sonando por debajo. Sintaxis: WAV name file driver
 // [out_rate] -> out_rate se omite = 13300 (hay que reproducirlo a rate normal).
-WAV attack_vo "audio/attack.wav" XGM2
+WAV attack_vo "audio/6650/attack.wav" XGM2 6650
 // (12/10) VOZ DE LA INTRO, cantada encima de music_intro_arcade (ver
 // introVo[] en intro_arcade.c): "Teenage Mutant Ninja Turtles" (sola y con
 // coro), "Heroes in a half shell" y "Turtle power!". Se declaran las de
@@ -128,34 +128,34 @@ WAV attack_vo "audio/attack.wav" XGM2
 // WAV intro_vo_tmnt2  "music/intro_voice/gen/02_teenage_mutant.wav" XGM2
 // WAV intro_vo_heroes "music/intro_voice/gen/03_heroes_in_a_half_shell.wav" XGM2
 // WAV intro_vo_power  "music/intro_voice/gen/04_turtle_power.wav" XGM2
-WAV scream_april "audio/scream_april.wav" XGM2
-WAV iron_ball_sfx "audio/iron_ball.wav" XGM2
+WAV scream_april "audio/6650/scream_april.wav" XGM2 6650
+WAV iron_ball_sfx "audio/6650/iron_ball.wav" XGM2 6650
 // WAV attack_turtles "audio/attack_turtles.wav" XGM2
-WAV hit_turtles "audio/hit_turtles.wav" XGM2
+WAV hit_turtles "audio/6650/hit_turtles.wav" XGM2 6650
 // (24/10) boss_hit sonaba muy bajo (pico 21,9%, rms 5,5%): ganancia x4,58
 // hasta rms 25% con la rodilla suave tanh desde el 80% (toca el 0,3%).
 //   boss_hit                0,167s  pico 94,1%  rms 25,0%
 // El original queda como boss_hit_orig.wav.
-WAV boss_hit "audio/boss_hit.wav" XGM2
+WAV boss_hit "audio/6650/boss_hit.wav" XGM2 6650
 // (01/10) Embestida de Rocksteady: el sonido de la CORRIDA hacia el logo de SEGA
 // (musica_intro.vgm, no el golpe: es un tema XGM2 de FM y no se puede tocar
 // encima de la musica del nivel). Renderizado a WAV con libgme (1.1 s, 8-bit 13300 Hz
 // mono, normalizado) para tocarlo como PCM.
-WAV rocksteady_charge_sfx "audio/rocksteady_charge.wav" XGM2
-WAV foot_soldier_explode "audio/foot_soldier_explode.wav" XGM2
-WAV drill_sfx "audio/drill.wav" XGM2
-WAV electric_shock_sfx "audio/electric_shock.wav" XGM2
-WAV capsule_door_sfx "audio/capsule_door.wav" XGM2
-WAV say_your_p_sfx "audio/say_your_p.wav" XGM2
-WAV shredder_laugh_sfx "audio/shredder_laugh.wav" XGM2
+WAV rocksteady_charge_sfx "audio/6650/rocksteady_charge.wav" XGM2 6650
+WAV foot_soldier_explode "audio/6650/foot_soldier_explode.wav" XGM2 6650
+WAV drill_sfx "audio/6650/drill.wav" XGM2 6650
+WAV electric_shock_sfx "audio/6650/electric_shock.wav" XGM2 6650
+WAV capsule_door_sfx "audio/6650/capsule_door.wav" XGM2 6650
+WAV say_your_p_sfx "audio/6650/say_your_p.wav" XGM2 6650
+WAV shredder_laugh_sfx "audio/6650/shredder_laugh.wav" XGM2 6650
 
 // (06/10) Sala final (9-1). Sacados del remake de PC (tmntarcadehd) y pasados
 // a la convencion de la casa: MONO, 8-bit, 11025 Hz, puntas recortadas y
 // normalizados a pico 96,9%.
 //   krang_speech_vo    1,92 s  la cabeza de Krang al escaparse del cuerpo
 //   shredder_death_vo  3,11 s  el grito de Shredder al caer
-WAV krang_speech_vo    "audio/krang_speech.wav" XGM2
-WAV shredder_death_vo  "audio/shredder_death.wav" XGM2
+WAV krang_speech_vo    "audio/6650/krang_speech.wav" XGM2 6650
+WAV shredder_death_vo  "audio/6650/shredder_death.wav" XGM2 6650
 
 // Voice over de la cinematica de rescate (SCENE_CINEMATIC_FIRE, escena A,
 // globos "Fire!!" / "Hang on, April") y del arranque de la 2da parte del
@@ -163,10 +163,10 @@ WAV shredder_death_vo  "audio/shredder_death.wav" XGM2
 // la 1ra parte). Origen: WAV estereo 48000 Hz, convertidos a mono 11025 Hz
 // 8-bit (misma convencion que el resto de esta seccion) antes de pasarlos
 // por rescomp.
-WAV fire_vo "audio/fire.wav" XGM2
-WAV hang_on_april_vo "audio/hang_on_april.wav" XGM2
-WAV robot_twip_sfx "audio/robot_twip.wav" XGM2
-WAV help_me_april_vo "audio/help_me_april.wav" XGM2
+WAV fire_vo "audio/6650/fire.wav" XGM2 6650
+WAV hang_on_april_vo "audio/6650/hang_on_april.wav" XGM2 6650
+WAV robot_twip_sfx "audio/6650/robot_twip.wav" XGM2 6650
+WAV help_me_april_vo "audio/6650/help_me_april.wav" XGM2 6650
 
 // --- Tanda del 14/09 -------------------------------------------------------
 // Los cinco llegaron como WAV ESTEREO 8-bit 48000 Hz y se convirtieron a la
@@ -186,8 +186,8 @@ WAV help_me_april_vo "audio/help_me_april.wav" XGM2
 // audio/reemplazados/. Los nuevos salen de tools/gen_sfx_arcade.py.
 // (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV leo_raph_attack_vo  "audio/gen/leo_raph_attack.wav" XGM2
 // (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV mike_don_attack_vo  "audio/gen/mike_don_attack.wav" XGM2
-WAV cowabunga_vo        "audio/cowabunga.wav" XGM2
-WAV boss_scream_rocksteady_vo "audio/boss_scream_rocksteady.wav" XGM2
+WAV cowabunga_vo        "audio/6650/cowabunga.wav" XGM2 6650
+WAV boss_scream_rocksteady_vo "audio/6650/boss_scream_rocksteady.wav" XGM2 6650
 // (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV lost_life_turtles_vo "audio/lost_life_turtles.wav" XGM2
 
 // (24/09) Grito de Bebop, el jefe del 2-1. Llego como los otros (ESTEREO
@@ -195,7 +195,7 @@ WAV boss_scream_rocksteady_vo "audio/boss_scream_rocksteady.wav" XGM2
 // 11025 Hz, silencio de las puntas recortado y normalizado a pico 96,9%.
 // Medido despues de convertir: 2,562 s  pico 96,9%  rms 19,6%  28.246 B.
 // El original quedo como boss_scream_bebop_orig48k.wav.
-WAV boss_scream_bebop_vo "audio/boss_scream_bebop.wav" XGM2
+WAV boss_scream_bebop_vo "audio/6650/boss_scream_bebop.wav" XGM2 6650
 
 // --- Caida por la boca de tormenta (2-1, 20/09) ----------------------------
 // "Duuuh, who put the light out". Llego como WAV ESTEREO 8-bit 48000 Hz de
@@ -206,7 +206,7 @@ WAV boss_scream_bebop_vo "audio/boss_scream_bebop.wav" XGM2
 // El RMS cae justo en la banda de voz (20-24%), asi que se mezcla igual que
 // el resto de los voice over (mismo criterio de mezcla).
 // El original de 48k queda al lado como who_put_the_light_out_orig48k.wav.
-WAV who_put_light_vo "audio/who_put_the_light_out.wav" XGM2
+WAV who_put_light_vo "audio/6650/who_put_the_light_out.wav" XGM2 6650
 
 // --- TV de la vidriera (2-1, 27/09) ----------------------------------------
 // Cuando se prende la tele: April pide ayuda y Shredder la interrumpe.
@@ -229,7 +229,7 @@ WAV who_put_light_vo "audio/who_put_the_light_out.wav" XGM2
 //   dinne_turtle            2,765s  pico 96,9%  rms 22,0%  30.479 B
 // La toma nueva sin procesar queda como dinne_turtle_orig.wav. La tele mide
 // la fase de Shredder con sizeof(), asi que se adapta sola al largo nuevo.
-WAV dinne_turtle_vo "audio/dinne_turtle.wav" XGM2
+WAV dinne_turtle_vo "audio/6650/dinne_turtle.wav" XGM2 6650
 
 // --- Voice over del 2-1 (11/10) ----------------------------------------------
 // Los cuatro llegaron MONO 8-bit 11025 Hz pero bajos (pico 39-48%, rms 7-9%).
@@ -240,10 +240,10 @@ WAV dinne_turtle_vo "audio/dinne_turtle.wav" XGM2
 //   any_prettier            1,363s  pico 90,6%  rms 22,0%  15.031 B  (tortuga)
 //   shut_your_mouth         2,034s  pico 96,9%  rms 22,0%  22.421 B  (Bebop)
 // Van en CH3 con prioridad 15 (como la tele): en CH2 los cortarian los golpes.
-WAV pizza_time_vo      "audio/pizza_time.wav" XGM2
-WAV youre_dead_vo      "audio/youre_dead_shell_brain.wav" XGM2
-WAV any_prettier_vo    "audio/any_prettier.wav" XGM2
-WAV shut_your_mouth_vo "audio/shut_your_mouth.wav" XGM2
+WAV pizza_time_vo      "audio/6650/pizza_time.wav" XGM2 6650
+WAV youre_dead_vo      "audio/6650/youre_dead_shell_brain.wav" XGM2 6650
+WAV any_prettier_vo    "audio/6650/any_prettier.wav" XGM2 6650
+WAV shut_your_mouth_vo "audio/6650/shut_your_mouth.wav" XGM2 6650
 
 // --- Baxter Stockman, jefe de la Scene 3 (30/09) ----------------------------
 // "I'm invincible!" al aparecer el jefe. Llego ya MONO 8-bit 11025 Hz (2,0 s)
@@ -271,18 +271,18 @@ WAV shut_your_mouth_vo "audio/shut_your_mouth.wav" XGM2
 //   pause           0,640s  rms 22,1%   pausa
 // Canales: los golpes en CH2 (como hit_turtles), el resto en CH3. CH1 sigue
 // reservado a las voces.
-WAV hit_foot_sfx       "audio/gen/hit_foot.wav" XGM2
-WAV mouser_hit_sfx     "audio/gen/mouser_hit.wav" XGM2
+WAV hit_foot_sfx       "audio/6650/gen/hit_foot.wav" XGM2 6650
+WAV mouser_hit_sfx     "audio/6650/gen/mouser_hit.wav" XGM2 6650
 // (23/10) Golpe a BAXTER (la mosca, Scene 3): baxter_hit.wav del artista, ya
 // MONO 8-bit 11025 Hz; puntas recortadas y normalizado a pico 96,9% (llego
 // con pico 58%). El original queda al lado como baxter_hit_orig.wav.
-WAV baxter_hit_sfx     "audio/baxter_hit.wav" XGM2
-WAV shuriken_throw_sfx "audio/gen/shuriken_throw.wav" XGM2
-WAV window_broken_sfx  "audio/gen/window_broken.wav" XGM2
-WAV hydrant_sfx        "audio/gen/hydrant.wav" XGM2
-WAV car_sfx            "audio/gen/car.wav" XGM2
+WAV baxter_hit_sfx     "audio/6650/baxter_hit.wav" XGM2 6650
+WAV shuriken_throw_sfx "audio/6650/gen/shuriken_throw.wav" XGM2 6650
+WAV window_broken_sfx  "audio/6650/gen/window_broken.wav" XGM2 6650
+WAV hydrant_sfx        "audio/6650/gen/hydrant.wav" XGM2 6650
+WAV car_sfx            "audio/6650/gen/car.wav" XGM2 6650
 // (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV one_up_sfx         "audio/gen/one_up.wav" XGM2
-WAV pause_sfx          "audio/gen/pause.wav" XGM2
+WAV pause_sfx          "audio/6650/gen/pause.wav" XGM2 6650
 //   jump_attack     0,116s  rms 40,2%   patada voladora de la tortuga
 // (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV jump_attack_sfx    "audio/gen/jump_attack.wav" XGM2
 //   special_attack  0,329s  rms 34,4%   el especial de la tortuga (reemplaza al
@@ -294,11 +294,11 @@ WAV pause_sfx          "audio/gen/pause.wav" XGM2
 //   rodney_stop     0,161s  rms 34,4%   el robot frena (derrape) y se da vuelta
 //   get_pizza       0,620s  rms 27,4%   una tortuga agarra la pizza
 //   shock_pain      0,693s  rms 28,3%   una tortuga electrocutada (CH1: es voz)
-WAV rodney_lasso_sfx   "audio/gen/rodney_lasso.wav" XGM2
-WAV rodney_shoot_sfx   "audio/gen/rodney_shoot.wav" XGM2
-WAV rodney_stop_sfx    "audio/gen/rodney_stop.wav" XGM2
-WAV get_pizza_sfx      "audio/gen/get_pizza.wav" XGM2
-WAV shock_pain_vo      "audio/gen/shock_pain.wav" XGM2
+WAV rodney_lasso_sfx   "audio/6650/gen/rodney_lasso.wav" XGM2 6650
+WAV rodney_shoot_sfx   "audio/6650/gen/rodney_shoot.wav" XGM2 6650
+WAV rodney_stop_sfx    "audio/6650/gen/rodney_stop.wav" XGM2 6650
+WAV get_pizza_sfx      "audio/6650/gen/get_pizza.wav" XGM2 6650
+WAV shock_pain_vo      "audio/6650/gen/shock_pain.wav" XGM2 6650
 
 // forzando ejecucion
 
@@ -309,7 +309,7 @@ WAV shock_pain_vo      "audio/gen/shock_pain.wav" XGM2
 //   car_highway          0,960s  rms 24,0%   pasa el auto (CH3, una vez)
 //   elevator_tecnodrome  8,015s  rms 32,9%   en LOOP (CH2) mientras baja el
 //                                            ascensor; se corta al llegar
-WAV car_highway_sfx         "audio/gen/car_highway.wav" XGM2
+WAV car_highway_sfx         "audio/6650/gen/car_highway.wav" XGM2 6650
 // (18/10) A MEDIA FRECUENCIA (6650 Hz, se toca con halfRate en level8_1.c):
 // son 8 s en loop y a 13300 ocupaban 106 KB; con eso la ROM pasaba los 4 MB.
 // (18/10) LOOP CORTO: 4 ciclos (1,617 s) de elevator_tecnodrome.wav con volumen
@@ -326,14 +326,14 @@ WAV elevator_tecnodrome_sfx "audio/gen/elevator_tecnodrome_loop.wav" XGM2 6650
 // el 0,8%). Medido despues de convertir:
 //   tora                    1,144s  pico 96,9%  rms 22,0%  12.613 B
 // El original queda como tora_orig.wav.
-WAV tora_vo "audio/tora.wav" XGM2
+WAV tora_vo "audio/6650/tora.wav" XGM2 6650
 // (27/10) Cutscene de Splinter despues de la fabrica (SCENE_CUT_SPLINTER): "Thank you, my turtles!".
 // WAV mono 8-bit a 8000 Hz (1,24 s): rescomp lo resamplea al rate de XGM2 como a los de 11025 Hz,
 // la duracion no cambia. Ver cut_scenes.c.
-WAV thank_you_vo "audio/thank_you_my_turtles.wav" XGM2
+WAV thank_you_vo "audio/6650/thank_you_my_turtles.wav" XGM2 6650
 // (27/10) Baxter al aparecer: "Yippee-I-Ay!". WAV mono 8-bit a 8000 Hz (1,2 s).
-WAV yippee_vo "audio/yeepi_a_yey.wav" XGM2
+WAV yippee_vo "audio/6650/yeepi_a_yey.wav" XGM2 6650
 // (28/10) Cutscene despues de The Sewer (Rocksteady): "Come and get'em" y "shell-brain".
 // WAV mono 8-bit a 8000 Hz (0,76 s y 0,80 s). Ver cut_scenes.c.
-WAV come_get_vo   "audio/come_and_get_them.wav" XGM2
-WAV shell_brain_vo "audio/shell_brain.wav" XGM2
+WAV come_get_vo   "audio/6650/come_and_get_them.wav" XGM2 6650
+WAV shell_brain_vo "audio/6650/shell_brain.wav" XGM2 6650

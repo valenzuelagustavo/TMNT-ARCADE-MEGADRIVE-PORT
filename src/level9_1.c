@@ -105,7 +105,7 @@ static struct { Sprite* s; s16 x, y; u16 t; } tdBoom[TD_BOOMS];
 
 static void tdBoomAt(s16 x, s16 y) {
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     for (u16 i = 0; i < TD_BOOMS; i++) {
         if (tdBoom[i].s) continue;
         if (SPR_getLargestFreeVRAMBlock() < explosion_sprite.maxNumTile) return;

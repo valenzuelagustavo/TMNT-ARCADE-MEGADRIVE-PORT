@@ -89,8 +89,8 @@ void ffxLasersUpdate(Player** pls, u8 nPl, s16 camX) {
             // ella (pies por encima de la boca) no alcanza.
             if (getPlayerY(p) < LZ_TOP) continue;
             if (fabs16((s16)(getPlayerHurtCX(p) - lzX[i])) > LZ_HIT_DX) continue;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
-            XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
+            XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, TRUE, FALSE);
             playerHitBarsKnockdown(p, lzX[i], LZ_DMG);
         }
     }
@@ -215,7 +215,7 @@ bool ffxCapsuleStart(s16 x, s16 baseY, u8 n) {
     cap.x = x; cap.baseY = baseY;
     cap.t = 0; cap.frame = 0;
     cap.bees = n;
-    XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
+    XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx), SOUND_PCM_CH3, 12, TRUE, FALSE);
     return TRUE;
 }
 
@@ -270,7 +270,7 @@ static void shotFire(const Bee* b, const Player* t) {
         shots[i].t = 0;
         s16 dx = (s16)(shots[i].x1 - shots[i].x0);
         SPR_setFrame(shots[i].s, (dx < -12) ? 0 : ((dx > 12) ? 2 : 1));
-        XGM2_playPCMEx(rodney_shoot_sfx, sizeof(rodney_shoot_sfx), SOUND_PCM_CH3, 6, FALSE, FALSE);
+        XGM2_playPCMEx(rodney_shoot_sfx, sizeof(rodney_shoot_sfx), SOUND_PCM_CH3, 6, TRUE, FALSE);
         return;
     }
 }
@@ -288,7 +288,7 @@ static void shotsUpdate(Player** pls, u8 nPl, s16 camX) {
                 if (!playerCanBeHit(p) || playerDrawZ(p) > 16) continue;
                 if (fabs16((s16)(getPlayerHurtCX(p) - x)) > 14) continue;
                 if (fabs16((s16)(getPlayerY(p) - y)) > 8) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitProjectile(p, x, SHOT_DMG);
             }
             SPR_releaseSprite(shots[i].s); shots[i].s = NULL;
@@ -358,11 +358,11 @@ static void beesUpdate(Player** pls, u8 nPl, s16 camX, s16 laneTop, s16 laneBot)
                 b->hitCd = BEE_HIT_CD;
                 b->flash = BEE_FLASH;
                 b->x += (getPlayerHurtCX(pls[k]) < b->x) ? 10 : -10;
-                XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (--b->hp == 0) {
                     addPlayerScore(pls[k], 1);
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, TRUE, FALSE);
                     SPR_releaseSprite(b->s);
                     b->s = SPR_addSprite(&sewer_mouser_boom, -64, -64, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
                     if (b->sh) { SPR_releaseSprite(b->sh); b->sh = NULL; }
@@ -416,7 +416,7 @@ static void capsuleUpdate(s16 camX) {
         if (cap.t >= CAP_DOOR_T) {
             cap.st = CAP_RELEASE; cap.t = CAP_BEE_GAP;
             capSetFrame(1, 1);
-            XGM2_playPCMEx(capsule_door_sfx, sizeof(capsule_door_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
+            XGM2_playPCMEx(capsule_door_sfx, sizeof(capsule_door_sfx), SOUND_PCM_CH3, 12, TRUE, FALSE);
         }
         break;
     case CAP_RELEASE:

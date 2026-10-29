@@ -161,7 +161,7 @@ static void boomAtEx(s16 x, s16 lane, s16 dz, bool harmless) {
     booms[i].hitMask = harmless ? 0xFF : 0;    // 0xFF: no alcanza a nadie
     boomCreate(i);
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 13, FALSE, FALSE);
+                   SOUND_PCM_CH3, 13, TRUE, FALSE);
 }
 
 static void boomAt(s16 x, s16 lane) { boomAtEx(x, lane, 0, FALSE); }
@@ -262,7 +262,7 @@ void traagMissileUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (gabs((s16)(px - booms[i].x)) >= TRAAG_EXPL_HALF_W) continue;
                 if (gabs((s16)(getPlayerY(pls[k]) - booms[i].lane)) > TRAAG_EXPL_TOL_Y) continue;
                 booms[i].hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitBarsKnockdown(pls[k], booms[i].x, TRAAG_EXPL_DMG);
             }
         }
@@ -386,7 +386,7 @@ static void traagKill(Traag* g) {
     g->blinks = 0;
     PAL_setPalette(PAL3, traagPal, DMA);
     traagManual(g, TRAAG_ANIM_DAMAGE, TRAAG_DMG_FLASH);
-    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
     // (22/10) Explosiones en cadena sobre el cuerpo (como Granitor). Los
     // misiles que quedaban en el aire se van: la cadena usa sus lugares.
     for (u16 i = 0; i < MAX_TRAAG_MISSILES; i++) bombHide(i);
@@ -405,7 +405,7 @@ bool traagPlayerHits(Traag* g, Player** pls, u8 nPl, s8* killer) {
                 : (isPlayerJumpKicking(pls[k]) ? TRAAG_JUMPKICK_DMG : 1);
         // (22/10) Gustavo: el mismo sonido que los robots del latigo (Roadkill
         // Rodney, robot.c) cuando les pegas. Antes: hit_foot_sfx (rock soldier).
-        XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
         g->hp -= dmg;
         g->flash = 8;
         g->invuln = TRAAG_HURT_TICKS;
@@ -418,7 +418,7 @@ bool traagPlayerHits(Traag* g, Player** pls, u8 nPl, s8* killer) {
         }
         traagEnter(g, TRAAG_HURT);
         traagManual(g, TRAAG_ANIM_DAMAGE, TRAAG_DMG_FLASH);
-        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 12, FALSE, FALSE);
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 12, TRUE, FALSE);
         return FALSE;
     }
     return FALSE;
@@ -529,7 +529,7 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (gabs((s16)(kx - hx)) >= TRAAG_PUNCH_HIT_W) continue;
                 s16 ky = (s16)(getPlayerY(pls[k]) - y);
                 if (ky < -TRAAG_HIT_DY_UP || ky > TRAAG_HIT_DY_DOWN) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitBarsKnockdown(pls[k], x, TRAAG_PUNCH_DMG);
             }
         }
@@ -572,7 +572,7 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 g->timer = 0;
                 SPR_setFrame(g->sprite, TRAAG_DMG_PILE);
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
             }
         } else if (g->timer > TRAAG_DEATH_PILE_T) {
             g->state = TRAAG_GONE;

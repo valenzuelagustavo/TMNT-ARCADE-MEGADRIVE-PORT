@@ -198,7 +198,7 @@ static void ratKill(BaxterRat* r) {
     r->z     = 0;
     ratSetAnim(r, RAT_ANIM_DEAD, FALSE);   // tirada en el piso hasta explotar
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 12, FALSE, FALSE);
+                   SOUND_PCM_CH3, 12, TRUE, FALSE);
 }
 
 // Golpeada: sale despedida y despues muere (un golpe la mata).
@@ -403,7 +403,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                     playerMouserGrab(p);     // (18/10) mordida del brazo (mash)
                     if (!playerIsGrabbed(p)) continue;
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, TRUE, FALSE);
                     r->state  = RAT_LATCH;
                     r->victim = p;
                     r->drain  = RAT_DRAIN_T;
@@ -430,7 +430,7 @@ void baxterRatUpdateAll(Player** pls, u8 nPl, s16 camX, BaxterTopAtFn topAt) {
                 // (23/10) Sacarsela de encima tambien es pegarle: el mismo
                 // golpe de los robots del latigo y los helicopteros.
                 XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 break;
             }
             r->x = (s16)(getPlayerHurtCX(p) - r->dir * RAT_LATCH_DX);
@@ -500,7 +500,7 @@ void baxterRatPlayerHits(Player** pls, u8 nPl) {
             // (16/10) Golpe a un Mouser: el sonido propio del arcade (el
             // mismo de los robots del latigo y los helicopteros).
             XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
             s16 px = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
             ratFling(r, (px <= r->x) ? 1 : -1);
             addPlayerScore(pls[k], 1);
@@ -685,7 +685,7 @@ static void baxterKill(Baxter* b) {
     baxterBoomCreate(b);
     baxterBoomPlace(b, b->camX);
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     // Con la nave explotan todas las ratas (tambien la que muerde).
     for (u16 i = 0; i < MAX_BAXTER_RATS; i++)
         if (rats[i].state != RAT_INACTIVE && rats[i].state != RAT_BOOM &&
@@ -700,7 +700,7 @@ bool baxterPlayerHits(Baxter* b, Player** pls, u8 nPl, s8* killer) {
                                     BAXTER_HALF_W))
             continue;
         // Cualquier golpe saca uno. (23/10) Con su sonido propio (baxter_hit).
-        XGM2_playPCMEx(baxter_hit_sfx, sizeof(baxter_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(baxter_hit_sfx, sizeof(baxter_hit_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
         b->hp -= 1;
         b->hurtFlash = BAXTER_INVULN;
         b->invuln    = BAXTER_INVULN;

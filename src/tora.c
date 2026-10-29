@@ -156,7 +156,7 @@ static void iceBreak(u16 i) {
     ice[i].t = 0;
     if (ice[i].sh) SPR_setVisibility(ice[i].sh, HIDDEN);
     if (ice[i].s) SPR_setFrame(ice[i].s, 1);
-    XGM2_playPCMEx(window_broken_sfx, sizeof(window_broken_sfx), SOUND_PCM_CH3, 10, FALSE, FALSE);
+    XGM2_playPCMEx(window_broken_sfx, sizeof(window_broken_sfx), SOUND_PCM_CH3, 10, TRUE, FALSE);
 }
 
 static void iceThrow(s16 i, s16 x1, s16 l1) {
@@ -180,7 +180,7 @@ static bool iceHits(u16 i, Player** pls, u8 nPl, s16 fromX) {
         if (tabs((s16)(getPlayerHurtCX(pls[k]) - ice[i].x)) >= TORA_ICE_HIT_DX) continue;
         if (tabs((s16)(getPlayerY(pls[k]) - ice[i].lane)) > TORA_ICE_HIT_DY) continue;
         ice[i].hitMask |= bit;
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
         playerHitBarsKnockdown(pls[k], fromX, ice[i].dmg);
         hit = TRUE;
     }
@@ -372,11 +372,11 @@ static void toraKill(Tora* t) {
     t->blinks = 0;
     PAL_setPalette(PAL3, toraPal, DMA);
     toraManual(t, TORA_ANIM_DEATH, 0);
-    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
     // (24/10) El grito al caer, el mismo de Rocksteady. En CH2 (como el de
     // Bebop) para que el golpe de CH3 no lo corte.
     XGM2_playPCMEx(boss_scream_rocksteady_vo, sizeof(boss_scream_rocksteady_vo),
-                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                   SOUND_PCM_CH2, 15, TRUE, FALSE);
 }
 
 bool toraPlayerHits(Tora* t, Player** pls, u8 nPl, s8* killer) {
@@ -390,7 +390,7 @@ bool toraPlayerHits(Tora* t, Player** pls, u8 nPl, s8* killer) {
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? TORA_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? TORA_JUMPKICK_DMG : 1);
         // (24/10) boss_hit, como Rocksteady y Bebop (antes mouser_hit_sfx).
-        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
         t->hp -= dmg;
         t->flash = 8;
         t->invuln = TORA_HURT_TICKS;
@@ -501,7 +501,7 @@ void toraUpdate(Tora* t, Player** pls, u8 nPl, s16 camX) {
                 if (tabs((s16)(getPlayerHurtCX(pls[k]) - hx)) >= TORA_PUNCH_HIT_W) continue;
                 s16 ky = (s16)(getPlayerY(pls[k]) - y);
                 if (ky < -TORA_HIT_DY_UP || ky > TORA_HIT_DY_DOWN) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitBarsKnockdown(pls[k], x, TORA_PUNCH_DMG);
             }
         }

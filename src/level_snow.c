@@ -233,7 +233,7 @@ static void signsUpdate(Player** pls, u8 nPl, s16 camX) {
                     s->timer = 0;
                     s->cool  = SIGN_COOL;
                     XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, TRUE, FALSE);
                     break;
                 }
             }
@@ -528,7 +528,7 @@ static void mhUpdate(Player** pls, u8 nPl, s16 camX) {
     } else {
         if (!mhBubble && sprVramFits(light_out_bubble.maxNumTile)) {
             mhBubble = SPR_addSprite(&light_out_bubble, -128, -128, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
-            XGM2_playPCMEx(who_put_light_vo, sizeof(who_put_light_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(who_put_light_vo, sizeof(who_put_light_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
         }
         if (mhBubble) {
             s16 bx = (s16)(pls[(u8)talking]->x + MH_FOOT_DX - MH_BUBBLE_W / 2 - camX);
@@ -546,7 +546,7 @@ static void mhUpdate(Player** pls, u8 nPl, s16 camX) {
     lidUpdate(camX, stageCamY);
     for (u8 k = 0; k < nPl; k++)
         if (lidReflectByPlayerAttack(pls[k], (s8)k))
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
     Enemy* en = stageEnemies();
     for (u16 i = 0; en && i < MAX_ENEMIES; i++) {
         if (!enemyCanBeHit(&en[i])) continue;
@@ -556,7 +556,7 @@ static void mhUpdate(Player** pls, u8 nPl, s16 camX) {
         damageEnemy(&en[i], LID_ENEMY_DMG);
         if (en[i].state == ENEMY_STATE_DEAD) {
             XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
             if (owner >= 0 && owner < (s8)nPl) addPlayerScore(pls[(u8)owner], 1);
         }
     }
@@ -564,7 +564,7 @@ static void mhUpdate(Player** pls, u8 nPl, s16 camX) {
         if (!playerCanBeHit(pls[k])) continue;
         s16 lx = 0;
         if (!lidHits(getPlayerHurtCX(pls[k]), getPlayerY(pls[k]), PLAYER_BODY_HALF_W, &lx)) continue;
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
         damagePlayer(pls[k], lx);
     }
 }
@@ -609,7 +609,7 @@ static void trashUpdate(Player** pls, u8 nPl, s16 camX) {
     if (trash.st == TR_IDLE) {
         for (u8 k = 0; k < nPl; k++) {
             if (!playerAttackHitsBox(pls[k], cx, TRASH_BASE, TRASH_HALF_W, TRASH_BODY_H)) continue;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
             s16 pcx = (s16)(getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2);
             trash.dir = (cx >= pcx) ? 1 : -1;
             trash.owner = (s8)k;
@@ -630,7 +630,7 @@ static void trashUpdate(Player** pls, u8 nPl, s16 camX) {
             trash.hitMask |= (u8)(1 << e);
             if (en[e].state == ENEMY_STATE_DEAD) {
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (trash.owner >= 0 && trash.owner < (s8)nPl) addPlayerScore(pls[(u8)trash.owner], 1);
             }
         }
@@ -816,7 +816,7 @@ static void endBigStart(s16 x, s16 y) {
     sprDefragLock = 1;
     endBig.on = TRUE;
     endBig.x = x; endBig.y = y; endBig.f = 0; endBig.tk = 0;
-    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 14, FALSE, FALSE);
+    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 14, TRUE, FALSE);
     stageShake(12);
     const u16 T = baxter_boom.maxNumTile;
     if (SPR_getFreeVRAM() >= 2 * T) {
@@ -848,7 +848,7 @@ static void endSmallStart(s16 x, s16 y) {
         SPR_setAnimAndFrame(endSm[i].s, 0, 0);
         SPR_setDepth(endSm[i].s, -DISCO_LANE - 3);
         endSm[i].x = x; endSm[i].y = y; endSm[i].f = 0; endSm[i].tk = 0;
-        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 11, FALSE, FALSE);
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 11, TRUE, FALSE);
         return;
     }
 }

@@ -331,7 +331,7 @@ static void rsToDead(Rocksteady* r) {
     // voces, 15/10), prioridad 15. El wav dura 101 frames y entra
     // justo antes de que arranque music_ending.
     XGM2_playPCMEx(boss_scream_rocksteady_vo, sizeof(boss_scream_rocksteady_vo),
-                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                   SOUND_PCM_CH2, 15, TRUE, FALSE);
 }
 
 static u8 rsRand(u8 n) { return (u8)(random() % n); }
@@ -446,7 +446,7 @@ static void rsContact(Rocksteady* r, Player** pls, u8 nPl, s16 fwd, s16 back) {
         s16 rel = (getPlayerHurtCX(p) - bcx) * r->dir;   // + = adelante
         if (rel > fwd || rel < -back) continue;
         playerHitBarsKnockdown(p, bcx, ROCKSTEADY_CONTACT_DMG);
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
     }
 }
 
@@ -564,7 +564,7 @@ void rocksteadyUpdateN(Rocksteady* r, s16 cameraX, Player** pls, u8 nPl) {
             if (r->timer >= r->dur) {
                 rsEnter(r, ROCKSTEADY_CHARGE, r->duo ? 600 : RS_CHARGE_T);
                 XGM2_playPCMEx(rocksteady_charge_sfx, sizeof(rocksteady_charge_sfx),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
             }
             break;
         }

@@ -534,7 +534,7 @@ void shurikenSpawn(s16 x, s16 y, s8 dir, u8 palette) {
     shurikens[i].kind = SHOT_SHURIKEN;
     // (16/10) "foot shuriken (kunai) throw" del arcade. CH3: en CH2 lo
     // cortarian los golpes.
-    XGM2_playPCMEx(shuriken_throw_sfx, sizeof(shuriken_throw_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
+    XGM2_playPCMEx(shuriken_throw_sfx, sizeof(shuriken_throw_sfx), SOUND_PCM_CH3, 12, TRUE, FALSE);
     shurikens[i].spark = 0;
     shurikens[i].acc = 0;
     shurikens[i].zq = 0;
@@ -601,7 +601,7 @@ static void enemyKnifeSpawn(s16 cx, s16 lane, s8 dir, u8 palette) {
     shurikens[i].cameraOffsetX = 0;
     shurikens[i].active = 1;
     shurikens[i].kind = SHOT_KNIFE;
-    XGM2_playPCMEx(shuriken_throw_sfx, sizeof(shuriken_throw_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
+    XGM2_playPCMEx(shuriken_throw_sfx, sizeof(shuriken_throw_sfx), SOUND_PCM_CH3, 12, TRUE, FALSE);
     shurikens[i].spark = 0;
     shurikens[i].acc = 0;
     shurikens[i].zq = (s16)(KNIFE_PROJ_Z << 8);
@@ -1631,7 +1631,7 @@ bool damageEnemy(Enemy* e, s16 dmg) {
     // (16/10) El golpe del arcade a un foot soldier ("hit foot"). Suena aca
     // y no en cada nivel: cualquier cosa que le pegue (tortuga, tapa, chorro
     // del hidrante, cono, auto) dispara el mismo sonido. CH2 como los golpes.
-    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
     // (16/10) Y el sprite vibra unos frames (ver enemyShakeX).
     e->shake = ENEMY_SHAKE_TICKS;
 
@@ -1823,7 +1823,7 @@ static void thrownStep(Enemy* e) {
             SPR_setAnimationLoop(e->sprite, FALSE);
             SPR_setAnimAndFrame(e->sprite, e->anim, 1);
             XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
         } else {
             e->jumpZ = (s16)(e->jumpZq >> 8);
         }

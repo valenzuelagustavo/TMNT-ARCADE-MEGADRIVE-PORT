@@ -74,13 +74,13 @@ static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 #define SP_TIRE        (STAGE_SPECIAL + 7)
 
 static void sfxHit(void) {
-    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
 }
 
 // (16/10) Golpe de la tortuga a un foot soldier que no es Enemy (las motos y
 // el de la bomba): el mismo "hit foot" que suena en damageEnemy.
 static void sfxHitFoot(void) {
-    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_foot_sfx, sizeof(hit_foot_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
 }
 
 // --- Explosiones (la del TNT, PAL2) -----------------------------------------
@@ -90,7 +90,7 @@ static struct { Sprite* s; s16 x, y; u16 t; } boom[BOOM_MAX];
 
 static void boomAt(s16 cx, s16 feet) {
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     for (u16 i = 0; i < BOOM_MAX; i++) {
         if (boom[i].s) continue;
         if (!sprVramFits(explosion_sprite.maxNumTile)) return;
@@ -175,7 +175,7 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
         if (!car.sfx && sc >= CAR_SFX_X) {
             car.sfx = 1;
             XGM2_playPCMEx(car_highway_sfx, sizeof(car_highway_sfx),
-                           SOUND_PCM_CH3, 13, FALSE, FALSE);
+                           SOUND_PCM_CH3, 13, TRUE, FALSE);
         }
         if (car.gap) car.gap--;
         if (car.left && !car.gap && sc >= CAR_LEAP_X0 && sc <= CAR_LEAP_X1) {
@@ -563,7 +563,7 @@ static void bigBoomAt(s16 cx, s16 feet) {
     const u16 T = fw_bomb_boom.maxNumTile;
     if (bigBoom.s[0] || !sprVramFits(T)) { boomAt(cx, feet); return; }
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     Sprite** sp = bigBoom.s;
     sp[0] = bigBoomMaster(0);
     if (!sp[0]) return;
@@ -847,7 +847,7 @@ static void pizzaUpdate(Player** pls, u8 nPl, s16 camX) {
             pzBub = SPR_addSprite(&pizza_time_bubble, -128, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
             if (pzBub) {
                 SPR_setDepth(pzBub, SPR_MIN_DEPTH);
-                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
                 pzBubSt = 1; pzBubT = 0;
             }
         }
@@ -859,7 +859,7 @@ static void pizzaUpdate(Player** pls, u8 nPl, s16 camX) {
             if (a16((s16)(p->y - PZ_FEET)) > PZ_PICK_DY) continue;
             p->health = PLAYER_MAX_HEALTH;
             // (16/10) "get pizza" del arcade.
-            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
             pzSt = PZ_OPEN; pzT = 0;
             break;
         }

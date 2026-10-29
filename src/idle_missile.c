@@ -49,7 +49,7 @@ static Sprite* imMirror(const Sprite* m, u16 anim, bool hf, bool vf) {
 
 static void imBoomAt(s16 cx, s16 feet) {
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     imBoomRelease();
     const u16 T = fw_bomb_boom.maxNumTile;
     if (!sprVramFits(T)) return;                  // sin lugar: solo el sonido

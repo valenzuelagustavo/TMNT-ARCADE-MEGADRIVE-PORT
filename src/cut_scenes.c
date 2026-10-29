@@ -141,7 +141,7 @@ SceneId showCutSplinter(void) {
         SYS_doVBlankProcess();
     }
     if (!skip)
-        XGM2_playPCMEx(thank_you_vo, sizeof(thank_you_vo), SOUND_PCM_CH2, SPL_VO_PRIO, FALSE, FALSE);
+        XGM2_playPCMEx(thank_you_vo, sizeof(thank_you_vo), SOUND_PCM_CH2, SPL_VO_PRIO, TRUE, FALSE);
     for (u16 t = 0; t < talk && !skip; t++) {
         if (mouth) SPR_setFrame(mouth, (s16)(((u32)t * SPL_FRAMES) / talk));
         skip = splStart(&prev);
@@ -183,7 +183,7 @@ SceneId showCutSplinter(void) {
 #define SWR_MOUTH_TICKS    6     // cuadros por posicion de la boca
 #define SWR_END_OPEN      10     // al sacar el globo: la boca abierta un instante
 #define SWR_POST_SECS      3     // se queda con el cuadro final
-#define SWR_VO_RATE    13300     // Hz de los WAV ya resampleados por rescomp
+#define SWR_VO_RATE    6650      // Hz de los WAV (audio.res los deja a 6650, halfRate)
 
 // Habla durante 'ticks' cuadros (la boca abre y cierra). TRUE si se salteo.
 static bool swrTalk(Sprite* mouth, u16 ticks, u16* prev) {
@@ -251,12 +251,12 @@ SceneId showCutShredderApril(void) {
     skip = swrWait(SWR_PRE_TICKS, &prev) && prev != 0xFFFF;
     if (!skip) {
         if (bubble) SPR_setVisibility(bubble, VISIBLE);
-        XGM2_playPCMEx(come_get_vo, sizeof(come_get_vo), SOUND_PCM_CH2, SPL_VO_PRIO, FALSE, FALSE);
+        XGM2_playPCMEx(come_get_vo, sizeof(come_get_vo), SOUND_PCM_CH2, SPL_VO_PRIO, TRUE, FALSE);
         skip = swrTalk(mouth, (u16)(((u32)sizeof(come_get_vo) * fps) / SWR_VO_RATE), &prev);
     }
     if (!skip) skip = swrWait(SWR_GAP_TICKS, &prev);
     if (!skip) {
-        XGM2_playPCMEx(shell_brain_vo, sizeof(shell_brain_vo), SOUND_PCM_CH2, SPL_VO_PRIO, FALSE, FALSE);
+        XGM2_playPCMEx(shell_brain_vo, sizeof(shell_brain_vo), SOUND_PCM_CH2, SPL_VO_PRIO, TRUE, FALSE);
         skip = swrTalk(mouth, (u16)(((u32)sizeof(shell_brain_vo) * fps) / SWR_VO_RATE), &prev);
     }
     if (bubble) SPR_setVisibility(bubble, HIDDEN);

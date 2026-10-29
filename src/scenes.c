@@ -813,7 +813,7 @@ static void ironBallUpdate(IronBall* b, s16 cameraX, Player** pls, u8 nPl) {
     if (b->z <= 0) {
         b->z  = 0;
         b->vz = IRON_BALL_BOUNCE;
-        XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
     }
 
     // --- Descenso por la escalera + deriva horizontal ---
@@ -837,7 +837,7 @@ static void ironBallUpdate(IronBall* b, s16 cameraX, Player** pls, u8 nPl) {
         s16 pcx = getPlayerWorldX(pls[k]) + PLAYER_SPRITE_W / 2;
         if (!playerCanBeHit(pls[k])) continue;
         if (!ironBallHits(b, pcx, getPlayerY(pls[k]))) continue;
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
         damagePlayer(pls[k], b->x);
     }
 
@@ -1851,7 +1851,7 @@ SceneId showPlayerSelect() {
                     secret4P   = TRUE;
                     secretStep = 0;
                     XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH2, 15, TRUE, FALSE);
                     menuDraw4P(TRUE);
                 }
             }
@@ -1879,7 +1879,7 @@ SceneId showPlayerSelect() {
                 if (match && in == konamiSeq[KONAMI_LEN - 1]) {
                     pauseSetLevelSelect(TRUE);
                     XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                   SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH2, 15, TRUE, FALSE);
                 }
             }
         }
@@ -1905,10 +1905,10 @@ SceneId showPlayerSelect() {
                     for (u16 i = 0; i < SNDCODE_LEN; i++) sndLast[i] = 0;   // no se re-dispara solo
                     if (slashArmed)
                         XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH2, 15, TRUE, FALSE);
                     else
                         XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
-                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH3, 15, TRUE, FALSE);
                 }
             }
         }
@@ -1958,7 +1958,7 @@ SceneId showPlayerSelect() {
         // musica con XGM2_play, que reinicia el driver y cortaria el PCM a
         // mitad. 1,22s a 60fps ≈ 73 frames; se dejan 78 de margen.
         XGM2_playPCMEx(cowabunga_vo, sizeof(cowabunga_vo),
-                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, TRUE, FALSE);
         for (u16 t = 0; t < COWABUNGA_HOLD_FRAMES; t++) {
             SPR_update();
             SYS_doVBlankProcess();
@@ -3391,7 +3391,7 @@ SceneId showScene11() {
     // (18/10) REPARTO DE CANALES PCM (XGM2): CH1 es de la MUSICA -- con un tema
     // sonando, lo que se manda por CH1 no suena (asi se perdia este "Attack!").
     // CH2 = solo voces, CH3 = efectos. Ver claude/canal-pcm-voces en el proyecto.
-    XGM2_playPCMEx(attack_vo, sizeof(attack_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(attack_vo, sizeof(attack_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
 
     // Primer foot soldier: ya spawneado y VISIBLE pegado al borde derecho de la
     // pantalla, entrando (CHASE) hacia el jugador.
@@ -3902,7 +3902,7 @@ SceneId showScene11() {
         //     libera sola al terminar su animación.
         if (tntUpdate(cameraX)) {
             XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                           SOUND_PCM_CH3, 15, FALSE, FALSE);
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
             tntHitMask = 0;
         }
         // Daño de la explosión: sólo a las tortugas (los foot soldiers no se
@@ -3950,7 +3950,7 @@ SceneId showScene11() {
                 // El enemigo pasó enemyCanBeHit (estaba vivo). Si este golpe lo
                 // dejó en DEAD, es una baja: +1 punto al jugador que lo remató.
                 if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
-                    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, TRUE, FALSE);
                     addPlayerScore(attacker, 1);
                     // (27/09) El golpe que lo mata lo lanza (ver ENEMY_DEATH_PUSH).
                     enemyDeathPush(&enemies[i], (s16)(attacker->x + PLAYER_SPRITE_W / 2),
@@ -4001,7 +4001,7 @@ SceneId showScene11() {
                 if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -4013,7 +4013,7 @@ SceneId showScene11() {
         {
             for (u8 k = 0; k < nPl; k++) {
                 if (shurikenBreakByPlayerAttack(pls[k]))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
             }
         }
 
@@ -4023,7 +4023,7 @@ SceneId showScene11() {
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 damagePlayer(pls[k], hitX);
             }
         }
@@ -4082,7 +4082,7 @@ SceneId showScene11() {
             else if (robots[r].state != ROBOT_INACTIVE) robotsDone = FALSE;
         }
         if (robotsDone && algunoGone && activeEnemies == 0) {
-            XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(scream_april, sizeof(scream_april), SOUND_PCM_CH2, 15, TRUE, FALSE);
             win = TRUE;
             break;
         }
@@ -4756,7 +4756,7 @@ SceneId showScene12() {
     // SGDK -- solo tiene 3 canales PCM reales, PCM0..PCM2 = CH1..CH3 -- y
     // usarlo corrompia el comando del Z80, dejando un pitido constante;
     // bug encontrado 29/08, ver DEVLOG).
-    XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(help_me_april_vo, sizeof(help_me_april_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
 
     // --- Fases del nivel ---
     // 0 = oleada A (2 morados)  ·  1 = oleada B (2 blancos + 1 naranja)
@@ -4963,10 +4963,10 @@ SceneId showScene12() {
                         capsSetFrame(capsulaSpr, 0, 0);
                         XGM2_stop();   // cortar la música de fondo durante la secuencia
                         XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx),
-                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH3, 15, TRUE, FALSE);
                     } else if (bossTimer == 0 && !XGM2_isPlayingPCM(SOUND_PCM_CH3_MSK)) {
                         XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx),
-                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH3, 15, TRUE, FALSE);
                     }
                     if (++bossTimer >= CAPSULA_FRAME_TICKS) {
                         bossTimer = 0;
@@ -4983,7 +4983,7 @@ SceneId showScene12() {
                     if (bossTimer == 0 && capsulaSpr) {
                         capsSetFrame(capsulaSpr, 1, 0);
                         XGM2_playPCMEx(capsule_door_sfx, sizeof(capsule_door_sfx),
-                                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH3, 15, TRUE, FALSE);
                     }
                     // Avanza un frame cada CAPSULA_DOOR_TICKS y queda FIJO en el
                     // último (CAPSULA_DOOR_FRAMES-1) hasta el final de la secuencia
@@ -5171,7 +5171,7 @@ SceneId showScene12() {
                         }
                         if (aprilSpr) { SPR_releaseSprite(aprilSpr); aprilSpr = NULL; }
                         XGM2_playPCMEx(scream_april, sizeof(scream_april),
-                                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                                       SOUND_PCM_CH2, 15, TRUE, FALSE);
                     } else if (cutTimer == SHREDDER_RAPTO_TICKS) {
                         if (shredderSpr) SPR_setAnimAndFrame(shredderSpr, 2, 1);
                     }
@@ -5323,7 +5323,7 @@ SceneId showScene12() {
             if (dmg > 0) {
                 damageEnemy(&enemies[i], dmg);          // (16/10) suena hit_foot adentro
                 if (attacker && enemies[i].state == ENEMY_STATE_DEAD) {
-                    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode), SOUND_PCM_CH3, 15, TRUE, FALSE);
                     addPlayerScore(attacker, 1);
                     // (27/09) El golpe que lo mata lo lanza (ver ENEMY_DEATH_PUSH).
                     enemyDeathPush(&enemies[i], (s16)(attacker->x + PLAYER_SPRITE_W / 2),
@@ -5366,9 +5366,9 @@ SceneId showScene12() {
                 rocksteadyDamage(&boss, bdmg);
                 // Golpe al jefe: "pum" propio de Rocksteady (distinto del de los
                 // foot soldiers, que usa hit_turtles).
-                XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (batt && isPlayerJumpKicking(batt))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (batt && boss.state == ROCKSTEADY_DEAD)
                     addPlayerScore(batt, 10);   // baja del jefe final
             }
@@ -5384,7 +5384,7 @@ SceneId showScene12() {
                 if (!enemyCanHitPlayer(e, pls[k])) continue;   // (15/10)
                 if (!enemyTryHitPlayerBox(e, getPlayerHurtX(pls[k]), getPlayerY(pls[k]),
                                           PLAYER_BODY_HALF_W)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 enemyDamagePlayer(e, pls[k]);
                 break;
             }
@@ -5394,7 +5394,7 @@ SceneId showScene12() {
         {
             for (u8 k = 0; k < nPl; k++) {
                 if (shurikenBreakByPlayerAttack(pls[k]))
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
             }
         }
         {
@@ -5402,7 +5402,7 @@ SceneId showScene12() {
             for (u8 k = 0; k < nPl; k++) {
                 if (!playerCanBeHit(pls[k])) continue;
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 damagePlayer(pls[k], hitX);
             }
         }
@@ -5418,7 +5418,7 @@ SceneId showScene12() {
                 if (!playerCanBeHitAir(pls[k])) continue;
                 if (!rocksteadyBulletCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]),
                                                    getPlayerJumpZ(pls[k]), &hitX)) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitProjectile(pls[k], hitX, ROCKSTEADY_BULLET_DMG);
             }
         }
@@ -5675,7 +5675,7 @@ SceneId showEnding() {
             if (laughDelay > 0) laughDelay--;
             else {
                 XGM2_playPCMEx(shredder_laugh_sfx, sizeof(shredder_laugh_sfx),
-                               SOUND_PCM_CH2, 10, FALSE, FALSE);
+                               SOUND_PCM_CH2, 10, TRUE, FALSE);
                 laughed = TRUE;
             }
         }

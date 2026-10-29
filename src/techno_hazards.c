@@ -313,7 +313,7 @@ void thPillarsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
                 p->hitCd = PIL_HIT_CD;
                 p->flash = PIL_FLASH;
                 XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (++p->hits >= PIL_HITS) {
                     p->dead = TRUE;
                     addPlayerScore(pls[k], 1);
@@ -335,7 +335,7 @@ void thPillarsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
                     laserFire(mx, lane, (s16)(z + PIL_MUZZLE_Z), p->dir);
                     if (!firedSfx && p->burst == 0) {
                         XGM2_playPCMEx(rodney_shoot_sfx, sizeof(rodney_shoot_sfx),
-                                       SOUND_PCM_CH3, 6, FALSE, FALSE);
+                                       SOUND_PCM_CH3, 6, TRUE, FALSE);
                         firedSfx = TRUE;
                     }
                     p->fireT = PIL_FIRE_T;
@@ -392,7 +392,7 @@ void thPillarsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             if (dx < -LAS_HALF_W || dx > LAS_HALF_W) continue;
             s16 pz = playerDrawZ(pl);
             if (l->z < pz + 2 || l->z > pz + 56) continue;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
             playerHitProjectile(pl, l->x, LAS_DMG);
             hit = TRUE;
         }
@@ -467,7 +467,7 @@ void thBallsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY,
             if (ballOnFloor(b)) {                       // pica y sigue
                 b->zq = 0;
                 b->vzq = (s16)((-b->vzq * BALL_BOUNCE_N) / BALL_BOUNCE_D);
-                XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 8, FALSE, FALSE);
+                XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 8, TRUE, FALSE);
             } else {
                 b->off = TRUE;                          // fuera de la base: al pozo
             }
@@ -488,7 +488,7 @@ void thBallsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY,
                 if (dx < -BALL_HALF_W || dx > BALL_HALF_W) continue;
                 if (!playerCanBeHit(pl)) continue;
                 b->hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitBarsKnockdown(pl, wx, BALL_DMG);
             }
         }

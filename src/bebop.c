@@ -475,7 +475,7 @@ bool bebopDamageEx(Bebop* b, s16 dmg, bool special) {
         bebopFlashOff(b);
         bebopManual(b, BEBOP_ANIM_HURT, BEBOP_HURT_FR_HIT);
         XGM2_playPCMEx(boss_scream_bebop_vo, sizeof(boss_scream_bebop_vo),
-                       SOUND_PCM_CH2, 15, FALSE, FALSE);
+                       SOUND_PCM_CH2, 15, TRUE, FALSE);
         return TRUE;
     }
 

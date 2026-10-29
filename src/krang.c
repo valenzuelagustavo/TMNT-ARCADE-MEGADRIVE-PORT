@@ -118,7 +118,7 @@ static void fistFire(s16 x, s16 lane, s8 dir) {
             SPR_setHFlip(fists[i].sprite, dir < 0);
             SPR_setVisibility(fists[i].sprite, VISIBLE);
         }
-        XGM2_playPCMEx(rocksteady_charge_sfx, sizeof(rocksteady_charge_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
+        XGM2_playPCMEx(rocksteady_charge_sfx, sizeof(rocksteady_charge_sfx), SOUND_PCM_CH3, 12, TRUE, FALSE);
         return;
     }
 }
@@ -148,7 +148,7 @@ static void beamFire(s16 x, s16 lane, s8 dir) {
         beams[i].dir = dir;
         beams[i].t = 0;
         beams[i].hitMask = 0;
-        XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 13, FALSE, FALSE);
+        XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 13, TRUE, FALSE);
         return;
     }
 }
@@ -196,7 +196,7 @@ static void boomStart(u16 i) {
     booms[i].frame = 0;
     booms[i].tick = 0;
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     if (SPR_getLargestFreeVRAMBlock() < T) return;
     sp[0] = boomMaster(0);
     if (!sp[0]) return;
@@ -342,7 +342,7 @@ void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
             if (kabs((s16)(px - (fists[i].x - fists[i].dir * 8))) >= KRANG_FIST_HALF_W) continue;
             if (kabs((s16)(getPlayerY(pls[k]) - fists[i].lane)) > KRANG_FIST_DY) continue;
             fists[i].hitMask |= bit;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
             playerHitBars(pls[k], fists[i].x, KRANG_FIST_DMG);
         }
         if (fists[i].sprite) {
@@ -375,10 +375,10 @@ void krangShotsUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (fwd < KRANG_BEAM_HIT_MIN || fwd > KRANG_BEAM_HIT_MAX) continue;
                 if (kabs((s16)(getPlayerY(pls[k]) - beams[i].lane)) > KRANG_BOLT_DY) continue;
                 beams[i].hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitBarsKnockdown(pls[k], beams[i].x, KRANG_BOLT_DMG);
                 // (16/10) El rayo electrocuta: "turtles shock pain" (CH1, voz).
-                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
+                XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, TRUE, FALSE);
             }
         }
         for (u16 g = 0; g < KRANG_BEAM_SEGS; g++) {
@@ -499,8 +499,8 @@ static void laserCounter(Krang* k, Player** pls, u8 nPl) {
         if (!playerAttackHitsBossBand(pls[i], x, y, KRANG_BODY_HALF_W,
                                       (s16)(-KRANG_HEAD_TOP), (s16)(-KRANG_HEAD_BOT),
                                       KRANG_HIT_DY, KRANG_HIT_DY)) continue;
-        XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
-        XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, FALSE, FALSE);
+        XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
+        XGM2_playPCMEx(shock_pain_vo, sizeof(shock_pain_vo), SOUND_PCM_CH2, 12, TRUE, FALSE);
         playerHitProjectile(pls[i], x, KRANG_BOLT_DMG);   // tambien en el aire
     }
 }
@@ -519,7 +519,7 @@ bool krangPlayerHits(Krang* k, Player** pls, u8 nPl, s8* killer) {
         if (jk && i < MAX_PLAYERS) kickLanded[i] = TRUE;
         s16 dmg = isPlayerSpecialAttack(pls[i]) ? KRANG_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[i]) ? KRANG_JUMPKICK_DMG : 1);
-        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
         k->hp -= dmg;
         k->flash = 8;
         k->invuln = 12;
@@ -528,12 +528,12 @@ bool krangPlayerHits(Krang* k, Player** pls, u8 nPl, s8* killer) {
             enter(k, KRANG_DEATH);
             PAL_setPalette(PAL2, krangPal, DMA);
             XGM2_stop();               // el tema se corta con el ultimo golpe
-            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
             if (killer) *killer = (s8)i;
             return TRUE;
         }
         enter(k, KRANG_HURT);
-        XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 12, FALSE, FALSE);
+        XGM2_playPCMEx(electric_shock_sfx, sizeof(electric_shock_sfx), SOUND_PCM_CH3, 12, TRUE, FALSE);
         return FALSE;
     }
     return FALSE;
@@ -578,7 +578,7 @@ static void headSpawn(Krang* k) {
         SPR_setAnimAndFrame(k->headShadow, 1, 0);
     }
     k->z = KRANG_HEAD_DZ;
-    XGM2_playPCMEx(krang_speech_vo, sizeof(krang_speech_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+    XGM2_playPCMEx(krang_speech_vo, sizeof(krang_speech_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
     sayStart();                                  // (23/10) con su globo
 }
 
@@ -652,7 +652,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
         k->dir = (dX >= 0) ? 1 : -1;
         if (k->z <= 0) {
             k->z = 0;
-            XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
+            XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);
             enter(k, KRANG_TAUNT);
             // (23/10) "I'm invincible!" al empezar la pelea: la voz la arranca
             // level9_1 (bossVoStart, despues entra el tema); aca el globo.
@@ -694,7 +694,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
                 if (fwd < 0 || fwd > KRANG_KICK_REACH) continue;
                 if (kabs((s16)(getPlayerY(pls[i]) - y)) > KRANG_HIT_DY) continue;
                 k->hitMask |= bit;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitBarsKnockdown(pls[i], x, KRANG_KICK_DMG);
             }
         }
@@ -744,7 +744,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
             setFrame(k, KRANG_ANIM_DEATH, (u8)(2 + ((t / 6) % 5)));
             if ((t % 30) == 0)
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 14, FALSE, FALSE);
+                               SOUND_PCM_CH3, 14, TRUE, FALSE);
             visible = ((t >> 1) & 3) != 0;
         } else {
             setFrame(k, KRANG_ANIM_DEATH, 7);

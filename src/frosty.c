@@ -262,7 +262,7 @@ static void boomAt(s16 x, s16 y, s16 lane) {
     b->on = TRUE; b->x = x; b->y = y; b->lane = lane; b->f = 0; b->tk = 0;
     boomCreate(b);
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
 }
 
 static void boomsUpdate(void) {
@@ -322,7 +322,7 @@ static void frKill(Frosty* f) {
 }
 
 static void frSnd(void) {
-    XGM2_playPCMEx(baxter_hit_sfx, sizeof(baxter_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(baxter_hit_sfx, sizeof(baxter_hit_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
 }
 
 // ---------------------------------------------------------------------------

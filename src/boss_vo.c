@@ -2,7 +2,7 @@
 #include "scenes.h"     // playMusicVol
 
 // Rate del driver XGM2 para los WAV (rescomp los convierte a este rate).
-#define BOSS_VO_RATE       13300
+#define BOSS_VO_RATE       6650
 // Aire despues de la frase, antes del tema (y margen por la latencia del Z80).
 #define BOSS_VO_TAIL_F     6
 
@@ -47,7 +47,7 @@ void bossVoUpdate(void) {
             // (15/10) CH1 es el canal de las VOCES: ningun efecto lo usa, y las
             // voces de las tortugas en pelea van con prioridad menor (8/12),
             // asi que nada la corta.
-            XGM2_playPCMEx(pendingVo, pendingLen, SOUND_PCM_CH2, 15, FALSE, FALSE);
+            XGM2_playPCMEx(pendingVo, pendingLen, SOUND_PCM_CH2, 15, TRUE, FALSE);
             pendingVo = NULL;
         }
         return;

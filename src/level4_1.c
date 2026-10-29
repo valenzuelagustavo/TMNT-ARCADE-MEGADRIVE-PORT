@@ -297,7 +297,7 @@ static s8 propHitBy(Player** pls, u8 nPl, s16 cx, s16 base, const PropInfo* in) 
 }
 
 static void sfxHit(void) {
-    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
 }
 
 // La explosion del barril: tortugas y soldiers a tiro, una vez cada uno.
@@ -385,7 +385,7 @@ static bool signFly(Prop* p, Player** pls, u8 nPl, s16 camX, s16 base) {
         p->hitMask |= (u8)(1 << e);
         damageEnemy(&en[e], (s16)(en[e].hp > 0 ? en[e].hp : ENEMY_HP));
         XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                       SOUND_PCM_CH3, 15, FALSE, FALSE);
+                       SOUND_PCM_CH3, 15, TRUE, FALSE);
         if (p->owner >= 0 && p->owner < (s8)nPl) addPlayerScore(pls[(u8)p->owner], 1);
     }
     signPlace(p, camX, base);
@@ -451,7 +451,7 @@ static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
                 p->hitMask |= (u8)(1 << e);
                 if (en[e].state == ENEMY_STATE_DEAD) {
                     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                                   SOUND_PCM_CH3, 15, TRUE, FALSE);
                     if (p->owner >= 0 && p->owner < (s8)nPl) addPlayerScore(pls[(u8)p->owner], 1);
                 }
             }
@@ -478,7 +478,7 @@ static void propsUpdate(Player** pls, u8 nPl, s16 camX) {
                     SPR_setDepth(p->boom, (s16)(-base - 1));
                 }
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
             }
             break;
         case PS_BOOM: {
@@ -547,7 +547,7 @@ static void carUpdate(Player** pls, u8 nPl, s16 camX) {
         sbgSetVariant(LVL41_REG_CAR, 1);       // el lugar queda vacio
         car.state = CAR_DRIVE;
         // (16/10) El auto arrancando ("car.wav" del arcade), una sola vez.
-        XGM2_playPCMEx(car_sfx, sizeof(car_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
+        XGM2_playPCMEx(car_sfx, sizeof(car_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);
         break;
     }
     case CAR_DRIVE: {
@@ -660,7 +660,7 @@ static void pizzaUpdate41(Player** pls, u8 nPl, s16 camX) {
             pzBub = SPR_addSprite(&pizza_time_bubble, 0, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
             if (pzBub) {
                 SPR_setDepth(pzBub, SPR_MIN_DEPTH);
-                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, FALSE, FALSE);
+                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
                 pzBubSt = 1; pzBubT = 0;
             }
         }
@@ -672,7 +672,7 @@ static void pizzaUpdate41(Player** pls, u8 nPl, s16 camX) {
             if (a16((s16)(p->y - PZ41_FEET)) > PZ41_PICK_DY) continue;
             p->health = PLAYER_MAX_HEALTH;        // toda la vida
             // (16/10) "get pizza" del arcade.
-            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
             pzState = PZ_OPEN; pzTick = 0;
             break;
         }
@@ -852,7 +852,7 @@ static void duoUpdate41(Bebop* b, Rocksteady* r) {
             a16((s16)(bcx - rcx)) <= DUO_HIT_DX && a16((s16)(b->y - r->y)) <= DUO_HIT_DY) {
             bebopDuoBump(b, (s8)((bcx < rcx) ? -1 : 1));
             rocksteadyDuoBump(r, (s8)((rcx < bcx) ? -1 : 1));
-            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
             duoSt = DUO_IDLE; duoT = 0; duoNext = DUO_EVERY_T;
         }
         break;
@@ -923,7 +923,7 @@ static bool capsuleUpdate41(Player** pls, u8 nPl, s16 camX) {
             capBub = SPR_addSprite(&cork_bubble, 0, -64, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
             if (capBub) SPR_setDepth(capBub, SPR_MIN_DEPTH);
         }
-        XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(drill_sfx, sizeof(drill_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
         capSt = CAP_RISE;
         capT = 0;
     }
@@ -1039,7 +1039,7 @@ static void bebopHits(Player** pls, u8 nPl) {
         s16 dmg = isPlayerSpecialAttack(pls[k]) ? BEBOP_SPECIAL_DMG
                 : (isPlayerJumpKicking(pls[k]) ? BEBOP_JUMPKICK_DMG : 1);
         // (24/10) Golpe al jefe: boss_hit (como Rocksteady y Tora).
-        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
         if (bebopDamage(&bebop, dmg)) addPlayerScore(pls[k], 5);
         break;
     }
@@ -1054,7 +1054,7 @@ static void rockHits(Player** pls, u8 nPl) {
                                       ROCKSTEADY_BODY_H, RS_HIT_DY_UP, RS_HIT_DY_DOWN)) continue;
             rocksteadyDamage(&rock, isPlayerSpecialAttack(pls[k]) ? ROCKSTEADY_SPECIAL_DMG
                                   : (isPlayerJumpKicking(pls[k]) ? ROCKSTEADY_JUMPKICK_DMG : 1));
-            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
             if (rock.state == ROCKSTEADY_DEAD) addPlayerScore(pls[k], 5);
             break;
         }

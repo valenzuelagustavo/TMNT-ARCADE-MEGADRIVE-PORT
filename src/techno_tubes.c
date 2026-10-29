@@ -148,7 +148,7 @@ static void startSpray(Tube* b) {
     SPR_setAutoAnimation(b->sp, FALSE);
     SPR_setHFlip(b->sp, b->dir > 0);
     b->st = TS_SPRAY; b->t = 0; b->hitMask = 0;
-    XGM2_playPCMEx(hydrant_sfx, sizeof(hydrant_sfx), SOUND_PCM_CH3, 9, FALSE, FALSE);
+    XGM2_playPCMEx(hydrant_sfx, sizeof(hydrant_sfx), SOUND_PCM_CH3, 9, TRUE, FALSE);
 }
 
 void ttUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, s16 laneT, s16 laneB,
@@ -191,7 +191,7 @@ void ttUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, s16 laneT, s16 laneB,
                     if (fwd < -4 || fwd > TT_REACH) continue;
                     if (iabs((s16)(getPlayerY(pls[k]) - b->lane)) > TT_DY) continue;
                     b->hitMask |= bit;
-                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                     playerFreezeHit(pls[k], b->x, TT_DMG);
                 }
             }
@@ -224,7 +224,7 @@ void ttUpdate(Player** pls, u8 nPl, s16 camX, s16 camY, s16 laneT, s16 laneB,
                 if (!playerAttackHitsBand(pls[k], b->x, b->lane, TT_HALF_W,
                                           (s16)-TT_BODY_H, 0)) continue;
                 b->hitCd = TT_HIT_CD;
-                XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 if (++b->hits >= TT_HITS) {
                     sprayFree(b);
                     b->st = TS_DEAD; b->t = 0;

@@ -51,7 +51,7 @@ static s16 a16(s16 v) { return (v < 0) ? (s16)-v : v; }
 static u16 fr61;                    // frames del nivel (animaciones)
 
 static void sfxHit(void) {
-    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
 }
 
 // ===========================================================================
@@ -63,7 +63,7 @@ static struct { Sprite* s; s16 x, y; u16 t; } boom[BOOM_MAX];
 
 static void boomAt(s16 cx, s16 y) {
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     for (u16 i = 0; i < BOOM_MAX; i++) {
         if (boom[i].s) continue;
         if (!sprVramFits(explosion_sprite.maxNumTile)) return;
@@ -467,7 +467,7 @@ static void copUpdate(Player** pls, u8 nPl) {
                 continue;
             if (a16((s16)(getPlayerHurtCX(p) - cop[i].x)) > COP_HIT_DX + 20) continue;
             // (23/10) El mismo sonido que los robots del latigo al pegarles.
-            XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
             cop[i].cd = COP_HIT_CD;
             if (--cop[i].hp == 0) {
                 boomAt(cop[i].x, (s16)(cop[i].lane - cop[i].alt + 40));

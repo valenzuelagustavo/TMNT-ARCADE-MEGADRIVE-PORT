@@ -366,7 +366,7 @@ static bool swHoleStart(u8 hole, u8 count) {
         if (k >= 0 && swPatch[(u8)k].st == PATCH_CLOSED) {
             swPatch[(u8)k].st = PATCH_CRACKING; swPatch[(u8)k].tick = 0;
             XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                           SOUND_PCM_CH3, 10, FALSE, FALSE);
+                           SOUND_PCM_CH3, 10, TRUE, FALSE);
         }
         return TRUE;
     }
@@ -484,7 +484,7 @@ static void swBoomAt(s16 x, s16 lane, s8 dir) {
         swBoom[i].frame = 0;
         swBoom[i].tick  = 0;
         XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                       SOUND_PCM_CH3, 13, FALSE, FALSE);
+                       SOUND_PCM_CH3, 13, TRUE, FALSE);
         return;
     }
 }
@@ -543,7 +543,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
             if (dx < 0) dx = (s16)-dx;
             if (dy < 0) dy = (s16)-dy;
             if (dx >= SW_MIS_HALF_X || dy >= SW_MIS_TOL_Y) continue;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
             playerHitProjectile(p, swMis[i].x, SW_MIS_DMG);
             hit = TRUE;
         }

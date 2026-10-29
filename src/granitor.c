@@ -103,7 +103,7 @@ void granitorFlameUpdate(Player** pls, u8 nPl, s16 camX) {
             s16 dy = (s16)(getPlayerY(pls[k]) - flames[i].lane);
             if (dy < -GRAN_FLAME_DY_UP || dy > GRAN_FLAME_DY_DOWN) continue;
             flames[i].hitMask |= bit;
-            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
             playerBurnHit(pls[k], flames[i].x, GRAN_FLAME_DMG);   // (18/10) queda quemada (ANIM_BURN)
         }
 
@@ -181,7 +181,7 @@ static void gBoomStart(u16 i) {
     gBooms[i].frame = 0;
     gBooms[i].tick = 0;
     XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                   SOUND_PCM_CH3, 15, FALSE, FALSE);
+                   SOUND_PCM_CH3, 15, TRUE, FALSE);
     stageShake(10);
     if (SPR_getLargestFreeVRAMBlock() < T) return;
     sp[0] = gBoomMaster(0);
@@ -367,7 +367,7 @@ static void granKill(Granitor* g) {
     g->z = 0;
     PAL_setPalette(PAL3, granPal, DMA);
     granManual(g, GRAN_ANIM_DAMAGE, GRAN_DMG_FLASH);
-    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
     gBoomsChain((s16)(g->xq >> 2), (s16)(g->yq >> 2));   // (18/10)
 }
 
@@ -408,7 +408,7 @@ bool granitorPlayerHits(Granitor* g, Player** pls, u8 nPl, s8* killer) {
                 : (isPlayerJumpKicking(pls[k]) ? GRAN_JUMPKICK_DMG : 1);
         // (22/10) Gustavo: el mismo sonido que los robots del latigo (Roadkill
         // Rodney, robot.c) cuando les pegas. Antes: hit_foot_sfx (rock soldier).
-        XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+        XGM2_playPCMEx(mouser_hit_sfx, sizeof(mouser_hit_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
         g->hp -= dmg;
         g->flash = 8;
         g->invuln = GRAN_HURT_TICKS;
@@ -424,12 +424,12 @@ bool granitorPlayerHits(Granitor* g, Player** pls, u8 nPl, s8* killer) {
             g->streak = 0;
             g->flash = 0;
             granStartPunch(g, (getPlayerHurtCX(pls[k]) >= gx) ? 1 : -1);
-            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 12, FALSE, FALSE);
+            XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 12, TRUE, FALSE);
             return FALSE;
         }
         granEnter(g, GRAN_HURT);
         granManual(g, GRAN_ANIM_DAMAGE, GRAN_DMG_FLASH);
-        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 12, FALSE, FALSE);
+        XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 12, TRUE, FALSE);
         return FALSE;
     }
     return FALSE;
@@ -489,7 +489,7 @@ void granitorUpdate(Granitor* g, Player** pls, u8 nPl, s16 camX) {
                 g->timer = 0;
                 stageShake(GRAN_SHAKE_LAND);
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 granManual(g, GRAN_ANIM_IDLE1, 0);
             }
             g->z = (s16)(g->zq >> 8);
@@ -566,7 +566,7 @@ void granitorUpdate(Granitor* g, Player** pls, u8 nPl, s16 camX) {
                 if (gabs((s16)(kx - hx)) >= GRAN_PUNCH_HIT_W) continue;
                 s16 ky = (s16)(getPlayerY(pls[k]) - y);
                 if (ky < -GRAN_HIT_DY_UP || ky > GRAN_HIT_DY_DOWN) continue;
-                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, FALSE, FALSE);
+                XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
                 playerHitBarsKnockdown(pls[k], x, GRAN_PUNCH_DMG);
             }
         }
@@ -586,7 +586,7 @@ void granitorUpdate(Granitor* g, Player** pls, u8 nPl, s16 camX) {
                 g->timer = 0;
                 stageShake(GRAN_SHAKE_LAND);       // (18/10)
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
                 for (u8 k = 0; k < nPl; k++) {
                     if (!playerCanBeHit(pls[k])) continue;      // saltando no le llega
                     playerHitBars(pls[k], x, GRAN_QUAKE_DMG);
@@ -625,7 +625,7 @@ void granitorUpdate(Granitor* g, Player** pls, u8 nPl, s16 camX) {
                 g->timer = 0;
                 SPR_setFrame(g->sprite, GRAN_DMG_PILE);
                 XGM2_playPCMEx(foot_soldier_explode, sizeof(foot_soldier_explode),
-                               SOUND_PCM_CH3, 15, FALSE, FALSE);
+                               SOUND_PCM_CH3, 15, TRUE, FALSE);
             }
         } else if (g->timer > GRAN_DEATH_PILE_T) {
             gBoomsReleaseAll();                  // (18/10)
