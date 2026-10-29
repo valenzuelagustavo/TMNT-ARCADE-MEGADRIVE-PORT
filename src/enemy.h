@@ -946,6 +946,20 @@ s16 enemyShakeX(const Enemy* e);
 // ella mira). 'special' = el especial, que lo lanza mas lejos.
 void enemyDeathPush(Enemy* e, s16 fromX, s8 facing, bool special);
 bool enemyCanBeHit(const Enemy* e);
+
+// (28/10) SALTO DEL ESCALON. Cada hoja de soldier tiene como ULTIMA fila (4 cuadros) el salto con el
+// que sube/baja el escalon (tools/gen_foot_ledge_jump.py): 0 parado, 1 inicio del salto, 2 en el
+// aire (sube y baja), 3 aterrizaje. Devuelve el indice de esa fila para el tipo del soldier, o -1
+// si la hoja cargada no la tiene (entonces el escalon se sigue "caminando"). Lo maneja stage_level.c.
+#define ENEMY_LEDGE_ANIM_PURPLE   18
+#define ENEMY_LEDGE_ANIM_YELLOW    9
+#define ENEMY_LEDGE_ANIM_ORANGE    9
+#define ENEMY_LEDGE_ANIM_GUN       8
+#define ENEMY_LEDGE_ANIM_WHITE    11
+#define ENEMY_LEDGE_ANIM_KNIFE     9
+#define ENEMY_LEDGE_ANIM_HAMMER    6
+#define ENEMY_LEDGE_ANIM_SPEAR     7
+s16 enemyLedgeJumpAnim(const Enemy* e);
 s16  getEnemyCenterX(const Enemy* e);
 s16  getEnemyCenterY(const Enemy* e);
 

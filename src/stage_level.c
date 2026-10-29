@@ -238,22 +238,93 @@ static void ledgePlayer(Player* p, s16 prevX, s16 prevY, bool* wasAir) {
 
 static s16 eStepZ[MAX_ENEMIES];
 
+// (28/10) SALTO DEL ESCALON. Antes el soldier cruzaba la banda de golpe y su sprite se deslizaba
+// (eStepZ) hasta el piso nuevo, caminando. Ahora, si el tipo tiene la fila de salto (enemy.h,
+// enemyLedgeJumpAnim), al cruzar baja/sube SALTANDO: cuadro 0 parado, 1 inicio del salto, 2 en el
+// aire (el arco sube y baja), 3 aterrizaje. La posicion logica (e->y) cambia de piso en el acto,
+// como antes; lo que se anima es el desplazamiento visual eStepZ. Si en medio del salto el soldier
+// empieza a atacar, lo golpean, etc. (deja de caminar), el salto se corta y eStepZ decae como antes.
+#define LJ_PRE       3      // cuadros parado antes de despegar
+#define LJ_START     4      // inicio del salto
+#define LJ_AIR      14      // en el aire (hasta tocar el piso nuevo)
+#define LJ_LAND      6      // aterrizaje
+#define LJ_MOVE_END (LJ_PRE + LJ_START + LJ_AIR)
+#define LJ_N        (LJ_MOVE_END + LJ_LAND)
+#define LJ_PEAK_DOWN  8     // px extra de arco al bajar (el arte ya trae el vuelo)
+#define LJ_PEAK_UP_PAD 8    // al subir: medio escalon + esto
+#define LJ_MIN_STEP  12     // escalones mas chicos que esto no se saltan
+static u8  ljT[MAX_ENEMIES];     // 0 = sin salto; 1..LJ_N = cuadro del salto
+static s16 ljV0[MAX_ENEMIES];    // eStepZ al arrancar
+static s16 ljPeak[MAX_ENEMIES];
+static s16 ljAnim[MAX_ENEMIES];
+
+static inline s16 ljAbs(s16 v) { return (v < 0) ? (s16)-v : v; }
+
+static void ledgeJumpStart(Enemy* e, u16 i, s16 step) {
+    if (ljT[i]) return;
+    if (e->state != ENEMY_STATE_PATROL && e->state != ENEMY_STATE_CHASE) return;
+    s16 a = enemyLedgeJumpAnim(e);
+    if (a < 0 || ljAbs(step) < LJ_MIN_STEP) return;
+    ljT[i]    = 1;
+    ljV0[i]   = eStepZ[i];
+    ljPeak[i] = (step > 0) ? LJ_PEAK_DOWN : (s16)(ljAbs(step) / 2 + LJ_PEAK_UP_PAD);
+    ljAnim[i] = a;
+}
+
 static void ledgeEnemy(Enemy* e, u16 i, s16 prevY) {
     if (!ledgeOn()) return;
     s16 fx = getEnemyCenterX(e);
     if (ledgeAtX(fx) && inLedge(e->y)) {
         s16 to;
+        bool cross = TRUE;
         if (prevY <= cur->ledgeTop)      to = cur->ledgeBot;   // baja
         else if (prevY >= cur->ledgeBot) to = cur->ledgeTop;   // sube
-        else                             to = ledgeSnap(e->y);
+        else { to = ledgeSnap(e->y); cross = FALSE; }
+        s16 step = (s16)(to - e->y);
         // Mismo lugar en pantalla: y - z se conserva.
-        eStepZ[i] = (s16)(eStepZ[i] + (to - e->y));
+        eStepZ[i] = (s16)(eStepZ[i] + step);
         e->y = to;
+        if (cross) {
+            if (ljT[i]) ljT[i] = 0;                // cruzo de nuevo en pleno salto: decae a la antigua
+            else ledgeJumpStart(e, i, (s16)(to - prevY));
+        }
     }
     s16 out = ledgeTopOut(fx, e->y);                // (18/10) costados de arriba
     if (out) e->x = (s16)(e->x - out);
+    if (ljT[i]) return;                             // el salto maneja eStepZ (ledgeJumpStep)
     if (eStepZ[i] > 0) eStepZ[i] = (eStepZ[i] > LEDGE_Z_DOWN) ? eStepZ[i] - LEDGE_Z_DOWN : 0;
     else if (eStepZ[i] < 0) eStepZ[i] = (eStepZ[i] < -LEDGE_Z_UP) ? eStepZ[i] + LEDGE_Z_UP : 0;
+}
+
+// Un cuadro del salto (despues de ledgeEnemy y de updateEnemyN): fija eStepZ y el cuadro del sprite.
+static void ledgeJumpStep(Enemy* e, u16 i) {
+    if (!ljT[i]) return;
+    if (!e->sprite || (e->state != ENEMY_STATE_PATROL && e->state != ENEMY_STATE_CHASE)) {
+        ljT[i] = 0;                                 // dejo de caminar: eStepZ decae por lo comun
+        return;
+    }
+    s16 t = (s16)(ljT[i] - 1);
+    s16 z = 0;
+    u8  fr;
+    if (t < LJ_PRE) {
+        z = ljV0[i]; fr = 0;
+    } else {
+        if (t < LJ_PRE + LJ_START) fr = 1;
+        else if (t < LJ_MOVE_END)  fr = 2;
+        else                       fr = 3;
+        if (t < LJ_MOVE_END) {
+            s32 w = LJ_MOVE_END - LJ_PRE;           // ventana del vuelo
+            s32 k = t - LJ_PRE;                     // 0..w-1
+            // lineal del piso viejo al nuevo + arco parabolico
+            z = (s16)(((s32)ljV0[i] * (w - k)) / w + ((s32)ljPeak[i] * 4 * k * (w - k)) / (w * w));
+        }
+    }
+    eStepZ[i] = z;
+    SPR_setAutoAnimation(e->sprite, FALSE);
+    SPR_setAnimAndFrame(e->sprite, ljAnim[i], fr);
+    e->anim = (u8)ljAnim[i];
+    e->manualAnim = 1;            // la proxima enemySetAnim vuelve a prender la auto-animacion
+    if (++ljT[i] > LJ_N) { ljT[i] = 0; eStepZ[i] = 0; }
 }
 
 // ---------------------------------------------------------------------------
@@ -723,7 +794,7 @@ bool stageSpawnEnemyAt(u8 type, s8 side, s16 x, s16 y) {
         if (stageEnemyList[i].state == ENEMY_STATE_INACTIVE) break;
     if (i >= MAX_ENEMIES) return FALSE;
     if (!sprVramFits(enemySheetDef(type)->maxNumTile)) return FALSE;
-    eStepZ[i] = 0;
+    eStepZ[i] = 0; ljT[i] = 0;
     stageSpawnY = y;
     spawnWaveEnemy(&stageEnemyList[i], type, side, stageCamXv, x);
     if (!stageEnemyList[i].sprite) {            // (13/10) sin sprite: no salio
@@ -749,7 +820,7 @@ bool stageSpawnManhole(s16 holeX, s16 holeY, s8 dir) {
     if (i >= MAX_ENEMIES) return FALSE;
     if (!sprVramFits(foot_soldier.maxNumTile)) return FALSE;
     Enemy* e = &stageEnemyList[i];
-    eStepZ[i] = 0;
+    eStepZ[i] = 0; ljT[i] = 0;
     initEnemyManholeSpawn(e, (s16)(holeX - ENEMY_SPRITE_W_PURPLE / 2),
                           (s16)(holeY + STAGE_MANHOLE_DY + ENEMY_MANHOLE_HOP_DROP), dir, PAL2);
     if (!e->sprite) { e->state = ENEMY_STATE_INACTIVE; return FALSE; }
@@ -877,7 +948,7 @@ SceneId stageLevelRun(const StageLevel* L) {
     for (u16 i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].state  = ENEMY_STATE_INACTIVE;
         enemies[i].sprite = NULL;
-        eStepZ[i] = 0;
+        eStepZ[i] = 0; ljT[i] = 0;
     }
     bool plWasAir[MAX_PLAYERS] = { FALSE, FALSE, FALSE, FALSE };
     u16 maxAlive = aliveCap(dosJugadores);
@@ -1122,7 +1193,7 @@ SceneId stageLevelRun(const StageLevel* L) {
                     }
                 }
                 vramWait = 0;
-                eStepZ[i] = 0;
+                eStepZ[i] = 0; ljT[i] = 0;
                 spawnWaveEnemy(&enemies[i], ty, w->side[we], cameraX, w->x[we]);
                 // (13/10) Si SGDK no le dio el sprite (VRAM fragmentada, o la
                 // tomo otra cosa en el medio), no cuenta: se reintenta. Un
@@ -1157,6 +1228,7 @@ SceneId stageLevelRun(const StageLevel* L) {
             if (e->state == ENEMY_STATE_INACTIVE) continue;
             clampWalk(&e->x, &e->y, prevEX, prevEY, (s16)(getEnemyCenterX(e) - e->x));
             ledgeEnemy(e, i, prevEY);
+            ledgeJumpStep(e, i);
             if (e->sprite)
                 SPR_setPosition(e->sprite, e->x - cameraX + enemyShakeX(e),
                                 e->y - e->footOffset - e->jumpZ - eStepZ[i] - L->skateLift - stageCamY);

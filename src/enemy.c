@@ -2983,3 +2983,22 @@ bool enemyTryHitPlayerBox(Enemy* e, s16 px, s16 py, s16 targetHalfW) {
     e->attackHit = 1;
     return TRUE;
 }
+
+// (28/10) Fila del salto del escalon segun el tipo (ver enemy.h). -1 = esa hoja no la tiene.
+s16 enemyLedgeJumpAnim(const Enemy* e) {
+    s16 a;
+    switch (e->type) {
+    case ENEMY_TYPE_FOOT_SOLDIER:        a = ENEMY_LEDGE_ANIM_PURPLE; break;
+    case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: a = ENEMY_LEDGE_ANIM_YELLOW; break;
+    case ENEMY_TYPE_FOOT_SOLDIER_ORANGE: a = ENEMY_LEDGE_ANIM_ORANGE; break;
+    case ENEMY_TYPE_FOOT_SOLDIER_GUN:    a = ENEMY_LEDGE_ANIM_GUN;    break;
+    case ENEMY_TYPE_FOOT_SOLDIER_WHITE:  a = ENEMY_LEDGE_ANIM_WHITE;  break;
+    case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  a = ENEMY_LEDGE_ANIM_KNIFE;  break;
+    case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: a = ENEMY_LEDGE_ANIM_HAMMER; break;
+    case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  a = ENEMY_LEDGE_ANIM_SPEAR;  break;
+    default: return -1;
+    }
+    if (!e->sprite || !e->sprite->definition) return -1;
+    if (a >= (s16)e->sprite->definition->numAnimation) return -1;   // la hoja no la trae
+    return a;
+}
