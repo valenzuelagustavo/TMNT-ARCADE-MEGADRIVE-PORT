@@ -388,8 +388,8 @@ static void misUpdate(Player** pls, u8 nPl) {
         cs = cosFix16(m->th); sn = sinFix16(m->th);
         s16 spd = (s16)(FR_MIS_SPD_Q4 + m->t / 20);
         if (spd > FR_MIS_SPD_MAX) spd = FR_MIS_SPD_MAX;
-        m->xq += (cs * spd) >> 10;
-        m->lq += (sn * spd) >> 11;         // mitad de velocidad en profundidad
+        m->xq += (cs * spd) >> 6;  
+        m->lq += (sn * spd) >> 7;          // mitad de velocidad en profundidad
         x = (s16)(m->xq >> 4);
         s16 lo = (s16)(stageWalkTopAt(x) - 10), hi = (s16)(frLaneMax + 8);
         if ((m->lq >> 4) < lo) m->lq = (s32)lo << 4;

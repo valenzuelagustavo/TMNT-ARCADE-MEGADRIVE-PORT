@@ -184,11 +184,11 @@ WAV help_me_april_vo "audio/help_me_april.wav" XGM2
 // (16/10) Los dos grunidos REEMPLAZADOS por los del arcade ("leo (raph)
 // attack.wav" y "mike (don) attack.wav"): los de arriba quedaron en
 // audio/reemplazados/. Los nuevos salen de tools/gen_sfx_arcade.py.
-WAV leo_raph_attack_vo  "audio/gen/leo_raph_attack.wav" XGM2
-WAV mike_don_attack_vo  "audio/gen/mike_don_attack.wav" XGM2
+// (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV leo_raph_attack_vo  "audio/gen/leo_raph_attack.wav" XGM2
+// (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV mike_don_attack_vo  "audio/gen/mike_don_attack.wav" XGM2
 WAV cowabunga_vo        "audio/cowabunga.wav" XGM2
 WAV boss_scream_rocksteady_vo "audio/boss_scream_rocksteady.wav" XGM2
-WAV lost_life_turtles_vo "audio/lost_life_turtles.wav" XGM2
+// (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV lost_life_turtles_vo "audio/lost_life_turtles.wav" XGM2
 
 // (24/09) Grito de Bebop, el jefe del 2-1. Llego como los otros (ESTEREO
 // 8-bit 48000 Hz, 2,562 s) y se paso a la convencion de la casa: MONO, 8-bit,
@@ -281,13 +281,13 @@ WAV shuriken_throw_sfx "audio/gen/shuriken_throw.wav" XGM2
 WAV window_broken_sfx  "audio/gen/window_broken.wav" XGM2
 WAV hydrant_sfx        "audio/gen/hydrant.wav" XGM2
 WAV car_sfx            "audio/gen/car.wav" XGM2
-WAV one_up_sfx         "audio/gen/one_up.wav" XGM2
+// (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV one_up_sfx         "audio/gen/one_up.wav" XGM2
 WAV pause_sfx          "audio/gen/pause.wav" XGM2
 //   jump_attack     0,116s  rms 40,2%   patada voladora de la tortuga
-WAV jump_attack_sfx    "audio/gen/jump_attack.wav" XGM2
+// (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV jump_attack_sfx    "audio/gen/jump_attack.wav" XGM2
 //   special_attack  0,329s  rms 34,4%   el especial de la tortuga (reemplaza al
 //                                       "Attack!!" de attack_turtles ahi)
-WAV special_attack_sfx "audio/gen/special_attack.wav" XGM2
+// (28/10 sin uso, fuera de la ROM para que entre en 4 MB) WAV special_attack_sfx "audio/gen/special_attack.wav" XGM2
 // (16/10) Robot del latigo, pizza y electrocucion de las tortugas:
 //   rodney_lasso    0,440s  rms 29,3%   el robot tira el latigo
 //   rodney_shoot    0,456s  rms 21,1%   el robot dispara el laser

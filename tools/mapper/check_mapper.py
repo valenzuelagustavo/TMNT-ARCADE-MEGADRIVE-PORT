@@ -94,6 +94,9 @@ def main():
             near_end = max(near_end, nxt)
 
     print('ROM usada      : %7.1f KB (%s 4 MB)' % (used / 1024, 'MAS de' if used > ROM_4MB else 'dentro de'))
+    if used > ROM_4MB:
+        print('*** ATENCION: pasa de 4 MB (%.1f KB de mas). En los emuladores probados lo que queda' % ((used - ROM_4MB) / 1024))
+        print('*** pasado el 0x400000 se ve roto (globos, cuadros de sprites). Sacar recursos.')
     print('NEAR hasta     : 0x%06X = %7.1f KB  (limite 3 MB: quedan %.1f KB)'
           % (near_end, near_end / 1024, (NEAR_LIMIT - near_end) / 1024))
     print('FAR            : %7.1f KB desde 0x%06X' % (sum(far_kb.values()) / 1024, far_start or 0))
