@@ -623,8 +623,22 @@ static void yipUpdate(s16 camX) {
     SPR_setPosition(yipSay, bx, by);
 }
 
+enum { XT_OFF, XT_SETTLE, XT_WALK, XT_JUMP, XT_HOLD };
+#define FOOT_DX  (PLAYER_SPRITE_W / 2)   // de x (borde del frame) al eje de los pies
+#define XT_STAND_X      24     // el centro de la tortuga, desde el borde izquierdo (3 tiles)
+#define XT_OUT_X       112     // y el salto la deja a esta distancia fuera del borde
+#define XT_OUT_UP       72     // pies por encima del tope de la camara
+#define XT_JUMP_F       80     // cuadros del salto
+#define XT_SETTLE_MAX  120
+#define XT_WALK_MAX    300
+#define XT_HOLD_T       30     // pantalla vacia antes de cortar
+static u8  xtSt;
+static u16 xtT;
+static u8  xtDone;             // bit k: la tortuga k ya salio
+
 static void bossInit31(void) {
     yipSay = NULL;
+    xtSt = XT_OFF; xtT = 0; xtDone = 0;
     baxterInit(&baxter);
     baxterRatInitAll();
 }
@@ -644,6 +658,71 @@ static void bossStart31(s16 camX, s16 levelW) {
     yipUpdate(camX);
 }
 
+// (28/10) Final: al ganarle a Baxter las tortugas caminan hasta quedar a 3 tiles
+// del borde izquierdo de la pantalla y saltan todas juntas hasta salir por
+// arriba a la izquierda de la camara (playerExitJump, como la salida del 2-1).
+static bool xtSettled(Player* p) {
+    if (isPlayerGameOver(p) || !p->sprite) return TRUE;
+    return (p->state == STATE_IDLE || p->state == STATE_WALKING) && !isPlayerJumping(p);
+}
+
+// TRUE cuando termino todo.
+static bool bossExit31(Player** pls, u8 nPl, s16 camX) {
+    xtT++;
+    switch (xtSt) {
+    case XT_OFF:
+        xtSt = XT_SETTLE; xtT = 0; xtDone = 0;
+        break;
+    case XT_SETTLE: {
+        bool all = TRUE;
+        for (u8 k = 0; k < nPl; k++) if (!xtSettled(pls[k])) all = FALSE;
+        if (!all && xtT < XT_SETTLE_MAX) break;
+        for (u8 k = 0; k < nPl; k++) {
+            pls[k]->state = STATE_IDLE;
+            pls[k]->jumpZ = 0; pls[k]->jumpZq = 0;
+        }
+        stageScriptMask = 0x0F;
+        xtSt = XT_WALK; xtT = 0;
+        break;
+    }
+    case XT_WALK: {
+        bool all = TRUE;
+        for (u8 k = 0; k < nPl; k++) {
+            Player* p = pls[k];
+            if (isPlayerGameOver(p)) continue;
+            if (!playerCutsceneWalkTo(p, (s16)(camX + XT_STAND_X - FOOT_DX), p->y)) all = FALSE;
+        }
+        if (all || xtT >= XT_WALK_MAX) {
+            for (u8 k = 0; k < nPl; k++) {
+                Player* p = pls[k];
+                if (isPlayerGameOver(p) || !p->sprite) { xtDone |= (u8)(1 << k); continue; }
+                playerExitJumpStart(p, (s16)(camX - XT_OUT_X), (s16)(stageCamY - XT_OUT_UP),
+                                    XT_JUMP_F, PLAYER_EXIT_JUMP_PEAK);
+            }
+            xtSt = XT_JUMP; xtT = 0;
+        }
+        break;
+    }
+    case XT_JUMP: {
+        bool all = TRUE;
+        for (u8 k = 0; k < nPl; k++) {
+            if (xtDone & (1 << k)) continue;
+            if (playerExitJumpStep(pls[k])) {
+                if (pls[k]->sprite) SPR_setVisibility(pls[k]->sprite, HIDDEN);
+                xtDone |= (u8)(1 << k);
+            } else {
+                all = FALSE;
+            }
+        }
+        if (all) { xtSt = XT_HOLD; xtT = 0; }
+        break;
+    }
+    default:
+        return xtT >= XT_HOLD_T;
+    }
+    return FALSE;
+}
+
 static bool bossUpdate31(Player** pls, u8 nPl, s16 camX) {
     baxterUpdate(&baxter, pls, nPl, camX);
     yipUpdate(camX);
@@ -652,7 +731,8 @@ static bool bossUpdate31(Player** pls, u8 nPl, s16 camX) {
     if (baxterPlayerHits(&baxter, pls, nPl, &killer) && killer >= 0)
         addPlayerScore(pls[(u8)killer], 5);
     baxterRatPlayerHits(pls, nPl);
-    return baxterIsGone(&baxter) && baxterRatBusyCount() == 0;
+    if (!(baxterIsGone(&baxter) && baxterRatBusyCount() == 0)) return FALSE;
+    return bossExit31(pls, nPl, camX);
 }
 
 static bool bossDying31(void) {

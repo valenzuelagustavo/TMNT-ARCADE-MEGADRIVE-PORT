@@ -91,8 +91,8 @@
 #define BAXTER_DROP_T       75     // (12/10) un Mouser cada 1,25 s (era 2,5)
 // (12/10) Vuelo por grilla (ver arriba).
 #define BAXTER_COL_DX       80     // columnas: arenaLeft + 0 / 80 / 160
-#define BAXTER_FLY_XQ      384     // 1,5 px/f en X
-#define BAXTER_FLY_YQ      768     // 3 px/f en Y
+#define BAXTER_FLY_XQ      576     // 2,25 px/f en X (28/10: era 1,5; entre lugar y lugar mas rapido)
+#define BAXTER_FLY_YQ     1152     // 4,5 px/f en Y (era 3)
 #define BAXTER_HOVER_PCT    35     // % de las llegadas en que se queda flotando
 #define BAXTER_BOB_DY       20     // flotando: sube y baja esto ...
 #define BAXTER_BOB_MOVE     19     // ... en estos frames ...
