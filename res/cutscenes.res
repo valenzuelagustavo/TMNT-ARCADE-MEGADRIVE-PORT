@@ -21,9 +21,11 @@ SPRITE cut_leo "images/lvl_6_skate/leo_turtles_spr.png" 8 8 FAST 0
 //                    tools/gen_cut_splinter.py desde Cutscene_Factory/1587_*.png.
 // cut_splinter_mouth La parte que habla: 64x40 en (168,104), 13 cuadros (los
 //                    1587_1..13), la misma paleta que el fondo (PAL0).
-IMAGE  cut_splinter_bg    "images/lvl_7_factory/Cutscene_Factory/splinter_bg.png"    NONE ALL
+IMAGE  cut_splinter_bg    "images/lvl_7_factory/Cutscene_Factory/splinter_bg.png"    FAST ALL
 SPRITE cut_splinter_mouth "images/lvl_7_factory/Cutscene_Factory/splinter_mouth.png" 8 5 FAST 0
 
+// (28/10) cut_splinter_bg, cut_sewer_bg y cut_sewer_fg van comprimidas (FAST = LZ4W) para ganar ~10 KB de
+//   ROM: en la cutscene el heap esta casi vacio (el pedido es de 5-9 KB). cut_accident (18 KB) sigue NONE.
 // (28/10) Despues de The Sewer (SCENE_CUT_SHREDDER_APRIL): Shredder se lleva a April y
 // Rocksteady (con Bebop) provoca a las tortugas. Lo arma tools/gen_cut_sewer.py desde
 // lvl_3_sewer/1432_1459_*.png y bebop_rocksteady_1..28.png. Tres paletas: fondo PAL0,
@@ -33,8 +35,8 @@ SPRITE cut_splinter_mouth "images/lvl_7_factory/Cutscene_Factory/splinter_mouth.
 //   cut_sewer_april   April atada, 80x128 en (120,80)
 //   cut_sewer_mouth   boca de Rocksteady 64x64 en (222,160): cuadro 0 cerrada, 1 abierta
 //   cut_sewer_bubble  el globo "Come and get'em, shell-brain", 96x32 en (192,96)
-IMAGE  cut_sewer_bg     "images/lvl_3_sewer/1432_1459_shredder_bg.png"   NONE ALL
-IMAGE  cut_sewer_fg     "images/lvl_3_sewer/bebop_rocksteady_28.png"     NONE ALL
+IMAGE  cut_sewer_bg     "images/lvl_3_sewer/1432_1459_shredder_bg.png"   FAST ALL
+IMAGE  cut_sewer_fg     "images/lvl_3_sewer/bebop_rocksteady_28.png"     FAST ALL
 SPRITE cut_sewer_april  "images/lvl_3_sewer/cut_april_spr.png"   10 16 FAST 0
 SPRITE cut_sewer_mouth  "images/lvl_3_sewer/cut_rock_mouth.png"   8 8 FAST 0
 SPRITE cut_sewer_bubble "images/lvl_3_sewer/cut_rock_bubble.png" 12 4 FAST 0
