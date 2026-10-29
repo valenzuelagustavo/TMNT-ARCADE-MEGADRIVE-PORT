@@ -32,12 +32,12 @@ SPRITE  tora_ice_bubble "sprites/tora_ice_baloon.png" 12 4 FAST 0
 //   frosty_snow    40x64: 0 en el piso, 1 saltando
 //   frosty_break   64x64: 0-2 se rompe el disfraz
 //   frosty_bot     40x64: 0 piso, 1-2 salto, 3 golpeado, 4 muerto, 5 sin nariz, 6 regenera
-//   frosty_missile 32x16: la nariz, 0 sin fuego / 1 con fuego (mira a la derecha)
+//   frosty_missile 80x200: la nariz rotada, 5 filas = angulos 0/22,5/45/67,5/90 (nariz arriba-derecha), 2 cuadros por fila (sin fuego / con fuego); se espeja H/V
 //   frosty_shadow  24x16
 //   frosty_boom    la explosion de Baxter con la paleta de Frosty (como baxter_boom)
 SPRITE  frosty_snow    "images/lvl_central_park/frosty_snow.png"    5 8 FAST 0
 SPRITE  frosty_break   "images/lvl_central_park/frosty_break.png"   8 8 FAST 0
 SPRITE  frosty_bot     "images/lvl_central_park/frosty_bot.png"     5 8 FAST 0
-SPRITE  frosty_missile "images/lvl_central_park/frosty_missile.png" 4 2 FAST 0
+SPRITE  frosty_missile "images/lvl_central_park/frosty_missile.png" 5 5 FAST 0
 SPRITE  frosty_shadow  "images/lvl_central_park/frosty_shadow.png"  3 2 FAST 0
 SPRITE  frosty_boom    "images/lvl_central_park/frosty_boom.png"    8 8 FAST 0

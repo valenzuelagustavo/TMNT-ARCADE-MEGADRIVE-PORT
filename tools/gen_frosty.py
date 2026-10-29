@@ -120,21 +120,40 @@ dims['snow'] = build('frosty_snow', SNOW, 40)
 dims['break'] = build('frosty_break', BREAK, 64)
 dims['bot'] = build('frosty_bot', BOT, 40)
 
-# --- misil: la punta (borde derecho) alineada ---
+# --- misil: ROTADO (28/10) ---
+# El misil busca la espalda de la tortuga y da vueltas amplias, asi que gira: el arte (mira a la
+# derecha, cuadros 0 sin fuego / 1 con fuego) se rota en 5 angulos del primer cuadrante (0, 22.5,
+# 45, 67.5 y 90 grados, la nariz hacia arriba-derecha); el resto de las 16 direcciones sale
+# espejando en H/V en el juego. Hoja: una FILA por angulo, 2 cuadros por fila (fuego), celdas de 40x40
+# (rotacion alrededor del centro del misil con la llama).
 MIS = [(11, 89, 36, 100), (39, 85, 73, 100)]
 bb = [bbox(r) for r in MIS]
-mw = tile8(max(b[2] - b[0] for b in bb) + 3)
-mh = tile8(max(b[3] - b[1] for b in bb))
-tip = mw - 3
-sheet = np.zeros((mh, mw * 2), np.uint8)
-for i, b in enumerate(bb):
+SW = max(b[2] - b[0] for b in bb)
+SH = max(b[3] - b[1] for b in bb)
+src = []
+for b in bb:                                    # fuente: punta alineada a la derecha
+    f = np.zeros((SH, SW), np.uint8)
     sub = A[b[1]:b[3], b[0]:b[2]]
-    x0 = tip - sub.shape[1]
-    y0 = (mh - sub.shape[0]) // 2
-    sheet[y0:y0 + sub.shape[0], i * mw + x0:i * mw + x0 + sub.shape[1]] = sub
+    f[(SH - sub.shape[0]) // 2:(SH - sub.shape[0]) // 2 + sub.shape[0], SW - sub.shape[1]:] = sub
+    src.append(f)
+MC = 40                                          # celda
+ANG = [0.0, 22.5, 45.0, 67.5, 90.0]
+sheet = np.zeros((MC * len(ANG), MC * 2), np.uint8)
+pcx, pcy = SW / 2.0, SH / 2.0                    # pivote: centro de la hoja fuente (con llama)
+for r, ang in enumerate(ANG):
+    ca, sa = np.cos(np.radians(ang)), np.sin(np.radians(ang))
+    for i in range(2):
+        for Y in range(MC):
+            for X in range(MC):
+                u, v = X + 0.5 - MC / 2.0, Y + 0.5 - MC / 2.0
+                su = u * ca - v * sa                # rotacion inversa (CCW visual, y hacia abajo)
+                sv = u * sa + v * ca
+                xs, ys = int(np.floor(pcx + su)), int(np.floor(pcy + sv))
+                if 0 <= xs < SW and 0 <= ys < SH and src[i][ys, xs]:
+                    sheet[r * MC + Y, i * MC + X] = src[i][ys, xs]
 o = Image.fromarray(sheet, 'P'); o.putpalette(pal); o.save(OUT + 'frosty_missile.png', transparency=0)
-mis_cx = tip - (bb[0][2] - bb[0][0]) // 2      # centro del cuerpo (sin llama)
-print('missile', mw, mh, 'cx', mis_cx)
+mw, mh, mis_cx = MC, MC, MC // 2
+print('missile', MC, MC, 'filas', len(ANG))
 
 # --- sombra ---
 sb = bbox((62, 54, 87, 67))
@@ -164,6 +183,6 @@ with open('src/frosty_art.h', 'w') as f:
         K = k.upper()
         f.write('#define FA_%s_W %d\n#define FA_%s_H %d\n#define FA_%s_FEET %d\n' % (K, w, K, h, K, ft))
     f.write('#define FA_GB %d\n' % GB)
-    f.write('#define FA_MIS_W %d\n#define FA_MIS_H %d\n#define FA_MIS_CX %d\n' % (mw, mh, mis_cx))
+    f.write('#define FA_MIS_W %d\n#define FA_MIS_H %d\n#define FA_MIS_CX %d\n#define FA_MIS_ROWS %d\n' % (mw, mh, mis_cx, len(ANG)))
     f.write('#define FA_SH_W %d\n#define FA_SH_H %d\n#endif\n' % (sw, sh_))
 print(open('src/frosty_art.h').read())

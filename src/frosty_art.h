@@ -12,9 +12,10 @@
 #define FA_BOT_H 64
 #define FA_BOT_FEET 61
 #define FA_GB 3
-#define FA_MIS_W 32
-#define FA_MIS_H 16
-#define FA_MIS_CX 21
+#define FA_MIS_W 40
+#define FA_MIS_H 40
+#define FA_MIS_CX 20
+#define FA_MIS_ROWS 5
 #define FA_SH_W 24
 #define FA_SH_H 16
 #endif
