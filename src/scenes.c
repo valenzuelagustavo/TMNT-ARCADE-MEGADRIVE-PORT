@@ -2933,7 +2933,7 @@ typedef struct {
 } PendingScene;
 
 static const PendingScene pendingScenes[] = {
-    { SCENE_CUT_SHREDDER_APRIL, "SHREDDER GETS AWAY WITH APRIL", "(CUTSCENE COMING SOON)", SCENE_S3_TITLE },
+    // (28/10) SCENE_CUT_SHREDDER_APRIL ya tiene su imagen: showCutShredderApril (cut_scenes.c).
     { SCENE_SNOW,               "SCENE 3-1: SNOW IN N.Y.",       "(LEVEL COMING SOON)",    SCENE_CUT_CITY },
     { SCENE_CUT_CITY,           "THE CITY IS BACK TO NORMAL",    "(CUTSCENE COMING SOON)", SCENE_4_1 },
     // (23/10) SCENE_CUT_VAN ya tiene su imagen: showCutVan (cut_scenes.c).

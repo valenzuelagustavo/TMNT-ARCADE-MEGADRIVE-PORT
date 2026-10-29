@@ -96,6 +96,7 @@ SceneId showSceneS5Title();
 SceneId showSceneS6Title();
 SceneId showPendingScene(SceneId id);
 SceneId showCutVan(void);   // (23/10) el choque de la camioneta (cut_scenes.c)
+SceneId showCutShredderApril(void);   // (28/10) Rocksteady provoca, Shredder se lleva a April (cut_scenes.c)
 SceneId showCutSplinter(void);   // (27/10) Splinter: "Thank you, my turtles!" (cut_scenes.c)
 SceneId showEpilogue();
 SceneId showStaffCredits();

@@ -333,3 +333,7 @@ WAV tora_vo "audio/tora.wav" XGM2
 WAV thank_you_vo "audio/thank_you_my_turtles.wav" XGM2
 // (27/10) Baxter al aparecer: "Yippee-I-Ay!". WAV mono 8-bit a 8000 Hz (1,2 s).
 WAV yippee_vo "audio/yeepi_a_yey.wav" XGM2
+// (28/10) Cutscene despues de The Sewer (Rocksteady): "Come and get'em" y "shell-brain".
+// WAV mono 8-bit a 8000 Hz (0,76 s y 0,80 s). Ver cut_scenes.c.
+WAV come_get_vo   "audio/come_and_get_them.wav" XGM2
+WAV shell_brain_vo "audio/shell_brain.wav" XGM2

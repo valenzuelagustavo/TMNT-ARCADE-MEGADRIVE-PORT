@@ -122,11 +122,13 @@ int main()
         // Pantallas intermedias y niveles que todavia no tienen arte: una
         // pantalla provisoria con texto (scenes.c, showPendingScene). Cuando
         // llegue el arte, cada una pasa a tener su propio case.
-        case SCENE_CUT_SHREDDER_APRIL:
         case SCENE_CUT_CITY:
         case SCENE_DOJO:                    // 5-2 (NES)
         case SCENE_CUT_TECHNODROME:
             currentScene = showPendingScene(currentScene);
+            break;
+        case SCENE_CUT_SHREDDER_APRIL:      // (28/10) tras The Sewer: Rocksteady y April
+            currentScene = showCutShredderApril();
             break;
         case SCENE_CUT_VAN:                 // (23/10) ya tiene su imagen
             currentScene = showCutVan();
