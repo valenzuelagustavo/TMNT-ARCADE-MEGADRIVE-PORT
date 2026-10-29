@@ -344,7 +344,7 @@ static s16 levelEndWallX(const Player* p, s16 y) {
 // cortarian los golpes y CH1 es de las voces.
 static void playJumpAttack(const Player* p) {
     (void)p;
-    XGM2_playPCMEx(jump_attack_sfx, sizeof(jump_attack_sfx), SOUND_PCM_CH3, 14, FALSE, FALSE);
+    XGM2_playPCMEx(jump_attack_sfx, sizeof(jump_attack_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);
 }
 
 // Gruñido de ataque POR PERSONAJE (14/09). Leo (charIndex 0)
@@ -357,10 +357,10 @@ static void playJumpAttack(const Player* p) {
 static void playAttackGrunt(const Player* p) {
     if (p->charIndex == 0 || p->charIndex == 3)
         XGM2_playPCMEx(leo_raph_attack_vo, sizeof(leo_raph_attack_vo),
-                       SOUND_PCM_CH2, 8, FALSE, FALSE);
+                       SOUND_PCM_CH2, 8, TRUE, FALSE);
     else
         XGM2_playPCMEx(mike_don_attack_vo, sizeof(mike_don_attack_vo),
-                       SOUND_PCM_CH2, 8, FALSE, FALSE);
+                       SOUND_PCM_CH2, 8, TRUE, FALSE);
 }
 
 // ---------------------------------------------------------------------------
@@ -472,7 +472,7 @@ static void startSpecial(Player* p) {
     SPR_setAnimAndFrame(p->sprite, ANIM_SPECIAL, 0);
     // (16/10) "turtles special attack" del arcade (antes el "Attack!!" de
     // attack_turtles, que queda declarado pero sin uso).
-    XGM2_playPCMEx(special_attack_sfx, sizeof(special_attack_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    XGM2_playPCMEx(special_attack_sfx, sizeof(special_attack_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
 }
 
 // (20/10) Raph, boton A: el giro con patada. Mismo estado que el especial
@@ -2113,7 +2113,7 @@ static void playerEnterKO(Player* p) {
     // disparo hit_turtles en el 2 y asi se escuchan los dos (impacto + grito)
     // en vez de que este pise al otro.
     XGM2_playPCMEx(lost_life_turtles_vo, sizeof(lost_life_turtles_vo),
-                   SOUND_PCM_CH2, 12, FALSE, FALSE);
+                   SOUND_PCM_CH2, 12, TRUE, FALSE);
     p->state      = STATE_KO;
     p->koTimer    = PLAYER_KO_FRAMES;
     p->hurtTimer  = PLAYER_HURT_KNOCK_FRAMES;   // deslizamiento inicial
@@ -2161,7 +2161,7 @@ static void playerEnterKO(Player* p) {
 static void playerTakeHitEx(Player* p, s16 attackerX, u8 bars, bool volteo, bool exact) {
     p->slashGuard = 0;
     // (26/10) Slash: al golpearlo suena lo mismo que cuando le pegan a un jefe.
-    if (p->isSlash) XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    if (p->isSlash) XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
     // Golpe recibido EN EL AIRE (sólo lo permite playerCanBeHitAir, hoy las
     // balas del jefe): hay que bajar la tortuga al piso a mano, porque el
     // estado pasa a HURT y nadie más vuelve a tocar jumpZ — si no, se queda
@@ -2394,7 +2394,7 @@ void playerHitBarsKnockdown(Player* p, s16 attackerX, u8 bars) {
     p->comboLinger     = 0;
     p->attackIsSpecial = 0;
 
-    if (p->isSlash) XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, FALSE, FALSE);
+    if (p->isSlash) XGM2_playPCMEx(boss_hit, sizeof(boss_hit), SOUND_PCM_CH3, 15, TRUE, FALSE);
     bars = playerDiffBars(p, bars);   // (10/10) NORMAL: menos dano
     if (p->health > (s16)bars) p->health -= (s16)bars;
     else                       p->health = 0;
@@ -2583,7 +2583,7 @@ void addPlayerScore(Player* p, u16 points) {
         while (gained-- > 0 && p->lives < PLAYER_MAX_LIVES) p->lives++;
         // (16/10) "1 up" del arcade. CH3: en CH2 lo cortarian los golpes.
         if (p->lives != livesBefore)
-            XGM2_playPCMEx(one_up_sfx, sizeof(one_up_sfx), SOUND_PCM_CH3, 15, FALSE, FALSE);
+            XGM2_playPCMEx(one_up_sfx, sizeof(one_up_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
     }
 }
 
