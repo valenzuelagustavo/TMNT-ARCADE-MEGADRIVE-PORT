@@ -58,6 +58,7 @@
 #include "traag.h"
 #include "techno_hazards.h"   // (18/10) columnas con laser y bolas del ascensor
 #include "techno_tubes.h"     // (25/10) tubos de spray congelante (zona de los triangulos)
+#include "techno_lasers.h"    // (30/10) las 3 barras laser de la puerta (electrocutan)
 #include "pause_menu.h"
 #include "audio.h"
 
@@ -138,6 +139,7 @@ static void elevSfxPlay(void) {
 #define L8_BOSS_DOOR_X     4594          // Traag aparece parado en el hueco (centro)
 #define L8_BOSS_DOOR_Y     2740          // ... con los pies a esta altura
 #define L8_BOSS_DOOR_HOLD    50          // frames quieto (la puerta cruza la sala)
+#define L8_LASER_DELAY       70          // (30/10) frames desde el golpe hasta que aparecen las barras (estimado)
 // (18/10) Bolas en el viaje: dejan de salir cuando faltan ~360 px de bajada
 // (las que ya salieron terminan de cruzar el ascensor).
 #define L8_BALLS_STOP_Y   (L8_BOT_CAM_Y - 360)
@@ -521,6 +523,7 @@ SceneId showScene81() {
     Sprite* doorSpr = NULL;            // (29/10) la puerta cerrada del fondo
     Sprite* doorFly = NULL;            // (29/10) la puerta ya volando
     s16     doorFlyX = 0;
+    u16     laserDelay = 0;            // (30/10) cuenta atras para que aparezcan los laseres
 
     const TechnoWave* wave = NULL;     // oleada en curso
     s16 topIdx      = -1;              // ultima oleada de arriba disparada
@@ -889,7 +892,11 @@ SceneId showScene81() {
                                         TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
             if (doorFly) SPR_setDepth(doorFly, SPR_MAX_DEPTH);
             doorFlyX = L8_DOORFLY_X;
+            laserDelay = L8_LASER_DELAY;
         }
+        // (30/10) Las tres barras laser del hueco (electrocutan, ver techno_lasers.h).
+        if (laserDelay) { if (--laserDelay == 0) tlStart(); }
+        tlUpdate(pls, nPl, cameraX, cameraY);
         if (doorFly) {
             doorFlyX = (s16)(doorFlyX - L8_DOORFLY_SPD);
             if (doorFlyX + L8_DOORFLY_W <= cameraX) {       // salio por la izquierda
@@ -938,6 +945,7 @@ SceneId showScene81() {
     stageCamY = 0;
     if (doorSpr) { SPR_releaseSprite(doorSpr); doorSpr = NULL; }   // (29/10)
     if (doorFly) { SPR_releaseSprite(doorFly); doorFly = NULL; }
+    tlEnd();                                                       // (30/10)
     traagRelease(&traag);
     DMA_setMaxQueueSizeToDefault();
     VDP_setTextPriority(0);

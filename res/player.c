@@ -1390,6 +1390,19 @@ void updatePlayer(Player* p) {
             // actúa además como duración MÍNIMA del estado: con una anim muy
             // corta (1 frame) isAnimationDone daría TRUE al instante y la
             // reacción no llegaría a verse.
+            // (30/10) Electrocutada (playerElectroHit): los 2 cuadros van a mano
+            // (alternan cada PLAYER_ELECTRO_TICK frames, mas rapido que los 10
+            // ticks de la hoja) y el estado dura lo que el hurtTimer.
+            if (p->sprite->animInd == ANIM_ELECTRO && !SPR_getAutoAnimation(p->sprite)) {
+                SPR_setFrame(p->sprite, (s16)((p->hurtTimer / PLAYER_ELECTRO_TICK) & 1));
+                if (p->hurtTimer == 0) {
+                    p->state = STATE_IDLE;
+                    SPR_setAutoAnimation(p->sprite, TRUE);
+                    SPR_setAnimationLoop(p->sprite, TRUE);
+                    SPR_setAnim(p->sprite, ANIM_IDLE);
+                }
+                break;
+            }
             if (p->hurtTimer == 0 && SPR_isAnimationDone(p->sprite)) {
                 p->state = STATE_IDLE;
                 SPR_setAnimationLoop(p->sprite, TRUE);
@@ -2313,6 +2326,24 @@ void playerBurnHit(Player* p, s16 attackerX, u8 bars) {
     SPR_setAutoAnimation(p->sprite, TRUE);
     SPR_setAnimationLoop(p->sprite, TRUE);
     SPR_setAnimAndFrame(p->sprite, ANIM_BURN, 0);
+}
+
+// (30/10) Descarga de los laseres de la puerta del Technodrome. Como la
+// llamarada (playerBurnHit): golpe liviano que resta las barras y, en vez del
+// HIT, la tortuga queda quieta PLAYER_ELECTRO_FRAMES con ANIM_ELECTRO. Los
+// cuadros los alterna STATE_HURT a mano (por eso sin auto-animacion). El
+// sonido lo pone quien llama.
+void playerElectroHit(Player* p, s16 attackerX, u8 bars) {
+    if (!playerCanBeHitAir(p)) return;
+    playerTakeHit(p, attackerX, bars, FALSE);
+    if (p->state != STATE_HURT || !playerHasElectroAnim(p)) return;   // KO, o sin la fila
+    p->hurtDir    = 0;                       // sin empuje: se queda donde estaba
+    p->hurtTimer  = PLAYER_ELECTRO_FRAMES;
+    if (p->invincible < PLAYER_ELECTRO_FRAMES + PLAYER_HURT_INVINCIBLE)
+        p->invincible = PLAYER_ELECTRO_FRAMES + PLAYER_HURT_INVINCIBLE;
+    SPR_setAutoAnimation(p->sprite, FALSE);
+    SPR_setAnimationLoop(p->sprite, FALSE);
+    SPR_setAnimAndFrame(p->sprite, ANIM_ELECTRO, 0);
 }
 
 // (25/10) El rayo de Shredder desmuta a la tortuga (ver DEMUT_* en player.h).

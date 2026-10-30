@@ -73,7 +73,12 @@ typedef enum {
                              // repiten FREEZE_LOOPS veces). Arte de
                              // turtle_frosen.png remapeado a PAL1
                              // (tools/add_frozen_rows.py). A mano.
-    ANIM_FROZEN_BREAK = 29   // (25/10) El hielo se rompe y la libera (2 cuadros).
+    ANIM_FROZEN_BREAK = 29,  // (25/10) El hielo se rompe y la libera (2 cuadros).
+    ANIM_ELECTRO      = 30   // (30/10) Electrocutada por los laseres de la puerta
+                             // del Technodrome: 2 cuadros que se alternan (el
+                             // esqueleto y la silueta negra). Por ahora el MISMO
+                             // arte (Leo) en las 4 hojas: tools/gen_turtle_electro.py
+                             // y tools/add_electro_row.py. Cuadros a mano (STATE_HURT).
 } PlayerAnim;
 
 // Hoja NUEVA (09/10): trae ANIM_ATTACK_4 y ANIM_JUMP_KICK_DIR. Las hojas viejas
@@ -84,6 +89,7 @@ typedef enum {
 #define playerHasBurnAnim(p)    ((p)->numAnims > ANIM_BURN)
 #define playerHasDemutAnim(p)   ((p)->numAnims > ANIM_DEMUTANT)
 #define playerHasFrozenAnim(p)  ((p)->numAnims > ANIM_FROZEN_BREAK)
+#define playerHasElectroAnim(p) ((p)->numAnims > ANIM_ELECTRO)
 
 // ---------------------------------------------------------------------------
 // Estados lógicos del personaje
@@ -869,6 +875,15 @@ void playerHitProjectile(Player* p, s16 attackerX, u8 bars);
 // queda vida y la hoja la trae, la tortuga queda quieta con ANIM_BURN
 // PLAYER_BURN_FRAMES antes de volver al idle.
 void playerBurnHit(Player* p, s16 attackerX, u8 bars);
+
+// (30/10) Descarga electrica (laseres de la puerta del Technodrome): resta
+// 'bars' como playerHitProjectile (tambien en el aire: la barra es alta) y, si
+// le queda vida y la hoja trae la fila, la tortuga queda QUIETA PLAYER_ELECTRO_FRAMES
+// con ANIM_ELECTRO (un cuadro nuevo cada PLAYER_ELECTRO_TICK frames) antes de
+// volver al idle; sin la fila queda el golpe liviano de siempre.
+#define PLAYER_ELECTRO_FRAMES  48
+#define PLAYER_ELECTRO_TICK     4
+void playerElectroHit(Player* p, s16 attackerX, u8 bars);
 
 // (25/10) Rayo de Shredder: la tortuga se DESMUTA (ANIM_DEMUTANT: 6 cuadros a
 // DEMUT_FRAME_TICKS cada uno), queda un segundo en el ultimo y despues pierde

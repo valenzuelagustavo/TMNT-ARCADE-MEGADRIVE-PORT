@@ -53,3 +53,8 @@ SPRITE techno_ball        "images/lvl_8_techno/techno_ball.png"        4 4 FAST 
 // que cruza la pantalla). Usan la paleta del mapa (PAL0, la de pal_techno).
 SPRITE techno_door_closed "images/lvl_8_techno/techno_door_closed.png" 6 18 FAST 0
 SPRITE techno_door_fly    "images/lvl_8_techno/techno_door_fly.png"    8 12 FAST 0
+
+// (30/10) La barra LASER de la puerta (tools/gen_techno_laser.py): 2 cuadros de
+// 8x104 (1x13 tiles) con los colores de las tortugas, asi que se dibuja en PAL1.
+// Se usa 3 veces (techno_lasers.c).
+SPRITE techno_laser_bar   "images/lvl_8_techno/techno_laser_bar.png"   1 13 FAST 0
