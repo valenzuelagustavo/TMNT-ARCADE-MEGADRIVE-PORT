@@ -52,3 +52,10 @@ SPRITE factory_capsule  "images/lvl_7_factory/factory_capsule_gen.png" 12 15 NON
 SPRITE factory_bee      "images/lvl_7_factory/factory_bee_gen.png"      4 4 FAST 0
 SPRITE factory_bee_shot "images/lvl_7_factory/factory_bee_shot_gen.png" 2 3 FAST 0
 SPRITE factory_laser    "images/lvl_7_factory/factory_laser_gen.png"    1 4 FAST 0
+
+// (30/10) La VAN de las tortugas estrellada al principio del nivel: el techo (verde) y
+// el paragolpes (verde) van como SPRITES encima del fondo (bg_factory no tiene
+// verde). tools/gen_van_overlay.py los recorta de "VAN_VERDE FACTORY.png"; usan
+// los colores de las tortugas (PAL1). Ver vanInit71 en level7_1.c.
+SPRITE van_roof   "images/lvl_7_factory/van_roof_gen.png"   8 4 FAST 0
+SPRITE van_bumper "images/lvl_7_factory/van_bumper_gen.png" 8 8 FAST 0

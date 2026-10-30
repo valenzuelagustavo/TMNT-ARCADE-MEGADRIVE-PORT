@@ -20,6 +20,7 @@
 #include "level7_1_limits.h"   // lvl71WalkTop (generado)
 #include "level7_1_fgtop.h"    // (18/10) columnas en la franja del HUD (generado)
 #include "stage_level.h"
+#include "hud.h"               // (30/10) numJugadores
 #include "enemy.h"             // ENEMY_TYPE_*
 #include "granitor.h"
 #include "audio.h"
@@ -179,6 +180,46 @@ static bool intro71Step(s16 camX) {
 }
 
 // ---------------------------------------------------------------------------
+// VAN ESTRELLADA (30/10): techo y paragolpes verdes sobre el fondo
+// ---------------------------------------------------------------------------
+// En el arcade la Van de las tortugas esta estrellada contra la pared del
+// principio. bg_factory trae su carroceria gris/amarilla pero no el verde
+// (PAL0 no lo tiene), asi que el techo y el paragolpes van como sprites en
+// PAL1 (tools/gen_van_overlay.py). Estan pegados al fondo (se mueven con la
+// camara) y atras de todo; se sueltan apenas salen de pantalla, asi que no
+// ocupan VRAM en las peleas. Con 3-4 jugadores (modo liviano) no se ponen.
+#define VAN_ROOF_X        0        // mundo
+#define VAN_ROOF_Y        0
+#define VAN_BUMPER_X     16
+#define VAN_BUMPER_Y     49
+#define VAN_W            80        // x de mundo donde termina el dibujo
+
+static Sprite* vanRoof;
+static Sprite* vanBumper;
+
+static Sprite* vanMake(const SpriteDefinition* def) {
+    Sprite* s = SPR_addSprite(def, 0, -256, TILE_ATTR(PAL1, FALSE, FALSE, FALSE));
+    if (!s) return NULL;                         // sin VRAM: queda sin el adorno
+    SPR_setAutoAnimation(s, FALSE);
+    SPR_setDepth(s, SPR_MAX_DEPTH);              // atras de todo (es parte del fondo)
+    return s;
+}
+
+static void vanRelease71(void) {
+    if (vanRoof)   { SPR_releaseSprite(vanRoof);   vanRoof = NULL; }
+    if (vanBumper) { SPR_releaseSprite(vanBumper); vanBumper = NULL; }
+}
+
+static void vanUpdate71(s16 camX) {
+    if (camX >= VAN_W) { vanRelease71(); return; }   // ya salio de pantalla
+    if (numJugadores() > 2) return;
+    if (!vanRoof)   vanRoof   = vanMake(&van_roof);
+    if (!vanBumper) vanBumper = vanMake(&van_bumper);
+    if (vanRoof)   SPR_setPosition(vanRoof,   (s16)(VAN_ROOF_X - camX),   VAN_ROOF_Y);
+    if (vanBumper) SPR_setPosition(vanBumper, (s16)(VAN_BUMPER_X - camX), VAN_BUMPER_Y);
+}
+
+// ---------------------------------------------------------------------------
 // SPLINTER ATADO (18/10) en la pared del fondo de la sala de Granitor
 // ---------------------------------------------------------------------------
 // Cuelga de una soga (que sale desde arriba de la pantalla) a la derecha de
@@ -281,6 +322,8 @@ static void bossStart71(s16 camX, s16 levelW) {
 // columnas.
 // ---------------------------------------------------------------------------
 static void levelInit71(void) {
+    vanRoof = NULL; vanBumper = NULL;            // (30/10) los sprites los libera clearScene
+    vanUpdate71(0);                              // ya estan durante la intro
     splinterInit71();
     ffxInit();
     baxterRatInitAll();
@@ -288,6 +331,7 @@ static void levelInit71(void) {
 }
 
 static void levelUpdate71(Player** pls, u8 nPl, s16 camX) {
+    vanUpdate71(camX);                           // (30/10)
     splinterUpdate71(pls, nPl, camX);
     ffxLasersUpdate(pls, nPl, camX);
     ffxUpdate(pls, nPl, camX, 96, 208);
@@ -298,6 +342,7 @@ static void levelUpdate71(Player** pls, u8 nPl, s16 camX) {
 }
 
 static void levelRelease71(void) {
+    vanRelease71();                              // (30/10)
     splinterRelease71();
     ffxRelease();
     baxterRatReleaseAll();
