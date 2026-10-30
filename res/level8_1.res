@@ -45,3 +45,11 @@ SPRITE techno_laser       "images/lvl_8_techno/techno_laser.png"       4 1 FAST 
 SPRITE techno_laser_sh    "images/lvl_8_techno/techno_laser_sh.png"    4 1 FAST 0 NONE NONE
 SPRITE techno_pillar_sh   "images/lvl_8_techno/techno_pillar_sh.png"   4 1 FAST 0 NONE NONE
 SPRITE techno_ball        "images/lvl_8_techno/techno_ball.png"        4 4 FAST 0
+
+// (29/10) La PUERTA del fondo de la sala de Traag (tools/gen_techno_door.py,
+// desde las capturas del arcade en tools/techno_door_src). La cerrada (48x144,
+// ~70 tiles) se dibuja sobre el hueco que el mapa trae ya abierto; al entrar
+// Traag se cambia por la que sale volando (64x96, ~78 tiles, una sola imagen
+// que cruza la pantalla). Usan la paleta del mapa (PAL0, la de pal_techno).
+SPRITE techno_door_closed "images/lvl_8_techno/techno_door_closed.png" 6 18 FAST 0
+SPRITE techno_door_fly    "images/lvl_8_techno/techno_door_fly.png"    8 12 FAST 0

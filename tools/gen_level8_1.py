@@ -160,5 +160,6 @@ with open(os.path.join(D, 'techno_map.bin'), 'wb') as f:
 print('techno: %d celdas cambiadas, %d tiles (%d nuevos)' % (changed, len(tiles), len(tiles) - len(raw) // 32))
 
 # (18/10) La ROM usa el mapa por bloques (el plano de 411 KB pasaba los 4 MB).
-import pack_techno_map
-pack_techno_map.main()
+# (29/10) La puerta del fondo de la sala de Traag (y el empaquetado por bloques).
+import gen_techno_door
+gen_techno_door.main()

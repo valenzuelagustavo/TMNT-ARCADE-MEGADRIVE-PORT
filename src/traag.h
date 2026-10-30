@@ -134,9 +134,16 @@ typedef struct {
     s16           arenaLeft, arenaRight;
     s16           laneTop, laneBot;
     TraagTopAtFn  topAt;
+    u16           enterHold;    // (29/10) frames que se queda quieto al salir por la puerta
 } Traag;
 
 void traagInit(Traag* g);
+// (29/10) Entrada por la PUERTA del fondo (como en el arcade): en vez de caminar
+// desde afuera de la pantalla, aparece parado en el hueco (x, pies en footY, de
+// mundo), se queda `hold` frames en la pose de caminar y da los pasos que le
+// faltan hasta su lugar. Misma firma que traagSpawn + donde aparece.
+void traagSpawnDoor(Traag* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot,
+                    TraagTopAtFn topAt, s16 x, s16 footY, u16 hold);
 // Arena en X de mundo (la camara esta clavada) y franja de pies. Entra
 // caminando desde la derecha. Carga PAL3.
 void traagSpawn(Traag* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot,

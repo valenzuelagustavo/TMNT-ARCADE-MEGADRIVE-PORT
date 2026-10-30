@@ -124,6 +124,20 @@ static void elevSfxPlay(void) {
 #define L8_BOT_LANE_T      2696
 #define L8_BOT_LANE_B      2808
 #define L8_BOSS_FEET_X     4420
+// (29/10) LA PUERTA por la que entra Traag (en el arcade la revienta de un
+// golpe desde adentro). El mapa trae el hueco ya abierto (tools/gen_techno_door.py)
+// y la puerta cerrada es un sprite encima, que se cambia por la que sale
+// volando cuando entra el jefe. Coordenadas de mundo (esquina de la celda).
+#define L8_DOOR_X          4580          // puerta cerrada (48x144)
+#define L8_DOOR_Y          2615
+#define L8_DOOR_SHOW_X     4000          // camara desde la que se crea el sprite
+#define L8_DOORFLY_X       4536          // puerta volando (64x96): sale del hueco ...
+#define L8_DOORFLY_Y       2644          // ... a esta altura (no cambia)
+#define L8_DOORFLY_W         64
+#define L8_DOORFLY_SPD        6          // px por frame hacia la izquierda
+#define L8_BOSS_DOOR_X     4594          // Traag aparece parado en el hueco (centro)
+#define L8_BOSS_DOOR_Y     2740          // ... con los pies a esta altura
+#define L8_BOSS_DOOR_HOLD    50          // frames quieto (la puerta cruza la sala)
 // (18/10) Bolas en el viaje: dejan de salir cuando faltan ~360 px de bajada
 // (las que ya salieron terminan de cruzar el ascensor).
 #define L8_BALLS_STOP_Y   (L8_BOT_CAM_Y - 360)
@@ -504,6 +518,9 @@ SceneId showScene81() {
     static Traag traag;
     traagInit(&traag);
     bool bossStarted = FALSE;
+    Sprite* doorSpr = NULL;            // (29/10) la puerta cerrada del fondo
+    Sprite* doorFly = NULL;            // (29/10) la puerta ya volando
+    s16     doorFlyX = 0;
 
     const TechnoWave* wave = NULL;     // oleada en curso
     s16 topIdx      = -1;              // ultima oleada de arriba disparada
@@ -840,6 +857,18 @@ SceneId showScene81() {
         else
             ttRelease();
 
+        // --- (29/10) La puerta del fondo -----------------------------------------
+        // Cerrada (sprite sobre el hueco que trae el mapa) mientras se pelea con
+        // la ultima oleada; el sprite se crea cuando la camara se acerca. Sin
+        // VRAM no se crea y queda el hueco abierto (no pasa nada mas).
+        if (!bossStarted && !doorSpr && phase == PH_BOTTOM && cameraX >= L8_DOOR_SHOW_X) {
+            doorSpr = SPR_addSprite(&techno_door_closed, 0, -256,
+                                    TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+            if (doorSpr) SPR_setDepth(doorSpr, SPR_MAX_DEPTH);   // detras de todos
+        }
+        if (doorSpr)
+            SPR_setPosition(doorSpr, (s16)(L8_DOOR_X - cameraX), (s16)(L8_DOOR_Y - cameraY));
+
         // --- Jefe: Traag -------------------------------------------------------
         if (!bossStarted && phase == PH_BOTTOM && botFired && botIdx == BOT_WAVES - 1 &&
             waveSpawned >= waveTot &&
@@ -847,8 +876,29 @@ SceneId showScene81() {
             bossStarted = TRUE;
             XGM2_setLoopNumber(-1);
             playMusicVol(music_boss, VOL_MUSIC);
-            traagSpawn(&traag, (s16)(cameraX + 24), (s16)(cameraX + SCREEN_W - 24),
-                       L8_BOT_LANE_T, L8_BOT_LANE_B, NULL);
+            // (29/10) Traag revienta la puerta y sale por el hueco. Primero se
+            // suelta la puerta cerrada (su VRAM), despues entra Traag y al final,
+            // si queda lugar, la puerta volando.
+            if (doorSpr) { SPR_releaseSprite(doorSpr); doorSpr = NULL; }
+            traagSpawnDoor(&traag, (s16)(cameraX + 24), (s16)(cameraX + SCREEN_W - 24),
+                           L8_BOT_LANE_T, L8_BOT_LANE_B, NULL,
+                           L8_BOSS_DOOR_X, L8_BOSS_DOOR_Y, L8_BOSS_DOOR_HOLD);
+            XGM2_playPCMEx(capsule_door_sfx, sizeof(capsule_door_sfx),
+                           SOUND_PCM_CH3, 15, TRUE, FALSE);
+            doorFly = SPR_addSpriteSafe(&techno_door_fly, 0, -256,
+                                        TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+            if (doorFly) SPR_setDepth(doorFly, SPR_MAX_DEPTH);
+            doorFlyX = L8_DOORFLY_X;
+        }
+        if (doorFly) {
+            doorFlyX = (s16)(doorFlyX - L8_DOORFLY_SPD);
+            if (doorFlyX + L8_DOORFLY_W <= cameraX) {       // salio por la izquierda
+                SPR_releaseSprite(doorFly);
+                doorFly = NULL;
+            } else {
+                SPR_setPosition(doorFly, (s16)(doorFlyX - cameraX),
+                                (s16)(L8_DOORFLY_Y - cameraY));
+            }
         }
         if (bossStarted) {
             traagUpdate(&traag, pls, nPl, cameraX, cameraY);
@@ -886,6 +936,8 @@ SceneId showScene81() {
     ttRelease();               // (25/10)
     shurikenReleaseAll();
     stageCamY = 0;
+    if (doorSpr) { SPR_releaseSprite(doorSpr); doorSpr = NULL; }   // (29/10)
+    if (doorFly) { SPR_releaseSprite(doorFly); doorFly = NULL; }
     traagRelease(&traag);
     DMA_setMaxQueueSizeToDefault();
     VDP_setTextPriority(0);

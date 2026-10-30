@@ -325,6 +325,7 @@ void traagSpawn(Traag* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBo
     g->flash = 0;
     g->invuln = 0;
     g->timer = 0;
+    g->enterHold = 0;
     g->arenaLeft = arenaLeft;
     g->arenaRight = arenaRight;
     g->laneTop = laneTop;
@@ -337,6 +338,14 @@ void traagSpawn(Traag* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBo
         SPR_setAnimationLoop(g->sprite, TRUE);
         g->anim = TRAAG_ANIM_WALK;
     }
+}
+
+void traagSpawnDoor(Traag* g, s16 arenaLeft, s16 arenaRight, s16 laneTop, s16 laneBot,
+                    TraagTopAtFn topAt, s16 x, s16 footY, u16 hold) {
+    traagSpawn(g, arenaLeft, arenaRight, laneTop, laneBot, topAt);
+    g->xq = (s16)(x * 4);
+    g->yq = (s16)(footY * 4);
+    g->enterHold = hold;
 }
 
 bool traagIsGone(const Traag* g)  { return g->state == TRAAG_GONE; }
@@ -466,8 +475,14 @@ void traagUpdate(Traag* g, Player** pls, u8 nPl, s16 camX, s16 camY) {
     switch (g->state) {
 
     case TRAAG_ENTER:
-        traagSetAnim(g, TRAAG_ANIM_WALK, TRUE);
         g->dir = -1;
+        if (g->enterHold) {                 // (29/10) recien salido por la puerta
+            g->enterHold--;
+            traagManual(g, TRAAG_ANIM_WALK, 0);
+            if (!g->enterHold) g->anim = 0xFF;   // despues camina de verdad
+            break;
+        }
+        traagSetAnim(g, TRAAG_ANIM_WALK, TRUE);
         g->xq -= tStep(&g->accX, TRAAG_WALK_Q) * 4;
         if ((s16)(g->xq >> 2) <= g->arenaRight - 60) {
             g->xq = (s16)((g->arenaRight - 60) * 4);
