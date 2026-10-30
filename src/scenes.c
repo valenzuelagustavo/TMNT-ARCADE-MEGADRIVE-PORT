@@ -2939,7 +2939,7 @@ static const PendingScene pendingScenes[] = {
     // (23/10) SCENE_CUT_VAN ya tiene su imagen: showCutVan (cut_scenes.c).
     { SCENE_CUT_SPLINTER,       "SPLINTER HAS SOMETHING TO SAY", "(CUTSCENE COMING SOON)", SCENE_DOJO },
     { SCENE_DOJO,               "SCENE 5-2: THE DOJO",           "(LEVEL COMING SOON)",    SCENE_CUT_TECHNODROME },
-    { SCENE_CUT_TECHNODROME,    "JUMP INTO THE TECHNODROME!",    "(CUTSCENE COMING SOON)", SCENE_S6_TITLE },
+    // (29/10) SCENE_CUT_TECHNODROME ya tiene su imagen: showCutTechnodrome (cut_scenes.c).
 };
 #define PENDING_COUNT  ((u16)(sizeof(pendingScenes) / sizeof(pendingScenes[0])))
 

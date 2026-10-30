@@ -12,6 +12,11 @@
 // globo y el cuerpo de Splinter; solo la parte que cambia entre los 13 cuadros
 // (cabeza y boca, 64x40) es un sprite (cut_splinter_mouth), que recorre sus
 // cuadros al ritmo de la voz. START la saltea.
+//
+// SCENE_CUT_TECHNODROME (29/10, antes del nivel del Technodrome): el Technodrome
+// (fondo en BG_B + primer plano en BG_A) con la musica "It's Technodrome" (una
+// pasada, sin loop). Si juega Leo, aparece su sprite y al rato el globo "There
+// it is". START la saltea. Arte: tools/gen_cut_techno.py.
 // ===========================================================================
 #include <genesis.h>
 #include "scenes.h"
@@ -272,4 +277,85 @@ SceneId showCutShredderApril(void) {
     SPR_end();
     SPR_initEx(752);                  // lo que esperan las demas escenas
     return SCENE_S3_TITLE;
+}
+
+// ---------------------------------------------------------------------------
+// SCENE_CUT_TECHNODROME (29/10, antes del nivel del Technodrome)
+// ---------------------------------------------------------------------------
+// Fondo PAL0 (BG_B), Technodrome PAL1 (BG_A), Leo y globo PAL2 (sprites). La
+// VRAM va justa (881 + 460 tiles de planos y 62 de sprites), asi que se usa el
+// plano de 64x32 (el de mas espacio de tiles) y SPR_initEx(64).
+#define TCH_LEO_X          194
+#define TCH_LEO_Y          184
+#define TCH_BUBBLE_X       178
+#define TCH_BUBBLE_Y       152
+#define TCH_BUBBLE_SECS      2     // el globo sale a los 2 s
+#define TCH_TOTAL_SECS      10     // la musica dura 9,8 s (una pasada)
+#define TCH_MUSIC_VOL       80
+
+SceneId showCutTechnodrome(void) {
+    clearScene();
+    while ((JOY_readJoypad(JOY_1) | JOY_readJoypad(JOY_2)) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    VDP_setScreenWidth320();
+    SPR_end();
+    VDP_setPlaneSize(64, 32, TRUE);   // ~1440 tiles de usuario
+    VDP_setBackgroundColor(0);
+    SPR_initEx(64);                   // Leo (30 tiles) + globo (32)
+
+    u16 ti = TILE_USER_INDEX;
+    VDP_drawImageEx(BG_B, &cut_techno_bg, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, ti),
+                    0, 0, FALSE, TRUE);
+    ti = (u16)(ti + cut_techno_bg.tileset->numTile);
+    VDP_drawImageEx(BG_A, &cut_techno_fg, TILE_ATTR_FULL(PAL1, FALSE, FALSE, FALSE, ti),
+                    0, 0, FALSE, TRUE);
+
+    // Leo y su globo, solo si juega Leo (las otras tortugas, cuando lleguen sus PNG)
+    bool leo = FALSE;
+    u8 n = numJugadores();
+    for (u8 k = 0; k < n; k++) if (playerChar(k) == 0) leo = TRUE;
+    Sprite* leoSpr = NULL;
+    Sprite* bubble = NULL;
+    if (leo) {
+        leoSpr = SPR_addSprite(&cut_techno_leo, TCH_LEO_X, TCH_LEO_Y,
+                               TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        bubble = SPR_addSprite(&cut_techno_bubble, TCH_BUBBLE_X, TCH_BUBBLE_Y,
+                               TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+        if (leoSpr) SPR_setAutoAnimation(leoSpr, FALSE);
+        if (bubble) { SPR_setAutoAnimation(bubble, FALSE); SPR_setVisibility(bubble, HIDDEN); }
+    }
+    SPR_update();
+
+    u16 pal[48];
+    memcpy(pal, cut_techno_bg.palette->data, 16 * sizeof(u16));
+    memcpy(pal + 16, cut_techno_fg.palette->data, 16 * sizeof(u16));
+    memcpy(pal + 32, cut_techno_leo.palette->data, 16 * sizeof(u16));
+    pal[0] = 0;                       // el backdrop (indice 0 de PAL0) en negro
+    SYS_doVBlankProcess();
+
+    // Musica: una sola pasada. setLoopNumber va SIEMPRE antes del play (el
+    // driver lo latchea en ese instante); se restaura al salir.
+    XGM2_setLoopNumber(0);
+    playMusicVol(music_techno_cutscene, TCH_MUSIC_VOL);
+
+    PAL_fadeIn(0, 47, pal, CUT_FADE_TICKS, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
+    u16 prev = 0xFFFF;
+    bool skip = FALSE;
+    const u16 total = (u16)(fps * TCH_TOTAL_SECS);
+    for (u16 t = 0; t < total && !skip; t++) {
+        if (bubble && t == fps * TCH_BUBBLE_SECS) SPR_setVisibility(bubble, VISIBLE);
+        skip = splStart(&prev);
+        SPR_update();
+        SYS_doVBlankProcess();
+    }
+
+    XGM2_setLoopNumber(-1);
+    clearScene();                     // fundido a negro (y corta la musica)
+    SPR_end();
+    SPR_initEx(752);                  // lo que esperan las demas escenas
+    return SCENE_S6_TITLE;
 }

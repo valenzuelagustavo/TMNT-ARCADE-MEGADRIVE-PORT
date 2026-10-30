@@ -124,8 +124,10 @@ int main()
         // llegue el arte, cada una pasa a tener su propio case.
         case SCENE_CUT_CITY:
         case SCENE_DOJO:                    // 5-2 (NES)
-        case SCENE_CUT_TECHNODROME:
             currentScene = showPendingScene(currentScene);
+            break;
+        case SCENE_CUT_TECHNODROME:         // (29/10) antes del Technodrome
+            currentScene = showCutTechnodrome();
             break;
         case SCENE_CUT_SHREDDER_APRIL:      // (28/10) tras The Sewer: Rocksteady y April
             currentScene = showCutShredderApril();

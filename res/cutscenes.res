@@ -35,6 +35,14 @@ SPRITE cut_splinter_mouth "images/lvl_7_factory/Cutscene_Factory/splinter_mouth.
 //   cut_sewer_april   April atada, 80x128 en (120,80)
 //   cut_sewer_mouth   boca de Rocksteady 64x64 en (222,160): cuadro 0 cerrada, 1 abierta
 //   cut_sewer_bubble  el globo "Come and get'em, shell-brain", 96x32 en (192,96)
+// (29/10) Antes del Technodrome (SCENE_CUT_TECHNODROME): el Technodrome (fondo en BG_B / primer plano
+// en BG_A, sin comprimir: 881 + 460 tiles) y Leo con el globo "There it is" (sprites, PAL2). Lo arma
+// tools/gen_cut_techno.py desde lvl_8_techno/1600_1604/. Musica: music_techno_cutscene (audio.res).
+IMAGE  cut_techno_bg     "images/lvl_8_techno/cut_techno_bg.png"     NONE ALL
+IMAGE  cut_techno_fg     "images/lvl_8_techno/cut_techno_fg.png"     NONE ALL
+SPRITE cut_techno_leo    "images/lvl_8_techno/cut_techno_leo.png"    6 5 FAST 0
+SPRITE cut_techno_bubble "images/lvl_8_techno/cut_techno_bubble.png" 8 4 FAST 0
+
 IMAGE  cut_sewer_bg     "images/lvl_3_sewer/1432_1459_shredder_bg.png"   FAST ALL
 IMAGE  cut_sewer_fg     "images/lvl_3_sewer/bebop_rocksteady_28.png"     FAST ALL
 SPRITE cut_sewer_april  "images/lvl_3_sewer/cut_april_spr.png"   10 16 FAST 0
