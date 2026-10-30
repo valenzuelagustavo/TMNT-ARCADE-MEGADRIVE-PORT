@@ -250,6 +250,9 @@ def main():
     # (22/10) El del fusil muere con la muerte del naranja (fila 6).
     import gun_orange_death
     gun_orange_death.apply()
+    # (29/10) La lanza muere con la muerte del purple (fila 6).
+    import spear_purple_death
+    spear_purple_death.apply()
 
 
 if __name__ == '__main__':

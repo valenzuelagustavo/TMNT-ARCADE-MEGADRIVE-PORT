@@ -188,8 +188,10 @@ static u16 enemyExplodeTime(const Enemy* e) {
         case ENEMY_TYPE_FOOT_SOLDIER_KNIFE:  return WHITE_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_YELLOW: return YELLOW_EXPLODE_TIME;
         case ENEMY_TYPE_FOOT_SOLDIER_GUN:    return GUN_EXPLODE_TIME;   // (22/10)
-        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER:
-        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return FW_EXPLODE_TIME;
+        case ENEMY_TYPE_FOOT_SOLDIER_HAMMER: return FW_EXPLODE_TIME;
+        // (29/10) La lanza muere con la muerte del purple (6 frames x 8 ticks,
+        // armada en SPEAR_ANIM_EXPLODE por tools/spear_purple_death.py).
+        case ENEMY_TYPE_FOOT_SOLDIER_SPEAR:  return ENEMY_EXPLODE_TIME;
         default:                             return ENEMY_EXPLODE_TIME;
     }
 }
@@ -1984,7 +1986,9 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         // (06/10) Los de arma no tienen explosion en la hoja: quedan tirados y
         // parpadean hasta desaparecer.
         // (22/10) El del fusil no: termina con la explosion del naranja.
-        if (enemyHasWeapon(e->type) && e->type != ENEMY_TYPE_FOOT_SOLDIER_GUN)
+        // (29/10) Tampoco el de la lanza: termina con la explosion del purple.
+        if (enemyHasWeapon(e->type) && e->type != ENEMY_TYPE_FOOT_SOLDIER_GUN &&
+            e->type != ENEMY_TYPE_FOOT_SOLDIER_SPEAR)
             SPR_setVisibility(e->sprite, (e->timer < FW_BLINK_TIME && (e->timer & 2))
                                          ? HIDDEN : VISIBLE);
         SPR_setPosition(e->sprite, e->x - e->cameraOffsetX + enemyShakeX(e), e->y - e->footOffset - e->jumpZ - stageCamY);

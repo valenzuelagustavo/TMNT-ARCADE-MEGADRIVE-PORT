@@ -451,7 +451,9 @@
 #define SPEAR_ANIM_THRUST        3    // 5f: estocada (pega en el 3ro y 4to)
 #define SPEAR_ANIM_THROW         4    // 6f: la lanza sale al empezar el 4to
 #define SPEAR_ANIM_HIT           5    // 1f
-#define SPEAR_ANIM_EXPLODE       6    // 4f: cae (frames de la caida del martillo)
+#define SPEAR_ANIM_EXPLODE       6    // 8f: (29/10) la muerte del purple (6 frames,
+                                      // repartidos en 8 casillas de 6 ticks; ver
+                                      // tools/spear_purple_death.py)
 
 // Celdas (px). Pies en el borde de abajo.
 #define ENEMY_SPRITE_W_GUN     120
