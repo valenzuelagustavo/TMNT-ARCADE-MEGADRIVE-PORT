@@ -1,0 +1,254 @@
+{
+ "res/images/credits/credits_konami.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/credits/credits_turtle_0.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/credits/credits_turtle_1.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/credits/credits_turtle_2.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/credits/credits_turtle_3.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/credits/credits_turtles.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hiscore/hs_portraits.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/char_select_badge.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/char_select_bg.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/char_select_head.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/frames_hud.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/hud4_label.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/hud4_outline.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/hud_1p.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/hud_2p.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/hud_3p.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/hud_4p.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/lives_digits_turtles.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/push_start.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/hud/select player_15 CORES.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/Arcade - Teenage Mutant Ninja Turtles - Miscellaneous -TELA START _GENESIS_FINAL.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/Arcade - Teenage Mutant Ninja Turtles - Miscellaneous -TELA START.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/Arcade - Teenage Mutant Ninja Turtles - TELA 1 320X224.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/intro_quad_tela.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/title_banner.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/title_cursor.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/title_logo.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/title_menu3.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/title_menu4.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/title_menu_bg.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/intro_tmnt/genesis/title_rest.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_1_scene/final_turtles_gen.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_1_scene/turtles.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_5_freeway/fw_bomb_boom.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/images/lvl_5_freeway/fw_missile.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/images/lvl_5_freeway/fw_thrower.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/images/lvl_5_freeway/fw_tire.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/images/lvl_6_skate/sk_board_foot.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_6_skate/sk_board_turtle.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_7_factory/factory_capsule_gen.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_7_factory/factory_laser_gen.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_7_factory/splinter_rope.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/images/lvl_7_factory/splinter_tide_ts.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/APRIL PALETA CHAMAS.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/Foot_Soldier_Orange_new.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/april_l12.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/chamas-sheet.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/door_fire_gen.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/explosion.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/fire_strip_new.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/floor_fire_gen.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/foot_gun_fx.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/foot_gun_gen.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/foot_hammer_gen.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/foot_soldier_ledge_jump_src.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/foot_soldier_purple_13x13.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/foot_spear_fx.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/foot_spear_gen.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/hp_bar.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/hurry_sheet.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/idle_missile.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/mike_anim_13x13.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/50886_leo.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/50887_mike.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/50888_don.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/50923_RAPH.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/don_new_13x13.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/leo_new_13x13.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/mike_new_13x13.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/players/raph_new_13x13.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/raph_anim_13x13.png": [
+  "tortugas (PAL1)"
+ ],
+ "res/sprites/robot_whip_v1.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/sewer_explosao.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/shuriken.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/shuriken_anim.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/spark_ascensor.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/spark_ascensor_anim.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/spark_ascensor_strip.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/sparks.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/sparks_2.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/sparks_2_strip.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/sparks_strip.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/tnt.png": [
+  "enemigos (PAL2, chamas)"
+ ],
+ "res/sprites/whip_waves_v1.png": [
+  "enemigos (PAL2, chamas)"
+ ]
+}
