@@ -16,12 +16,14 @@
 // SCENE_CUT_TECHNODROME (29/10, antes del nivel del Technodrome): el Technodrome
 // (fondo en BG_B + primer plano en BG_A) con la musica "It's Technodrome" (una
 // pasada, sin loop). Si juega Leo, aparece su sprite y al rato el globo "There
-// it is". START la saltea. Arte: tools/gen_cut_techno.py.
+// it is". Las venas grises del tunel titilan con animacion de paleta (cut_techno_pal.h).
+// START la saltea. Arte: tools/gen_cut_techno.py.
 // ===========================================================================
 #include <genesis.h>
 #include "scenes.h"
 #include "cutscenes.h"   // cut_accident, cut_splinter_* (rescomp)
 #include "audio.h"       // thank_you_vo, come_get_vo, shell_brain_vo
+#include "cut_techno_pal.h"  // (29/10) animacion por paleta del fondo del Technodrome (generado)
 #include "hud.h"         // numJugadores, playerChar
 
 #define CUT_HOLD_SECS   4
@@ -292,6 +294,7 @@ SceneId showCutShredderApril(void) {
 #define TCH_BUBBLE_SECS      2     // el globo sale a los 2 s
 #define TCH_TOTAL_SECS      10     // la musica dura 9,8 s (una pasada)
 #define TCH_MUSIC_VOL       80
+#define TCH_PAL_STEP_TICKS   8     // ticks por paso de la animacion de paleta (5 pasos = un ciclo)
 
 SceneId showCutTechnodrome(void) {
     clearScene();
@@ -348,6 +351,11 @@ SceneId showCutTechnodrome(void) {
     const u16 total = (u16)(fps * TCH_TOTAL_SECS);
     for (u16 t = 0; t < total && !skip; t++) {
         if (bubble && t == fps * TCH_BUBBLE_SECS) SPR_setVisibility(bubble, VISIBLE);
+        // Venas del tunel: cuatro indices de PAL0 cambian de color en cada paso
+        if (t % TCH_PAL_STEP_TICKS == 0) {
+            const u16* row = TCH_PAL_ANIM[(t / TCH_PAL_STEP_TICKS) % TCH_PAL_STEPS];
+            for (u8 k = 0; k < TCH_PAL_N; k++) PAL_setColor(TCH_PAL_IDX[k], row[k]);
+        }
         skip = splStart(&prev);
         SPR_update();
         SYS_doVBlankProcess();
