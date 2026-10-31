@@ -1,5 +1,6 @@
 #include "enemy.h"
 #include "difficulty.h"  // (20/10) atacantes y esperas segun jugadores
+#include "hud.h"     // (31/10) hudHealSoon
 #include "audio.h"   // foot_soldier_explode (la llave), hit_foot_sfx, shuriken_throw_sfx
 
 // Ancho visible de la MegaDrive en píxeles. Se redefine localmente (igual
@@ -799,6 +800,7 @@ bool sprVramFits(u16 need) {
     if (vtimer - last < 30) return FALSE;
     last = vtimer;
     SPR_defragVRAM();
+    hudHealSoon();      // (31/10) la mudanza de bloques pide subir de golpe: puede perder tiles del HUD
     return SPR_getLargestFreeVRAMBlock() >= need;
 }
 

@@ -104,6 +104,11 @@ void hudPlayerInit(HudPlayer* h, Player* pl, u16 baseCol, u16 barVram);
 u8   p2JoinPoll(u16 baseCol);
 void p2JoinReset(void);
 
+// (31/10) Avisa que se acaba de desfragmentar la VRAM de sprites (SPR_defragVRAM mudo bloques
+// y los pedidos de subida de tiles pueden haberse perdido por el tope de DMA): los marcos del
+// HUD vuelven a subir sus tiles a los 2, 6 y 20 frames. Ver hudHealTick (scenes.c).
+void hudHealSoon(void);
+
 // Redibuja SOLO lo que cambio. Una vez por frame.
 void hudPlayerUpdate(HudPlayer* h);
 

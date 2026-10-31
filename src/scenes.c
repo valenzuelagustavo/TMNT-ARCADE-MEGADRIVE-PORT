@@ -1011,6 +1011,10 @@ static void hudRefreshTiles(void) {
     for (u8 k = 0; k < MAX_PLAYERS; k++) sprRequestUpload(hud4Lbl[k]);
 }
 
+void hudHealSoon(void) {
+    hudMovedT = 0;
+}
+
 static void hudHealTick(void) {
     if (vtimer == hudTickT) return;        // hay un hudPlayerUpdate por jugador: una vez por frame
     hudTickT = vtimer;
