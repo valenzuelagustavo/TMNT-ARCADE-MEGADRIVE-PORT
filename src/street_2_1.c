@@ -312,6 +312,8 @@ static void billUpdate(Player** pls, u8 nPl, s16 camX, s16 camY) {
         if (billY >= BILL_DOWN_Y) {
             billState = BILL_DOWN;
             y = BILL_DOWN_Y; x = BILL_DOWN_X;
+            // (31/10) el golpe contra el suelo suena como las bolas de hierro
+            XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
             for (u8 k = 0; k < nPl; k++) {
                 s16 fx = (s16)(pls[k]->x + PLAYER_SPRITE_W / 2);
                 if (fx < BILL_HIT_X0 || fx > BILL_HIT_X1) continue;

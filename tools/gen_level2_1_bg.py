@@ -131,6 +131,31 @@ def fill_street_gap(pix):
     return pix
 
 
+# (31/10) FRANJA NEGRA ABAJO A LA IZQUIERDA. En el tramo de la calle (columnas
+# 0..1253) el arte termina en la fila 255, pero la camara puede quedar con camY
+# de 33 a 39 (el corredor solo obliga a camY=32 cuando camX < 1254) y entonces
+# se ven de 1 a 7 lineas por debajo de la fila 255: celdas sin arte = tile 0 =
+# negro. Se agregan PAD_ROWS lineas de calle debajo (copia de la ultima linea
+# lisa de la calle) en las columnas cuyo arte termina justo en PAD_FROM_ROW.
+PAD_FROM_ROW = 256        # primera fila de pixeles que falta
+PAD_ROWS = 16             # 2 filas de tiles
+PAD_SRC_ROW = 254         # fila lisa de la calle que se copia hacia abajo
+
+
+def pad_street_bottom(pix):
+    """Completa en memoria el fondo de la calle (ver PAD_*)."""
+    H, W = pix.shape
+    out = pix.copy()
+    last = np.where((pix != 0).any(axis=0),
+                    H - 1 - np.argmax((pix != 0)[::-1], axis=0), -1)
+    cols = np.nonzero(last == PAD_FROM_ROW - 1)[0]
+    print("relleno de calle: %d columnas (x %d..%d), %d lineas"
+          % (len(cols), cols.min(), cols.max(), PAD_ROWS))
+    for y in range(PAD_FROM_ROW, min(H, PAD_FROM_ROW + PAD_ROWS)):
+        out[y, cols] = pix[PAD_SRC_ROW, cols]
+    return out
+
+
 def _reach(mask, axis, rev, radius):
     """True donde hay un pixel de 'mask' a <= radius, mirando hacia atras sobre
     'axis' (o hacia adelante si rev)."""
@@ -269,6 +294,10 @@ def main():
     rows_used = int(np.nonzero((pix != 0).any(axis=1))[0].max()) + 1
     pix = pix[: ((rows_used + 7) // 8) * 8]
     pix = fill_street_gap(pix)
+    # El corredor de camara se calcula con el arte tal cual, ANTES del relleno
+    # de PAD_*: asi las tablas de camara no cambian.
+    lo_tab, hi_tab = build_corridor(close_holes(pix))
+    pix = pad_street_bottom(pix)
     H, W = pix.shape
     COLS, ROWS = W // 8, H // 8
 
@@ -280,7 +309,6 @@ def main():
                 .reshape(ROWS, COLS, 64))
     used = (tiles != 0).any(axis=2)          # celda con arte
 
-    lo_tab, hi_tab = build_corridor(close_holes(pix))
     print("corredor: camX %d..%d (camY=%d)  ->  %d..%d (camY=%d)"
           % (lo_tab[0], hi_tab[0], CAM_Y_MIN, lo_tab[-1], hi_tab[-1], CAM_Y_MAX))
     # Los ESCALONES: los saltos del techo son los "topes" de camara marcados
@@ -479,6 +507,11 @@ def main():
     # (paso: quedaron 11 declaradas y el generador escribio 13).
     with open(os.path.join(ROOT, "res", "level2_1.res"), "w") as f:
         f.write(RES_TXT % dict(nsec=n_sec))
+        f.write("// (23/10, rama mapper) NEAR: todo lo de este archivo va en los primeros\n"
+                "// 3 MB de la ROM (sin bank switch). Lo lee el codigo directo de la ROM\n"
+                "// (fondos streameados, tiles por cuadro, mapas) o lo toca el Z80 (audio).\n"
+                "// Ver tools/mapper/README.md.\n"
+                "NEAR\n\n")
         f.write('PALETTE lvl21_pal "images/lvl_2_scene/genesis/lvl21_pal.png"\n\n')
         for s2 in range(n_sec):
             f.write('TILESET lvl21_sec%02d "images/lvl_2_scene/genesis/'
