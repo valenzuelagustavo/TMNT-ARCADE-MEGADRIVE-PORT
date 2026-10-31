@@ -740,6 +740,15 @@ static void spawnWaveEnemy(Enemy* e, u8 type, s8 side, s16 camX, s16 atX) {
         setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
         return;
     }
+    if (side == STAGE_FROM_TRUCK) {
+        // (31/10) De la caja de la camioneta TCRI (garage): ver stage_level.h.
+        s16 y  = ledgeSnap(stageSpawnY);
+        s8  d  = (atX < camX + SCREEN_W / 2) ? 1 : -1;
+        u8  pl = (type == ENEMY_TYPE_FOOT_SOLDIER_WHITE || type == ENEMY_TYPE_FOOT_SOLDIER_KNIFE) ? PAL3 : PAL2;
+        initEnemyTruckSpawn(e, (s16)(atX - w / 2), y, STAGE_TRUCK_DROP_Z, d, pl, type);
+        setEnemyBounds(e, cur->walkYMin, cur->walkYMax, 0, 0, cur->levelW);
+        return;
+    }
     if (side == STAGE_FROM_BACK) {
         // (12/10) Desde el FONDO del piso (garage): el morado baja de un salto
         // (como del agua, sin salpicon); los demas salen caminando hacia el
@@ -800,6 +809,16 @@ bool stageSpawnEnemyAt(u8 type, s8 side, s16 x, s16 y) {
     if (!stageEnemyList[i].sprite) {            // (13/10) sin sprite: no salio
         stageEnemyList[i].state = ENEMY_STATE_INACTIVE;
         return FALSE;
+    }
+    if (side == STAGE_FROM_TRUCK) {
+        // (31/10) levelUpdate corre DESPUES del bucle de soldiers: sin esto el
+        // sprite nuevo se veria un cuadro en su posicion cruda (de mundo, en el
+        // piso) antes de que su primer update lo suba a la caja.
+        Enemy* e = &stageEnemyList[i];
+        setEnemyCamera(e, stageCamXv);
+        SPR_setPosition(e->sprite, e->x - e->cameraOffsetX, e->y - e->footOffset - e->jumpZ - stageCamY);
+        SPR_setHFlip(e->sprite, (e->dir < 0));
+        SPR_setDepth(e->sprite, -(e->y));
     }
     return TRUE;
 }

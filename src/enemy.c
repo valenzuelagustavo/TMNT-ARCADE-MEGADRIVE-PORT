@@ -1520,6 +1520,20 @@ void initEnemyWalkInSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 ty
     SPR_setAnimationLoop(e->sprite, TRUE);
 }
 
+// Baja de la caja de una camioneta (31/10): ver enemy.h. El timer dura lo mismo
+// que la bajada (dropZ frames, 1 px por frame): al terminar jumpZ llega justo
+// a 0 y el bloque de SPAWNING lo pasa a CHASE.
+void initEnemyTruckSpawn(Enemy* e, s16 spawnX, s16 laneY, s16 dropZ, s8 dir, u8 palette, u8 type) {
+    initEnemySpawn(e, spawnX, laneY, 0, palette, type);
+    e->state      = ENEMY_STATE_SPAWNING;
+    e->dir        = dir;
+    e->somersault = 3;
+    e->jumpZ      = dropZ;
+    e->timer      = (u16)dropZ;
+    enemySetAnim(e, enemyAnimWalk(e), TRUE);
+    SPR_setAnimationLoop(e->sprite, TRUE);
+}
+
 // Spawn con VOLTERETA (anim 15): el morado entra desde fuera de pantalla
 // haciendo la voltereta (7 frames) mientras avanza ENEMY_SOMERSAULT_SPEED
 // px/frame (más rápido que el walk), y al terminar pasa a CHASE. Usada para
@@ -2066,6 +2080,8 @@ void updateEnemyN(Enemy* e, Player** pls, u8 nPl) {
         if (e->somersault == 2) {                 // (29/09) entrada caminando
             e->x += e->dir * ENEMY_WALKIN_SPEED;
             e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));
+        } else if (e->somersault == 3) {          // (31/10) baja de la caja de la camioneta
+            if (e->jumpZ > 0) e->jumpZ--;
         } else if (e->somersault) {
             e->x += e->dir * ENEMY_SOMERSAULT_SPEED;
             e->x = clampS16(e->x, enemyMinX(e), enemyMaxX(e));

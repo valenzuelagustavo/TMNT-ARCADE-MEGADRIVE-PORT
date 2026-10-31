@@ -74,11 +74,14 @@ static const SbgRaw garage41 = {
     &pal_garage,
 };
 
-static const SbgRegion garageRegs[2] = {
+static const SbgRegion garageRegs[3] = {
     { LVL41_REG_CAR_C0, LVL41_REG_CAR_R0, LVL41_REG_CAR_W, LVL41_REG_CAR_H,
       LVL41_REG_CAR_NVAR, (const u16*) bg_garage_var + LVL41_REG_CAR_OFF },
     { LVL41_REG_DOOR_C0, LVL41_REG_DOOR_R0, LVL41_REG_DOOR_W, LVL41_REG_DOOR_H,
       LVL41_REG_DOOR_NVAR, (const u16*) bg_garage_var + LVL41_REG_DOOR_OFF },
+    // (31/10) las puertas traseras de la camioneta TCRI (truck_door.png)
+    { LVL41_REG_TRUCK_C0, LVL41_REG_TRUCK_R0, LVL41_REG_TRUCK_W, LVL41_REG_TRUCK_H,
+      LVL41_REG_TRUCK_NVAR, (const u16*) bg_garage_var + LVL41_REG_TRUCK_OFF },
 };
 
 // ---------------------------------------------------------------------------
@@ -89,6 +92,10 @@ static const SbgRegion garageRegs[2] = {
 // claude/garage-arcade-oleadas-12-10.md. BK = bajan del fondo del piso: los
 // morados de la caja del camion (x ~380) y los del fusil del hueco que deja el
 // auto al irse (x ~750).
+// (31/10) Los dos morados de la camioneta TCRI ya no bajan "del fondo": la
+// oleada de x 415 trae el actor SP_TRUCK, que abre las puertas traseras y los
+// suelta de la caja (ver LA CAMIONETA TCRI, mas abajo).
+#define SP_TRUCK (STAGE_SPECIAL + 0)
 #define P ENEMY_TYPE_FOOT_SOLDIER
 #define O ENEMY_TYPE_FOOT_SOLDIER_ORANGE
 #define G ENEMY_TYPE_FOOT_SOLDIER_GUN
@@ -100,7 +107,7 @@ static const StageWave waves41[] = {
     {    0,   0, 3, { W, W, W },          { BK, +1, +1 },        { 286, 0, 0 } },
     {  250,  70, 3, { S, S, S },          { +1, +1, +1 },        { 0 } },
     {  296, 116, 3, { O, O, O },          { +1, +1, -1 },        { 0 } },
-    {  415, 235, 4, { W, W, P, P },       { +1, +1, BK, BK },    { 0, 0, 368, 398 } },
+    {  415, 235, 3, { SP_TRUCK, W, W },   { 0, +1, +1 },         { 0, 0, 0 } },
     {  520, 340, 3, { P, P, P },          { +1, +1, -1 },        { 0 } },
     {  700, 520, 2, { W, W },             { +1, +1 },            { 0 } },
     {  790, 584, 5, { G, G, G, G, W },    { BK, BK, BK, BK, +1 }, { 730, 760, 745, 775, 0 } },
@@ -232,6 +239,25 @@ static void propRelease(Prop* p) {
 static void pizzaInit41(void);
 static void pizzaRelease41(void);
 
+// ===========================================================================
+// LA CAMIONETA TCRI (31/10)
+// ===========================================================================
+// En el arcade (oleada de x ~415) la camioneta gris abre las puertas traseras
+// y de la caja salen dos morados. El fondo trae las puertas como una REGION
+// VARIABLE (LVL41_REG_TRUCK: 0 cerradas, 1..N girando, N = truck_door.png);
+// el actor SP_TRUCK de la oleada las abre cuadro a cuadro y, con la caja ya
+// a la vista, suelta los dos soldiers con STAGE_FROM_TRUCK (parados en la
+// caja, bajan caminando al piso). Mientras dura cuenta como "vivo": la camara
+// no se suelta antes de que salgan los dos.
+#define TRUCK_STEP_TICKS    5     // frames por cuadro de la apertura
+#define TRUCK_WAIT_OPEN    14     // abierta del todo, antes de que salga el primero
+#define TRUCK_GAP          30     // del primero al segundo
+#define TRUCK_LANE_Y      132     // piso donde llegan (el de siempre de los BK)
+#define TRUCK_N_OUT         2
+static const s16 truckOutX[TRUCK_N_OUT] = { 362, 392 };   // centro del cuerpo (mundo)
+enum { TRK_IDLE = 0, TRK_OPENING, TRK_OUT, TRK_DONE };
+static u8 trkState, trkFrame, trkT, trkOut;
+
 static void lvl41Init(void) {
     for (u16 i = 0; i < N_PROPS; i++) {
         props[i].spr = props[i].boom = NULL;
@@ -246,6 +272,7 @@ static void lvl41Init(void) {
     car.spr[0] = car.spr[1] = NULL;
     car.hitMask = 0;
     pizzaInit41();
+    trkState = TRK_IDLE;
 }
 
 static void lvl41Release(void) {
@@ -703,10 +730,56 @@ static void pizzaUpdate41(Player** pls, u8 nPl, s16 camX) {
     }
 }
 
+// La oleada llega al SP_TRUCK: empieza a abrir. Si ya se habia hecho (la oleada
+// se repite), las puertas siguen abiertas y salen otros dos.
+static bool lvl41Special(u8 type, s8 side, s16 x, s16 camX) {
+    (void)side; (void)x; (void)camX;
+    if (type != SP_TRUCK) return TRUE;
+    if (trkState == TRK_IDLE) {
+        trkState = TRK_OPENING;
+        trkFrame = 0;
+        trkT = TRUCK_STEP_TICKS;
+    } else if (trkState == TRK_DONE) {
+        trkState = TRK_OUT;
+        trkOut = 0;
+        trkT = 0;
+    }
+    return TRUE;
+}
+
+static u16 lvl41SpecialAlive(void) {
+    return (u16)((trkState == TRK_OPENING || trkState == TRK_OUT) ? 1 : 0);
+}
+
+static void truckUpdate41(void) {
+    if (trkState == TRK_OPENING) {
+        if (trkT) { trkT--; return; }
+        trkFrame++;
+        sbgSetVariant(LVL41_REG_TRUCK, trkFrame);
+        if (trkFrame >= LVL41_REG_TRUCK_NVAR) {
+            trkState = TRK_OUT;
+            trkOut = 0;
+            trkT = TRUCK_WAIT_OPEN;
+        } else {
+            trkT = TRUCK_STEP_TICKS;
+        }
+    } else if (trkState == TRK_OUT) {
+        if (trkT) { trkT--; return; }
+        // Sin lugar (tope de vivos) o sin VRAM: devuelve FALSE y se reintenta
+        // el cuadro siguiente.
+        if (stageSpawnEnemyAt(ENEMY_TYPE_FOOT_SOLDIER, STAGE_FROM_TRUCK,
+                              truckOutX[trkOut], TRUCK_LANE_Y)) {
+            if (++trkOut >= TRUCK_N_OUT) trkState = TRK_DONE;
+            else                         trkT = TRUCK_GAP;
+        }
+    }
+}
+
 static void lvl41Update(Player** pls, u8 nPl, s16 camX) {
     carUpdate(pls, nPl, camX);
     propsUpdate(pls, nPl, camX);
     pizzaUpdate41(pls, nPl, camX);
+    truckUpdate41();
 }
 
 // ===========================================================================
@@ -1178,10 +1251,13 @@ static void bossRelease41(void) {
 static const StageLevel level41 = {
     .bgRaw        = &garage41,
     .bgRegions    = garageRegs,
-    .nBgRegions   = 2,
+    .nBgRegions   = 3,
     .fg           = NULL,
     .camYMax      = LVL41_CAM_Y_MAX,
-    .bgSlots      = LVL41_BG_WORST + 16,
+    // (31/10) LVL41_BG_WORST ahora es el peor caso EXACTO (una variante por
+    // region a la vez; antes sumaba todas y tenia ~49 de holgura sin querer):
+    // 64 de margen dejan el cache del tamano de siempre (672 -> 675).
+    .bgSlots      = LVL41_BG_WORST + 64,
     .levelW       = LVL41_W,
     .walkTop      = NULL,           // franja pareja: walkYMin
     .walkCols     = 0,
@@ -1203,6 +1279,8 @@ static const StageLevel level41 = {
     .levelInit    = lvl41Init,
     .levelUpdate  = lvl41Update,
     .levelRelease = lvl41Release,
+    .specialSpawn = lvl41Special,        // (31/10) la camioneta TCRI
+    .specialAlive = lvl41SpecialAlive,
     .nextScene    = SCENE_CUT_KISS,   // (30/10) garage (3-2) -> April besa a la tortuga -> titulo de la SCENE 4
 };
 

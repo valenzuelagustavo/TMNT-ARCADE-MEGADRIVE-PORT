@@ -8,6 +8,8 @@
 #                       mas 16 filas de piso abajo. Tiene VACIOS el lugar del
 #                       auto (entre el camion verde y la camioneta azul) y el
 #                       hueco del ascensor.
+#   truck_door.png      (31/10) las puertas de la camioneta TCRI abiertas
+#                       (123x81, indices 1..5 = los mismos de la paleta del fondo)
 #   car.png             el auto (172x100) que sale del estacionamiento
 #   sprite_cover_car.png la cola del camion verde que tapa al auto (81x120)
 #   elevator_door.png   la puerta del ascensor (80x82)
@@ -25,6 +27,14 @@
 #   1 DOOR  la puerta del ascensor. Variantes 1..N = la puerta abriendose por
 #           la mitad de a 8 px (arriba sube, abajo baja; 12/10, como el
 #           arcade); la N es el hueco sin puerta.
+#   2 TRUCK (31/10) las puertas traseras de la camioneta TCRI (la gris, entre
+#           el auto azul y el cajon "PIPE PAINT"): de ahi bajan los dos
+#           morados de la oleada de x~415. Variante 0 = cerradas (el fondo);
+#           1..N = se abren: las dos hojas giran sobre sus bisagras (se
+#           achican hasta quedar de canto y salen del otro lado) hasta la
+#           ultima, que es truck_door.png tal cual (puertas abiertas del
+#           arcade, 123x81). Los cuadros del medio se arman aca: hoja cerrada
+#           del fondo comprimida en X, el interior de truck_door.png detras.
 #
 # Ademas remapea los props (carteles, conos, barriles, el auto, la puerta) a
 # los indices de la paleta del fondo: vienen de la misma hoja del arcade pero
@@ -40,7 +50,7 @@
 #   garage_boom.png         la explosion del TNT en la paleta del fondo (01/10)
 #   garage_pizza.png        la caja de pizza del 2-1 en la paleta del fondo (12/10)
 # =============================================================================
-import os, struct
+import itertools, os, struct
 from PIL import Image
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
@@ -54,6 +64,19 @@ COVER_POS = (642, 0)
 DOOR_POS  = (1067, 38)
 DOOR_STEP = 8       # (12/10) px por paso de cada hoja (multiplo de 8: reusa tiles)
 DOOR_SPLIT = 40     # (12/10) primera fila de la hoja de abajo (barra amarilla)
+
+# (31/10) Puertas de la camioneta TCRI. TRUCK_POS = donde cae la esquina
+# sup. izq. de truck_door.png (medido contra el fondo: la linea clara de arriba
+# del panel esta en y=30, las bisagras en x=337 y x=417, la juntura en x=377).
+TRUCK_POS     = (316, 30)
+TRUCK_HINGE_L = 337
+TRUCK_HINGE_R = 417
+TRUCK_LEAF_Y0 = 31      # filas de las hojas: [Y0, Y1); mas abajo quedan las luces
+TRUCK_LEAF_Y1 = 92      # traseras y el paragolpes, que no se mueven
+# Cuadros del medio: ('closed', w) = la hoja cerrada comprimida a w px de ancho
+# desde la bisagra; ('inside', w) = ya paso de canto, se ve el lado de adentro
+# (el de truck_door.png) comprimido a w px del otro lado de la bisagra.
+TRUCK_FRAMES = [('closed', 32), ('closed', 14), ('inside', 9)]
 
 PROPS = ['20_mph_signal', 'oneway_signal', 'cono', 'barrel_explosive',
          'car', 'elevator_door', 'sprite_cover_car']
@@ -90,6 +113,57 @@ def paste(dst, src, pos):
         for x in range(src.size[0]):
             if sp[x, y]:
                 dp[pos[0] + x, pos[1] + y] = sp[x, y]
+
+
+def truck_variants(main_im, tdoor):
+    """Cuadros de la apertura de las puertas de la camioneta (ver TRUCK_*)."""
+    ox, oy = TRUCK_POS
+    dw, dh = tdoor.size
+    dp = tdoor.load()
+    mp = main_im.load()
+    mid = (TRUCK_HINGE_L + TRUCK_HINGE_R) // 2
+    lw = mid - TRUCK_HINGE_L                     # ancho de cada hoja cerrada
+    lo, hi = TRUCK_HINGE_L - ox, TRUCK_HINGE_R - ox   # interior en truck_door
+
+    def with_interior():
+        v = main_im.copy()
+        vp = v.load()
+        for y in range(dh):
+            for x in range(lo, hi):
+                if dp[x, y]:
+                    vp[ox + x, oy + y] = dp[x, y]
+        return v
+
+    out = []
+    for kind, w in TRUCK_FRAMES:
+        v = with_interior()
+        vp = v.load()
+        if kind == 'closed':
+            for dx in range(w):
+                sx = (dx * lw) // w
+                for y in range(TRUCK_LEAF_Y0, TRUCK_LEAF_Y1):
+                    vp[TRUCK_HINGE_L + dx, y] = mp[TRUCK_HINGE_L + sx, y]
+                    vp[TRUCK_HINGE_R - dx, y] = mp[TRUCK_HINGE_R - sx, y]
+        else:
+            lw_open = lo                          # la hoja abierta: lo columnas
+            for dx in range(w):
+                sx = (dx * lw_open) // w          # 0 = pegada a la bisagra
+                for y in range(dh):
+                    a = dp[lo - 1 - sx, y]
+                    if a:
+                        vp[TRUCK_HINGE_L - 1 - dx, oy + y] = a
+                    b = dp[hi + 1 + sx, y]
+                    if b:
+                        vp[TRUCK_HINGE_R + 1 + dx, oy + y] = b
+        out.append(v)
+    v = main_im.copy()                            # la ultima: truck_door.png entera
+    vp = v.load()
+    for y in range(dh):
+        for x in range(dw):
+            if dp[x, y]:
+                vp[ox + x, oy + y] = dp[x, y]
+    out.append(v)
+    return out
 
 
 def main():
@@ -223,6 +297,16 @@ def main():
     vars_.append(empty)
     regions.append(('DOOR', c0, r0, c1 - c0 + 1, r1 - r0 + 1, vars_))
 
+    # TRUCK (31/10): las puertas de la camioneta TCRI, ver truck_variants()
+    tdoor = Image.open(os.path.join(D, 'truck_door.png'))
+    assert tdoor.mode == 'P' and tdoor.size == (123, 81)
+    assert max(tdoor.tobytes()) <= 5 and tdoor.getpalette()[:18] == pal[:18]
+    c0, r0 = TRUCK_POS[0] // 8, TRUCK_POS[1] // 8
+    c1 = (TRUCK_POS[0] + tdoor.size[0] - 1) // 8
+    r1 = (TRUCK_POS[1] + tdoor.size[1] - 1) // 8
+    regions.append(('TRUCK', c0, r0, c1 - c0 + 1, r1 - r0 + 1,
+                    truck_variants(main_im, tdoor)))
+
     # --- tileset comun + mapas (formato ancho de stage_raw) ---
     tiles = [tuple((0,) * 8 for _ in range(8))]
     index = {tiles[0]: (0, 0)}
@@ -266,14 +350,43 @@ def main():
         for c in var_cells:
             f.write(struct.pack('>H', c))
 
-    # peor caso del cache en 42 columnas (con cualquier variante puesta)
-    colsets = [set(cells[r * TW + c] & 0x0FFF for r in range(TH)) for c in range(TW)]
-    for name, c0, r0, w, h, n, o in reg_info:
-        for vi in range(n):
-            for cc in range(w):
-                for rr in range(h):
-                    colsets[c0 + cc].add(var_cells[o + vi * w * h + rr * w + cc] & 0x0FFF)
-    worst = max(len(set().union(*colsets[c:c + 42])) for c in range(TW - 41))
+    # peor caso del cache en 42 columnas. (31/10) EXACTO: cada region tiene UNA
+    # sola variante puesta a la vez (sbgSetVariant suelta la vieja antes de
+    # pedir la nueva), asi que se prueban las combinaciones de variantes de las
+    # regiones que tocan la ventana. Antes se sumaban los tiles de TODAS las
+    # variantes juntas (656 en vez de 607 con el auto y el ascensor) y la
+    # holgura quedaba por accidente; level4_1.c suma ahora su margen a mano.
+    def col_tiles(c, v):
+        s = set()
+        for r in range(TH):
+            cell = cells[r * TW + c]
+            for name, c0, r0, w, h, n, o in reg_info:
+                if v and c0 <= c < c0 + w and r0 <= r < r0 + h:
+                    cell = var_cells[o + (v - 1) * w * h + (r - r0) * w + (c - c0)]
+            s.add(cell & 0x0FFF)
+        return s
+
+    def reg_of(c):
+        for i, (name, c0, r0, w, h, n, o) in enumerate(reg_info):
+            if c0 <= c < c0 + w:
+                return i
+        return -1
+
+    cache = {}
+
+    def colset(c, asg):
+        i = reg_of(c)
+        v = asg.get(i, 0) if i >= 0 else 0
+        if (c, v) not in cache:
+            cache[(c, v)] = col_tiles(c, v)
+        return cache[(c, v)]
+
+    worst = 0
+    for c in range(TW - 41):
+        touch = sorted(set(reg_of(cc) for cc in range(c, c + 42)) - {-1})
+        for combo in itertools.product(*[range(reg_info[i][5] + 1) for i in touch]):
+            asg = dict(zip(touch, combo))
+            worst = max(worst, len(set().union(*[colset(cc, asg) for cc in range(c, c + 42)])))
 
     with open(os.path.join(ROOT, 'src', 'level4_1_bg.h'), 'w') as f:
         f.write('// GENERADO por tools/gen_level4_1_bg.py -- NO EDITAR A MANO\n')
@@ -287,6 +400,7 @@ def main():
             f.write('#define LVL41_REG_%s_NVAR %d\n#define LVL41_REG_%s_OFF %d\n' % (name, n, name, o))
         f.write('#define LVL41_CAR_X %d\n#define LVL41_CAR_Y %d\n' % CAR_POS)
         f.write('#define LVL41_DOOR_X %d\n#define LVL41_DOOR_Y %d\n' % DOOR_POS)
+        f.write('#define LVL41_TRUCK_X %d\n#define LVL41_TRUCK_Y %d\n' % TRUCK_POS)
         f.write('#endif\n')
     print('%d tiles, peor caso en 42 columnas: %d, variantes: %s'
           % (len(tiles), worst, [(r[0], r[5]) for r in reg_info]))

@@ -52,6 +52,12 @@
 // caminando (el que ya tiro el misil pasa a ser un morado comun).
 #define STAGE_JUMP_IN   4
 #define STAGE_IN_PLACE  5
+// (31/10) STAGE_FROM_TRUCK (solo por stageSpawnEnemyAt): el soldier baja de la
+// caja de una camioneta con las puertas abiertas (garage). (x, y) = centro del
+// cuerpo y lane del piso donde llega; aparece STAGE_TRUCK_DROP_Z px mas arriba
+// (parado en la caja) y baja caminando 1 px por frame hasta el piso.
+#define STAGE_FROM_TRUCK    6
+#define STAGE_TRUCK_DROP_Z  28
 // (12/10) type >= STAGE_SPECIAL en una oleada no es un soldier: es un ACTOR del
 // nivel (auto, motos, el del misil...). Lo arranca L->specialSpawn (FALSE =
 // todavia no, se reintenta el frame siguiente) y L->specialAlive dice cuantos

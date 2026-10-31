@@ -800,7 +800,8 @@ typedef struct {
     s16         footOffset;   // Pies dentro del frame (px, según el tipo)
     s8          lastMoveDir;  // Última dirección horizontal de movimiento (+1/-1/0)
     u8          turnTimer;    // Frames restantes del giro (ENEMY_STATE_TURN)
-    u8          somersault;   // 1 = spawn entrando con voltereta (anim 15)
+    u8          somersault;   // 1 = spawn entrando con voltereta (anim 15); 2 = entrando
+                              // caminando; 3 = (31/10) baja de la caja de una camioneta
     u8          tntThrow;     // 1 = spawn guionado de la ESCALERA: reproduce la
                               // anim 16 y suelta el cartucho en el frame 11.
                               // Se apaga al soltarlo: no se repite nunca.
@@ -924,6 +925,11 @@ void initEnemyWhiteJumpSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette);
 // el blanco. Camina a velocidad normal hasta dejar el centro del cuerpo
 // ENEMY_WALKIN_MARGIN px adentro del borde y ahi pasa a CHASE.
 void initEnemyWalkInSpawn(Enemy* e, s16 spawnX, s16 y, s8 dir, u8 palette, u8 type);
+// (31/10) Baja de la CAJA DE UNA CAMIONETA (garage): su lane es 'laneY' (el
+// piso) pero lo dibuja 'dropZ' px mas arriba (parado en la caja) y camina en el
+// lugar bajando 1 px por frame (como los que bajan de la escalera del 1-1:
+// jumpZ). Sin X propia y sin golpes hasta llegar al piso; ahi pasa a CHASE.
+void initEnemyTruckSpawn(Enemy* e, s16 spawnX, s16 laneY, s16 dropZ, s8 dir, u8 palette, u8 type);
 
 // Los Player* se usan para el AGARRE por la espalda: el morado pone al jugador
 // en STATE_GRABBED (playerFootGrab) y lo suelta al zafarse (mash), ser golpeado
