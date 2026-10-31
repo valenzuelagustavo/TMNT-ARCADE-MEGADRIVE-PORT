@@ -419,10 +419,10 @@ static u8 kissTurtle(void) {
     return (ch > 4) ? 0 : ch;
 }
 
-// Voz "I owe you one": cuando salga el globo. Aun sin audio: agregar el WAV a audio.res
-// (WAV owe_you_vo "audio/6650/owe_you.wav" XGM2 6650) y descomentar la linea.
+// Voz "I owe you one" (i_owe_you_vo, 0,88 s) cuando sale el globo (que dura 6 x KISS_STEP_TICKS =
+// 1 s a 60 Hz: la voz entra entera).
 static void kissVoice(void) {
-    // XGM2_playPCMEx(owe_you_vo, sizeof(owe_you_vo), SOUND_PCM_CH2, SPL_VO_PRIO, TRUE, FALSE);
+    XGM2_playPCMEx(i_owe_you_vo, sizeof(i_owe_you_vo), SOUND_PCM_CH2, SPL_VO_PRIO, TRUE, FALSE);
 }
 
 // Aplica una lista del delta (n, n x (posicion, entrada)) a un plano; devuelve lo que sigue.

@@ -136,7 +136,14 @@ WAV attack_vo "audio/6650/attack.wav" XGM2 6650
 // WAV intro_vo_heroes "music/intro_voice/gen/03_heroes_in_a_half_shell.wav" XGM2
 // WAV intro_vo_power  "music/intro_voice/gen/04_turtle_power.wav" XGM2
 WAV scream_april "audio/6650/scream_april.wav" XGM2 6650
+// (31/10) iron_ball.wav NUEVO (1,04 s, un golpe de metal con cola; el viejo era de 0,2 s): suena en
+// cada pique de las bolas de la escalera del 1-1 y de las del ascensor del Technodrome (scenes.c,
+// techno_hazards.c). El viejo queda como krang_drop_sfx: Krang lo seguia usando al caer del techo
+// y no se le toca el sonido (krang.c).
+//   iron_ball_sfx   1,04s  pico 94%  rms 22,4%  6.916 B
+//   krang_drop_sfx  0,20s  pico 29%  rms 12,0%  1.330 B
 WAV iron_ball_sfx "audio/6650/iron_ball.wav" XGM2 6650
+WAV krang_drop_sfx "audio/6650/krang_drop.wav" XGM2 6650
 // WAV attack_turtles "audio/attack_turtles.wav" XGM2
 WAV hit_turtles "audio/6650/hit_turtles.wav" XGM2 6650
 // (24/10) boss_hit sonaba muy bajo (pico 21,9%, rms 5,5%): ganancia x4,58
@@ -351,3 +358,7 @@ WAV shell_brain_vo "audio/6650/shell_brain.wav" XGM2 6650
 // ganancia a rms 22% como al resto de los VO (pico 79%), 6650 Hz.
 //   lets_move_vo           0,760s  pico 79%  rms 22,0%  5.120 B
 WAV lets_move_vo      "audio/6650/lets_move.wav" XGM2 6650
+// (31/10) "I owe you one": April besa a la tortuga (cut_scenes.c, showCutKiss). Original 8 kHz,
+// ganancia x0,794 hasta rms 22% (el nivel de los otros VO).
+//   i_owe_you_vo           0,880s  pico 79%  rms 22,0%  5.852 B
+WAV i_owe_you_vo      "audio/6650/i_owe_you_one.wav" XGM2 6650

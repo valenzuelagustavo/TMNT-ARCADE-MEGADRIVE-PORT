@@ -652,7 +652,7 @@ void krangUpdate(Krang* k, Player** pls, u8 nPl, s16 camX, s16 camY) {
         k->dir = (dX >= 0) ? 1 : -1;
         if (k->z <= 0) {
             k->z = 0;
-            XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);
+            XGM2_playPCMEx(krang_drop_sfx, sizeof(krang_drop_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);   // (31/10) el golpe viejo; iron_ball_sfx es otro ahora
             enter(k, KRANG_TAUNT);
             // (23/10) "I'm invincible!" al empezar la pelea: la voz la arranca
             // level9_1 (bossVoStart, despues entra el tema); aca el globo.
