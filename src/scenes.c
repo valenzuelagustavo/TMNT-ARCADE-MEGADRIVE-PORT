@@ -924,7 +924,7 @@ u16 hudPlayerCol(u8 k) {
     return (k == 0) ? HUD_P1_BASECOL : HUD_P2_BASECOL;
 }
 
-void hudInit(void) {
+static void hudCreateSprites(void) {
     // hudInit va siempre despues del SPR_initEx de la escena: cualquier
     // puntero que quedara de antes es invalido (ver hudForgetSprites).
     hudForgetSprites();
@@ -973,6 +973,40 @@ void hudInit(void) {
                                TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
     if (hudSprite2)
         SPR_setAnim(hudSprite2, (cantidadJugadores == 2) ? hudAnimForChar[personaje2Seleccionado & 3] : 0);
+}
+
+// (30/10) TILES PERDIDOS DEL HUD ("PRESS START" con basura, sin borde). SGDK sube los tiles
+// de un sprite por la cola de DMA, que en NTSC admite 7200 bytes por frame (comprimido o no).
+// Si en un frame se piden mas (arranque de nivel: marcos 1 KB cada uno + las tortugas, 5,4 KB
+// por frame de 104x104 + enemigos), loadTiles() descarta la subida SIN AVISO y igual da el
+// pedido por hecho: un sprite que no cambia de frame, como el marco, queda para siempre con lo
+// que haya en esa VRAM (restos de la escena anterior). Dos defensas:
+//   1. hudInit sube los marcos en SU PROPIO frame (SPR_update + vblank) antes de que la escena
+//      cree las tortugas y los enemigos: la cola solo tiene los marcos (~2 KB).
+//   2. hudPlayerUpdate vuelve a pedir la subida de los marcos a los pocos frames, a los 0,5 s y
+//      a los 2 s (hudRefreshTiles): si alguna se perdio por un pico de DMA se corrige sola.
+// El bit es el NEED_TILES_UPLOAD de sprite_eng.c (privado de SGDK): el motor lo atiende en el
+// SPR_update siguiente si el sprite esta visible.
+#define SPR_REQ_TILES_UPLOAD  0x0004
+static void sprRequestUpload(Sprite* s) {
+    if (s) s->status |= SPR_REQ_TILES_UPLOAD;
+}
+#define HUD_REFRESH_1   8      // llamadas a hudPlayerUpdate (1 por jugador y por frame)
+#define HUD_REFRESH_2   40
+#define HUD_REFRESH_3   160
+static u16 hudAge = 0;
+static void hudRefreshTiles(void) {
+    sprRequestUpload(hudSprite1);
+    sprRequestUpload(hudSprite2);
+    sprRequestUpload(hud4Spr[0]);          // los otros tres comparten sus tiles
+    for (u8 k = 0; k < MAX_PLAYERS; k++) sprRequestUpload(hud4Lbl[k]);
+}
+
+void hudInit(void) {
+    hudCreateSprites();
+    hudAge = 0;
+    SPR_update();                  // los tiles de los marcos suben ahora, solos en la cola
+    SYS_doVBlankProcess();
 }
 
 // Retratos a pedido (17/09). Se crean solo mientras un jugador esta ELIGIENDO
@@ -1140,6 +1174,11 @@ static void hudSharedSync(void) {
 
 void hudPlayerUpdate(HudPlayer* h) {
     hudSharedSync();
+    if (hudAge < HUD_REFRESH_3 + 1) {
+        hudAge++;
+        if (hudAge == HUD_REFRESH_1 || hudAge == HUD_REFRESH_2 || hudAge == HUD_REFRESH_3)
+            hudRefreshTiles();
+    }
     s16 hp    = getPlayerHealth(h->pl);
     s16 lives = (s16)getPlayerLives(h->pl);
     s32 score = (s32)getPlayerScore(h->pl);
