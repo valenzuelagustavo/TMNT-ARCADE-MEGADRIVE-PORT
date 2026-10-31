@@ -977,24 +977,33 @@ static void hudCreateSprites(void) {
 
 // (30/10) TILES PERDIDOS DEL HUD ("PRESS START" con basura, sin borde). SGDK sube los tiles
 // de un sprite por la cola de DMA, que en NTSC admite 7200 bytes por frame (comprimido o no).
-// Si en un frame se piden mas (arranque de nivel: marcos 1 KB cada uno + las tortugas, 5,4 KB
-// por frame de 104x104 + enemigos), loadTiles() descarta la subida SIN AVISO y igual da el
-// pedido por hecho: un sprite que no cambia de frame, como el marco, queda para siempre con lo
-// que haya en esa VRAM (restos de la escena anterior). Dos defensas:
-//   1. hudInit sube los marcos en SU PROPIO frame (SPR_update + vblank) antes de que la escena
-//      cree las tortugas y los enemigos: la cola solo tiene los marcos (~2 KB).
-//   2. hudPlayerUpdate vuelve a pedir la subida de los marcos a los pocos frames, a los 0,5 s y
-//      a los 2 s (hudRefreshTiles): si alguna se perdio por un pico de DMA se corrige sola.
+// Si en un frame se piden mas, loadTiles() descarta la subida SIN AVISO y igual la da por
+// hecha: un sprite que no cambia de frame, como el marco, queda para siempre con lo que haya
+// en esa VRAM. Hay dos disparadores:
+//   a) el arranque del nivel: marcos (1 KB c/u) + tortugas (5,4 KB por frame) + enemigos;
+//   b) (31/10, el mas comun) SPR_defragVRAM -- lo llama sprVramFits cuando entra un enemigo y
+//      la VRAM esta fragmentada, y SPR_addSpriteSafe -- RE-ASIGNA la VRAM de TODOS los sprites
+//      y pide que todos los que se mudaron suban sus tiles en el mismo SPR_update: pasan los
+//      7200 bytes, se pierden varias subidas y el marco queda con restos de lo que habia
+//      antes en su lugar nuevo (en la captura, el globo "Tonight I dine on turtle soup").
+// Defensas (hudHealTick, una vez por frame desde hudPlayerUpdate, antes del SPR_update):
+//   1. hudInit sube los marcos en SU PROPIO frame (SPR_update + vblank), antes de las tortugas.
+//   2. Si el tile base de un marco cambio (se lo mudaron) o recien arranca el HUD, se vuelve a
+//      pedir la subida a los 2, 6 y 20 frames (cuando la cola ya se vacio).
+//   3. Cada HUD_HEAL_PERIOD frames se pide de nuevo igual, pase lo que pase: 1-2 KB de DMA cada
+//      ~1 s, y cualquier corrupcion que no hayamos previsto se arregla sola.
 // El bit es el NEED_TILES_UPLOAD de sprite_eng.c (privado de SGDK): el motor lo atiende en el
 // SPR_update siguiente si el sprite esta visible.
 #define SPR_REQ_TILES_UPLOAD  0x0004
 static void sprRequestUpload(Sprite* s) {
     if (s) s->status |= SPR_REQ_TILES_UPLOAD;
 }
-#define HUD_REFRESH_1   8      // llamadas a hudPlayerUpdate (1 por jugador y por frame)
-#define HUD_REFRESH_2   40
-#define HUD_REFRESH_3   160
-static u16 hudAge = 0;
+#define HUD_HEAL_PERIOD  64    // frames entre pedidos periodicos
+static u32 hudTickT   = 0xFFFFFFFFUL;   // vtimer del ultimo tick (una vez por frame)
+static u16 hudTickN   = 0;              // frames desde hudInit
+static u16 hudIdx[3]  = { 0xFFFF, 0xFFFF, 0xFFFF };   // tile base visto: marco 1, marco 2, contorno 4P
+static u8  hudMovedT  = 0xFF;           // frames desde el ultimo cambio (0xFF = nada pendiente)
+
 static void hudRefreshTiles(void) {
     sprRequestUpload(hudSprite1);
     sprRequestUpload(hudSprite2);
@@ -1002,9 +1011,31 @@ static void hudRefreshTiles(void) {
     for (u8 k = 0; k < MAX_PLAYERS; k++) sprRequestUpload(hud4Lbl[k]);
 }
 
+static void hudHealTick(void) {
+    if (vtimer == hudTickT) return;        // hay un hudPlayerUpdate por jugador: una vez por frame
+    hudTickT = vtimer;
+    hudTickN++;
+
+    Sprite* watch[3] = { hudSprite1, hudSprite2, hud4Spr[0] };
+    for (u8 i = 0; i < 3; i++) {
+        if (!watch[i]) continue;
+        u16 idx = (u16)(watch[i]->attribut & TILE_INDEX_MASK);
+        if (idx != hudIdx[i]) { hudIdx[i] = idx; hudMovedT = 0; }
+    }
+    if (hudMovedT != 0xFF) {
+        hudMovedT++;
+        if (hudMovedT == 2 || hudMovedT == 6 || hudMovedT == 20) hudRefreshTiles();
+        if (hudMovedT >= 20) hudMovedT = 0xFF;
+    }
+    if ((hudTickN % HUD_HEAL_PERIOD) == 0) hudRefreshTiles();
+}
+
 void hudInit(void) {
     hudCreateSprites();
-    hudAge = 0;
+    hudTickN  = 0;
+    hudTickT  = 0xFFFFFFFFUL;
+    hudMovedT = 0xFF;
+    for (u8 i = 0; i < 3; i++) hudIdx[i] = 0xFFFF;   // el primer tick lo toma como "recien puesto"
     SPR_update();                  // los tiles de los marcos suben ahora, solos en la cola
     SYS_doVBlankProcess();
 }
@@ -1174,11 +1205,7 @@ static void hudSharedSync(void) {
 
 void hudPlayerUpdate(HudPlayer* h) {
     hudSharedSync();
-    if (hudAge < HUD_REFRESH_3 + 1) {
-        hudAge++;
-        if (hudAge == HUD_REFRESH_1 || hudAge == HUD_REFRESH_2 || hudAge == HUD_REFRESH_3)
-            hudRefreshTiles();
-    }
+    hudHealTick();
     s16 hp    = getPlayerHealth(h->pl);
     s16 lives = (s16)getPlayerLives(h->pl);
     s32 score = (s32)getPlayerScore(h->pl);
