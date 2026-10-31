@@ -18,12 +18,18 @@
 // pasada, sin loop). Si juega Leo, aparece su sprite y al rato el globo "There
 // it is". Las venas grises del tunel titilan con animacion de paleta (cut_techno_pal.h).
 // START la saltea. Arte: tools/gen_cut_techno.py.
+//
+// SCENE_CUT_KISS (30/10, despues del garage): April besa a la tortuga ("I owe you one"). 24 cuadros
+// del arcade en dos planos (la tortuga en BG_B, April en BG_A); la BANDANA (y las munequeras) se
+// repinta con el color de la tortuga que juega, o con la del jugador de mas puntos si juegan varios.
+// START la saltea. Arte: tools/gen_cut_kiss.py.
 // ===========================================================================
 #include <genesis.h>
 #include "scenes.h"
 #include "cutscenes.h"   // cut_accident, cut_splinter_* (rescomp)
 #include "audio.h"       // thank_you_vo, come_get_vo, shell_brain_vo
 #include "cut_techno_pal.h"  // (29/10) animacion por paleta del fondo del Technodrome (generado)
+#include "cut_kiss.h"        // (30/10) medidas de la cutscene del beso (generado)
 #include "hud.h"         // numJugadores, playerChar
 
 #define CUT_HOLD_SECS   4
@@ -366,4 +372,147 @@ SceneId showCutTechnodrome(void) {
     SPR_end();
     SPR_initEx(752);                  // lo que esperan las demas escenas
     return SCENE_S6_TITLE;
+}
+
+// ---------------------------------------------------------------------------
+// SCENE_CUT_KISS (30/10, despues del garage)
+// ---------------------------------------------------------------------------
+// Dos planos de 40x28 tiles (la tortuga en BG_B con PAL0, April en BG_A con PAL1) y el globo como
+// sprite (PAL2). Los 893 tiles unicos de los 24 cuadros se cargan una vez; de un cuadro al
+// siguiente solo se reescriben los tiles del mapa que cambian (kiss_delta: ~3,6 KB en total).
+// VRAM: 893 tiles de planos + 32 del globo (plano de 64x32 y SPR_initEx(64), como el Technodrome).
+#define KISS_STEP_TICKS   10     // ticks por cuadro del arcade (24 cuadros = 4 s a 60 Hz)
+#define KISS_POST_SECS     2     // se queda con el ultimo cuadro
+#define KISS_LOAD_CHUNK   64     // tiles por cuadro de video al cargar (2 KB de DMA)
+#define KISS_BAND_LIGHT   10     // indices de la bandana en PAL0 (el claro y el oscuro de Leo)
+#define KISS_BAND_DARK    11
+
+// Colores de la bandana por tortuga (orden de playerChar: Leo, Mike, Don, Raph; 4 = Slash)
+static const u16 KISS_BAND[5][2] = {
+    { RGB24_TO_VDPCOLOR(0x0077CE), RGB24_TO_VDPCOLOR(0x480091) },   // Leo: azul (el del arcade)
+    { RGB24_TO_VDPCOLOR(0xFF5700), RGB24_TO_VDPCOLOR(0xCC3C00) },   // Mike: naranja
+    { RGB24_TO_VDPCOLOR(0x9124DA), RGB24_TO_VDPCOLOR(0x480091) },   // Don: violeta
+    { RGB24_TO_VDPCOLOR(0xCE0000), RGB24_TO_VDPCOLOR(0x920000) },   // Raph: rojo
+    { RGB24_TO_VDPCOLOR(0xA83080), RGB24_TO_VDPCOLOR(0x702858) },   // Slash
+};
+
+// Tortuga que recibe el beso: la del jugador con mas puntos (en empate, el de menor numero de
+// jugador; los que se quedaron sin vidas solo cuentan si no queda otro).
+static u8 kissTurtle(void) {
+    u8 n = numJugadores();
+    u8 best = 0;
+    u16 bestScore = 0;
+    bool bestOut = TRUE;
+    for (u8 k = 0; k < n; k++) {
+        u8 lives;
+        u16 score;
+        s16 hp;
+        bool out;
+        playerPersistPeek(k, &lives, &score, &hp, &out);
+        if (k == 0 || (bestOut && !out) || (out == bestOut && score > bestScore)) {
+            best = k;
+            bestScore = score;
+            bestOut = out;
+        }
+    }
+    u8 ch = playerChar(best);
+    return (ch > 4) ? 0 : ch;
+}
+
+// Voz "I owe you one": cuando salga el globo. Aun sin audio: agregar el WAV a audio.res
+// (WAV owe_you_vo "audio/6650/owe_you.wav" XGM2 6650) y descomentar la linea.
+static void kissVoice(void) {
+    // XGM2_playPCMEx(owe_you_vo, sizeof(owe_you_vo), SOUND_PCM_CH2, SPL_VO_PRIO, TRUE, FALSE);
+}
+
+// Aplica una lista del delta (n, n x (posicion, entrada)) a un plano; devuelve lo que sigue.
+static const u16* kissApply(const u16* d, VDPPlane plane, u16 ti) {
+    u16 n = *d++;
+    while (n--) {
+        u16 pos = d[0];
+        u16 e = d[1];
+        d += 2;
+        VDP_setTileMapXY(plane, (u16)(e + ti), (u16)(pos % KISS_COLS), (u16)(pos / KISS_COLS));
+    }
+    return d;
+}
+
+SceneId showCutKiss(void) {
+    clearScene();
+    while ((JOY_readJoypad(JOY_1) | JOY_readJoypad(JOY_2)) & BUTTON_START)
+        SYS_doVBlankProcess();
+
+    VDP_setScreenWidth320();
+    SPR_end();
+    VDP_setPlaneSize(64, 32, TRUE);
+    VDP_setBackgroundColor(0);
+    SPR_initEx(64);                   // el globo (32 tiles)
+
+    // Tiles: por la cola de DMA, de a KISS_LOAD_CHUNK por cuadro (la pantalla esta en negro)
+    const u16 ti = TILE_USER_INDEX;
+    for (u16 t = 0; t < KISS_TILES; t = (u16)(t + KISS_LOAD_CHUNK)) {
+        u16 n = (u16)(KISS_TILES - t);
+        if (n > KISS_LOAD_CHUNK) n = KISS_LOAD_CHUNK;
+        DMA_queueDma(DMA_VRAM, (void*)((const u32*)kiss_tiles + (u16)(t * 8)),
+                     (u16)((ti + t) * 32), (u16)(n * 16), 2);
+        SYS_doVBlankProcess();
+    }
+    // Cuadro 1: el mapa de la tortuga (BG_B) y el de April (BG_A); la paleta va en cada entrada
+    const u16* map = (const u16*)kiss_map;
+    VDP_setTileMapDataRectEx(BG_B, map, ti, 0, 0, KISS_COLS, KISS_ROWS, KISS_COLS, CPU);
+    VDP_setTileMapDataRectEx(BG_A, map + KISS_COLS * KISS_ROWS, ti, 0, 0, KISS_COLS, KISS_ROWS,
+                             KISS_COLS, CPU);
+    const u16* delta = (const u16*)kiss_delta;
+
+    Sprite* bubble = SPR_addSprite(&kiss_bubble, KISS_BUB_X, KISS_BUB_Y,
+                                   TILE_ATTR(PAL2, FALSE, FALSE, FALSE));
+    if (bubble) { SPR_setAutoAnimation(bubble, FALSE); SPR_setVisibility(bubble, HIDDEN); }
+    SPR_update();
+
+    // Paletas: PAL0 la tortuga (con la bandana del jugador), PAL1 April, PAL2 el globo (la de la
+    // tortuga SIN repintar). El indice 0 de cada una es transparente / backdrop: negro.
+    u16 pal[48];
+    memcpy(pal, kiss_pal_t.data, 16 * sizeof(u16));
+    memcpy(pal + 16, kiss_pal_a.data, 16 * sizeof(u16));
+    memcpy(pal + 32, kiss_pal_t.data, 16 * sizeof(u16));
+    pal[0] = pal[16] = pal[32] = 0;
+    u8 ch = kissTurtle();
+    pal[KISS_BAND_LIGHT] = KISS_BAND[ch][0];
+    pal[KISS_BAND_DARK] = KISS_BAND[ch][1];
+    SYS_doVBlankProcess();
+    PAL_fadeIn(0, 47, pal, CUT_FADE_TICKS, FALSE);
+    while (PAL_isDoingFade()) SYS_doVBlankProcess();
+
+    const u16 fps = IS_PAL_SYSTEM ? 50 : 60;
+    // A 50 Hz los cuadros duran lo mismo en segundos: 10 ticks NTSC = 8 PAL
+    const u16 step = IS_PAL_SYSTEM ? (u16)((KISS_STEP_TICKS * 5 + 3) / 6) : KISS_STEP_TICKS;
+    u16 prev = 0xFFFF;
+    bool skip = FALSE;
+    for (u16 f = 0; f < KISS_FRAMES && !skip; f++) {
+        if (f > 0) {
+            delta = kissApply(delta, BG_B, ti);
+            delta = kissApply(delta, BG_A, ti);
+        }
+        if (f == KISS_BUB_FIRST) {
+            if (bubble) SPR_setVisibility(bubble, VISIBLE);
+            kissVoice();
+        }
+        if (f == KISS_BUB_LAST + 1 && bubble) SPR_setVisibility(bubble, HIDDEN);
+        for (u16 t = 0; t < step && !skip; t++) {
+            skip = splStart(&prev) && prev != 0xFFFF;
+            SPR_update();
+            SYS_doVBlankProcess();
+        }
+    }
+    for (u16 t = 0; t < fps * KISS_POST_SECS && !skip; t++) {
+        skip = splStart(&prev);
+        SPR_update();
+        SYS_doVBlankProcess();
+    }
+    if (skip) XGM2_stopPCM(SOUND_PCM_CH2);
+
+    clearScene();                     // fundido a negro
+    SPR_end();
+    SPR_initEx(752);                  // lo que esperan las demas escenas
+    return SCENE_S4_TITLE;
 }

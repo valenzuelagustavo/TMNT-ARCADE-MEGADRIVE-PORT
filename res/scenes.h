@@ -43,6 +43,7 @@ typedef enum {
     SCENE_SNOW,         // Nivel 3-1: Snow in N.Y. (del port de NES; provisorio)
     SCENE_CUT_CITY,     // La ciudad vuelve a la normalidad
     SCENE_4_1,          // Nivel 3-2: el estacionamiento (garage), jefe Bebop
+    SCENE_CUT_KISS,     // (30/10) Despues del garage: April besa a la tortuga ("I owe you one")
     SCENE_S4_TITLE,     // "SCENE 4 / LET'S GET TO THAT SECRET FACTORY!!"
     SCENE_5_1,          // Nivel 4-1: la autopista (freeway)
     SCENE_6_1,          // Nivel 4-2: el skate
@@ -95,6 +96,7 @@ SceneId showSceneS4Title();
 SceneId showSceneS5Title();
 SceneId showSceneS6Title();
 SceneId showPendingScene(SceneId id);
+SceneId showCutKiss(void);  // (30/10) April besa a la tortuga tras el garage (cut_scenes.c)
 SceneId showCutVan(void);   // (23/10) el choque de la camioneta (cut_scenes.c)
 SceneId showCutShredderApril(void);   // (28/10) Rocksteady provoca, Shredder se lleva a April (cut_scenes.c)
 SceneId showCutTechnodrome(void);   // (29/10) el Technodrome y Leo: "There it is" (cut_scenes.c)

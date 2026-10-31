@@ -48,3 +48,16 @@ IMAGE  cut_sewer_fg     "images/lvl_3_sewer/bebop_rocksteady_28.png"     FAST AL
 SPRITE cut_sewer_april  "images/lvl_3_sewer/cut_april_spr.png"   10 16 FAST 0
 SPRITE cut_sewer_mouth  "images/lvl_3_sewer/cut_rock_mouth.png"   8 8 FAST 0
 SPRITE cut_sewer_bubble "images/lvl_3_sewer/cut_rock_bubble.png" 12 4 FAST 0
+
+// (30/10) Despues del garage (SCENE_CUT_KISS): April besa a la tortuga. Lo arma tools/gen_cut_kiss.py
+// desde lvl_4_garage/1500_1523/ (24 cuadros, dos capas de 40x28 tiles). Los tiles unicos de todos los
+// cuadros (893) van cargados una sola vez; el cuadro 1 son dos mapas y de ahi en mas solo se escriben
+// los tiles que cambian (kiss_delta). Capa de la tortuga en BG_B (kiss_pal_t, PAL0: los indices 10 y 11
+// son la bandana y las munequeras, que el codigo repinta), April en BG_A (kiss_pal_a, PAL1) y el
+// globo "I owe you one" como sprite (PAL2 = copia de kiss_pal_t, asi no cambia con la bandana).
+BIN     kiss_tiles "images/lvl_4_garage/kiss/kiss_tiles.bin" 2 2 0 NONE
+BIN     kiss_map   "images/lvl_4_garage/kiss/kiss_map.bin"   2 2 0 NONE
+BIN     kiss_delta "images/lvl_4_garage/kiss/kiss_delta.bin" 2 2 0 NONE
+PALETTE kiss_pal_t "images/lvl_4_garage/kiss/kiss_pal_t.png"
+PALETTE kiss_pal_a "images/lvl_4_garage/kiss/kiss_pal_a.png"
+SPRITE  kiss_bubble "images/lvl_4_garage/kiss/kiss_bubble.png" 8 4 FAST 0

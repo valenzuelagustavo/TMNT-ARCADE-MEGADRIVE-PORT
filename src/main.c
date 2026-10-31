@@ -95,6 +95,9 @@ int main()
         case SCENE_4_1:                     // 3-2 el garage
             currentScene = showScene41();
             break;
+        case SCENE_CUT_KISS:                // (30/10) tras el garage: April besa a la tortuga
+            currentScene = showCutKiss();
+            break;
         case SCENE_S4_TITLE:
             currentScene = showSceneS4Title();
             break;

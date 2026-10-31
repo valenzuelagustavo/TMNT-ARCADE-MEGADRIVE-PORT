@@ -1203,7 +1203,7 @@ static const StageLevel level41 = {
     .levelInit    = lvl41Init,
     .levelUpdate  = lvl41Update,
     .levelRelease = lvl41Release,
-    .nextScene    = SCENE_S4_TITLE,   // (18/10) el garage es el 3-2
+    .nextScene    = SCENE_CUT_KISS,   // (30/10) garage (3-2) -> April besa a la tortuga -> titulo de la SCENE 4
 };
 
 SceneId showScene41() {
