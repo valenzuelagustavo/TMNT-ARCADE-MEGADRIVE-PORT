@@ -57,6 +57,7 @@
 #include "rocksteady.h"
 #include "audio.h"
 #include "boss_vo.h"           // (01/10)
+#include "garage_van.h"        // (30/10) la camioneta de las tortugas
 #include "props_2_1.h"         // (12/10) pizza_time_bubble (el globo del 2-1)
 
 #define SCREEN_W            320
@@ -775,6 +776,7 @@ enum { APR_TIED = 0, APR_STRUGGLE, APR_DROP, APR_STAND, APR_WAVE };
 static u8  aprState;
 static u16 aprT;
 static Sprite* aprilSpr;
+static bool    aprHidden41;     // (30/10) la camioneta la tapo: no se vuelve a crear
 
 // ---------------------------------------------------------------------------
 // (12/10) EMBESTIDA DOBLE (arcade, cuadros 8580-8720 del tramo del garage)
@@ -890,6 +892,7 @@ static u8      capSt;
 static u16     capT;
 static Sprite* capSpr;
 static Sprite* capBub;
+static bool    capDone41;       // (30/10) la capsula termino: sigue la camioneta (garage_van.c)
 
 static void capsuleRelease41(void) {
     if (capSpr) { SPR_releaseSprite(capSpr); capSpr = NULL; }
@@ -975,16 +978,20 @@ static void bossInit41(void) {
     bebopOut = rockOut = FALSE;
     rockWait = 0;
     aprilSpr = NULL;
+    aprHidden41 = FALSE;
     aprState = APR_TIED;
     aprT = 0;
     capSt = CAP_IDLE;
     capT = 0;
     capSpr = NULL;
     capBub = NULL;
+    capDone41 = FALSE;
+    vanInit();
     duoInit41();
 }
 
 static void aprilUpdate41(s16 camX) {
+    if (aprHidden41) return;
     if (!aprilSpr) {
         if (doorState == DOOR_CLOSED || doorStep < APRIL41_SHOW_STEP) return;
         // la paleta compartida en PAL3 (Bebop la vuelve a cargar al salir)
@@ -1125,7 +1132,21 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
     if (aprState == APR_TIED && bossDying41()) { aprState = APR_STRUGGLE; aprT = 0; }
     if (!bothGone) return FALSE;
     // (25/10) Ya no se cierra con April saludando: sale la capsula del taladro.
-    return capsuleUpdate41(pls, nPl, camX);
+    // (30/10) Despues de la capsula llega la camioneta de las tortugas: entra
+    // por la izquierda, abren la puerta, suben, vibra y sale por la derecha
+    // (garage_van.c). April desaparece cuando la camioneta la tapa.
+    if (!capDone41) {
+        if (!capsuleUpdate41(pls, nPl, camX)) return FALSE;
+        capDone41 = TRUE;
+        capsuleRelease41();               // la camioneta usa su VRAM y su paleta (PAL2)
+    }
+    bool vanDone = vanUpdate(pls, nPl, camX);
+    if (aprilSpr && vanAprilCovered()) {
+        SPR_releaseSprite(aprilSpr);
+        aprilSpr = NULL;
+        aprHidden41 = TRUE;
+    }
+    return vanDone;
 }
 
 static bool bossDying41(void) {
@@ -1142,6 +1163,7 @@ static void bossRelease41(void) {
     if (aprilSpr) { SPR_releaseSprite(aprilSpr); aprilSpr = NULL; }
     capsuleRelease41();
     capSt = CAP_IDLE;
+    vanRelease();                    // (30/10)
 }
 
 static const StageLevel level41 = {

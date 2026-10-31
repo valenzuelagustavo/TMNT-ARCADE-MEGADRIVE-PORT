@@ -53,3 +53,12 @@ SPRITE  garage_car_r    "images/lvl_4_garage/garage_car_r.png"   11 13 FAST 0
 SPRITE  garage_boom     "images/lvl_4_garage/garage_boom.png"    8 8  FAST 0
 SPRITE  garage_pizza    "images/lvl_4_garage/garage_pizza.png"   5 6  FAST 0
 SPRITE  april_garage    "sprites/april_gen.png"                  4 10 FAST 12
+
+// (30/10) La camioneta de las tortugas del final (tools/gen_garage_van.py,
+// src/garage_van.c): dibujo de BG_A de 30x18 tiles que se desliza con el scroll.
+//   van_tiles  468 tiles 4bpp unicos (con flips; el 0 es vacio)
+//   van_map    4 estados de la puerta (0 cerrada .. 3 abierta) x 18x30 u16 (flips | indice)
+//   pal_van    los 15 colores de TURTLE_VAN.png; va en PAL2 (los jefes ya no estan)
+BIN     van_tiles "images/lvl_4_garage/van_tiles.bin" 2 2 0 NONE
+BIN     van_map   "images/lvl_4_garage/van_map.bin"   2 2 0 NONE
+PALETTE pal_van   "images/lvl_4_garage/van_pal_gen.png"
