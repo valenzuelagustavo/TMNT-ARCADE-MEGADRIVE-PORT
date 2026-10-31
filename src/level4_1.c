@@ -888,6 +888,9 @@ static bool bossDying41(void);
 #define CAP_BUB_DY       70     // de los pies al borde de abajo del globo
 #define CAP_HOLD_T       70     // entera, quieta, antes de cerrar el nivel
 enum { CAP_IDLE = 0, CAP_WAIT, CAP_RISE, CAP_HOLD };
+// (30/10) 0 = NO sale la capsula del taladro: al terminar el garage va directo
+// la camioneta de las tortugas (garage_van.c), como en el arcade. 1 = la de antes.
+#define LVL41_CAPSULE   0
 static u8      capSt;
 static u16     capT;
 static Sprite* capSpr;
@@ -1136,9 +1139,15 @@ static bool bossUpdate41(Player** pls, u8 nPl, s16 camX) {
     // por la izquierda, abren la puerta, suben, vibra y sale por la derecha
     // (garage_van.c). April desaparece cuando la camioneta la tapa.
     if (!capDone41) {
-        if (!capsuleUpdate41(pls, nPl, camX)) return FALSE;
+        if (LVL41_CAPSULE) {
+            if (!capsuleUpdate41(pls, nPl, camX)) return FALSE;
+            capsuleRelease41();           // la camioneta usa su VRAM y su paleta (PAL2)
+        } else {
+            // Sin capsula: April saluda un momento y llega la camioneta.
+            if (aprilSpr && aprState != APR_WAVE) return FALSE;
+            if (++capT < CAP_WAIT_T) return FALSE;
+        }
         capDone41 = TRUE;
-        capsuleRelease41();               // la camioneta usa su VRAM y su paleta (PAL2)
     }
     bool vanDone = vanUpdate(pls, nPl, camX);
     if (aprilSpr && vanAprilCovered()) {
