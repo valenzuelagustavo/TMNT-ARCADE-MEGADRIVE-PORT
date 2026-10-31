@@ -34,6 +34,7 @@ GLOBOS = [
     ("watch_mouth", 328, 208, 96, 32),    # Bebop cierra
     ("im_invincible", 224, 88, 64, 32),   # (23/10) Krang (9-1): al caer y al escaparse la cabeza
     ("cork_screw", 144, 288, 128, 32),    # (25/10) Leo al salir la capsula del taladro (garage): "Oh,no.it's that overgrown cork-screw again"
+    ("lets_move", 368, 8, 64, 32),        # (30/10) la tortuga en la camioneta: "Let's move it" (garage)
 ]
 
 # (24/10) Globos ARMADOS: el arcade no tiene la frase. Se usa un globo de la

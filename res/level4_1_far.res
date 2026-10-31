@@ -15,3 +15,7 @@
 //                 128x32, el de la hoja del arcade: tools/gen_globos.py), PAL1.
 SPRITE  garage_capsule "images/lvl_4_garage/garage_capsule.png" 13 23 FAST 0
 SPRITE  cork_bubble    "sprites/cork_screw_baloon.png"          16 4  FAST 0
+// lets_move_bubble  (30/10) el globo de la tortuga en la camioneta ("Let's move it",
+//                 64x32, de la hoja del arcade: tools/gen_globos.py), PAL1. Lo usa
+//                 src/garage_van.c con el VO lets_move_vo.
+SPRITE  lets_move_bubble "sprites/lets_move_baloon.png"      8 4   FAST 0

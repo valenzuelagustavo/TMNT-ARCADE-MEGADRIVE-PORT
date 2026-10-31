@@ -344,3 +344,10 @@ WAV yippee_vo "audio/6650/yeepi_a_yey.wav" XGM2 6650
 // WAV mono 8-bit a 8000 Hz (0,76 s y 0,80 s). Ver cut_scenes.c.
 WAV come_get_vo   "audio/6650/come_and_get_them.wav" XGM2 6650
 WAV shell_brain_vo "audio/6650/shell_brain.wav" XGM2 6650
+
+// --- (30/10) Garage: la tortuga en la camioneta ------------------------------
+// "Let's move it" (src/garage_van.c, junto con el globo lets_move_bubble).
+// Llego MONO 8-bit 8000 Hz de 0,76 s, ya fuerte (rms 28%): se le bajo la
+// ganancia a rms 22% como al resto de los VO (pico 79%), 6650 Hz.
+//   lets_move_vo           0,760s  pico 79%  rms 22,0%  5.120 B
+WAV lets_move_vo      "audio/6650/lets_move.wav" XGM2 6650

@@ -5,10 +5,11 @@
 #include <genesis.h>
 #include "garage_van.h"
 #include "level4_1.h"          // van_tiles, van_map, pal_van, garage_cone (rescomp, NEAR)
+#include "level4_1_far.h"      // lets_move_bubble (FAR)
 #include "level4_1_van.h"      // VAN_TILES, VAN_COLS... (generado)
 #include "stage_level.h"       // stageAOffX/Y, stageScriptMask
 #include "enemy.h"             // sprVramFits, sprDefragLock
-#include "audio.h"             // car_sfx, capsule_door_sfx
+#include "audio.h"             // car_sfx, capsule_door_sfx, lets_move_vo
 
 // --- Pantalla (320x224, camara clavada en el maximo) -----------------------
 #define VAN_PAL           PAL2     // los jefes y la capsula ya no estan
@@ -33,12 +34,18 @@
 #define VAN_JUMP_GAP      14       // entre una tortuga y la siguiente
 #define VAN_INSIDE_T      12       // todas adentro, antes de cerrar
 #define VAN_CLOSED_T      12       // puerta cerrada, antes de vibrar
-#define VAN_BUMP_CYCLE    12       // una vibracion
 #define VAN_BUMP_ON        4       //   (frames desplazada)
-#define VAN_BUMPS          2
 #define VAN_GO_T          10       // despues de vibrar, antes de arrancar
 #define VAN_HOLD_T        40       // se fue: pantalla libre antes de cerrar el nivel
 #define VAN_BUMP_DX        2
+// "Let's move it": globo + VO a los VAN_BUB_T frames de la 1ra vibracion; dura lo
+// que el VO + VAN_BUB_TAIL; la 2da vibracion cae sobre el final del globo (como en
+// las capturas 1703-1707). Posicion: captura (112, 48) -> pantalla x 110, y de mundo 49.
+#define VAN_BUB_T         12
+#define VAN_BUB_TAIL       6
+#define VAN_BUB_X        110
+#define VAN_BUB_WY        49
+#define VAN_BUB_VOL_CH    SOUND_PCM_CH2
 #define VAN_BUMP_DY       (-2)
 
 // x de la camioneta en cada punto de la entrada (pantalla): medidos de las
@@ -67,6 +74,7 @@ static u8             pst[MAX_PLAYERS];
 static u8             nextJump;
 static u16            jumpT;
 static u16            insideT;
+static Sprite*        bub;             // el globo "Let's move it"
 static bool           reloadPending;   // un defrag de afuera mudo el bloque
 
 // ---------------------------------------------------------------------------
@@ -125,9 +133,11 @@ void vanInit(void) {
     aprCov = FALSE;
     for (u8 k = 0; k < MAX_PLAYERS; k++) pst[k] = PS_WALK;
     nextJump = 0; jumpT = 0; insideT = 0; reloadPending = FALSE;
+    bub = NULL;
 }
 
 void vanRelease(void) {
+    if (bub) { SPR_releaseSprite(bub); bub = NULL; }
     if (hold) { SPR_releaseSprite(hold); hold = NULL; }
     if (locked) { if (sprDefragLock) sprDefragLock--; locked = FALSE; }
     st = VS_IDLE;
@@ -350,12 +360,26 @@ bool vanUpdate(Player** pls, u8 nPl, s16 camX) {
         break;
     }
     case VS_SHAKE: {
-        u16 ph = (u16)(t % VAN_BUMP_CYCLE);
-        bool on = (bool)(ph < VAN_BUMP_ON && t < VAN_BUMPS * VAN_BUMP_CYCLE);
+        // duracion del VO en frames (6650 Hz, 8 bit: 1 byte = 1 muestra)
+        const u16 voF = (u16)(((u32) sizeof(lets_move_vo) * (IS_PAL_SYSTEM ? 50 : 60)) / 6650);
+        const u16 bump2 = (u16)(VAN_BUB_T + voF - VAN_BUMP_ON);     // 2da vibracion: al final del globo
+        const u16 bubOff = (u16)(VAN_BUB_T + voF + VAN_BUB_TAIL);
+        bool on = (bool)(t < VAN_BUMP_ON || (t >= bump2 && t < bump2 + VAN_BUMP_ON));
         shx = on ? VAN_BUMP_DX : 0;
         shy = on ? VAN_BUMP_DY : 0;
+        if (t == VAN_BUB_T) {
+            XGM2_playPCMEx(lets_move_vo, sizeof(lets_move_vo), VAN_BUB_VOL_CH, 15, TRUE, FALSE);
+            if (!bub && SPR_getLargestFreeVRAMBlock() >= lets_move_bubble.maxNumTile) {
+                bub = SPR_addSprite(&lets_move_bubble, VAN_BUB_X, 0, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+                if (bub) SPR_setDepth(bub, SPR_MIN_DEPTH);
+            }
+        }
+        if (bub) {
+            if (t >= bubOff) { SPR_releaseSprite(bub); bub = NULL; }
+            else SPR_setPosition(bub, VAN_BUB_X, (s16)(VAN_BUB_WY - stageCamY));
+        }
         t++;
-        if (t >= VAN_BUMPS * VAN_BUMP_CYCLE + VAN_GO_T) {
+        if (t >= bubOff + VAN_GO_T) {
             shx = shy = 0;
             st = VS_LEAVE; t = 0;
             XGM2_playPCMEx(car_sfx, sizeof(car_sfx), SOUND_PCM_CH3, 14, TRUE, FALSE);   // (placeholder)
