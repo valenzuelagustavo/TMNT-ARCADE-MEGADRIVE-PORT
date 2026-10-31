@@ -96,6 +96,13 @@ XGM2 music_vs_shredder "music/18 - VS. Shredder.vgm"
 XGM2 music_shogun   "music/20 - Shogun.vgm"
 XGM2 music_winter   "music/21 - Winter's Here.vgm"
 
+// (30/10) Los dos temas del final (src/ending.c), SIN punto de loop: suenan UNA vez
+// (XGM2_setLoopNumber(0) ANTES del play) y la escena dura lo que el vgm:
+//   21 - Epilogue       38,40 s  (1693440 muestras @ 44100 = 2304 cuadros NTSC / 1920 PAL)
+//   22 - Turtle Boogie  79,45 s  (3503668 muestras @ 44100 = 4767 cuadros NTSC / 3973 PAL)
+XGM2 music_epilogue      "music/21 - Epilogue.vgm"
+XGM2 music_turtle_boogie "music/22 - Turtle Boogie.vgm"
+
 // Jingle de nivel completado (4s, SIN punto de loop -> hay que reproducirlo con
 // XGM2_setLoopNumber(0) ANTES del play, si no el driver lo repite). Declarado y
 // listo para usar; todavia no esta enganchado a ninguna escena.

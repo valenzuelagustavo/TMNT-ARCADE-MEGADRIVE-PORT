@@ -9,7 +9,11 @@
 //                        staff del arcade y despues el del port.
 //   3. SCENE_GAME_OVER   (scenes.c) y de vuelta al logo de SEGA.
 //
-// (18/10) Por ahora SIN musica, ni en el epilogo ni en los creditos.
+// (30/10) MUSICA: el epilogo suena "21 - Epilogue" (38,4 s) y los creditos
+// "22 - Turtle Boogie" (79,45 s), cada uno UNA vez, sin loop. Cada escena dura
+// lo que su vgm: se cuentan los cuadros desde el play (endFrames) y el tiempo
+// que sobra se reparte en las esperas (en el epilogo, la pausa final; en los
+// creditos, lo que se queda cada pantalla). START sigue cortando.
 //
 // CREDITOS, como estan armados:
 //   * Modo H32 (256 px): el fondo de la ciudad es de 256, como en la intro.
@@ -32,11 +36,37 @@
 #include "roof_april.h"   // roof_bg_b (la ciudad de la intro, 256x224)
 #include "roof_april_far.h"   // (23/10, mapper) roof_bg_*, roof_* sprites
 #include "credits.h"      // credits_turtle_0..3, credits_konami
+#include "audio.h"        // (30/10) music_epilogue, music_turtle_boogie
+
+// (30/10) Duracion de una pasada de cada vgm, en cuadros (campo "total # samples"
+// del header @ 44100 Hz; el driver mantiene el tiempo real en PAL, ver
+// MUSIC_ENDING_LEN en scenes.c):
+//   21 - Epilogue       1693440 muestras = 38,40 s = 2304 NTSC / 1920 PAL
+//   22 - Turtle Boogie  3503668 muestras = 79,45 s = 4767 NTSC / 3972 PAL
+// SIN punto de loop: XGM2_setLoopNumber(0) va SIEMPRE antes del play.
+#define EPI_MUSIC_LEN   (IS_PAL_SYSTEM ? 1920 : 2304)
+#define CR_MUSIC_LEN    (IS_PAL_SYSTEM ? 3972 : 4767)
+#define END_MUSIC_VOL   90
+
+// Cuadros transcurridos desde el play de la musica de la escena en curso.
+static u16 endFrames;
+
+static void endMusicStart(const u8* track) {
+    XGM2_setLoopNumber(0);
+    playMusicVol(track, END_MUSIC_VOL);
+    endFrames = 0;
+}
+
+static void endMusicStop(void) {
+    XGM2_stop();
+    XGM2_setLoopNumber(-1);          // como lo dejan las demas escenas
+}
 
 // Espera 'frames' cuadros; TRUE si apretaron START (flanco).
 static u16 endPrevJoy;
 static bool endWait(u16 frames) {
     while (frames--) {
+        endFrames++;
         u16 joy = JOY_readJoypad(JOY_1);
         bool hit = (joy & BUTTON_START) && !(endPrevJoy & BUTTON_START);
         endPrevJoy = joy;
@@ -53,7 +83,6 @@ static bool endWait(u16 frames) {
 // (title_font, 40 columnas), una linea cada dos filas y un blanco entre
 // parrafos. Cada linea se centra sola.
 #define EPI_CHAR_DELAY   3
-#define EPI_HOLD_SECS    8
 
 static const struct { const char* text; u16 row; } epiLines[] = {
     { "EPILOGUE",                                2 },
@@ -72,6 +101,7 @@ static const struct { const char* text; u16 row; } epiLines[] = {
 
 SceneId showEpilogue() {
     clearScene();
+    endMusicStart(music_epilogue);
 
     VDP_setScreenWidth320();
     VDP_loadFont(&title_font, DMA);
@@ -107,7 +137,10 @@ SceneId showEpilogue() {
             VDP_drawText(epiLines[i].text,
                          (u16)((40 - strlen(epiLines[i].text)) / 2), epiLines[i].row);
 
-    endWait((IS_PAL_SYSTEM ? 50 : 60) * EPI_HOLD_SECS);
+    // Pausa final: hasta que termina el vgm (START la corta).
+    while (endFrames < EPI_MUSIC_LEN)
+        if (endWait(1)) break;
+    endMusicStop();
 
     VDP_loadFont(&font_default, DMA);
     clearScene();
@@ -131,8 +164,9 @@ SceneId showEpilogue() {
 #define CR_LOGO_COL      11          // (32 - 9) / 2
 #define CR_LOGO_ROW       7
 #define CR_CHAR_DELAY     2
-#define CR_ENTRY_SECS     4          // cada pantalla de credito
-#define CR_LAST_SECS      6          // la ultima se queda un poco mas
+#define CR_FADE_OUT      30          // cuadros del fundido final
+#define CR_LAST_SECS      2          // la ultima se queda esto de mas
+#define CR_HOLD_MIN      30          // una pantalla nunca queda menos de medio segundo
 #define CR_SCROLL_SPEED   1          // px por cuadro de los cuadros de las tortugas
 
 // Rol (amarillo, hasta dos lineas) y hasta dos nombres (verde). 'logo' = en
@@ -172,6 +206,16 @@ static const CreditEntry crEntries[] = {
 };
 #define CR_ENTRIES  ((u16)(sizeof(crEntries) / sizeof(crEntries[0])))
 
+// Cuadros que tarda en escribirse una pantalla (CR_CHAR_DELAY por caracter).
+static u16 crTypeFrames(const CreditEntry* ce) {
+    u16 n = 0;
+    if (ce->role)  n += (u16)strlen(ce->role);
+    if (ce->role2) n += (u16)strlen(ce->role2);
+    if (ce->name1) n += (u16)strlen(ce->name1);
+    if (ce->name2) n += (u16)strlen(ce->name2);
+    return (u16)(n * CR_CHAR_DELAY);
+}
+
 static u16 crScroll;
 static s16 crScrollTbl[CR_PANEL_ROWS];
 static u16 crKonamiTile;
@@ -189,6 +233,7 @@ static void crDrawTurtle(u16 k) {
 }
 
 static void crStep(void) {
+    endFrames++;                     // (30/10) cuadros desde el play de la musica
     crScroll += CR_SCROLL_SPEED;
     if (crScroll >= CR_PANEL_END) {
         // Salio por la izquierda: la franja esta vacia, se dibuja la que
@@ -273,6 +318,7 @@ SceneId showStaffCredits() {
     target[48 + 1] = RGB24_TO_VDPCOLOR(0x66EE66);
     target[48 + 2] = RGB24_TO_VDPCOLOR(0x22AA44);
     target[48 + 3] = RGB24_TO_VDPCOLOR(0x116622);
+    endMusicStart(music_turtle_boogie);   // (30/10) suena mientras entra el fundido
     PAL_fadeInAll(target, 20, TRUE);
     endPrevJoy = JOY_readJoypad(JOY_1);
     while (PAL_isDoingFade()) { crStep(); SYS_doVBlankProcess(); }
@@ -291,13 +337,27 @@ SceneId showStaffCredits() {
         if (!skipped) skipped = crTypewriter(ce->name1, CR_ROW_NAME1, PAL3);
         if (!skipped) skipped = crTypewriter(ce->name2, CR_ROW_NAME2, PAL3);
         if (skipped) break;
-        u16 hold = (u16)(fps * ((e + 1 == CR_ENTRIES) ? CR_LAST_SECS : CR_ENTRY_SECS));
-        skipped = crWait(hold);
+        // (30/10) Cuanto se queda esta pantalla: lo que falta de vgm (menos el
+        // fundido final, lo que tardan en escribirse las que siguen y los
+        // CR_LAST_SECS de mas de la ultima) repartido entre las que quedan.
+        // La ultima se queda con todo lo que sobre: la escena termina con el vgm.
+        s32 remain = (s32)CR_MUSIC_LEN - (s32)endFrames - CR_FADE_OUT;
+        s32 hold;
+        if (e + 1 == CR_ENTRIES) {
+            hold = remain;
+        } else {
+            s32 ahead = (s32)fps * CR_LAST_SECS;
+            for (u16 k = (u16)(e + 1); k < CR_ENTRIES; k++) ahead += crTypeFrames(&crEntries[k]);
+            hold = (remain - ahead) / (s32)(CR_ENTRIES - e);
+        }
+        if (hold < CR_HOLD_MIN) hold = CR_HOLD_MIN;
+        skipped = crWait((u16)hold);
     }
 
     // Salida: fundido y todo como lo esperan las demas escenas.
-    PAL_fadeOutAll(30, TRUE);
+    PAL_fadeOutAll(CR_FADE_OUT, TRUE);
     while (PAL_isDoingFade()) { crStep(); SYS_doVBlankProcess(); }
+    endMusicStop();
     VDP_setScreenWidth320();
     VDP_loadFont(&font_default, DMA);
     SPR_init();
