@@ -103,3 +103,19 @@ la ROM sin mapper** (`tools\mapper\build_rom_plain.bat`, cabecera `SEGA MEGA
 DRIVE`, fin de ROM 0x3FFFFF) como descarga principal. El mapper solo vale la
 pena si la ROM pasa de 4 MB, y ahi habra que ver como lo resolvio Mr. Todd X
 (un Shinobi beta de 5 MB que si anda con SSF2 en el Everdrive MD viejo).
+
+## Prueba para el Everdrive MD v2.6 (01/11, en curso)
+
+Hipotesis (sin confirmar): `SYS_resetBanks` de SGDK escribe en los bancos 1-7 al arrancar, pero el SSF2
+original solo usa el 6 y el 7; los carts tempranos "no soportan la especificacion completa del mapper"
+(Chilly Willy, SpritesMind). Se edito `C:\SGDK\src\mapper.c` (original en `mapper.c.orig`): con
+`-DSSF_BANKS_6_7_ONLY=1` reinicia solo 6 y 7. Pasos:
+
+1. `tools\mapper\build_sgdk_lib_ssf.bat` (recompila `lib_ssf` con el flag nuevo).
+2. `tools\mapper\build_rom_ssf.bat` -> `out\tmnt_megadrive_port_<version>_full.bin`.
+3. `python tools\mapper\pad_rom_test.py` -> `..._full_pad5mb.bin` (el v2.6 solo activa el mapper con ROMs > 4 MB).
+4. Pedir a quien tiene el v2.6 que pruebe, en este orden: la `_full` (3,9 MB) y la `_full_pad5mb`.
+
+Si arranca: la edicion FULL anda tambien en el v2.6 y se puede publicar (LITE queda de respaldo).
+Si no: queda el encabezado (preguntar a Mr. Todd X como hizo el Shinobi de 5 MB).
+

@@ -10,6 +10,10 @@ rem Hace falta correrlo UNA vez (y de nuevo si se actualiza SGDK). Necesita
 rem que C:\SGDK\inc\config.h acepte el flag desde afuera (#ifndef
 rem ENABLE_BANK_SWITCH), ver tools\mapper\README.md.
 rem
+rem (01/11) -DSSF_BANKS_6_7_ONLY=1: SYS_resetBanks (src\mapper.c de SGDK, editado
+rem a mano; el original quedo en mapper.c.orig) escribe SOLO en las regiones 6 y 7,
+rem como el SSF2. Hipotesis (sin confirmar): los Everdrive MD viejos (v2.6) no arrancan por escribir en 1-5.
+rem
 rem lib_ssf va adentro de SGDK porque make no soporta rutas con espacios
 rem ("G:\TMNT MEGADRIVE\...").
 rem ===========================================================================
@@ -24,7 +28,7 @@ pushd "%GDK_WIN%"
 rem Objetos de la libreria limpios antes y despues: asi la proxima vez que se
 rem compile la libreria normal no reusa objetos con el mapper.
 make -f "%GDK_WIN%\makelib.gen" cleanobj cleandep
-make -f "%GDK_WIN%\makelib.gen" "LIB=%GDK%/lib_ssf" "EXTRA_FLAGS=-DENABLE_BANK_SWITCH=1" release
+make -f "%GDK_WIN%\makelib.gen" "LIB=%GDK%/lib_ssf" "EXTRA_FLAGS=-DENABLE_BANK_SWITCH=1 -DSSF_BANKS_6_7_ONLY=1" release
 set ERR=%ERRORLEVEL%
 make -f "%GDK_WIN%\makelib.gen" cleanobj cleandep
 popd
