@@ -66,5 +66,22 @@ o con `DMA_QUEUE`): `factory_capsule`, `taladro_capsula`, `sparks`,
 
 Emuladores que soporten el mapper SSF con la cabecera "SEGA SSF" (por ejemplo
 Genesis Plus GX y BlastEm; Gens viejo probablemente no) y la Mega EverDrive.
-Mientras la ROM no pase de 4 MB, la ROM con mapper corre igual en cualquier
-lado: los bancos no cambian. Un cartucho fisico necesita una placa con mapper.
+Un cartucho fisico necesita una placa con mapper.
+
+**Ojo (01/11, reporte de la comunidad con la 0.4.0):** la idea de que "mientras
+la ROM no pase de 4 MB, la ROM con mapper corre igual en cualquier lado" NO se
+cumplio en hardware real:
+
+| Flash cart | Con mapper (`build_rom_ssf.bat`) | Sin mapper (`build_rom_plain.bat`) |
+| --- | --- | --- |
+| Mega EverDrive PRO (firmware ultimo) | arranca | arranca |
+| Everdrive MD v2.6 | NO arranca | arranca |
+| Everdrive chino antiguo (solo hasta 4 MB), MD1 PAL | NO arranca | (esperado: arranca, sin confirmar) |
+
+El v2.6 dice soportar SSF2 pero en la practica es parcial (la cabecera
+`SEGA SSF` y/o las escrituras a 0xA130F1-FF al arrancar). Como la ROM mide menos
+de 4 MB (3,87 MB), el mapper no hace falta: **mientras entre en 4 MB, publicar
+la ROM sin mapper** (`tools\mapper\build_rom_plain.bat`, cabecera `SEGA MEGA
+DRIVE`, fin de ROM 0x3FFFFF) como descarga principal. El mapper solo vale la
+pena si la ROM pasa de 4 MB, y ahi habra que ver como lo resolvio Mr. Todd X
+(un Shinobi beta de 5 MB que si anda con SSF2 en el Everdrive MD viejo).
