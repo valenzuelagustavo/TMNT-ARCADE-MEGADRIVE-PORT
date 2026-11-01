@@ -443,7 +443,9 @@
 #define HAMMER_ANIM_WALK_UP      2    // 8f
 #define HAMMER_ANIM_SWING        3    // 6f: sube, baja, golpea el piso (4to y 5to)
 #define HAMMER_ANIM_HIT          4    // 3f
-#define HAMMER_ANIM_EXPLODE      5    // 4f: cae
+#define HAMMER_ANIM_EXPLODE      5    // 8f: (31/10) la muerte del purple (6 frames,
+                                      // repartidos en 8 casillas de 6 ticks; ver
+                                      // tools/hammer_purple_death.py)
 
 #define SPEAR_ANIM_IDLE          0
 #define SPEAR_ANIM_WALK          1    // 8f

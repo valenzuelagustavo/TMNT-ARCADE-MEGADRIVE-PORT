@@ -253,6 +253,9 @@ def main():
     # (29/10) La lanza muere con la muerte del purple (fila 6).
     import spear_purple_death
     spear_purple_death.apply()
+    # (31/10) El martillo tambien: la muerte del purple (fila 5).
+    import hammer_purple_death
+    hammer_purple_death.apply()
 
 
 if __name__ == '__main__':
