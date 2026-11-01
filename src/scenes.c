@@ -1,4 +1,5 @@
 #include "scenes.h"
+#include "build_config.h"   // (01/11) TMNT_FULL / TMNT_LITE
 #include "idle_missile.h"   // (14/10) modo ARCADE: el misil al que se queda quieto
 #include "intro.h"   // sega_logo_spr, rocksteady_spr
 #include "menus.h"   // title_menu_bg, title_cursor, char_select_bg/badge/head
@@ -1822,11 +1823,17 @@ static void menuDraw4P(bool with4P) {
 // que los jugadores la indiquen al reportar bugs. Subir GAME_VERSION al
 // publicar una version nueva.
 #define GAME_VERSION "0.4.0"
+// (01/11) La edicion LITE (sin mapper) lo dice en el titulo; la FULL queda igual.
+#if TMNT_LITE
+#define GAME_EDITION_TAG "LITE "
+#else
+#define GAME_EDITION_TAG ""
+#endif
 static void buildVersionDraw(void) {
     char buf[40];
     const char* d = __DATE__;            // "Oct 27 2026"
     u16 n = 0;
-    const char* v = "VERSION " GAME_VERSION " ";
+    const char* v = "VERSION " GAME_VERSION " " GAME_EDITION_TAG;
     for (u16 i = 0; v[i]; i++) buf[n++] = v[i];
     for (u16 i = 0; d[i] && n < 39; i++) buf[n++] = (d[i] >= 'a' && d[i] <= 'z') ? (char)(d[i] - 32) : d[i];
     buf[n] = 0;

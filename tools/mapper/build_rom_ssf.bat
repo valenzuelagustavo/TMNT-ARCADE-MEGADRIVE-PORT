@@ -1,10 +1,11 @@
 @echo off
 rem ===========================================================================
-rem build_rom_ssf.bat (23/10) - compila la ROM CON mapper SSF (bank switch)
+rem build_rom_ssf.bat (23/10, 01/11) - compila la edicion FULL: ROM CON mapper SSF (bank switch)
 rem ===========================================================================
 rem Desde cualquier carpeta: compila el proyecto con ENABLE_BANK_SWITCH=1 y la
 rem libreria de C:\SGDK\lib_ssf (ver build_sgdk_lib_ssf.bat) y despues revisa
-rem el reparto de la ROM con check_mapper.py.
+rem el reparto de la ROM con check_mapper.py y la cabecera con check_edition.py
+rem (deja out\tmnt_megadrive_port_<version>_full.bin). Ver src\build_config.h.
 rem
 rem Hace un "clean" antes: los objetos de out\ compilados sin el flag (la rama
 rem main, Genesis Code) no se pueden mezclar con estos.
@@ -24,6 +25,8 @@ make -f "%GDK_WIN%\makefile.gen" clean
 make -f "%GDK_WIN%\makefile.gen" "EXTRA_FLAGS=-DENABLE_BANK_SWITCH=1" "LIBMD=%GDK%/lib_ssf/libmd.a" release
 set ERR=%ERRORLEVEL%
 if "%ERR%"=="0" python tools\mapper\check_mapper.py
+if "%ERR%"=="0" set ERR=%ERRORLEVEL%
+if "%ERR%"=="0" python tools\mapper\check_edition.py full
 if "%ERR%"=="0" set ERR=%ERRORLEVEL%
 popd
 exit /b %ERR%

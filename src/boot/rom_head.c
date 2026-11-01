@@ -1,8 +1,9 @@
 #include "genesis.h"
+#include "build_config.h"
 
 __attribute__((externally_visible))
 const ROMHeader rom_header = {
-#if (ENABLE_BANK_SWITCH != 0)
+#if TMNT_FULL
     "SEGA SSF        ",
 #elif (MODULE_MEGAWIFI != 0)
     "SEGA MEGAWIFI   ",
@@ -21,7 +22,7 @@ const ROMHeader rom_header = {
     // la ROM segun la cabecera: algunos emuladores / flash carts deciden con
     // esto como mapear la SRAM.
     // Con el mapper SSF (rama mapper) la ROM puede llegar a 8 MB.
-#if (ENABLE_BANK_SWITCH != 0)
+#if TMNT_FULL
     0x007FFFFF,
 #else
     0x003FFFFF,

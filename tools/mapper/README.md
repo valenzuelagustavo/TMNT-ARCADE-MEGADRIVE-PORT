@@ -1,4 +1,20 @@
-# Mapper SSF (bank switch) — rama `mapper`
+# Ediciones FULL / LITE y mapper SSF (bank switch)
+
+**Una sola base de codigo (rama `main`), dos ediciones** (01/11; antes eran dos ramas, `main` y `mapper`):
+
+| Edicion | Script | Cabecera | Para quien |
+| --- | --- | --- | --- |
+| **LITE** (sin mapper, hasta 4 MB) | `tools\mapper\build_rom_plain.bat` | `SEGA MEGA DRIVE`, fin 0x3FFFFF | flash carts viejos (Everdrive MD v2.6 y anteriores, chinos de 4 MB), cartuchos sin mapper, y cualquier emulador. **Descarga recomendada mientras entre en 4 MB.** |
+| **FULL** (mapper SSF, puede pasar de 4 MB) | `tools\mapper\build_rom_ssf.bat` | `SEGA SSF`, fin 0x7FFFFF | emuladores con SSF, Mega EverDrive PRO y similares |
+
+La edicion sale del flag de SGDK `ENABLE_BANK_SWITCH` (los scripts lo ponen) y `src/build_config.h` la
+expone al codigo como `TMNT_FULL` / `TMNT_LITE` (y `TMNT_EDITION`). Hoy el contenido es el mismo en las
+dos. Cuando la ROM pase de 4 MB, lo "extra" que no entre se envuelve en `#if TMNT_FULL ... #endif` y sus
+recursos van en `.res` propios que LITE no incluye. LITE muestra `LITE` en el menu de titulo (para los
+reportes de bugs). Cada script termina con `check_edition.py`, que comprueba la cabecera (y que LITE
+entre en 4 MB) y deja `out\tmnt_megadrive_port_<version>_full.bin` / `_lite.bin`: esa copia es la que se publica.
+
+## Mapper SSF (bank switch)
 
 Para que la ROM pueda pasar de 4 MB se usa el mapper oficial de Sega (el de
 Super Street Fighter II) que trae SGDK (`ENABLE_BANK_SWITCH`).
@@ -47,7 +63,9 @@ o con `DMA_QUEUE`): `factory_capsule`, `taladro_capsula`, `sparks`,
 
 ## Compilar
 
-1. Una vez (y cada vez que se actualice SGDK): `tools\mapper\build_sgdk_lib_ssf.bat`
+(LITE: solo `tools\mapper\build_rom_plain.bat`, no necesita nada mas.)
+
+1. Una vez (FULL) (y cada vez que se actualice SGDK): `tools\mapper\build_sgdk_lib_ssf.bat`
    arma `C:\SGDK\lib_ssf\libmd.a`. La libreria normal no se toca.
    Necesita que `C:\SGDK\inc\config.h` acepte el flag desde afuera:
    ```c
@@ -59,8 +77,8 @@ o con `DMA_QUEUE`): `factory_capsule`, `taladro_capsula`, `sparks`,
 2. La ROM: `tools\mapper\build_rom_ssf.bat` (hace `clean`, compila con
    `-DENABLE_BANK_SWITCH=1` y corre `check_mapper.py`). La cabecera sale como
    `SEGA SSF` (src/boot/rom_head.c).
-3. Al volver a main: compilar normal con un `clean` antes (los objetos de
-   `out\` del build con mapper no sirven sin el flag).
+3. Para cambiar de edicion no hace falta cambiar de rama: los dos scripts hacen `clean`
+   antes (los objetos de `out\` de una edicion no sirven en la otra).
 
 ## Donde corre
 
