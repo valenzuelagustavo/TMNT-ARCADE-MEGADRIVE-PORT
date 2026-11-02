@@ -202,6 +202,7 @@ static const CreditEntry crEntries[] = {
     { "MUSIC",            NULL, "SANSENPAI35",        NULL,         FALSE },
     { "2D ASSETS AND",    "GRAPHIC ADAPTATION", "ROBSON RICARDO", NULL, FALSE },
     { "2D ASSETS AND",    "DEVELOPMENT",        "RAY CASTELLO",   NULL, FALSE },
+    { "TESTER",           NULL, "ROBOT-RANDOM",       NULL,         FALSE },   // (01/11)
     { "THANK YOU",        NULL, "TO THE COMMUNITY!",  NULL,         FALSE },
 };
 #define CR_ENTRIES  ((u16)(sizeof(crEntries) / sizeof(crEntries[0])))
