@@ -8,7 +8,7 @@
 
 ## 🤖 Nota de transparencia sobre el uso de IA
 
-En este proyecto se utiliza **inteligencia artificial como una herramienta** de apoyo al desarrollo (por ejemplo, asistencia con el código en C, scripts auxiliares y documentación). La dirección del proyecto, las decisiones de diseño, las pruebas y la publicación son del desarrollador, y el juego se prueba y se ajusta a mano. Se aclara por honestidad hacia la comunidad.
+En este proyecto se utiliza **inteligencia artificial como una herramienta** de apoyo al desarrollo (por ejemplo, asistencia con el código en C, scripts auxiliares y documentación). La dirección del proyecto, las decisiones de diseño, las pruebas y la publicación son del desarrollador, y el juego se prueba y se ajusta a mano. **Los assets (sprites, escenarios, gráficos) no están generados con IA:** la gran mayoría está ripeada del arcade original (incluido material que estaba escondido en la ROM del arcade, como el caimán, aportado por Ray Castello), o fue hecha por los colaboradores nombrados en los créditos y por el propio desarrollador. Los scripts del repositorio solo convierten o recolorean esos assets para la paleta de la consola. Se aclara por honestidad hacia la comunidad.
 
 ## 🚀 Características del Proyecto
 
