@@ -4101,7 +4101,7 @@ SceneId showScene11() {
                 if (!playerCanBeHit(pls[k])) continue;
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
-                damagePlayer(pls[k], hitX);
+                damagePlayerLight(pls[k], hitX);   // (01/11) shuriken: reaccion liviana
             }
         }
 
@@ -5480,7 +5480,7 @@ SceneId showScene12() {
                 if (!playerCanBeHit(pls[k])) continue;
                 if (!shurikenCheckHitPlayer(getPlayerWorldX(pls[k]), getPlayerY(pls[k]), &hitX)) continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
-                damagePlayer(pls[k], hitX);
+                damagePlayerLight(pls[k], hitX);   // (01/11) shuriken: reaccion liviana
             }
         }
 

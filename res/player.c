@@ -2301,6 +2301,22 @@ void damagePlayerAir(Player* p, s16 attackerX) {
     footHit(p, attackerX);
 }
 
+// (01/11) Como damagePlayer (mismas barras que un golpe de foot soldier, 1 exacta
+// en NORMAL) pero con la REACCION LIVIANA (HIT_1/HIT_2/HIT_BEHIND_1) en vez de
+// derribar. Lo usa el shuriken del naranja. Agarrada por un foot soldier se
+// comporta igual que damagePlayer (frame 3 del HELD).
+void damagePlayerLight(Player* p, s16 attackerX) {
+    if (p->state == STATE_GRABBED && p->grabType == GRAB_TYPE_FOOT) {
+        damagePlayer(p, attackerX);
+        return;
+    }
+    if (!playerCanBeHit(p)) return;
+    if (dificultad == DIFICULTAD_NORMAL)
+        playerTakeHitEx(p, attackerX, 1, FALSE, TRUE);
+    else
+        playerTakeHit(p, attackerX, PLAYER_ARCADE_CONTROL ? PLAYER_ARCADE_HIT_BARS : 1, FALSE);
+}
+
 // Golpe que resta VARIAS barras (p.ej. el láser del robot = 4).
 void playerHitBars(Player* p, s16 attackerX, u8 bars) {
     if (!playerCanBeHit(p)) return;

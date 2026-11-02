@@ -866,6 +866,7 @@ bool playerCanBeHitAir(const Player* p);
 // 'attackerX' = centro X del atacante en coordenadas de MUNDO.
 void damagePlayer(Player* p, s16 attackerX);
 void damagePlayerAir(Player* p, s16 attackerX);   // (15/10) tambien en el aire
+void damagePlayerLight(Player* p, s16 attackerX);  // (01/11) idem damagePlayer pero reaccion liviana (sin derribo): shuriken
 
 // Golpe que resta VARIAS barras de una (p.ej. el láser del robot = 4).
 void playerHitBars(Player* p, s16 attackerX, u8 bars);
