@@ -93,7 +93,7 @@ cumplio en hardware real:
 | Flash cart | Con mapper (`build_rom_ssf.bat`) | Sin mapper (`build_rom_plain.bat`) |
 | --- | --- | --- |
 | Mega EverDrive PRO (firmware ultimo) | arranca | arranca |
-| Everdrive MD v2.6 | NO arranca | arranca |
+| Everdrive MD v2.6 | arranca SOLO con `SSF_BANKS_6_7_ONLY` (ver abajo); con SYS_resetBanks de SGDK sin tocar, NO | arranca |
 | Everdrive chino antiguo (solo hasta 4 MB), MD1 PAL | NO arranca | (esperado: arranca, sin confirmar) |
 
 El v2.6 dice soportar SSF2 pero en la practica es parcial (la cabecera
@@ -104,7 +104,7 @@ DRIVE`, fin de ROM 0x3FFFFF) como descarga principal. El mapper solo vale la
 pena si la ROM pasa de 4 MB, y ahi habra que ver como lo resolvio Mr. Todd X
 (un Shinobi beta de 5 MB que si anda con SSF2 en el Everdrive MD viejo).
 
-## Prueba para el Everdrive MD v2.6 (01/11, en curso)
+## Prueba para el Everdrive MD v2.6 (01/11) -- CONFIRMADA
 
 Hipotesis (sin confirmar): `SYS_resetBanks` de SGDK escribe en los bancos 1-7 al arrancar, pero el SSF2
 original solo usa el 6 y el 7; los carts tempranos "no soportan la especificacion completa del mapper"
@@ -118,4 +118,12 @@ original solo usa el 6 y el 7; los carts tempranos "no soportan la especificacio
 
 Si arranca: la edicion FULL anda tambien en el v2.6 y se puede publicar (LITE queda de respaldo).
 Si no: queda el encabezado (preguntar a Mr. Todd X como hizo el Shinobi de 5 MB).
+
+**Resultado (01/11, tester del v2.6):** el arreglo funciono: la edicion FULL con `SSF_BANKS_6_7_ONLY`
+arranca y anda con el mapper en el Everdrive MD v2.6 (el mismo cart que ya corre el SSF2 y el
+Shinobi de Mr. Todd X). Era la hipotesis: `SYS_resetBanks` escribia en los bancos 1-5, que el
+SSF2 no usa. Reporto "algunos pixeles que parpadean", sin detalle: puede ser del arte original
+o de la lectura FAR a traves del mapper (ver arriba: DMA en cola con datos FAR sin comprimir).
+Pendiente: pedir cuando/donde aparecen (captura o escena) y descartar un bug del reparto NEAR/FAR.
+**Desde ahora `build_sgdk_lib_ssf.bat` SIEMPRE compila con `-DSSF_BANKS_6_7_ONLY=1`** (ya viene asi).
 
