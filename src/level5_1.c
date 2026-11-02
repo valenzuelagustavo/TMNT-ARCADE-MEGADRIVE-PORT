@@ -401,12 +401,20 @@ static void bikesUpdate(Player** pls, u8 nPl, s16 camX) {
 // (lvl51WalkTop), asi nadie pasa al otro lado. De cada pila sale uno de los de
 // la GOMA (la oleada O): agarra una y la pila pasa de tres gomas a dos.
 // Aparecen cuando la camara se acerca al final y quedan hasta que termina el
-// nivel. La segunda valla apunta a los tiles de la primera (100 tiles); si
+// nivel. Una valla apunta a los tiles de la otra (100 tiles); si
 // SPR_defragVRAM la muda, la sigue.
+// (01/11) Quien TIENE los tiles (VALLA_OWNER) tiene que ser la que aparece
+// PRIMERO en pantalla: SGDK sube los tiles de un sprite recien cuando se ve
+// (SPR_FLAG_AUTO_VISIBILITY), y la que apunta a ellos (VALLA_FOLLOW) se dibuja
+// con lo que haya en esa VRAM. Antes la duenia era la de x = 1992 y la que
+// apuntaba, la de x = 1976, que entra 16 px de camara antes: ahi salian
+// pedazos del HUD (los marcos "1UP / 2UP") tirados sobre la ruta.
 // ---------------------------------------------------------------------------
 #define END_WALL_X     1976     // pies: de aca a la derecha es pared
 #define END_SHOW_CAM   (END_WALL_X - SCREEN_W - 24)
 #define VALLA_N           2
+#define VALLA_OWNER       1     // (01/11) x = 1976: la que entra primero; tiene los tiles
+#define VALLA_FOLLOW      0     //       x = 1992: apunta a los tiles de la duenia
 #define VALLA_W          96
 #define VALLA_H         104
 #define VALLA_BASE_DY     6     // la base de las patas, un poco arriba del borde
@@ -424,27 +432,28 @@ static u8      pileUsed[PILE_N];
 static u8 lvl51WalkTop[LVL51_W / 8];
 
 static void endRelease(void) {
-    for (s16 k = VALLA_N - 1; k >= 0; k--)
-        if (valla[k]) { SPR_releaseSprite(valla[k]); valla[k] = NULL; }
+    // (01/11) Primero la que apunta, despues la duenia de los tiles.
+    if (valla[VALLA_FOLLOW]) { SPR_releaseSprite(valla[VALLA_FOLLOW]); valla[VALLA_FOLLOW] = NULL; }
+    if (valla[VALLA_OWNER])  { SPR_releaseSprite(valla[VALLA_OWNER]);  valla[VALLA_OWNER]  = NULL; }
     for (u16 j = 0; j < PILE_N; j++)
         if (pile[j]) { SPR_releaseSprite(pile[j]); pile[j] = NULL; }
 }
 
 static void endUpdate(s16 camX) {
     if (camX < END_SHOW_CAM) return;
-    if (!valla[0] && sprVramFits(fw_valla.maxNumTile)) {
-        valla[0] = SPR_addSprite(&fw_valla, -128, -128, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
-        if (valla[0]) SPR_setAutoAnimation(valla[0], FALSE);
+    if (!valla[VALLA_OWNER] && sprVramFits(fw_valla.maxNumTile)) {
+        valla[VALLA_OWNER] = SPR_addSprite(&fw_valla, -128, -128, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        if (valla[VALLA_OWNER]) SPR_setAutoAnimation(valla[VALLA_OWNER], FALSE);
     }
-    if (valla[0]) {
-        u16 idx = valla[0]->attribut & TILE_INDEX_MASK;
-        if (!valla[1]) {
-            valla[1] = SPR_addSpriteEx(&fw_valla, -128, -128,
+    if (valla[VALLA_OWNER]) {
+        u16 idx = valla[VALLA_OWNER]->attribut & TILE_INDEX_MASK;
+        if (!valla[VALLA_FOLLOW]) {
+            valla[VALLA_FOLLOW] = SPR_addSpriteEx(&fw_valla, -128, -128,
                                        TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, idx),
                                        SPR_FLAG_AUTO_VISIBILITY);
-            if (valla[1]) SPR_setAutoAnimation(valla[1], FALSE);
-        } else if ((valla[1]->attribut & TILE_INDEX_MASK) != idx) {
-            SPR_setVRAMTileIndex(valla[1], idx);
+            if (valla[VALLA_FOLLOW]) SPR_setAutoAnimation(valla[VALLA_FOLLOW], FALSE);
+        } else if ((valla[VALLA_FOLLOW]->attribut & TILE_INDEX_MASK) != idx) {
+            SPR_setVRAMTileIndex(valla[VALLA_FOLLOW], idx);
         }
     }
     for (u16 j = 0; j < PILE_N; j++) {
