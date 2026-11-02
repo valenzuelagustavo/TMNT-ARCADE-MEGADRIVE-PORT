@@ -689,6 +689,14 @@ void shurikenReleaseAll(void) {
     for (u16 i = 0; i < MAX_SHURIKENS; i++) shotFree(i);
 }
 
+// (01/11) Que proyectil dio en el ultimo shurikenCheckHitPlayer == TRUE: el
+// shuriken y el cuchillo dan la reaccion LIVIANA (damagePlayerLight); la bala y
+// la lanza siguen derribando.
+static u8 lastShotKind;
+bool shurikenLastHitLight(void) {
+    return lastShotKind == SHOT_SHURIKEN || lastShotKind == SHOT_KNIFE;
+}
+
 bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
     // px = borde izquierdo del frame del jugador (frame de 104px)
     s16 pcx = px + PLAYER_SPRITE_W / 2;   // centro del jugador
@@ -707,6 +715,7 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
             if (absS16(pcx - s->x) < reachX &&
                 dy >= -FW_PROJ_DY_UP && dy <= FW_PROJ_DY_DOWN) {
                 if (hitX) *hitX = s->x;
+                lastShotKind = s->kind;
                 shotFree(i);
                 return TRUE;
             }
@@ -719,6 +728,7 @@ bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX) {
         if (absS16(pcx - scx) < 16 && absS16(pcy - scy) < 16) {
             // Impacto: destruir el shuriken
             if (hitX) *hitX = scx;
+            lastShotKind = SHOT_SHURIKEN;
             shotFree(i);
             return TRUE;
         }

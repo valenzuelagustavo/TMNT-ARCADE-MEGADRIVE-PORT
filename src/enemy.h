@@ -1014,6 +1014,9 @@ void shurikenReleaseAll(void);
 // Chequea colisión de todos los shurikens activos contra un jugador en (px, py)
 // (centro del frame). Devuelve TRUE si alguno impactó (una sola vez por shuriken).
 bool shurikenCheckHitPlayer(s16 px, s16 py, s16* hitX);
+// (01/11) TRUE si el proyectil del ultimo impacto (shurikenCheckHitPlayer == TRUE)
+// fue un shuriken o un cuchillo: pegan con damagePlayerLight (sin derribo).
+bool shurikenLastHitLight(void);
 
 // Rompe los shurikens activos alcanzados por la hitbox del ataque del jugador
 // (playerAttackHits: misma geometría que contra los enemigos). El proyectil

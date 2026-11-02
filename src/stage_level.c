@@ -1307,7 +1307,8 @@ SceneId stageLevelRun(const StageLevel* L) {
                     continue;
                 XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles),
                                SOUND_PCM_CH3, 15, TRUE, FALSE);
-                damagePlayerLight(pls[k], hitX);   // (01/11) shuriken: reaccion liviana
+                if (shurikenLastHitLight()) damagePlayerLight(pls[k], hitX);   // (01/11) shuriken y cuchillo: reaccion liviana
+                else                        damagePlayer(pls[k], hitX);
             }
         }
 
