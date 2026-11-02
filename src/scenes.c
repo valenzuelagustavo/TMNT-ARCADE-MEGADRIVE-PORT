@@ -4594,6 +4594,10 @@ static s16 capsuleShake(u8 tick) {
 #define SHREDDER_JUMP_X_END    356   // X de mundo al salir (pantalla 336: FUERA por la derecha)
 #define SHREDDER_JUMP_Y_END    70    // Y de ancla al salir (pies ~150, en la banda del cielo)
 #define SHREDDER_ARC_HEIGHT    24    // Elevación extra del ápice del arco (px)
+// (01/11) Suena el vidrio roto (window_broken_sfx, el mismo de las ventanas del
+// 2-1) cuando Shredder revienta la ventana: en este cuadro del arco (0..JUMP_FRAMES-1),
+// poco antes de que termine el vuelo. Ajustar a ojo si queda adelantado o tarde.
+#define SHREDDER_GLASS_T       28
 // Fade a negro del final: arranca cuando el ancla de Shredder llega a 3 tiles
 // (24px) del extremo del nivel (440). Con la cámara fija en 120, el sprite está
 // entonces casi fuera de pantalla (pantalla 296..368: quedan ~24px visibles) y
@@ -5284,6 +5288,9 @@ SceneId showScene12() {
                         shredderY = py;
                         if (shredderSpr)
                             SPR_setPosition(shredderSpr, px - cameraX, py);
+                        if (t == SHREDDER_GLASS_T)    // (01/11) rompe la ventana
+                            XGM2_playPCMEx(window_broken_sfx, sizeof(window_broken_sfx),
+                                           SOUND_PCM_CH3, 14, TRUE, FALSE);
                         cutTimer++;
                         // Fade a negro cuando el sprite está a 3 tiles del extremo:
                         // el sprite sigue saliendo por la ventana mientras la
