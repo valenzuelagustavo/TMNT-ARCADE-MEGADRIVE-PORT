@@ -1403,6 +1403,15 @@ void updatePlayer(Player* p) {
                 }
                 break;
             }
+            // (01/11) La reaccion al golpe normal se veia lenta (cuadros de 10
+            // ticks): se acorta cada cuadro a PLAYER_HURT_ANIM_TICKS. Solo en
+            // STATE_HURT y solo en estas anims: el derribo y el resto no cambian.
+            {
+                s16 ai = p->sprite->animInd;
+                if ((ai == ANIM_HIT_1 || ai == ANIM_HIT_2 || ai == ANIM_HIT_BEHIND_1) &&
+                    p->sprite->timer > PLAYER_HURT_ANIM_TICKS)
+                    p->sprite->timer = PLAYER_HURT_ANIM_TICKS;
+            }
             if (p->hurtTimer == 0 && SPR_isAnimationDone(p->sprite)) {
                 p->state = STATE_IDLE;
                 SPR_setAnimationLoop(p->sprite, TRUE);

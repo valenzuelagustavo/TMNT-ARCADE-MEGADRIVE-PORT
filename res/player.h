@@ -441,6 +441,11 @@ typedef enum {
 // Daño recibido (golpes de los foot soldiers)
 // ---------------------------------------------------------------------------
 #define PLAYER_HURT_INVINCIBLE   45  // I-frames tras un golpe normal (~0.75s, SIN parpadeo)
+// (01/11) Duracion MAXIMA de cada cuadro de la reaccion al golpe normal (HIT_1,
+// HIT_2 y HIT_BEHIND_1). La hoja los pone a 10 ticks (chars.res), igual que el
+// resto de las animaciones, y los 4-6 cuadros de la reaccion duraban ~50 frames:
+// se sentia lenta. Con 6 dura ~35. NO afecta al derribo ni a las otras animaciones.
+#define PLAYER_HURT_ANIM_TICKS     6
 #define PLAYER_HURT_KNOCK_FRAMES 10  // Frames de knockback (deslizamiento)
 #define PLAYER_HURT_KNOCK_SPEED   2  // px/frame del knockback (10x2 = 20px)
 
