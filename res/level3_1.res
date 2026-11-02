@@ -68,3 +68,9 @@ SPRITE  sewer_hole_3 "images/lvl_3_sewer/sewer_hole_3.png" 6 4 FAST 0
 // rat.png (RGBA) a la paleta del fondo (PAL0). Celdas de 32x16: [0] quieta,
 // [1] corriendo (3 frames). time 0: los frames van a mano.
 SPRITE  sewer_rat "images/lvl_3_sewer/sewer_rat.png" 4 2 FAST 0
+
+// (01/11) El CAIMAN del arcade (level3_1.c, swGator): 2 cuadros de 128x32 (16x4
+// tiles): [0] boca abierta, [1] boca cerrada. PAL0 (la del fondo; ocre sobre el
+// agua violeta; sin los indices 1 y 14 del ciclo del agua). tools/gen_sewer_gator.py pal0.
+// time 0: los cuadros van a mano.
+SPRITE  sewer_gator "images/lvl_3_sewer/sewer_gator_pal0.png" 16 4 FAST 0

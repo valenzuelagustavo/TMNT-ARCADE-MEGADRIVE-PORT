@@ -297,6 +297,109 @@ static void swRatsUpdate(s16 camX) {
 }
 
 // ---------------------------------------------------------------------------
+// EL CAIMAN (01/11)
+// ---------------------------------------------------------------------------
+// El caiman del arcade que quedo SIN usar en el juego original (sewer_gator,
+// 128x32, 2 cuadros: [0] boca abierta, [1] boca cerrada; tools/gen_sewer_gator.py
+// pal0). Va en PAL0 (la del fondo): ocre/ladrillo sobre el agua violeta. Cruza
+// el canal de DERECHA A IZQUIERDA (la hoja mira a la izquierda: no se espeja),
+// tres veces a lo largo del nivel, como el tractor del nivel de nieve o el auto
+// de la carretera: es un PELIGRO del escenario, no un enemigo; no se lo puede
+// golpear ni matar.
+//   - Alterna boca cerrada / boca abierta. Con la boca ABIERTA muerde a la
+//     tortuga que tiene delante (la cabeza esta en el lado izquierdo del
+//     sprite): le saca SW_GATOR_BARS barras y la derriba, una vez por pasada
+//     y por tortuga.
+//   - Saltando no pega (playerCanBeHit). Solo alcanza a las tortugas del
+//     CANAL: su carril es SW_GATOR_LANE (+- SW_GATOR_TOL_Y).
+//   - Sale cuando la camara llega a swGatorCam[i] y no hay jefe; si la VRAM
+//     no da (2+ jugadores) espera SW_GATOR_WAIT_MAX frames y se saltea esa
+//     pasada. Necesita 64 tiles de sprite.
+//   - El Y del sprite sale del fondo: la fila 222 del fondo = Y de mundo 190
+//     (ver el escalon, mas arriba); el cuerpo cae en 192..210.
+// Visibilidad A MANO, como el tractor: la X de los sprites de la VDP es de 9
+// bits y uno de 128 px recien creado a la derecha daba la vuelta.
+// ---------------------------------------------------------------------------
+#define SW_GATOR_N          3
+#define SW_GATOR_W        128
+#define SW_GATOR_TOP      190       // Y de mundo del borde de arriba del sprite
+#define SW_GATOR_LANE     206       // carril (pies) del caiman: profundidad y golpe
+#define SW_GATOR_TOL_Y     12
+#define SW_GATOR_SPEED_Q  400       // 1,56 px/f (8.8)
+#define SW_GATOR_SHUT_T    30       // frames con la boca cerrada
+#define SW_GATOR_OPEN_T    18       // frames con la boca abierta (y mordiendo)
+#define SW_GATOR_BITE_X0   (-8)     // zona de la mordida, desde el borde izquierdo del sprite
+#define SW_GATOR_BITE_X1    44
+#define SW_GATOR_BARS        2
+#define SW_GATOR_SHOW_AGE    2
+#define SW_GATOR_WAIT_MAX  360
+static const s16 swGatorCam[SW_GATOR_N] = { 200, 480, 760 };
+static struct {
+    Sprite* spr; s16 x; u8 acc, hitMask, open; u16 t; bool vis;
+} swGator;
+static u8  swGatorNext;             // proxima pasada
+static u16 swGatorWait;             // frames esperando VRAM
+
+static void swGatorRelease(void) {
+    if (swGator.spr) { SPR_releaseSprite(swGator.spr); swGator.spr = NULL; }
+}
+
+static void swGatorUpdate(Player** pls, u8 nPl, s16 camX) {
+    if (!swGator.spr) {
+        if (swGatorNext >= SW_GATOR_N || swBoss || camX < swGatorCam[swGatorNext]) return;
+        if (++swGatorWait > SW_GATOR_WAIT_MAX) { swGatorNext++; swGatorWait = 0; return; }
+        if (!sprVramFits(sewer_gator.maxNumTile)) return;
+        Sprite* s = SPR_addSprite(&sewer_gator, -SW_GATOR_W, -SW_GATOR_W, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        if (!s) return;
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setAnimAndFrame(s, 0, 1);               // boca cerrada
+        SPR_setDepth(s, (s16)-SW_GATOR_LANE);
+        SPR_setVisibility(s, HIDDEN);
+        swGator.spr = s;
+        swGator.x = (s16)(camX + SCREEN_W + 8);
+        swGator.acc = 0; swGator.hitMask = 0; swGator.open = FALSE; swGator.t = 0; swGator.vis = FALSE;
+        swGatorNext++;
+        swGatorWait = 0;
+        return;
+    }
+    u16 q = (u16)(swGator.acc + SW_GATOR_SPEED_Q);
+    swGator.acc = (u8)(q & 0xFF);
+    swGator.x = (s16)(swGator.x - (s16)(q >> 8));
+    swGator.t++;
+    s16 sx = (s16)(swGator.x - camX);
+    if (sx + SW_GATOR_W < -8) { swGatorRelease(); return; }     // salio por la izquierda
+
+    // Boca: cerrada SHUT_T, abierta OPEN_T, y asi.
+    u8 open = (u8)((swGator.t % (SW_GATOR_SHUT_T + SW_GATOR_OPEN_T)) >= SW_GATOR_SHUT_T);
+    if (open != swGator.open) {
+        swGator.open = open;
+        SPR_setFrame(swGator.spr, open ? 0 : 1);
+    }
+    bool v = (swGator.t >= SW_GATOR_SHOW_AGE) && (sx < SCREEN_W) && (sx + SW_GATOR_W > 0);
+    if (v != swGator.vis) {
+        swGator.vis = v;
+        SPR_setVisibility(swGator.spr, v ? VISIBLE : HIDDEN);
+    }
+    if (v) SPR_setPosition(swGator.spr, sx, (s16)(SW_GATOR_TOP - stageCamY));
+
+    if (!open) return;
+    for (u8 k = 0; k < nPl; k++) {
+        if (swGator.hitMask & (1 << k)) continue;
+        Player* p = pls[k];
+        if (!playerCanBeHit(p)) continue;
+        s16 dy = (s16)(getPlayerY(p) - SW_GATOR_LANE);
+        if (dy < -SW_GATOR_TOL_Y || dy > SW_GATOR_TOL_Y) continue;
+        s16 pcx = getPlayerHurtCX(p);
+        if (pcx + PLAYER_BODY_HALF_W < swGator.x + SW_GATOR_BITE_X0 ||
+            pcx - PLAYER_BODY_HALF_W > swGator.x + SW_GATOR_BITE_X1) continue;
+        XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH3, 15, TRUE, FALSE);
+        // viene de la derecha (cruza hacia la izquierda): la empuja a la izquierda
+        playerHitBarsKnockdown(p, (s16)(pcx + 16), SW_GATOR_BARS);
+        swGator.hitMask |= (u8)(1 << k);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // LA PARED SE RAJA (13/10): como en el arcade, los huecos con Mousers estan
 // SANOS hasta que llegan. El fondo ya los trae rotos, asi que se tapan con un
 // sprite de pared (PAL0, prioridad baja: los caños del primer plano quedan
@@ -418,6 +521,7 @@ static void swInit(void) {
         swPatch[k].st = PATCH_CLOSED; swPatch[k].frame = 0; swPatch[k].tick = 0; swPatch[k].spr = NULL;
     }
     for (u16 i = 0; i < SW_RAT_N; i++) { swRat[i].spr = NULL; swRat[i].st = RAT_WAIT; }
+    swGator.spr = NULL; swGatorNext = 0; swGatorWait = 0;      // (01/11) caiman
 }
 
 static void swRelease(void) {
@@ -428,6 +532,7 @@ static void swRelease(void) {
     }
     baxterRatReleaseAll();
     for (u16 i = 0; i < SW_RAT_N; i++) swRatRelease(i);
+    swGatorRelease();
     for (u16 k = 0; k < SW_PATCH_N; k++)
         if (swPatch[k].spr) { SPR_releaseSprite(swPatch[k].spr); swPatch[k].spr = NULL; }
 }
@@ -495,6 +600,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
     swWaterUpdate();
     swPatchesUpdate(camX);
     swRatsUpdate(camX);         // (18/10) decorativas
+    swGatorUpdate(pls, nPl, camX);   // (01/11) el caiman del canal
 
     // (13/10) Mousers de los huecos (con Baxter los mueve bossUpdate31).
     if (!swBoss) {
