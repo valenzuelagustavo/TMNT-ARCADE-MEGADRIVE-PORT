@@ -1267,13 +1267,18 @@ void hudPlayerUpdate(HudPlayer* h) {
 // fuera; en 2P el compañero vivo sigue solo.
 // ---------------------------------------------------------------------------
 #define CONT_START_SECONDS  9   // Cuenta inicial
+// (02/11) Con la cuenta GRANDE (un solo jugador) suena el tema del continue
+// (music_continue, 35 s, sin loop) y la cuenta dura lo mismo para que suene
+// entero: 34..0 a un digito por segundo (el 0 tambien dura 1 s) = 35 s. Si se
+// cambia el vgm, ajustar esto (segundos del vgm - 1).
+#define CONT_SOLO_START_SECONDS 34
 // El texto del continue se dibuja CENTRADO en el hueco entre los dos marcos
 // del HUD (pantalla de 40 columnas; los marcos ocupan 5..13 y 26..34, el
 // centro queda ~20): "CONTINUE?" (9 chars) + el dígito de la cuenta van
 // juntos desde la columna 15, en la fila 1 (HUD_SCORE_ROW). Ambos jugadores
 // usan la misma posición central.
 #define CONT_MSG_COL        15  // Columna inicial del mensaje centrado
-#define CONT_MSG_TOTAL_W    10  // "CONTINUE?" (9) + dígito (1)
+#define CONT_MSG_TOTAL_W    11  // "CONTINUE?" (9) + hasta 2 dígitos (cols 15..25; los marcos arrancan en la 26)
 
 // ContState / ContPlayer viven en hud.h (26/09: el 2-1 tambien los usa).
 
@@ -1312,9 +1317,17 @@ static void contDrawText(HudPlayer* h, s8 seconds) {
     contBigHide();
     contMusic(FALSE);
     VDP_drawText("CONTINUE?", CONT_MSG_COL, HUD_SCORE_ROW);
-    char buf[2];
-    buf[0] = (char)('0' + seconds);
-    buf[1] = 0;
+    // (02/11) hasta 2 digitos: la cuenta del continue grande arranca en 34 y
+    // puede pasar al HUD si el companero vuelve a entrar.
+    char buf[3];
+    if (seconds >= 10) {
+        buf[0] = (char)('0' + seconds / 10);
+        buf[1] = (char)('0' + seconds % 10);
+        buf[2] = 0;
+    } else {
+        buf[0] = (char)('0' + seconds);
+        buf[1] = 0;
+    }
     VDP_drawText(buf, CONT_MSG_COL + 9, HUD_SCORE_ROW);
 }
 
@@ -1413,7 +1426,7 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
     // Arranca la cuenta cuando el jugador acaba de caer.
     if (c->state == CONT_NONE) {
         c->state   = CONT_COUNTING;
-        c->seconds = CONT_START_SECONDS;
+        c->seconds = solo ? CONT_SOLO_START_SECONDS : CONT_START_SECONDS;
         c->tick    = 0;
         c->prevJoy = 0;
         c->big     = solo;
