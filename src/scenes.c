@@ -464,7 +464,12 @@ void clearSceneEx(bool keepAudio) {
 // ---------------------------------------------------------------------------
 // Compartida con las escenas que viven en sus propios modulos (declarada en
 // scenes.h). Antes era static; dejo de serlo cuando scene_profiles.c la necesito.
+// (02/11) Se recuerda el ultimo tema para reanudarlo despues del tema del CONTINUE.
+static const u8* lastMusic;
+static u16 lastMusicVol;
 void playMusicVol(const u8* track, u16 vol) {
+    lastMusic = track;
+    lastMusicVol = vol;
     XGM2_setFMVolume(vol);
     XGM2_setPSGVolume(vol);
     XGM2_play(track);
@@ -1282,12 +1287,30 @@ void hudPlayerUpdate(HudPlayer* h) {
 // si no hay VRAM de sprites se cae al texto del HUD.
 static bool contSolo;
 
+// (02/11) Tema del CONTINUE: suena mientras la cuenta va grande en el centro (un
+// solo jugador) y, al terminar (START, o el compañero vuelve), se reanuda el
+// tema del nivel desde el principio, como el arcade.
+#define CONT_MUSIC_VOL  90
+static bool contMusicOn;
+static void contMusic(bool on) {
+    if (on == contMusicOn) return;
+    contMusicOn = on;
+    if (on) {
+        XGM2_setFMVolume(CONT_MUSIC_VOL);
+        XGM2_setPSGVolume(CONT_MUSIC_VOL);
+        XGM2_play(music_continue);
+    } else if (lastMusic) {
+        playMusicVol(lastMusic, lastMusicVol);
+    }
+}
+
 static void contDrawText(HudPlayer* h, s8 seconds) {
     (void)h;
     VDP_clearText(CONT_MSG_COL, HUD_SCORE_ROW, CONT_MSG_TOTAL_W);
-    if (seconds < 0) { contBigHide(); return; }
-    if (contSolo && contBigShow(seconds)) return;
+    if (seconds < 0) { contBigHide(); contMusic(FALSE); return; }
+    if (contSolo && contBigShow(seconds)) { contMusic(TRUE); return; }
     contBigHide();
+    contMusic(FALSE);
     VDP_drawText("CONTINUE?", CONT_MSG_COL, HUD_SCORE_ROW);
     char buf[2];
     buf[0] = (char)('0' + seconds);
@@ -1450,6 +1473,9 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
                 // mientras el otro seguia jugando). Se oculta en vez de
                 // soltarla: revivePlayer ya suelta y recrea el sprite si
                 // despues vuelve a entrar.
+                // (02/11) Con la cuenta grande esto es el GAME OVER (todos los
+                // demas ya estaban fuera): no se reanuda el tema del nivel.
+                contMusicOn = FALSE;
                 contDrawText(h, -1);
                 if (p->sprite) SPR_setVisibility(p->sprite, HIDDEN);
                 c->state   = CONT_OUT;
@@ -1500,6 +1526,7 @@ static void playersSpanX(Player** pls, u8 nPl, s16* lead, s16* trail) {
 
 void contResetAll(ContPlayer* conts) {
     contBigForget();   // (02/11) puntero viejo si el nivel anterior no limpio
+    contMusicOn = FALSE;
     for (u8 k = 0; k < MAX_PLAYERS; k++) {
         ContPlayer cz = { CONT_NONE, 0, 0, 0, 0, 0 };
         conts[k] = cz;
@@ -2159,6 +2186,7 @@ static const s16 optHeadX[4] = { 45, 73, 227, 255 };
 //   BGM06 06 Fight! (jefes)        BGM15 15 It's Technodrome
 //   BGM07 07 April is Kidnapped    BGM16 16 The Technodrome
 //   BGM17 17 VS. Krank (17/10)     BGM18 18 VS. Shredder (17/10)
+//   BGM29 29 The Technodrome (Hyperstone Heist Drum Samples) (02/11)
 //   BGM08 08 Downtown
 //   BGM09 09 Scene Clear Theme 1
 static const u8* const soundTracks[] = {
@@ -2167,8 +2195,17 @@ static const u8* const soundTracks[] = {
     music_stage2_1, music_scene_clear, music_level3, music_garage,
     music_scene_clear2, music_freeway, music_skate, music_techno_cutscene,
     music_technodrome, music_vs_krang, music_vs_shredder,   // (17/10) BGM17, BGM18
+    music_technodrome_hs,            // (02/11) BGM29: Technodrome con las muestras de bateria
     music_shogun, music_winter,      // (20/10) BGM20, BGM21: solo con A B A C A B B
 };
+// (02/11) Numero BGM de cada pista = el del archivo de res/music (ya no es
+// correlativo: 29 va antes de las extra).
+static const u8 soundNums[] = {
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+    29,
+    20, 21,
+};
+typedef char soundNumsCheck[(sizeof(soundNums) == sizeof(soundTracks) / sizeof(soundTracks[0])) ? 1 : -1];
 #define SOUND_TRACK_EXTRA  2
 #define SOUND_TRACK_COUNT  (sizeof(soundTracks) / sizeof(soundTracks[0]))
 // Pistas que se pueden elegir (las extra, con el codigo).
@@ -2208,10 +2245,9 @@ static void optDrawPad(void) {
 
 static void optDrawSound(u8 trackIdx, bool playing) {
     char buf[9] = "BGM01   ";
-    // El numero es el del archivo: las extra son 20 y 21 (el 19 es el jingle
-    // de KONAMI, que no esta en el sound test).
-    u8 n = trackIdx + 1;
-    if (trackIdx >= SOUND_TRACK_COUNT - SOUND_TRACK_EXTRA) n++;
+    // El numero es el del archivo (soundNums): las extra son 20 y 21 (el 19 es
+    // el jingle de KONAMI, que no esta en el sound test).
+    u8 n = soundNums[trackIdx];
     buf[3] = (char)('0' + n / 10);
     buf[4] = (char)('0' + n % 10);
     if (playing) { buf[6] = 'O'; buf[7] = 'N'; }
