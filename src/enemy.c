@@ -1879,9 +1879,22 @@ bool enemyCanHitPlayer(const Enemy* e, const Player* p) {
     return playerCanBeHit(p);
 }
 
+// (02/11) Patada voladora: la FLYKICK del blanco y del cuchillo y la KICK del
+// morado y del naranja (la del cuchillo es una patada corta, no voladora).
+static bool enemyAttackIsFlyKick(const Enemy* e) {
+    if (e->attackType == ENEMY_ATTACK_FLYKICK) return TRUE;
+    return e->attackType == ENEMY_ATTACK_KICK &&
+           (e->type == ENEMY_TYPE_FOOT_SOLDIER || e->type == ENEMY_TYPE_FOOT_SOLDIER_ORANGE);
+}
+
+// (02/11) Golpe cuerpo a cuerpo de foot soldier: LIVIANO, y el 3ro seguido te
+// tumba (damagePlayerMelee). La patada voladora y el salto con espadazo
+// derriban de una.
 void enemyDamagePlayer(const Enemy* e, Player* p) {
-    if (whiteAirSlashVsJumpKick(e, p)) damagePlayerAir(p, getEnemyCenterX(e));
-    else                               damagePlayer(p, getEnemyCenterX(e));
+    if (whiteAirSlashVsJumpKick(e, p))  damagePlayerAir(p, getEnemyCenterX(e));
+    else if (enemyAttackIsFlyKick(e))   damagePlayer(p, getEnemyCenterX(e));
+    else if (e->attackType == ENEMY_ATTACK_JUMP) damagePlayer(p, getEnemyCenterX(e));
+    else                                damagePlayerMelee(p, getEnemyCenterX(e));
 }
 
 bool playerAttackHitsEnemy(const Player* p, const Enemy* e) {

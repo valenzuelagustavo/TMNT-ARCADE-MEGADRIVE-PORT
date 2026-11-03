@@ -191,6 +191,8 @@ void initPlayer(Player* p, u8 selectedCharacter, u16 joyId, u8 palette, s16 star
     p->kdSlideTick   = 0;
     p->blinkTimer    = 0;
     p->gameOver      = FALSE;
+    p->meleeHits     = 0;
+    p->meleeTimer    = 0;
     // Barra de vida: viene del estado persistente, igual que vidas y puntaje
     // (ver la nota de arriba). Red de seguridad: si quedo en 0 o basura, se
     // arranca con la barra llena en vez de con la tortuga muerta.
@@ -916,6 +918,10 @@ void updatePlayer(Player* p) {
     // ya no hace parpadear al sprite (queda visible durante los i-frames).
     if (p->invincible > 0)
         p->invincible--;
+
+    // (02/11) Vence la cuenta de golpes seguidos de foot soldier.
+    if (p->meleeTimer > 0 && --p->meleeTimer == 0)
+        p->meleeHits = 0;
 
     // Parpadeo: SOLO al revivir tras perder una vida (se activa en el respawn
     // del STATE_KO). Usa visibilidad; no toca la invulnerabilidad de arriba.
@@ -2216,6 +2222,9 @@ static void playerTakeHitEx(Player* p, s16 attackerX, u8 bars, bool volteo, bool
 
     if (p->health == 0) { playerEnterKO(p); return; }
 
+    // (02/11) Un derribo (de quien sea) reinicia la cuenta de golpes seguidos.
+    if (volteo) { p->meleeHits = 0; p->meleeTimer = 0; }
+
     // (09/10) Control arcade: el golpe VOLTEA a la tortuga (ver PLAYER_KD_*).
     if (PLAYER_ARCADE_CONTROL && volteo && p->state != STATE_GRABBED) {
         p->state      = STATE_KNOCKED_DOWN;
@@ -2315,6 +2324,33 @@ void damagePlayerLight(Player* p, s16 attackerX) {
         playerTakeHitEx(p, attackerX, 1, FALSE, TRUE);
     else
         playerTakeHit(p, attackerX, PLAYER_ARCADE_CONTROL ? PLAYER_ARCADE_HIT_BARS : 1, FALSE);
+}
+
+// (02/11) Golpe CUERPO A CUERPO de foot soldier (punos, espadazos, culatazo,
+// martillo, patada corta): reaccion liviana, y el TERCERO seguido (cada uno a
+// menos de PLAYER_MELEE_COMBO_FRAMES del anterior) te derriba. Las mismas
+// barras que damagePlayer. Agarrada por un foot soldier se comporta igual que
+// damagePlayer (frame 3 del HELD, sin cuenta). La patada voladora y el salto
+// con espadazo NO pasan por aca: derriban de una (enemyDamagePlayer).
+void damagePlayerMelee(Player* p, s16 attackerX) {
+    if (p->state == STATE_GRABBED && p->grabType == GRAB_TYPE_FOOT) {
+        damagePlayer(p, attackerX);
+        return;
+    }
+    if (!playerCanBeHit(p)) return;
+    bool down = FALSE;
+    if (p->meleeTimer == 0) p->meleeHits = 0;      // ventana vencida
+    if (++p->meleeHits >= PLAYER_MELEE_HITS_TO_KD) {
+        down = TRUE;                                // 3ro seguido: derribo
+        p->meleeHits = 0;
+        p->meleeTimer = 0;
+    } else {
+        p->meleeTimer = PLAYER_MELEE_COMBO_FRAMES;
+    }
+    if (dificultad == DIFICULTAD_NORMAL)
+        playerTakeHitEx(p, attackerX, 1, down, TRUE);
+    else
+        playerTakeHit(p, attackerX, PLAYER_ARCADE_CONTROL ? PLAYER_ARCADE_HIT_BARS : 1, down);
 }
 
 // Golpe que resta VARIAS barras (p.ej. el láser del robot = 4).

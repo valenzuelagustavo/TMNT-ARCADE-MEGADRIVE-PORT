@@ -446,6 +446,13 @@ typedef enum {
 // resto de las animaciones, y los 4-6 cuadros de la reaccion duraban ~50 frames:
 // se sentia lenta. Con 6 dura ~35. NO afecta al derribo ni a las otras animaciones.
 #define PLAYER_HURT_ANIM_TICKS     6
+// (02/11) Golpes de foot soldier cuerpo a cuerpo: los primeros dos son
+// LIVIANOS (reaccion HIT_1/HIT_2, sin derribo) y el TERCERO seguido te tumba.
+// "Seguido" = cada golpe llega a menos de PLAYER_MELEE_COMBO_FRAMES del anterior
+// (120 = ~2 s en NTSC). La patada voladora te tumba de una (ver
+// enemyDamagePlayer, enemy.c). Cualquier derribo reinicia la cuenta.
+#define PLAYER_MELEE_HITS_TO_KD    3
+#define PLAYER_MELEE_COMBO_FRAMES  120
 #define PLAYER_HURT_KNOCK_FRAMES 10  // Frames de knockback (deslizamiento)
 #define PLAYER_HURT_KNOCK_SPEED   2  // px/frame del knockback (10x2 = 20px)
 
@@ -625,6 +632,8 @@ typedef struct {
     u8          kdSlideTick;    // Frames hasta el próximo -1 de kdSlide
     u8          blinkTimer;     // Frames restantes de PARPADEO (solo al revivir, no al ser golpeado)
     bool        gameOver;       // TRUE cuando cae sin vidas restantes (lo lee scenes.c)
+    u8          meleeHits;      // (02/11) golpes seguidos de foot soldier (ver PLAYER_MELEE_*)
+    u8          meleeTimer;     // (02/11) frames que le quedan a esa cuenta
     bool        outCarried;     // (01/10) Arranco el nivel FUERA de juego: habia
                                 // quedado afuera en el nivel anterior (sin vidas
                                 // y sin continuar). Ver playerPersistSave.
@@ -866,6 +875,7 @@ bool playerCanBeHitAir(const Player* p);
 // 'attackerX' = centro X del atacante en coordenadas de MUNDO.
 void damagePlayer(Player* p, s16 attackerX);
 void damagePlayerAir(Player* p, s16 attackerX);   // (15/10) tambien en el aire
+void damagePlayerMelee(Player* p, s16 attackerX);  // (02/11) golpe de foot soldier cuerpo a cuerpo: liviano, el 3ro seguido derriba
 void damagePlayerLight(Player* p, s16 attackerX);  // (01/11) idem damagePlayer pero reaccion liviana (sin derribo): shuriken
 
 // Golpe que resta VARIAS barras de una (p.ej. el láser del robot = 4).
