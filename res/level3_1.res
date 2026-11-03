@@ -74,3 +74,8 @@ SPRITE  sewer_rat "images/lvl_3_sewer/sewer_rat.png" 4 2 FAST 0
 // agua violeta; sin los indices 1 y 14 del ciclo del agua). tools/gen_sewer_gator.py pal0.
 // time 0: los cuadros van a mano.
 SPRITE  sewer_gator "images/lvl_3_sewer/sewer_gator_pal0.png" 16 4 FAST 0
+
+// (03/11) Los POSTES con pinchos de la trampa (level3_1.c, swPoleUpdate): 1 cuadro de 16x176
+// (2x22 tiles). PAL0 (la del fondo; sin los indices 1 y 14 del agua). Los 6 postes comparten
+// los mismos tiles. tools/gen_sewer_poles.py. time 0.
+SPRITE  sewer_pole "images/lvl_3_sewer/sewer_pole_pal0.png" 2 22 FAST 0

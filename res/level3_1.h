@@ -20,5 +20,6 @@ extern const SpriteDefinition sewer_hole_2;
 extern const SpriteDefinition sewer_hole_3;
 extern const SpriteDefinition sewer_rat;
 extern const SpriteDefinition sewer_gator;
+extern const SpriteDefinition sewer_pole;
 
 #endif // _RES_LEVEL3_1_H_

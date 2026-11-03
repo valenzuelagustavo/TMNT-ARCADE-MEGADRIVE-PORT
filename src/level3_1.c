@@ -400,6 +400,127 @@ static void swGatorUpdate(Player** pls, u8 nPl, s16 camX) {
 }
 
 // ---------------------------------------------------------------------------
+// LOS POSTES CON PINCHOS (03/11): la pared de 6 postes del arcade que SUBE Y BAJA
+// (sewer_pole, 16x176, PAL0; tools/gen_sewer_poles.py). Cuelgan del techo y estan
+// escalonados en diagonal: de izquierda a derecha cada punta cae ~10 px mas abajo,
+// asi cubren varios carriles. Posicion medida sobre la captura del arcade (el
+// fondo del puerto es el mismo): centros X de mundo 746..805, puntas en las filas
+// de fondo 134..185 (mundo Y = fila - 32), justo sobre las rejas / el desague.
+//   ARRIBA (esperando, fuera de pantalla) -> CAE (rapido, con gravedad) -> ABAJO
+//   (clavados) -> SUBE (lento) -> ARRIBA...
+// Al CAER pegan a las tortugas que estan bajo una punta (golpe duro: playerHitBarsKnockdown,
+// SW_POLE_BARS barras y las tira), una vez por caida y por tortuga; al tocar el piso suena
+// la bola de hierro (iron_ball_sfx). No tocan a los enemigos.
+// VRAM: un solo juego de tiles (44) para los 6: el poste 0 (el de mas a la izquierda, el
+// primero que entra en pantalla) tiene los tiles y esta SIEMPRE visible (asi SGDK los sube
+// apenas se crea); los otros 5 apuntan a sus tiles (mismo truco que fw_valla, level5_1.c).
+// Existen solo mientras la camara los tiene cerca.
+// ---------------------------------------------------------------------------
+#define SW_POLE_N          6
+#define SW_POLE_H        176        // alto del sprite (la punta es la ultima fila)
+#define SW_POLE_HALF       8
+#define SW_POLE_UP_OFF   192        // cuanto sube para quedar fuera de pantalla
+#define SW_POLE_CAM0     410        // la camara los crea desde aca (x de pantalla del primero = 328)
+#define SW_POLE_CAM1     830        // y los suelta pasando esto (el ultimo ya salio por la izquierda)
+#define SW_POLE_UP_T     110        // frames arriba, esperando
+#define SW_POLE_GRAV       2        // px/f^2 de la caida (192 px en ~14 frames)
+#define SW_POLE_DOWN_T    70        // frames clavados en el piso
+#define SW_POLE_RISE       3        // px/frame al subir (~64 frames)
+#define SW_POLE_HIT_OFF   40        // pega cuando le faltan menos de esto para llegar al piso...
+#define SW_POLE_HIT_T      8        // ...y hasta estos frames despues de clavarse
+#define SW_POLE_HIT_DX    14        // |dx| centro de la tortuga a eje del poste
+#define SW_POLE_HIT_DY    10        // |dy| de carril (pies) a la punta
+#define SW_POLE_BARS       3        // barras que saca (golpe duro, derriba)
+#define SW_POLE_SFX_PRIO  15
+static const s16 swPoleX[SW_POLE_N] = { 746, 757, 769, 780, 791, 805 };   // centro (mundo)
+static const s16 swPoleB[SW_POLE_N] = { 102, 112, 122, 131, 141, 153 };   // Y de mundo de la punta
+enum { POLE_UP, POLE_FALL, POLE_DOWN, POLE_RISE };
+static Sprite* swPole[SW_POLE_N];
+static struct { u8 st, hitMask; s16 off, vy; u16 t; } swPoleS;
+
+static void swPoleRelease(void) {
+    for (u16 k = SW_POLE_N; k-- > 0; )      // primero los que apuntan, al final el dueño de los tiles
+        if (swPole[k]) { SPR_releaseSprite(swPole[k]); swPole[k] = NULL; }
+}
+
+static void swPoleUpdate(Player** pls, u8 nPl, s16 camX) {
+    if (camX < SW_POLE_CAM0 || camX > SW_POLE_CAM1) {
+        if (swPole[0]) { swPoleRelease(); }
+        return;
+    }
+    if (!swPole[0]) {
+        if (swBoss || !sprVramFits(sewer_pole.maxNumTile)) return;
+        Sprite* s = SPR_addSprite(&sewer_pole, -16, -16, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        if (!s) return;
+        SPR_setAutoAnimation(s, FALSE);
+        SPR_setVisibility(s, VISIBLE);              // siempre: sube los tiles ya
+        swPole[0] = s;
+        swPoleS.st = POLE_UP; swPoleS.off = SW_POLE_UP_OFF; swPoleS.vy = 0; swPoleS.t = 0; swPoleS.hitMask = 0;
+    }
+    u16 idx = swPole[0]->attribut & TILE_INDEX_MASK;
+    for (u16 k = 1; k < SW_POLE_N; k++) {
+        if (!swPole[k]) {
+            swPole[k] = SPR_addSpriteEx(&sewer_pole, -16, -16, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, idx),
+                                        SPR_FLAG_AUTO_VISIBILITY);
+            if (swPole[k]) SPR_setAutoAnimation(swPole[k], FALSE);
+        } else if ((swPole[k]->attribut & TILE_INDEX_MASK) != idx) {
+            SPR_setVRAMTileIndex(swPole[k], idx);    // SPR_defragVRAM mudo al dueño
+        }
+    }
+
+    // --- Ciclo ---
+    bool landed = FALSE;
+    switch (swPoleS.st) {
+    case POLE_UP:
+        swPoleS.off = SW_POLE_UP_OFF;
+        if (++swPoleS.t >= SW_POLE_UP_T) { swPoleS.st = POLE_FALL; swPoleS.vy = 0; swPoleS.hitMask = 0; }
+        break;
+    case POLE_FALL:
+        swPoleS.vy = (s16)(swPoleS.vy + SW_POLE_GRAV);
+        swPoleS.off = (s16)(swPoleS.off - swPoleS.vy);
+        if (swPoleS.off <= 0) { swPoleS.off = 0; swPoleS.st = POLE_DOWN; swPoleS.t = 0; landed = TRUE; }
+        break;
+    case POLE_DOWN:
+        if (++swPoleS.t >= SW_POLE_DOWN_T) swPoleS.st = POLE_RISE;
+        break;
+    default:    // POLE_RISE
+        swPoleS.off = (s16)(swPoleS.off + SW_POLE_RISE);
+        if (swPoleS.off >= SW_POLE_UP_OFF) { swPoleS.off = SW_POLE_UP_OFF; swPoleS.st = POLE_UP; swPoleS.t = 0; }
+        break;
+    }
+    if (landed) XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, SW_POLE_SFX_PRIO, TRUE, FALSE);
+
+    // --- Posiciones ---
+    for (u16 k = 0; k < SW_POLE_N; k++) {
+        if (!swPole[k]) continue;
+        SPR_setPosition(swPole[k], (s16)(swPoleX[k] - SW_POLE_HALF - camX),
+                        (s16)(swPoleB[k] - SW_POLE_H - swPoleS.off - stageCamY));
+        SPR_setDepth(swPole[k], (s16)-swPoleB[k]);
+    }
+
+    // --- Golpe: solo mientras caen cerca del piso y un instante despues de clavarse ---
+    bool live = (swPoleS.st == POLE_FALL && swPoleS.off <= SW_POLE_HIT_OFF) ||
+                (swPoleS.st == POLE_DOWN && swPoleS.t <= SW_POLE_HIT_T);
+    if (!live) return;
+    for (u8 i = 0; i < nPl; i++) {
+        if (swPoleS.hitMask & (1 << i)) continue;
+        Player* p = pls[i];
+        if (!playerCanBeHit(p)) continue;
+        s16 fy  = getPlayerY(p);
+        s16 pcx = getPlayerHurtCX(p);
+        for (u16 k = 0; k < SW_POLE_N; k++) {
+            s16 dx = (s16)(pcx - swPoleX[k]);  if (dx < 0) dx = (s16)-dx;
+            s16 dy = (s16)(fy - swPoleB[k]);   if (dy < 0) dy = (s16)-dy;
+            if (dx > SW_POLE_HIT_DX || dy > SW_POLE_HIT_DY) continue;
+            XGM2_playPCMEx(hit_turtles, sizeof(hit_turtles), SOUND_PCM_CH2, 12, TRUE, FALSE);
+            playerHitBarsKnockdown(p, swPoleX[k], SW_POLE_BARS);
+            swPoleS.hitMask |= (u8)(1 << i);
+            break;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // LA PARED SE RAJA (13/10): como en el arcade, los huecos con Mousers estan
 // SANOS hasta que llegan. El fondo ya los trae rotos, asi que se tapan con un
 // sprite de pared (PAL0, prioridad baja: los caños del primer plano quedan
@@ -522,6 +643,8 @@ static void swInit(void) {
     }
     for (u16 i = 0; i < SW_RAT_N; i++) { swRat[i].spr = NULL; swRat[i].st = RAT_WAIT; }
     swGator.spr = NULL; swGatorNext = 0; swGatorWait = 0;      // (01/11) caiman
+    for (u16 k = 0; k < SW_POLE_N; k++) swPole[k] = NULL;      // (03/11) postes
+    swPoleS.st = POLE_UP; swPoleS.off = SW_POLE_UP_OFF; swPoleS.vy = 0; swPoleS.t = 0; swPoleS.hitMask = 0;
 }
 
 static void swRelease(void) {
@@ -533,6 +656,7 @@ static void swRelease(void) {
     baxterRatReleaseAll();
     for (u16 i = 0; i < SW_RAT_N; i++) swRatRelease(i);
     swGatorRelease();
+    swPoleRelease();
     for (u16 k = 0; k < SW_PATCH_N; k++)
         if (swPatch[k].spr) { SPR_releaseSprite(swPatch[k].spr); swPatch[k].spr = NULL; }
 }
@@ -601,6 +725,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
     swPatchesUpdate(camX);
     swRatsUpdate(camX);         // (18/10) decorativas
     swGatorUpdate(pls, nPl, camX);   // (01/11) el caiman del canal
+    swPoleUpdate(pls, nPl, camX);    // (03/11) la pared de postes
 
     // (13/10) Mousers de los huecos (con Baxter los mueve bossUpdate31).
     if (!swBoss) {
