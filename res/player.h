@@ -524,12 +524,14 @@ extern u8 vidasIniciales;
 // playerRemapJoy() traduce el mando fisico a ese esquema segun controlTipo.
 //   TYPE A: A.SPECIAL B.ATTACK C.JUMP   (el de siempre)
 //   TYPE B: A.ATTACK  B.JUMP   C.SPECIAL
-//   TYPE C: A.JUMP    B.ATTACK C.SPECIAL
-// La combinacion golpe+salto sigue dando el especial en los tres.
+//   TYPE C: A.JUMP    B.ATTACK C.SPECIAL   (02/11: el que viene por defecto)
+//   TYPE D: A.SPECIAL B.JUMP   C.ATTACK    (02/11)
+// La combinacion golpe+salto sigue dando el especial en los cuatro.
 #define CONTROL_TIPO_A   0
 #define CONTROL_TIPO_B   1
 #define CONTROL_TIPO_C   2
-#define CONTROL_TIPOS    3
+#define CONTROL_TIPO_D   3
+#define CONTROL_TIPOS    4
 extern u8 controlTipo;
 u16 playerRemapJoy(u16 raw);
 

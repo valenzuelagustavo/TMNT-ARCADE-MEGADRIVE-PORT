@@ -2149,7 +2149,7 @@ SceneId showPlayerSelect() {
 //   GAME LEVEL    NORMAL / ARCADE        -> dificultad      (player.c)
 //   PLAYER REST   01..09                 -> vidasIniciales  (player.c)
 //   CONTINUE      00..09                 -> continuesIniciales
-//   CONTROL PAD   TYPE A / B / C         -> controlTipo     (player.c)
+//   CONTROL PAD   TYPE A / B / C / D     -> controlTipo     (player.c)
 //                 A.xxx / B.xxx / C.xxx     (que hace cada boton, solo texto)
 //   SOUND TEST    BGM01..BGMnn           -> A o C = play/stop
 //   EXIT          START (o B en cualquier fila) vuelve a players
@@ -2228,7 +2228,8 @@ typedef char soundNumsCheck[(sizeof(soundNums) == sizeof(soundTracks) / sizeof(s
 static const char* const optPadText[CONTROL_TIPOS][3] = {
     { "A.SPECIAL", "B.ATTACK",  "C.JUMP"    },   // TYPE A (el de siempre)
     { "A.ATTACK",  "B.JUMP",    "C.SPECIAL" },   // TYPE B
-    { "A.JUMP",    "B.ATTACK",  "C.SPECIAL" },   // TYPE C
+    { "A.JUMP",    "B.ATTACK",  "C.SPECIAL" },   // TYPE C (el de por defecto)
+    { "A.SPECIAL", "B.JUMP",    "C.ATTACK"  },   // TYPE D (02/11)
 };
 
 static void optDrawValue(u8 row, const char* text) {

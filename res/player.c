@@ -32,7 +32,8 @@ s16 stageCamY = 0;   // ver player.h
 u8 vidasIniciales = PLAYER_START_LIVES;
 
 // (10/10) Opciones: esquema de botones y dificultad (ver player.h).
-u8 controlTipo = CONTROL_TIPO_A;
+// (02/11) Por defecto TYPE C: A salto, B golpe, C especial.
+u8 controlTipo = CONTROL_TIPO_C;
 u8 dificultad  = DIFICULTAD_NORMAL;
 
 u16 playerRemapJoy(u16 raw) {
@@ -41,6 +42,7 @@ u16 playerRemapJoy(u16 raw) {
         { BUTTON_A, BUTTON_B, BUTTON_C },   // TYPE A: identidad
         { BUTTON_B, BUTTON_C, BUTTON_A },   // TYPE B: A golpe, B salto, C especial
         { BUTTON_C, BUTTON_B, BUTTON_A },   // TYPE C: A salto, B golpe, C especial
+        { BUTTON_A, BUTTON_C, BUTTON_B },   // TYPE D: A especial, B salto, C golpe (02/11)
     };
     if (controlTipo == CONTROL_TIPO_A || controlTipo >= CONTROL_TIPOS) return raw;
     u16 out = raw & (u16)~(BUTTON_A | BUTTON_B | BUTTON_C);
