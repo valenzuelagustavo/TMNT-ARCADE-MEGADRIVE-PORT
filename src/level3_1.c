@@ -35,6 +35,7 @@
 #include "stage_level.h"
 #include "enemy.h"             // ENEMY_TYPE_*
 #include "baxter.h"
+#include "props_2_1.h"        // (03/11) pizza_time_bubble
 #include "boss_vo.h"           // (01/10)
 #include "audio.h"
 #include "player.h"
@@ -401,16 +402,24 @@ static void swGatorUpdate(Player** pls, u8 nPl, s16 camX) {
 
 // ---------------------------------------------------------------------------
 // LOS POSTES CON PINCHOS (03/11): la pared de 6 postes del arcade que SUBE Y BAJA
-// (sewer_pole, 16x176, PAL0; tools/gen_sewer_poles.py). Cuelgan del techo y estan
-// escalonados en diagonal: de izquierda a derecha cada punta cae ~10 px mas abajo,
-// asi cubren varios carriles. Posicion medida sobre la captura del arcade (el
-// fondo del puerto es el mismo): centros X de mundo 746..805, puntas en las filas
-// de fondo 134..185 (mundo Y = fila - 32), justo sobre las rejas / el desague.
-//   ARRIBA (esperando, fuera de pantalla) -> CAE (rapido, con gravedad) -> ABAJO
-//   (clavados) -> SUBE (lento) -> ARRIBA...
+// (sewer_pole, 16x176, PAL3 = la del foot blanco: es la unica con blancos;
+// tools/gen_sewer_poles.py). Cuelgan del techo y estan escalonados en diagonal:
+// de izquierda a derecha cada punta cae ~10 px mas abajo, asi cubren varios
+// carriles. Posicion medida sobre la captura del arcade (el fondo del puerto es el
+// mismo): centros X de mundo 746..805, puntas en las filas de fondo 134..185
+// (mundo Y = fila - 32), sobre el desague redondo.
+//   ARRIBA (esperando) -> CAE (rapido, con gravedad) -> ABAJO (clavados, PARED) -> SUBE (lento)
+// "Arriba" NO es fuera de pantalla: sube hasta que la punta del poste mas corto (el de la
+// izquierda) toca el borde de arriba de la camara; los otros asoman por debajo.
 // Al CAER pegan a las tortugas que estan bajo una punta (golpe duro: playerHitBarsKnockdown,
 // SW_POLE_BARS barras y las tira), una vez por caida y por tortuga; al tocar el piso suena
 // la bola de hierro (iron_ball_sfx). No tocan a los enemigos.
+// PARED: mientras estan ABAJO, nadie (tortugas ni soldiers) los atraviesa. Se hace con el
+// tope caminable por columna (stage_level.c, clampWalk): cada columna de 8 px bajo un poste
+// pasa a tener de tope la Y de la punta de ese poste (+3): no se puede pisar "detras" de la
+// punta. Es una escalera igual a la de las puntas; el ultimo poste cierra hasta el borde de
+// la vereda (SW_POLE_WALL_LAST), asi no hay hueco por abajo (queda el canal, mas abajo).
+// swWalkTop es una copia modificable de lvl31WalkTop (se arma en showScene31).
 // VRAM: un solo juego de tiles (44) para los 6: el poste 0 (el de mas a la izquierda, el
 // primero que entra en pantalla) tiene los tiles y esta SIEMPRE visible (asi SGDK los sube
 // apenas se crea); los otros 5 apuntan a sus tiles (mismo truco que fw_valla, level5_1.c).
@@ -419,26 +428,56 @@ static void swGatorUpdate(Player** pls, u8 nPl, s16 camX) {
 #define SW_POLE_N          6
 #define SW_POLE_H        176        // alto del sprite (la punta es la ultima fila)
 #define SW_POLE_HALF       8
-#define SW_POLE_UP_OFF   192        // cuanto sube para quedar fuera de pantalla
 #define SW_POLE_CAM0     410        // la camara los crea desde aca (x de pantalla del primero = 328)
 #define SW_POLE_CAM1     830        // y los suelta pasando esto (el ultimo ya salio por la izquierda)
 #define SW_POLE_UP_T     110        // frames arriba, esperando
-#define SW_POLE_GRAV       2        // px/f^2 de la caida (192 px en ~14 frames)
+#define SW_POLE_GRAV_Q     5        // cuartos de px/f^2 de la caida (~14 frames desde arriba)
 #define SW_POLE_DOWN_T    70        // frames clavados en el piso
-#define SW_POLE_RISE       3        // px/frame al subir (~64 frames)
+#define SW_POLE_RISE_Q    12        // cuartos de px/frame al subir (3 px/f)
 #define SW_POLE_HIT_OFF   40        // pega cuando le faltan menos de esto para llegar al piso...
 #define SW_POLE_HIT_T      8        // ...y hasta estos frames despues de clavarse
 #define SW_POLE_HIT_DX    14        // |dx| centro de la tortuga a eje del poste
 #define SW_POLE_HIT_DY    10        // |dy| de carril (pies) a la punta
 #define SW_POLE_BARS       3        // barras que saca (golpe duro, derriba)
 #define SW_POLE_SFX_PRIO  15
+#define SW_POLE_WALL_DY    3        // el tope de la columna: punta + esto
+#define SW_POLE_WALL_LAST (LVL31_LEDGE_TOP + 1)   // el ultimo poste cierra toda la vereda
 static const s16 swPoleX[SW_POLE_N] = { 746, 757, 769, 780, 791, 805 };   // centro (mundo)
 static const s16 swPoleB[SW_POLE_N] = { 102, 112, 122, 131, 141, 153 };   // Y de mundo de la punta
 enum { POLE_UP, POLE_FALL, POLE_DOWN, POLE_RISE };
 static Sprite* swPole[SW_POLE_N];
-static struct { u8 st, hitMask; s16 off, vy; u16 t; } swPoleS;
+static struct { u8 st, hitMask; s16 offq, vq; u16 t; } swPoleS;    // offq: cuanto subio, en cuartos de px
+static u8   swWalkTop[LVL31_COLS];          // tope caminable del nivel (copia de lvl31WalkTop + la pared)
+static bool swPoleWallOn;
+
+// Cuanto sube (cuartos de px): hasta que la punta del poste mas corto toca el borde de arriba.
+static s16 swPoleUpQ(void) {
+    s16 u = (s16)(swPoleB[0] - stageCamY);
+    return (s16)((u > 0 ? u : 0) << 2);
+}
+
+// Pared de los postes: las columnas bajo ellos suben su tope (on) o vuelven al original.
+static void swPoleWall(bool on) {
+    if (on == swPoleWallOn) return;
+    swPoleWallOn = on;
+    s16 c0 = (s16)((swPoleX[0] - SW_POLE_HALF) >> 3);
+    s16 c1 = (s16)((swPoleX[SW_POLE_N - 1] + SW_POLE_HALF) >> 3);
+    for (s16 c = c0; c <= c1 && c < LVL31_COLS; c++) {
+        u8 base = lvl31WalkTop[c];
+        if (!on) { swWalkTop[c] = base; continue; }
+        s16 cx = (s16)((c << 3) + 4);
+        u16 m = 0; s16 best = 32000;
+        for (u16 k = 0; k < SW_POLE_N; k++) {       // el poste mas cercano a la columna
+            s16 d = (s16)(cx - swPoleX[k]); if (d < 0) d = (s16)-d;
+            if (d < best) { best = d; m = k; }
+        }
+        s16 t = (m == SW_POLE_N - 1) ? (s16)SW_POLE_WALL_LAST : (s16)(swPoleB[m] + SW_POLE_WALL_DY);
+        swWalkTop[c] = (u8)(t > base ? t : base);
+    }
+}
 
 static void swPoleRelease(void) {
+    swPoleWall(FALSE);
     for (u16 k = SW_POLE_N; k-- > 0; )      // primero los que apuntan, al final el dueño de los tiles
         if (swPole[k]) { SPR_releaseSprite(swPole[k]); swPole[k] = NULL; }
 }
@@ -450,17 +489,19 @@ static void swPoleUpdate(Player** pls, u8 nPl, s16 camX) {
     }
     if (!swPole[0]) {
         if (swBoss || !sprVramFits(sewer_pole.maxNumTile)) return;
-        Sprite* s = SPR_addSprite(&sewer_pole, -16, -16, TILE_ATTR(PAL0, FALSE, FALSE, FALSE));
+        Sprite* s = SPR_addSprite(&sewer_pole, -16, -16, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
         if (!s) return;
         SPR_setAutoAnimation(s, FALSE);
         SPR_setVisibility(s, VISIBLE);              // siempre: sube los tiles ya
+        // PAL3 = foot blanco (como el salpicon de stage_level.c): sin Baxter en pantalla es suya.
+        PAL_setPalette(PAL3, foot_soldier_white.palette->data, DMA_QUEUE);
         swPole[0] = s;
-        swPoleS.st = POLE_UP; swPoleS.off = SW_POLE_UP_OFF; swPoleS.vy = 0; swPoleS.t = 0; swPoleS.hitMask = 0;
+        swPoleS.st = POLE_UP; swPoleS.offq = swPoleUpQ(); swPoleS.vq = 0; swPoleS.t = 0; swPoleS.hitMask = 0;
     }
     u16 idx = swPole[0]->attribut & TILE_INDEX_MASK;
     for (u16 k = 1; k < SW_POLE_N; k++) {
         if (!swPole[k]) {
-            swPole[k] = SPR_addSpriteEx(&sewer_pole, -16, -16, TILE_ATTR_FULL(PAL0, FALSE, FALSE, FALSE, idx),
+            swPole[k] = SPR_addSpriteEx(&sewer_pole, -16, -16, TILE_ATTR_FULL(PAL3, FALSE, FALSE, FALSE, idx),
                                         SPR_FLAG_AUTO_VISIBILITY);
             if (swPole[k]) SPR_setAutoAnimation(swPole[k], FALSE);
         } else if ((swPole[k]->attribut & TILE_INDEX_MASK) != idx) {
@@ -472,34 +513,40 @@ static void swPoleUpdate(Player** pls, u8 nPl, s16 camX) {
     bool landed = FALSE;
     switch (swPoleS.st) {
     case POLE_UP:
-        swPoleS.off = SW_POLE_UP_OFF;
-        if (++swPoleS.t >= SW_POLE_UP_T) { swPoleS.st = POLE_FALL; swPoleS.vy = 0; swPoleS.hitMask = 0; }
+        swPoleS.offq = swPoleUpQ();                  // sigue al borde de arriba de la camara
+        if (++swPoleS.t >= SW_POLE_UP_T) { swPoleS.st = POLE_FALL; swPoleS.vq = 0; swPoleS.hitMask = 0; }
         break;
     case POLE_FALL:
-        swPoleS.vy = (s16)(swPoleS.vy + SW_POLE_GRAV);
-        swPoleS.off = (s16)(swPoleS.off - swPoleS.vy);
-        if (swPoleS.off <= 0) { swPoleS.off = 0; swPoleS.st = POLE_DOWN; swPoleS.t = 0; landed = TRUE; }
+        swPoleS.vq = (s16)(swPoleS.vq + SW_POLE_GRAV_Q);
+        swPoleS.offq = (s16)(swPoleS.offq - swPoleS.vq);
+        if (swPoleS.offq <= 0) { swPoleS.offq = 0; swPoleS.st = POLE_DOWN; swPoleS.t = 0; landed = TRUE; }
         break;
     case POLE_DOWN:
-        if (++swPoleS.t >= SW_POLE_DOWN_T) swPoleS.st = POLE_RISE;
+        if (++swPoleS.t >= SW_POLE_DOWN_T) { swPoleS.st = POLE_RISE; swPoleWall(FALSE); }
         break;
-    default:    // POLE_RISE
-        swPoleS.off = (s16)(swPoleS.off + SW_POLE_RISE);
-        if (swPoleS.off >= SW_POLE_UP_OFF) { swPoleS.off = SW_POLE_UP_OFF; swPoleS.st = POLE_UP; swPoleS.t = 0; }
+    default: {  // POLE_RISE
+        s16 up = swPoleUpQ();
+        swPoleS.offq = (s16)(swPoleS.offq + SW_POLE_RISE_Q);
+        if (swPoleS.offq >= up) { swPoleS.offq = up; swPoleS.st = POLE_UP; swPoleS.t = 0; }
         break;
     }
-    if (landed) XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, SW_POLE_SFX_PRIO, TRUE, FALSE);
+    }
+    if (landed) {
+        swPoleWall(TRUE);                            // clavados: pared
+        XGM2_playPCMEx(iron_ball_sfx, sizeof(iron_ball_sfx), SOUND_PCM_CH3, SW_POLE_SFX_PRIO, TRUE, FALSE);
+    }
 
     // --- Posiciones ---
+    s16 off = (s16)(swPoleS.offq >> 2);
     for (u16 k = 0; k < SW_POLE_N; k++) {
         if (!swPole[k]) continue;
         SPR_setPosition(swPole[k], (s16)(swPoleX[k] - SW_POLE_HALF - camX),
-                        (s16)(swPoleB[k] - SW_POLE_H - swPoleS.off - stageCamY));
+                        (s16)(swPoleB[k] - SW_POLE_H - off - stageCamY));
         SPR_setDepth(swPole[k], (s16)-swPoleB[k]);
     }
 
     // --- Golpe: solo mientras caen cerca del piso y un instante despues de clavarse ---
-    bool live = (swPoleS.st == POLE_FALL && swPoleS.off <= SW_POLE_HIT_OFF) ||
+    bool live = (swPoleS.st == POLE_FALL && off <= SW_POLE_HIT_OFF) ||
                 (swPoleS.st == POLE_DOWN && swPoleS.t <= SW_POLE_HIT_T);
     if (!live) return;
     for (u8 i = 0; i < nPl; i++) {
@@ -518,6 +565,88 @@ static void swPoleUpdate(Player** pls, u8 nPl, s16 camX) {
             break;
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// LA PIZZA despues de los postes (03/11): una caja tirada en el piso (sewer_pizza, 4 cuadros
+// de 40x48: cerrada, abriendo, abierta, con "ENERGY"; PAL3, tools/gen_sewer_pizza.py). Mismo
+// molde que la del 5-1 (level5_1.c): el globo "Pizza time!" (pizza_time_bubble, PAL1) y su voz
+// salen cuando la camara deja la caja a ~240 px del borde izquierdo; la tortuga que la toca
+// recupera toda la vida y suena get_pizza_sfx. Queda justo pasando el ultimo poste (x 813).
+// ---------------------------------------------------------------------------
+#define SW_PZ_X          836        // borde izquierdo de la celda (mundo)
+#define SW_PZ_FEET       140        // pies (carril) de la caja
+#define SW_PZ_FEET_DY     46
+#define SW_PZ_BOX_X0       4
+#define SW_PZ_BOX_X1      35
+#define SW_PZ_PICK_DX     14
+#define SW_PZ_PICK_DY     14
+#define SW_PZ_OPEN_T       8
+#define SW_PZ_SHOW_T      68
+#define SW_PZ_BUB_CAM   (SW_PZ_X - 240)
+#define SW_PZ_BUB_DX    (-56)
+#define SW_PZ_BUB_DY    (-10)
+#define SW_PZ_BUB_T       64
+enum { SWPZ_WAIT = 0, SWPZ_OPEN, SWPZ_DONE };
+static u8 swPzSt; static u16 swPzT; static Sprite* swPzSpr;
+static u8 swPzBubSt; static u16 swPzBubT; static Sprite* swPzBub;
+
+static void swPizzaRelease(void) {
+    if (swPzSpr) SPR_releaseSprite(swPzSpr);
+    if (swPzBub) SPR_releaseSprite(swPzBub);
+    swPzSpr = swPzBub = NULL;
+}
+
+static void swPizzaUpdate(Player** pls, u8 nPl, s16 camX) {
+    if (swPzSt == SWPZ_DONE) return;
+    s16 sx = (s16)(SW_PZ_X - camX);
+    bool near = (bool)(sx > -48 && sx < SCREEN_W + 8);
+    if (!near) {
+        if (swPzSpr) { SPR_releaseSprite(swPzSpr); swPzSpr = NULL; }
+        if (swPzSt == SWPZ_OPEN) { swPizzaRelease(); swPzSt = SWPZ_DONE; }
+        return;
+    }
+    if (!swPzSpr) {
+        if (!sprVramFits(sewer_pizza.maxNumTile)) return;
+        swPzSpr = SPR_addSprite(&sewer_pizza, -128, -128, TILE_ATTR(PAL3, FALSE, FALSE, FALSE));
+        if (!swPzSpr) return;
+        SPR_setAutoAnimation(swPzSpr, FALSE);
+    }
+    if (swPzSt == SWPZ_WAIT) {
+        if (swPzBubSt == 0 && camX >= SW_PZ_BUB_CAM && sprVramFits(pizza_time_bubble.maxNumTile)) {
+            swPzBub = SPR_addSprite(&pizza_time_bubble, -128, -128, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+            if (swPzBub) {
+                SPR_setDepth(swPzBub, SPR_MIN_DEPTH);
+                XGM2_playPCMEx(pizza_time_vo, sizeof(pizza_time_vo), SOUND_PCM_CH2, 15, TRUE, FALSE);
+                swPzBubSt = 1; swPzBubT = 0;
+            }
+        }
+        for (u8 k = 0; k < nPl; k++) {
+            Player* p = pls[k];
+            if (isPlayerGameOver(p) || p->state == STATE_KO) continue;
+            s16 fx = (s16)(p->x + PLAYER_SPRITE_W / 2);
+            if (fx < SW_PZ_X + SW_PZ_BOX_X0 - SW_PZ_PICK_DX || fx > SW_PZ_X + SW_PZ_BOX_X1 + SW_PZ_PICK_DX) continue;
+            s16 dy = (s16)(p->y - SW_PZ_FEET); if (dy < 0) dy = (s16)-dy;
+            if (dy > SW_PZ_PICK_DY) continue;
+            p->health = PLAYER_MAX_HEALTH;
+            XGM2_playPCMEx(get_pizza_sfx, sizeof(get_pizza_sfx), SOUND_PCM_CH3, 15, TRUE, FALSE);
+            swPzSt = SWPZ_OPEN; swPzT = 0;
+            break;
+        }
+    } else if (++swPzT >= 2 * SW_PZ_OPEN_T + SW_PZ_SHOW_T) {
+        swPizzaRelease();
+        swPzSt = SWPZ_DONE;
+        return;
+    }
+    if (swPzBubSt == 1) {
+        if (++swPzBubT >= SW_PZ_BUB_T) { SPR_releaseSprite(swPzBub); swPzBub = NULL; swPzBubSt = 2; }
+        else SPR_setPosition(swPzBub, (s16)(sx + SW_PZ_BUB_DX),
+                             (s16)(SW_PZ_FEET - SW_PZ_FEET_DY + SW_PZ_BUB_DY - stageCamY));
+    }
+    s16 f = (swPzSt == SWPZ_OPEN) ? ((swPzT < SW_PZ_OPEN_T) ? 1 : (swPzT < 2 * SW_PZ_OPEN_T) ? 2 : 3) : 0;
+    SPR_setAnimAndFrame(swPzSpr, 0, f);
+    SPR_setPosition(swPzSpr, sx, (s16)(SW_PZ_FEET - SW_PZ_FEET_DY - stageCamY));
+    SPR_setDepth(swPzSpr, (s16)-SW_PZ_FEET);
 }
 
 // ---------------------------------------------------------------------------
@@ -644,7 +773,9 @@ static void swInit(void) {
     for (u16 i = 0; i < SW_RAT_N; i++) { swRat[i].spr = NULL; swRat[i].st = RAT_WAIT; }
     swGator.spr = NULL; swGatorNext = 0; swGatorWait = 0;      // (01/11) caiman
     for (u16 k = 0; k < SW_POLE_N; k++) swPole[k] = NULL;      // (03/11) postes
-    swPoleS.st = POLE_UP; swPoleS.off = SW_POLE_UP_OFF; swPoleS.vy = 0; swPoleS.t = 0; swPoleS.hitMask = 0;
+    swPoleS.st = POLE_UP; swPoleS.offq = 0; swPoleS.vq = 0; swPoleS.t = 0; swPoleS.hitMask = 0;
+    swPoleWallOn = FALSE;
+    swPzSt = SWPZ_WAIT; swPzT = 0; swPzSpr = NULL; swPzBubSt = 0; swPzBubT = 0; swPzBub = NULL;   // la pizza
 }
 
 static void swRelease(void) {
@@ -657,6 +788,7 @@ static void swRelease(void) {
     for (u16 i = 0; i < SW_RAT_N; i++) swRatRelease(i);
     swGatorRelease();
     swPoleRelease();
+    swPizzaRelease();
     for (u16 k = 0; k < SW_PATCH_N; k++)
         if (swPatch[k].spr) { SPR_releaseSprite(swPatch[k].spr); swPatch[k].spr = NULL; }
 }
@@ -726,6 +858,7 @@ static void swUpdate(Player** pls, u8 nPl, s16 camX) {
     swRatsUpdate(camX);         // (18/10) decorativas
     swGatorUpdate(pls, nPl, camX);   // (01/11) el caiman del canal
     swPoleUpdate(pls, nPl, camX);    // (03/11) la pared de postes
+    swPizzaUpdate(pls, nPl, camX);   // (03/11) y la pizza de despues
 
     // (13/10) Mousers de los huecos (con Baxter los mueve bossUpdate31).
     if (!swBoss) {
@@ -986,7 +1119,7 @@ static const StageLevel level31 = {
     .camYMin      = -32,            // (29/09) la camara sube 32 px: se ve el techo
     .bgSlots      = 864,            // >= 861, el peor caso medido (fondo de 32 filas)
     .levelW       = LVL31_W,
-    .walkTop      = lvl31WalkTop,
+    .walkTop      = swWalkTop,      // (03/11) copia de lvl31WalkTop + la pared de postes
     .walkCols     = LVL31_COLS,
     .walkYMin     = LVL31_WALK_MIN, // tope de la vereda (pies)
     .walkYMax     = 216,            // piso del canal
@@ -1014,5 +1147,6 @@ static const StageLevel level31 = {
 };
 
 SceneId showScene31() {
+    for (u16 c = 0; c < LVL31_COLS; c++) swWalkTop[c] = lvl31WalkTop[c];   // (03/11)
     return stageLevelRun(&level31);
 }

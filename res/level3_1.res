@@ -76,6 +76,10 @@ SPRITE  sewer_rat "images/lvl_3_sewer/sewer_rat.png" 4 2 FAST 0
 SPRITE  sewer_gator "images/lvl_3_sewer/sewer_gator_pal0.png" 16 4 FAST 0
 
 // (03/11) Los POSTES con pinchos de la trampa (level3_1.c, swPoleUpdate): 1 cuadro de 16x176
-// (2x22 tiles). PAL0 (la del fondo; sin los indices 1 y 14 del agua). Los 6 postes comparten
-// los mismos tiles. tools/gen_sewer_poles.py. time 0.
-SPRITE  sewer_pole "images/lvl_3_sewer/sewer_pole_pal0.png" 2 22 FAST 0
+// (2x22 tiles). PAL3 (la del foot blanco, la unica con blancos; en PAL0 salian grises azulados).
+// Los 6 postes comparten los mismos tiles. tools/gen_sewer_poles.py. time 0.
+SPRITE  sewer_pole "images/lvl_3_sewer/sewer_pole_pal3.png" 2 22 FAST 0
+
+// (03/11) La caja de PIZZA de despues de los postes: 4 cuadros de 40x48 (cerrada, abriendo, abierta,
+// con "ENERGY"), PAL3. tools/gen_sewer_pizza.py (parte de fw_pizza.png del 5-1).
+SPRITE  sewer_pizza "images/lvl_3_sewer/sewer_pizza_pal3.png" 5 6 FAST 0

@@ -1,20 +1,20 @@
 # -*- coding: utf-8 -*-
 """
-gen_sewer_poles.py (03/11) -- el POSTE con pinchos de la trampa del Sewer, a la paleta del nivel
+gen_sewer_poles.py (03/11) -- el POSTE con pinchos de la trampa del Sewer, a la paleta del foot blanco (PAL3)
 ================================================================================================
 Fuente: res/images/lvl_3_sewer/spiked_pole_start__01583C.png (16x192, RGBA, 4 colores: negro y tres
 grises; las ultimas 16 filas estan vacias: el poste termina en la fila 175 con la punta).
 
 Salida:
-  res/images/lvl_3_sewer/sewer_pole_pal0.png   16x176 indexado con la paleta del escenario (PAL0 =
-                                               bg_sewer_md.png), sin las 16 filas vacias de abajo
-                                               (2x22 tiles). El 0 es transparente.
+  res/images/lvl_3_sewer/sewer_pole_pal3.png   16x176 indexado con la paleta del foot blanco (PAL3 durante
+                                               el nivel: sprites/sewer_mouser.png la trae), sin las 16 filas
+                                               vacias de abajo (2x22 tiles). El 0 es transparente.
   (opcional)  python tools/gen_sewer_poles.py preview  -> _to_delete/_poles_preview.png: los 6 postes
               sobre el fondo, en el lugar del arcade, para compararlo con la captura.
 
-Indices (PAL0 no tiene grises limpios; se evitan 1 y 14, que cicla el agua):
-  gris claro 213 -> 15 (azul claro de los caños)   gris medio 164 -> 5   gris oscuro 106 -> 4
-  negro        0 -> 2  (granate oscuro, el mas oscuro que hay)
+(03/11, 2) Primera version en PAL0 (la del fondo): salia gris azulado, el escenario no tiene blancos.
+La paleta del foot blanco (PAL3) si: 11 blanco (255), 12 plata (192), 13 gris (96), 14 gris oscuro (64), 15 negro.
+  gris claro 213 -> 11   gris medio 164 -> 12   gris oscuro 106 -> 13   negro 0 -> 15
 """
 import os
 import sys
@@ -24,10 +24,11 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 SEW = os.path.join(ROOT, 'res', 'images', 'lvl_3_sewer')
 SRC = os.path.join(SEW, 'spiked_pole_start__01583C.png')
-OUT = os.path.join(SEW, 'sewer_pole_pal0.png')
+OUT = os.path.join(SEW, 'sewer_pole_pal3.png')
+PAL = os.path.join(ROOT, 'res', 'sprites', 'sewer_mouser.png')   # la paleta del foot blanco
 BG = os.path.join(SEW, 'bg_sewer_md.png')
 
-MAP = {213: 15, 164: 5, 106: 4, 0: 2}
+MAP = {213: 11, 164: 12, 106: 13, 0: 15}
 H = 176
 
 # Colocacion de la captura del arcade (ver level3_1.c, SW_POLE_*): centros X de mundo y fila del
@@ -46,7 +47,7 @@ def build():
                 continue
             out[y, x] = MAP[int(r)]
     im = Image.fromarray(out, 'P')
-    pal = Image.open(BG).getpalette()[:768]
+    pal = Image.open(PAL).getpalette()[:768]
     im.putpalette(pal)
     im.save(OUT)
     print('escrito', OUT, im.size)
