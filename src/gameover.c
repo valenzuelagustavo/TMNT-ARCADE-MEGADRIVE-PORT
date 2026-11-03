@@ -21,6 +21,7 @@ static Sprite* cbDig[2];             // [0] decenas (solo si >= 10), [1] unidade
 
 static Sprite* cbAdd(const SpriteDefinition* def, s16 x, s16 y) {
     Sprite* s = SPR_addSprite(def, x, y, TILE_ATTR(PAL1, TRUE, FALSE, FALSE));
+    if (s) SPR_setDepth(s, SPR_MIN_DEPTH);   // (02/11) por encima de TODOS los sprites
     return s;
 }
 
@@ -36,11 +37,16 @@ bool contBigShow(s8 seconds) {
     if (!cbDig[1]) cbDig[1] = cbAdd(&continue_digits, x1, (s16)(top + CB_DIGIT_DY));
     if (!cbLabel || !cbDig[1]) { contBigHide(); return FALSE; }
 
+    // Se reafirma el frente cada segundo: otros sprites (globos, jefes) tambien
+    // pueden haberse puesto en SPR_MIN_DEPTH despues de crearse estos.
+    SPR_setDepth(cbLabel, SPR_MIN_DEPTH);
+    SPR_setDepth(cbDig[1], SPR_MIN_DEPTH);
     SPR_setPosition(cbDig[1], x1, (s16)(top + CB_DIGIT_DY));
     SPR_setFrame(cbDig[1], (s16)(seconds % 10));
     if (two) {
         if (!cbDig[0]) cbDig[0] = cbAdd(&continue_digits, x0, (s16)(top + CB_DIGIT_DY));
         if (!cbDig[0]) { contBigHide(); return FALSE; }
+        SPR_setDepth(cbDig[0], SPR_MIN_DEPTH);
         SPR_setFrame(cbDig[0], (s16)(seconds / 10));
     } else if (cbDig[0]) {
         SPR_releaseSprite(cbDig[0]);
