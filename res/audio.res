@@ -41,6 +41,8 @@ XGM2 music_level2    "music/05 - April's Room.vgm"
 XGM2 music_charselect "music/03 - Choose Your Turtle.vgm"
 XGM2 music_profiles  "music/02 - Character Profiles.vgm"
 XGM2 music_credits   "music/00 - SanSenpai Credit.vgm"
+// (02/11) Jingle del GAME OVER (3,5 s, sin loop): src/gameover.c.
+XGM2 music_gameover  "music/28 - Game Over.vgm"
 XGM2 music_ending    "music/07 - April is Kidnapped.vgm"
 // (12/10) Version con FM6 LIBRE (tools/vgm_free_fm6.py): el original usaba
 // FM6 como canal FM y apagaba el DAC, y con eso la voz de la intro (PCM)

@@ -126,6 +126,7 @@ typedef struct {
     u16 tick;        // Frames hasta el próximo segundo
     u8  sel;         // Selección actual (CONT_SELECTING)
     u16 prevJoy;     // Estado previo del joystick del muerto
+    u8  big;         // (02/11) TRUE: la cuenta se muestra grande en el centro (gameover.c)
 } ContPlayer;
 
 void contResetAll(ContPlayer* conts);

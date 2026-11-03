@@ -13,6 +13,7 @@
 #include "hud.h"     // HUD compartido (marcos, retratos, barra de vida, puntaje)
 #include "pause_menu.h" // pausa con START del control 1 + selector de niveles (26/09)
 #include "boss_vo.h"     // (01/10) voz de entrada de los jefes antes del tema
+#include "gameover.h"    // (02/11) CONTINUE grande y cartel de GAME OVER
 #include "rocksteady.h"  // jefe final del nivel 2 (cápsula del taladro; rocksteady_boss, boss_bullet)
 
 // Compatibilidad entre versiones de SGDK (el macro cambió de nombre)
@@ -427,6 +428,7 @@ void clearSceneEx(bool keepAudio) {
     if (!keepAudio) XGM2_stop();
     SPR_reset();
     hudForgetSprites();   // (27/09) SPR_reset ya los libero: olvidar los punteros
+    contBigForget();      // (02/11) idem el CONTINUE grande
     // Vaciar YA la tabla de sprites del VDP: SPR_reset() limpia el estado
     // interno del motor (y los tiles del region de sprites) pero NO pisa la
     // SAT en VRAM hasta el proximo SPR_update. Sin este flush, los sprites de
@@ -1274,10 +1276,18 @@ void hudPlayerUpdate(HudPlayer* h) {
 // seconds >= 0 dibuja etiqueta + dígito; seconds < 0 solo limpia todo el
 // mensaje (no redibuja la etiqueta: era el bug de las letras fantasma que
 // quedaban al continuar).
+// (02/11) Con UN solo jugador en juego (los demas fuera) el arcade muestra la
+// cuenta grande, en rojo, en el centro de la pantalla (gameover.c: sprites, el
+// plano del nivel no se toca). contSolo lo fija continuePoll antes de dibujar;
+// si no hay VRAM de sprites se cae al texto del HUD.
+static bool contSolo;
+
 static void contDrawText(HudPlayer* h, s8 seconds) {
     (void)h;
     VDP_clearText(CONT_MSG_COL, HUD_SCORE_ROW, CONT_MSG_TOTAL_W);
-    if (seconds < 0) return;
+    if (seconds < 0) { contBigHide(); return; }
+    if (contSolo && contBigShow(seconds)) return;
+    contBigHide();
     VDP_drawText("CONTINUE?", CONT_MSG_COL, HUD_SCORE_ROW);
     char buf[2];
     buf[0] = (char)('0' + seconds);
@@ -1351,8 +1361,10 @@ static u8 contOtherChar(u8 k, u8 nPl) {
 // 'k' es el indice de jugador: hace falta para crear/soltar su retrato, que
 // (17/09) solo existe mientras esta eligiendo tortuga.
 static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSpr,
-                         u8 k, u16 joyId, u8* charSel, u8 otherChar, u16 fps) {
+                         u8 k, u16 joyId, u8* charSel, u8 otherChar, u16 fps,
+                         bool solo) {
     const bool conRetrato = (numJugadores() <= 2);
+    contSolo = solo;          // (02/11) donde se dibuja la cuenta (ver contDrawText)
     // Vivo: nada que hacer (y limpiar si quedó texto de un continue previo).
     if (!isPlayerGameOver(p)) {
         if (c->state != CONT_NONE) {
@@ -1381,6 +1393,7 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
         c->seconds = CONT_START_SECONDS;
         c->tick    = 0;
         c->prevJoy = 0;
+        c->big     = solo;
         contDrawText(h, (s8)c->seconds);
         return FALSE;
     }
@@ -1418,6 +1431,12 @@ static bool continuePoll(ContPlayer* c, Player* p, HudPlayer* h, Sprite* frameSp
             contDrawText(h, -1);
             if (conRetrato) hudPortraitShow(k, c->sel);
             return FALSE;
+        }
+        // (02/11) El companero quedo fuera (o volvio a entrar): la cuenta pasa
+        // del centro al HUD o al reves.
+        if (solo != (bool)c->big) {
+            c->big = solo;
+            contDrawText(h, (s8)c->seconds);
         }
         c->tick++;
         if (c->tick >= fps) {
@@ -1480,8 +1499,9 @@ static void playersSpanX(Player** pls, u8 nPl, s16* lead, s16* trail) {
 }
 
 void contResetAll(ContPlayer* conts) {
+    contBigForget();   // (02/11) puntero viejo si el nivel anterior no limpio
     for (u8 k = 0; k < MAX_PLAYERS; k++) {
-        ContPlayer cz = { CONT_NONE, 0, 0, 0, 0 };
+        ContPlayer cz = { CONT_NONE, 0, 0, 0, 0, 0 };
         conts[k] = cz;
     }
 }
@@ -1490,11 +1510,20 @@ bool continueStepAll(ContPlayer* conts, Player** pls, HudPlayer* huds,
                      u8 nPl, u16 fps) {
     bool allOut = TRUE;
     for (u8 k = 0; k < nPl; k++) {
+        // (02/11) "Solo": ningun otro jugador sigue en la partida (todos los
+        // demas estan fuera). Entonces la cuenta va grande, en el centro.
+        bool solo = TRUE;
+        for (u8 j = 0; j < nPl; j++)
+            if (j != k && conts[j].state != CONT_OUT) solo = FALSE;
         if (!continuePoll(&conts[k], pls[k], &huds[k], contFrameSpr(k), k,
                           playerJoy(k), contCharSel(k),
-                          contOtherChar(k, nPl), fps))
+                          contOtherChar(k, nPl), fps, solo))
             allOut = FALSE;
     }
+    // (02/11) Todos fuera: el nivel termina en GAME OVER. El fundido a negro, el
+    // jingle y el cartel van ahora (gameover.c), con el ultimo cuadro del nivel
+    // todavia en pantalla.
+    if (allOut) gameOverPlayInLevel();
     return allOut;
 }
 
@@ -5787,34 +5816,19 @@ SceneId showEnding() {
 }
 
 // ---------------------------------------------------------------------------
-// 9. Game Over — "GAME OVER" sobre fondo negro, luego reinicia el juego
+// 9. Game Over — cartel con la paleta rotando + jingle (gameover.c), luego las
+//    iniciales y el reinicio. Dentro de un nivel el cartel sale antes, en
+//    continueStepAll; aca solo se muestra el de despues de los creditos.
 // ---------------------------------------------------------------------------
 SceneId showGameOver() {
+    // (02/11) Si el cartel ya salio dentro del nivel (todos fuera: fundido,
+    // jingle y cartel, gameover.c) la pantalla ya esta limpia y en negro: directo
+    // a las iniciales. Si no (despues de los creditos), se muestra aca.
+    if (gameOverTakeShown())
+        return SCENE_HISCORE_ENTRY;
+
     clearScene();
-
-    // Fuente por defecto (blanca). clearScene dejó todas las paletas en negro,
-    // así que ponemos blanco en el índice que usa la fuente default (15).
-    VDP_loadFont(&font_default, DMA);
-    VDP_setTextPlane(BG_A);
-    VDP_setTextPriority(0);
-    VDP_setTextPalette(PAL0);
-    VDP_setBackgroundColor(0);
-    PAL_setColor(15, 0x0EEE);   // blanco
-
-    // "GAME OVER" (9 chars) centrado en las 40 columnas: x = (40-9)/2 ≈ 15
-    VDP_drawText("GAME OVER", 15, 13);
-
-    // Mantener en pantalla ~4 segundos (START adelanta)
-    u16 timer = (IS_PAL_SYSTEM ? 50 : 60) * 4;
-    while (timer > 0) {
-        timer--;
-        if (JOY_readJoypad(JOY_1) & BUTTON_START) break;
-        SYS_doVBlankProcess();
-    }
-    // Esperar a que se suelte START para no saltear la intro siguiente
-    while (JOY_readJoypad(JOY_1) & BUTTON_START)
-        SYS_doVBlankProcess();
-
+    gameOverScreen();
     clearScene();
     // (20/10) Antes de reiniciar: iniciales de los que entran en el top 10 y
     // la tabla "BEST 10 PLAYERS" (hiscore.c).
